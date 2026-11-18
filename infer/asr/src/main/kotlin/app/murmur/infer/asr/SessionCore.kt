@@ -173,7 +173,7 @@ class StreamingProcessor(
 }
 
 /**
- * One dictation's session, independent of Android (the binder/pipe glue is [AsrSessionBinder]). Audio arrives from
+ * One dictation's session, independent of Android (the pipe and binder glue: [PcmPipeReader], [AsrEngineHost]). Audio arrives from
  * the pipe reader thread through [offer]/[endOfAudio] and is queued; everything else runs on the engine thread. The
  * queue holds every sample from the first one on until a model is [attach]ed, so nothing is lost while loading (the
  * :main side also keeps the PCM for crash replay, ADR-024).
@@ -191,13 +191,14 @@ class AsrSessionCore(
         private set
 
     private var processor: SessionProcessor? = null
+    /** The last load failed; cleared when a later load attaches a processor. */
     private var failure: MurmurError? = null
+    /** Decoding failed: final for this session. */
+    private var decodeFailure: MurmurError? = null
     private var finishAtMs = -1L
     private var reply: ((Outcome<Transcript>) -> Unit)? = null
     var closed = false
         private set
-
-    private var decodeFailure: MurmurError? = null
 
     val language: String? get() = options.language
     val emitPartials: Boolean get() = options.emitPartials
@@ -258,6 +259,17 @@ class AsrSessionCore(
         reply = cb
         finishAtMs = atMs
         pump()
+    }
+
+    /**
+     * The engine under this session goes away (unloadAll, or another model replaces the one it decodes with): the
+     * session ends with [e]; a pending finish() is answered with it.
+     */
+    fun abort(e: MurmurError) {
+        if (closed) return
+        emit(AsrEvent.Failure(e))
+        val cb = reply
+        if (cb != null) finishWith(cb, Outcome.Err(e)) else cancel()
     }
 
     fun cancel() {

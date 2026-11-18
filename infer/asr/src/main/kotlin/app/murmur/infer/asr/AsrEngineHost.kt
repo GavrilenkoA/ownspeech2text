@@ -71,6 +71,7 @@ class AsrEngineHost(private val nativeLibraryDir: String) {
         if (batch) {
             val v = vadSpec!!
             if (vad?.spec != v) {
+                if (vad != null) sessions.filter { it.attached }.forEach { it.abort(MurmurError.AsrFailed("model_replaced")); sessions -= it }
                 vad?.close(); vad = null
                 SherpaConfigs.missingRole(v)?.let { return Outcome.Err(MurmurError.EngineLoadFailed(ModelKind.VAD, "missing:$it")) }
                 vad = try {
@@ -83,7 +84,12 @@ class AsrEngineHost(private val nativeLibraryDir: String) {
 
         val current = model
         if (current != null && current.spec == asr) return Outcome.Ok(info(current, qnn))
-        current?.close(); model = null
+        if (current != null) {
+            // sessions decoding with the old recognizer must not touch it after close()
+            sessions.filter { it.attached }.forEach { it.abort(MurmurError.AsrFailed("model_replaced")); sessions -= it }
+            current.close()
+            model = null
+        }
         try {
             SherpaConfigs.missingRole(asr)?.let { return Outcome.Err(MurmurError.EngineLoadFailed(ModelKind.ASR, "missing:$it")) }
             val m = if (batch) SherpaModel.Offline(asr, SherpaConfigs.offline(asr, qnn?.libs))
@@ -107,7 +113,7 @@ class AsrEngineHost(private val nativeLibraryDir: String) {
         LoadInfo(unit = m.unit, loadMs = 0, deviceName = if (qnn != null) "HTP${qnn.htpArch?.let { " v$it" } ?: ""}" else "CPU")
 
     fun unloadAll() {
-        sessions.toList().forEach { it.cancel() }
+        sessions.toList().forEach { it.abort(MurmurError.AsrFailed("unloaded")) }
         sessions.clear()
         model?.close(); model = null
         vad?.close(); vad = null

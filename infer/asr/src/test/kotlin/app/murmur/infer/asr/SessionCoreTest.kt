@@ -162,6 +162,21 @@ class SessionCoreTest {
     }
 
     @Test
+    fun abortAnswersAPendingFinishAndReleasesTheProcessor() {
+        val c = core()
+        val vad = LoudnessVad()
+        c.attach(segmenting(vad = vad))
+        c.feed(pcm(500, true))
+        var result: Outcome<Transcript>? = null
+        c.requestFinish { result = it }                     // waiting for EOF
+        c.abort(MurmurError.AsrFailed("unloaded"))
+        assertEquals(Outcome.Err(MurmurError.AsrFailed("unloaded")), result)
+        assertEquals(1, vad.resets)
+        assertTrue(events.last() is AsrEvent.Failure)
+        assertTrue(c.closed)
+    }
+
+    @Test
     fun theLanguageHintReachesTheDecoder() {
         val seen = ArrayList<String?>()
         val c = core(AsrSessionOptions(language = "ru"))
