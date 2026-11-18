@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.RUN_USER_INITIATED_JOBS" />
+    <application>
+        <!-- User-initiated data transfer job (API 34): survives process death, resumes from the .part file
+             (platform spike g). Network use is model downloads only (D9, ADR-016). -->
+        <service
+            android:name=".ModelDownloadJob"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
+    </application>
+</manifest>

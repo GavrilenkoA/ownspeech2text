@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Android 17: apps that need the NPU declare it (llm spike 3.4.5). Not required: CPU/GPU still work. -->
+    <uses-feature android:name="android.hardware.npu" android:required="false" />
+    <application>
+        <!-- FastRPC for ggml-hexagon's DSP skel, OpenCL for the Adreno backend (GenieX declares the same). -->
+        <uses-native-library android:name="libcdsprpc.so" android:required="false" />
+        <uses-native-library android:name="libadsprpc.so" android:required="false" />
+        <uses-native-library android:name="libOpenCL.so" android:required="false" />
+        <!-- :llm = llama.cpp + ggml-hexagon alone (never QNN in the same process, ADR-005). -->
+        <service
+            android:name=".LlmService"
+            android:exported="false"
+            android:process=":llm" />
+    </application>
+</manifest>

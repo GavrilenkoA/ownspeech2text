@@ -50,7 +50,9 @@ from ml.roundtrip.probe.teacher import (
     TeacherError,
     config_from_env,
 )
-from ml.roundtrip.probe.textutil import collapse_ws, has_latin, nfc, word_count
+from ml.roundtrip.probe.numstyle import normalise_apostrophes
+from ml.roundtrip.probe.spoken import has_number_token, transfer_spoken_numbers
+from ml.roundtrip.probe.textutil import collapse_ws, has_cyrillic, has_latin, nfc, word_count
 
 HERE = Path(__file__).resolve().parent
 DEFAULT_OUT = HERE / "gen.jsonl"
@@ -121,7 +123,7 @@ class Verdict:
 
 def build_candidate_record(slot: Slot, cand: Candidate, matcher: TermMatcher) -> Verdict:
     """Turn a teacher sentence into a probe record, or explain why not."""
-    text = collapse_ws(nfc(cand.text))
+    text = collapse_ws(normalise_apostrophes(nfc(cand.text)))
     reasons: list[str] = []
     matches = matcher.find(text)
     terms: list[dict[str, str]] = []
@@ -148,19 +150,29 @@ def build_candidate_record(slot: Slot, cand: Candidate, matcher: TermMatcher) ->
 
     tts: str | None = None
     rs = respell(text, slot.lang, matcher)
+    teacher_tts = collapse_ws(normalise_apostrophes(nfc(cand.tts_text))) if cand.tts_text else None
+    if teacher_tts and not (_script_ok(teacher_tts, slot.lang) and _similar_length(teacher_tts, text)):
+        teacher_tts = None
     if slot.lang == "mixed" and rs.leftovers:
-        teacher_tts = collapse_ws(nfc(cand.tts_text)) if cand.tts_text else None
-        if teacher_tts and not has_latin(teacher_tts) and _similar_length(teacher_tts, text):
+        if teacher_tts:
             tts = teacher_tts
         else:
             reasons.append(f"no usable tts_text: Latin tokens {list(rs.leftovers)} are not in the lexicon "
                            "and the teacher's tts_text is missing or unusable")
     elif slot.lang != "ru":
         tts = rs.tts_text
+    if has_number_token(text) and teacher_tts and (tts is None or has_number_token(tts)):
+        # the lexicon respelling keeps digits: take the spoken numbers (declined) from the teacher's hint
+        spoken = transfer_spoken_numbers(tts or text, teacher_tts, slot.lang)
+        tts = spoken if spoken != text else tts
     rec: ProbeRecord = {"id": slot.rid, "lang": slot.lang, "domain": slot.domain, "text": text,
                         "terms": terms, "tts_text": tts}  # type: ignore[typeddict-item]
     reasons.extend(check_record(rec, matcher))
     return Verdict(None if reasons else rec, reasons)
+
+
+def _script_ok(tts: str, lang: str) -> bool:
+    return not has_cyrillic(tts) if lang == "en" else not has_latin(tts)
 
 
 def _similar_length(a: str, b: str) -> bool:

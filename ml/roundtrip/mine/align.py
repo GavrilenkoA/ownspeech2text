@@ -11,9 +11,10 @@ reference word onto up to 6 hypothesis words ("ClickHouse" -> "клик хаус
     yo        differs only in ё/е or apostrophe form (and maybe case)
     punct     differs only in separators or word splitting ("e-mail" / "email", "CI/CD" / "ci cd")
     number    same number written as digits vs words, or different digit formatting ("10:30" / "десять тридцать")
-    translit  same term in the other script, phonetically equivalent ("Kubernetes" / "кубернетис")
+    translit  same term in the other script, written the way it is said ("Kubernetes" / "кубернетис",
+              "LoRA" / "лору"); see translit.faithful_translit
   error
-    sub_near  phonetically or orthographically close, but not the same word ("Kafka" / "кофка")
+    sub_near  phonetically or orthographically close, but not the same word ("Kafka" / "кофка", "Slack" / "слаг")
     sub       unrelated substitution
     del, ins  deletion, insertion
 
@@ -27,9 +28,9 @@ from functools import lru_cache
 from typing import Iterable, Sequence
 
 from .norm import (CONNECTORS, Token, fold, is_number_word, is_numeric_token, number_groups, numbers_equivalent, script_of,
-                   squash, tokenize)
-from .translit import (acronym_readings, camel_parts, char_sim, cyr2lat, is_acronym, lat2cyr, levenshtein,
-                       phonetic_key, term_sim)
+                   squash, tokenize, unit_of)
+from .translit import (acronym_readings, camel_parts, char_sim, cyr2lat, faithful_translit, is_acronym, lat2cyr,
+                       levenshtein, phonetic_key, term_sim)
 
 STYLE_KINDS = ("match", "case", "yo", "punct", "number", "translit")
 ERROR_KINDS = ("sub_near", "sub", "del", "ins")
@@ -180,9 +181,14 @@ def classify(ref: tuple[str, ...], hyp: tuple[str, ...]) -> tuple[str, float] | 
     # a transliteration maps a one-script span onto the other script; a block that also swallows a Cyrillic
     # neighbour of a Latin term ("по Kubernetes" -> "покубернитесь", "в Slack" -> "вслаг") is a merge error
     pure = len(sr) == 1 and len(sh) == 1
-    if cross and pure and sim >= TRANSLIT_MIN_SIM and len(hyp) <= _parts(ref) \
-            and _spelling_sim(rj, hj) >= TRANSLIT_MIN_SPELL:
-        return ("translit", sim)
+    if cross and pure and len(hyp) <= _parts(ref):
+        if sr == {"lat"}:
+            # Latin term written in Cyrillic: faithful only when it matches how the term is said, with
+            # voicing and the stressed vowel intact (faithful_translit); "кофка", "слаг", "центре" are errors
+            if faithful_translit(rj, hj):
+                return ("translit", max(sim, TRANSLIT_MIN_SIM))
+        elif sim >= TRANSLIT_MIN_SIM and _spelling_sim(rj, hj) >= TRANSLIT_MIN_SPELL:
+            return ("translit", sim)  # Cyrillic slang written as the English word ("лейтенси" -> "latency")
     if single:
         return ("sub_near", sim) if sim >= NEAR_MIN_SIM else ("sub", sim)
     if sim >= BLOCK_MIN_SIM:
@@ -253,8 +259,9 @@ def align_tokens(ref: list[Token], hyp: list[Token], ref_text: str = "", hyp_tex
     dp = [[inf] * (m + 1) for _ in range(n + 1)]
     back: list[list[tuple[int, int, str, float] | None]] = [[None] * (m + 1) for _ in range(n + 1)]
     dp[0][0] = 0.0
-    numberish = [is_numeric_token(w) or is_number_word(w) for w in rw]
-    numberish_h = [is_numeric_token(w) or is_number_word(w) for w in hw]
+    # unit words count as part of a number span ("сорок гигабайт" / "40 ГБ")
+    numberish = [is_numeric_token(w) or is_number_word(w) or unit_of(w) is not None for w in rw]
+    numberish_h = [is_numeric_token(w) or is_number_word(w) or unit_of(w) is not None for w in hw]
     numberish_c = [x or fold(w) in CONNECTORS for x, w in zip(numberish, rw)]  # "point", "целых" inside numbers
     # spoken numbers on the reference side may be as long as on the hypothesis side ("zero point zero zero zero
     # three" -> "0.0003"); other many-to-one blocks stay within MAX_REF_BLOCK
@@ -386,6 +393,14 @@ class TermHit:
     h1: int
     kinds: list[str] = field(default_factory=list)
     hyp: str = ""
+    # reference span of the ops covering the term; wider than [r0, r1) when an op merged the term with
+    # neighbouring words ("кину в Slack" -> "киновслаг"): then ``hyp`` belongs to that whole phrase
+    span_r0: int = -1
+    span_r1: int = -1
+
+    @property
+    def merged(self) -> bool:
+        return (self.span_r0 >= 0 and self.span_r0 < self.r0) or self.span_r1 > self.r1
 
     @property
     def exact(self) -> bool:
@@ -439,8 +454,29 @@ def term_hits(al: Alignment, terms: Iterable[dict]) -> list[TermHit]:
         if h0 is None or h1 is None:
             h0 = h1 = ops[0].h0
         hits.append(TermHit(term=term["term"], category=term.get("category", ""), r0=r0, r1=r1, h0=h0, h1=h1,
-                            kinds=[op.kind for op in ops], hyp=al.hyp_surface(h0, h1)))
+                            kinds=[op.kind for op in ops], hyp=al.hyp_surface(h0, h1),
+                            span_r0=min(op.r0 for op in ops), span_r1=max(op.r1 for op in ops)))
     return hits
+
+
+def ref_surface(al: Alignment, r0: int, r1: int) -> str:
+    """Raw reference text covering tokens r0..r1."""
+    if r0 >= r1:
+        return ""
+    return al.ref_text[al.ref[r0].start:al.ref[r1 - 1].end]
+
+
+def is_error_variant(term: str, variant: str) -> bool:
+    """Would the aligner classify ``term`` -> ``variant`` as a recognition error (not a style difference)?"""
+    ref = tuple(t.core for t in tokenize(term))
+    hyp = tuple(t.core for t in tokenize(variant))
+    if not ref or not hyp:
+        return True
+    res = classify(ref, hyp)
+    if res is None:
+        # no single block covers it: align it properly (a split or partly deleted rendering)
+        return any(op.kind in ERROR_KINDS for op in align(term, variant).ops)
+    return res[0] in ERROR_KINDS
 
 
 def ref_token_kinds(al: Alignment) -> list[str]:

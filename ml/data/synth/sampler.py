@@ -79,7 +79,7 @@ NO_DISFLUENCY = {"no_op", "near_no_op", "address", "noise_only", "context_counte
 LANG_DEFAULT = [("ru", 45), ("en", 30), ("mixed", 25)]
 LANG_BY_CAT = {
     "context_resolution": [("ru", 45), ("mixed", 35), ("en", 20)],
-    "context_counterpart": [("ru", 45), ("mixed", 35), ("en", 20)],
+    "context_counterpart": [("ru", 55), ("mixed", 45)],
     "address": [("ru", 50), ("en", 50)], "noise_only": [("ru", 50), ("en", 50)],
     "asr_artifact": [("ru", 60), ("en", 40)],
 }
@@ -193,7 +193,7 @@ def _name_near_miss(p: L.Entity, split: str, r: random.Random) -> L.Entity | Non
     same_first = [e for e in pl if e.text.split()[0] == fn]
     similar = [e for e in pl if e.text.split()[-1][:3] == sur[:3]]
     c = same_first + similar
-    return r.choice(c) if c else (r.choice(pl) if pl else None)
+    return r.choice(c) if c else None  # an unrelated person is not a near miss
 
 
 def _injection(r: random.Random, lang: str, split: str) -> dict:
@@ -297,8 +297,11 @@ def scenario(seed: int, split: str, index: int, category: str, lang: str, counte
         if use_term:
             spoken_terms = [_term_dict(t)]
         else:
-            p = _people(r, lang, split, 1)[0]
-            nm = _name_near_miss(p, split, r)
+            for _ in range(12):  # a person WITH a look-alike (same first name or similar surname) in the pool
+                p = _people(r, lang, split, 1)[0]
+                nm = _name_near_miss(p, split, r)
+                if nm:
+                    break
             people = [p.text]
             distractors = [nm.text] if nm else []
     elif category == "context_names":
@@ -371,8 +374,13 @@ def plan(n_train: int = 3000, n_dev: int = 300, n_test: int = 300, seed: int = 1
             n_cp_plan = 0 if cat != "context_resolution" else (n_cp if overgen <= 1 else int(-(-n_cp * overgen // 1)))
             absent = _flags(m, SCREEN_ABSENT_SHARE.get(cat, SCREEN_ABSENT_DEFAULT), ("absent", seed, split, cat))
             nofield = _flags(m, FIELD_ABSENT_SHARE.get(cat, FIELD_ABSENT_DEFAULT), ("nofield", seed, split, cat))
+            # counterparts only for ru / mixed speech: there the garble is a Cyrillic rendering that a writer could
+            # legitimately keep; an English Latin misspelling ('apache airflov', 'ro ber ta') has no sensible
+            # no-context answer (review of the proof run, 2026-11-18)
+            cp_idx = {i for i, lg in enumerate(seq) if lg != "en"}
+            cp_idx = set(sorted(cp_idx)[:n_cp_plan])
             for i, lg in enumerate(seq):
-                cp = i < n_cp_plan
+                cp = i in cp_idx
                 out.append(scenario(seed, split, i, cat, lg, counterpart=cp, screen_absent=absent[i] and not cp,
                                     field_absent=nofield[i]))
     return out

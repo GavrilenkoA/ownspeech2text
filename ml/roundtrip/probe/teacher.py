@@ -4,9 +4,9 @@ Configuration comes only from the environment:
   MURMUR_TEACHER_BASE_URL   e.g. http://127.0.0.1:18899/v1  ("/responses" or "/chat/completions" is appended)
   MURMUR_TEACHER_API_KEY    bearer token; never printed, logged or stored
   MURMUR_TEACHER_MODEL      model name sent in the request
-  MURMUR_TEACHER_API        "responses" (OpenAI Responses API) or "chat" (chat completions);
-                            default "chat". The Murmur proxy speaks Responses only, and
-                            tools/with-teacher sets this to "responses".
+  MURMUR_TEACHER_API        "responses" (OpenAI Responses API, the default) or "chat" (chat
+                            completions). The Murmur proxy speaks Responses only
+                            (docs/ml/PLAN_V2.md, section Teacher).
 
 Responses request shape (docs/ml/PLAN_V2.md, section Teacher):
   {"model", "instructions": <system>, "input": [{"type": "message", "role": "user",
@@ -56,7 +56,7 @@ class TeacherConfig:
     base_url: str
     api_key: str = field(repr=False)
     model: str
-    api: str = "chat"
+    api: str = "responses"
     timeout_s: float = 300.0
     max_retries: int = 4
     backoff_s: float = 2.0
@@ -80,7 +80,7 @@ def config_from_env(env: Mapping[str, str] | None = None, **overrides: object) -
     base = env[ENV_BASE_URL].strip()
     if not base.startswith(("http://", "https://")):
         raise TeacherConfigError(f"{ENV_BASE_URL} must start with http:// or https://")
-    api = env.get(ENV_API, "").strip().lower() or "chat"
+    api = env.get(ENV_API, "").strip().lower() or "responses"
     if api not in APIS:
         raise TeacherConfigError(f"{ENV_API} must be one of {APIS}, got {api!r}")
     return TeacherConfig(base_url=base, api_key=env[ENV_API_KEY].strip(), model=env[ENV_MODEL].strip(),

@@ -5,5 +5,6 @@ piper-tts==1.8.0
 pyarrow==26.0.1
 pytest==9.2.0
 scipy==1.18.1
+sherpa-onnx-core==2.0.1
 sherpa-onnx==2.0.1
 soundfile==0.14.0

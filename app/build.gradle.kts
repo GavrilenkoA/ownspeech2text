@@ -2,7 +2,10 @@ plugins {
     alias(libs.plugins.android.application)
     // No org.jetbrains.kotlin.android: AGP 9 has built-in Kotlin.
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
 }
+
+val productName = providers.gradleProperty("murmur.productName").getOrElse("Murmur")
 
 android {
     namespace = "app.murmur"
@@ -17,27 +20,23 @@ android {
 
     defaultConfig {
         applicationId = "app.murmur"
-        // Android 16 = the OS the Galaxy Z Fold7 launched with. See TOOLCHAIN.md "minSdk".
         minSdk = libs.versions.minSdk.get().toInt()
         targetSdk = libs.versions.targetSdk.get().toInt()
         versionCode = 1
-        versionName = "0.0.1"
-
+        versionName = "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-
-        ndk {
-            // arm64-v8a = the phone, x86_64 = the emulator on the build server.
-            abiFilters += listOf("arm64-v8a", "x86_64")
-        }
-        externalNativeBuild {
-            cmake {
-                arguments += listOf("-DANDROID_STL=c++_shared")
-            }
-        }
+        // D10: the product name lives in gradle.properties only.
+        resValue("string", "app_name", productName)
+        manifestPlaceholders["productName"] = productName
     }
 
     buildTypes {
+        debug {
+            // D6: the emulator runs the complete pipeline on CPU engines (x86_64), the phone on arm64.
+            ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
+        }
         release {
+            ndk { abiFilters += listOf("arm64-v8a") }
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
         }
@@ -50,27 +49,64 @@ android {
 
     buildFeatures {
         compose = true
-    }
-
-    externalNativeBuild {
-        cmake {
-            path = file("src/main/cpp/CMakeLists.txt")
-            version = libs.versions.cmake.get()
-        }
+        buildConfig = true
+        resValues = true
     }
 
     packaging {
         jniLibs {
-            // Store .so uncompressed + page-aligned so they can be mmapped (16 KB page safe).
-            useLegacyPackaging = false
+            // ADR-007: native libs must exist as files on disk. ggml-hexagon resolves its DSP skel
+            // (libggml-htp-v79.so) and the CPU-variant loader scans a directory; QNN's skel needs
+            // ADSP_LIBRARY_PATH to point at a real directory (llm spike 3.4, asr-ocr 5.3).
+            useLegacyPackaging = true
         }
+    }
+
+    testOptions {
+        unitTests.isReturnDefaultValues = true
     }
 }
 
 dependencies {
+    // Every module is wired here and only here (AppContainer); features never depend on each other.
+    implementation(project(":core:model"))
+    implementation(project(":core:catalog"))
+    implementation(project(":core:context"))
+    implementation(project(":core:prompt"))
+    implementation(project(":core:ocr"))
+    implementation(project(":core:audio"))
+    implementation(project(":core:engine"))
+    implementation(project(":core:store"))
+    implementation(project(":core:benchmark"))
+    implementation(project(":core:dictation"))
+    implementation(project(":infer:api"))
+    implementation(project(":infer:asr"))
+    implementation(project(":infer:llm"))
+    implementation(project(":data:db"))
+    implementation(project(":data:models"))
+    implementation(project(":platform:a11y"))
+    implementation(project(":platform:overlay"))
+    implementation(project(":platform:audio"))
+    implementation(project(":ui:design"))
+    implementation(project(":feature:history"))
+    implementation(project(":feature:dashboard"))
+    implementation(project(":feature:models"))
+    implementation(project(":feature:settings"))
+    implementation(project(":feature:onboarding"))
+    // D6: debug builds can run the whole pipeline on deterministic fakes (DebugEngines in src/debug).
+    debugImplementation(project(":testing"))
+
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.activity.compose)
+    implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.kotlinx.serialization.json)
+    implementation(libs.androidx.navigation3.runtime)
+    implementation(libs.androidx.navigation3.ui)
+    implementation(libs.androidx.material3.adaptive)
+    implementation(libs.androidx.material3.adaptive.layout)
+    implementation(libs.androidx.material3.adaptive.navigation3)
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
@@ -81,9 +117,12 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 
     testImplementation(libs.junit)
+    testImplementation(project(":testing"))
 
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.test.ext.junit)
     androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.test.uiautomator)
+    androidTestImplementation(project(":testing"))
 }

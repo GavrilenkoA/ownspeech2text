@@ -1,0 +1,909 @@
+{
+ "pipeline": "ocr.v1",
+ "spec": {
+  "template": "browser_docs",
+  "device": "fold7_inner",
+  "theme": "light",
+  "font_scale": 0.85,
+  "locale": "ru",
+  "title": "Configure the QNN execution provider",
+  "messages": [
+   {
+    "author": "Prerequisites",
+    "is_me": false,
+    "text": "Install the Qualcomm AI Engine Direct SDK and set QNN_SDK_ROOT before building onnxruntime."
+   },
+   {
+    "author": "",
+    "is_me": false,
+    "text": "Use the HTP backend for quantized models; FP16 precision requires Snapdragon 8 Gen 2 or newer."
+   }
+  ],
+  "snippets": [
+   "sess_options.add_session_config_entry('ep.context_enable', '1')"
+  ],
+  "field": {
+   "kind": "generic",
+   "hint": "",
+   "before_cursor": ""
+  },
+  "keyboard": false,
+  "seed": 1019,
+  "app": {
+   "package": "com.sec.android.app.sbrowser",
+   "label": "Samsung Internet",
+   "category": "search"
+  },
+  "lang": "en",
+  "privacy": "full",
+  "avoid": [],
+  "bubble": false
+ },
+ "exclude_rects": [
+  [
+   0,
+   0,
+   1968,
+   80
+  ]
+ ],
+ "exclude_kinds": [
+  "status_bar"
+ ],
+ "visible": [
+  {
+   "role": "status",
+   "text": "14:39",
+   "box": [
+    48,
+    13,
+    137,
+    62
+   ]
+  },
+  {
+   "role": "status",
+   "text": "83%",
+   "box": [
+    1800,
+    13,
+    1870,
+    62
+   ]
+  },
+  {
+   "role": "chrome",
+   "text": "Learn",
+   "box": [
+    133,
+    111,
+    237,
+    163
+   ]
+  },
+  {
+   "role": "chrome",
+   "text": "Руководство › Configure the QNN execution pr",
+   "box": [
+    554,
+    234,
+    1204,
+    275
+   ]
+  },
+  {
+   "role": "chrome",
+   "text": "Введение",
+   "box": [
+    26,
+    237,
+    176,
+    280
+   ]
+  },
+  {
+   "role": "title",
+   "text": "Configure the QNN execution provider",
+   "box": [
+    554,
+    290,
+    1684,
+    371
+   ]
+  },
+  {
+   "role": "chrome",
+   "text": "Установка",
+   "box": [
+    26,
+    306,
+    183,
+    350
+   ]
+  },
+  {
+   "role": "chrome",
+   "text": "Настройка",
+   "box": [
+    26,
+    376,
+    190,
+    419
+   ]
+  },
+  {
+   "role": "author",
+   "text": "Prerequisites",
+   "box": [
+    554,
+    412,
+    838,
+    472
+   ]
+  },
+  {
+   "role": "chrome",
+   "text": "Справочник API",
+   "box": [
+    26,
+    445,
+    273,
+    489
+   ]
+  },
+  {
+   "role": "message",
+   "text": "Install the Qualcomm AI Engine Direct SDK and set QNN_SDK_ROOT before",
+   "box": [
+    554,
+    494,
+    1829,
+    546
+   ]
+  },
+  {
+   "role": "chrome",
+   "text": "Примеры",
+   "box": [
+    26,
+    515,
+    175,
+    558
+   ]
+  },
+  {
+   "role": "message",
+   "text": "building onnxruntime.",
+   "box": [
+    554,
+    549,
+    936,
+    600
+   ]
+  },
+  {
+   "role": "chrome",
+   "text": "FAQ",
+   "box": [
+    26,
+    584,
+    87,
+    628
+   ]
+  },
+  {
+   "role": "message",
+   "text": "Use the HTP backend for quantized models; FP16 precision requires Snapdragon",
+   "box": [
+    554,
+    635,
+    1923,
+    687
+   ]
+  },
+  {
+   "role": "message",
+   "text": "8 Gen 2 or newer.",
+   "box": [
+    554,
+    689,
+    850,
+    741
+   ]
+  },
+  {
+   "role": "snippet",
+   "text": "sess_options.add_session_config_entry('ep.context_enable', '1')",
+   "box": [
+    586,
+    802,
+    1700,
+    841
+   ]
+  },
+  {
+   "role": "hint",
+   "text": "Поиск по документации",
+   "box": [
+    90,
+    1871,
+    517,
+    1923
+   ]
+  },
+  {
+   "role": "chrome",
+   "text": "learn.example.dev/guide/configure-the-qnn-execution-provider",
+   "box": [
+    213,
+    2025,
+    1224,
+    2074
+   ]
+  },
+  {
+   "role": "chrome",
+   "text": "15",
+   "box": [
+    1805,
+    2026,
+    1843,
+    2072
+   ]
+  }
+ ],
+ "stages": {
+  "det_input": [
+   864,
+   960
+  ],
+  "det_boxes": [
+   [
+    39,
+    12,
+    143,
+    63,
+    0.8272
+   ],
+   [
+    1745,
+    16,
+    1918,
+    66,
+    0.7422
+   ],
+   [
+    1686,
+    24,
+    1730,
+    61,
+    0.7753
+   ],
+   [
+    1858,
+    102,
+    1928,
+    171,
+    0.7304
+   ],
+   [
+    121,
+    114,
+    245,
+    163,
+    0.8537
+   ],
+   [
+    49,
+    124,
+    101,
+    156,
+    0.4955
+   ],
+   [
+    548,
+    233,
+    1211,
+    276,
+    0.8441
+   ],
+   [
+    19,
+    235,
+    186,
+    281,
+    0.8051
+   ],
+   [
+    549,
+    296,
+    1690,
+    366,
+    0.8279
+   ],
+   [
+    17,
+    306,
+    190,
+    352,
+    0.8292
+   ],
+   [
+    17,
+    374,
+    197,
+    420,
+    0.8532
+   ],
+   [
+    548,
+    418,
+    844,
+    470,
+    0.9612
+   ],
+   [
+    20,
+    445,
+    278,
+    487,
+    0.9291
+   ],
+   [
+    548,
+    502,
+    1835,
+    545,
+    0.9637
+   ],
+   [
+    17,
+    515,
+    183,
+    561,
+    0.8209
+   ],
+   [
+    549,
+    553,
+    943,
+    601,
+    0.8697
+   ],
+   [
+    15,
+    579,
+    95,
+    632,
+    0.8381
+   ],
+   [
+    546,
+    639,
+    1927,
+    688,
+    0.8279
+   ],
+   [
+    546,
+    698,
+    859,
+    740,
+    0.8799
+   ],
+   [
+    1622,
+    794,
+    1704,
+    840,
+    0.7637
+   ],
+   [
+    577,
+    797,
+    1625,
+    841,
+    0.7925
+   ],
+   [
+    71,
+    1873,
+    525,
+    1926,
+    0.7164
+   ],
+   [
+    1844,
+    1887,
+    1883,
+    1926,
+    0.4615
+   ],
+   [
+    1897,
+    2018,
+    1925,
+    2073,
+    0.8672
+   ],
+   [
+    1792,
+    2022,
+    1855,
+    2078,
+    0.7365
+   ],
+   [
+    31,
+    2023,
+    81,
+    2074,
+    0.652
+   ],
+   [
+    157,
+    2024,
+    190,
+    2064,
+    0.7314
+   ],
+   [
+    198,
+    2024,
+    1230,
+    2073,
+    0.7916
+   ]
+  ],
+  "rec": [
+   {
+    "box": [
+     1858,
+     102,
+     1928,
+     171
+    ],
+    "text": "Q",
+    "conf": 0.9111
+   },
+   {
+    "box": [
+     121,
+     114,
+     245,
+     163
+    ],
+    "text": "Learn",
+    "conf": 0.9994
+   },
+   {
+    "box": [
+     49,
+     124,
+     101,
+     156
+    ],
+    "text": "=",
+    "conf": 0.2837
+   },
+   {
+    "box": [
+     548,
+     233,
+     1211,
+     276
+    ],
+    "text": "Pуководство > Configure the QNN execution pr",
+    "conf": 0.9798
+   },
+   {
+    "box": [
+     19,
+     235,
+     186,
+     281
+    ],
+    "text": "Введение",
+    "conf": 0.9963
+   },
+   {
+    "box": [
+     549,
+     296,
+     1690,
+     366
+    ],
+    "text": "Configure the QNN execution provider",
+    "conf": 0.9966
+   },
+   {
+    "box": [
+     17,
+     306,
+     190,
+     352
+    ],
+    "text": "Установка",
+    "conf": 0.9936
+   },
+   {
+    "box": [
+     17,
+     374,
+     197,
+     420
+    ],
+    "text": "Настройка",
+    "conf": 0.9915
+   },
+   {
+    "box": [
+     548,
+     418,
+     844,
+     470
+    ],
+    "text": "Prerequisites",
+    "conf": 0.9995
+   },
+   {
+    "box": [
+     20,
+     445,
+     278,
+     487
+    ],
+    "text": "Справочник АРІ",
+    "conf": 0.9667
+   },
+   {
+    "box": [
+     548,
+     502,
+     1835,
+     545
+    ],
+    "text": "Install the Qualcomm AI Engine Direct SDK and set QNN_SDK_ROOT before",
+    "conf": 0.9831
+   },
+   {
+    "box": [
+     17,
+     515,
+     183,
+     561
+    ],
+    "text": "Примеры",
+    "conf": 0.9869
+   },
+   {
+    "box": [
+     549,
+     553,
+     943,
+     601
+    ],
+    "text": "building onnxruntime.",
+    "conf": 0.9998
+   },
+   {
+    "box": [
+     15,
+     579,
+     95,
+     632
+    ],
+    "text": "FAQ",
+    "conf": 0.9866
+   },
+   {
+    "box": [
+     546,
+     639,
+     1927,
+     688
+    ],
+    "text": "Use the HTP backend for quantized models; FP16 precision requires Snapdragon",
+    "conf": 0.991
+   },
+   {
+    "box": [
+     546,
+     698,
+     859,
+     740
+    ],
+    "text": "8 Gen 2 or newer.",
+    "conf": 0.9543
+   },
+   {
+    "box": [
+     1622,
+     794,
+     1704,
+     840
+    ],
+    "text": "'1')",
+    "conf": 0.8735
+   },
+   {
+    "box": [
+     577,
+     797,
+     1625,
+     841
+    ],
+    "text": "sess_options.add_session_config_entry('ep.context_enable',",
+    "conf": 0.9986
+   },
+   {
+    "box": [
+     71,
+     1873,
+     525,
+     1926
+    ],
+    "text": "[Поиск по документации",
+    "conf": 0.9923
+   },
+   {
+    "box": [
+     1844,
+     1887,
+     1883,
+     1926
+    ],
+    "text": "",
+    "conf": 0.0
+   },
+   {
+    "box": [
+     1897,
+     2018,
+     1925,
+     2073
+    ],
+    "text": ":",
+    "conf": 0.9889
+   },
+   {
+    "box": [
+     1792,
+     2022,
+     1855,
+     2078
+    ],
+    "text": "15",
+    "conf": 0.997
+   },
+   {
+    "box": [
+     31,
+     2023,
+     81,
+     2074
+    ],
+    "text": "A",
+    "conf": 0.286
+   },
+   {
+    "box": [
+     157,
+     2024,
+     190,
+     2064
+    ],
+    "text": "8",
+    "conf": 0.8975
+   },
+   {
+    "box": [
+     198,
+     2024,
+     1230,
+     2073
+    ],
+    "text": "learn.example.dev/guide/configure-the-qnn-execution-provider",
+    "conf": 0.9994
+   }
+  ]
+ },
+ "ocr": {
+  "size": [
+   1968,
+   2184
+  ],
+  "lines": [
+   {
+    "text": "Learn",
+    "conf": 0.999,
+    "box": [
+     121,
+     114,
+     245,
+     163
+    ]
+   },
+   {
+    "text": "Введение",
+    "conf": 0.996,
+    "box": [
+     19,
+     235,
+     186,
+     281
+    ]
+   },
+   {
+    "text": "Установка",
+    "conf": 0.994,
+    "box": [
+     17,
+     306,
+     190,
+     352
+    ]
+   },
+   {
+    "text": "Настройка",
+    "conf": 0.991,
+    "box": [
+     17,
+     374,
+     197,
+     420
+    ]
+   },
+   {
+    "text": "Справочник API",
+    "conf": 0.967,
+    "box": [
+     20,
+     445,
+     278,
+     487
+    ]
+   },
+   {
+    "text": "Примеры",
+    "conf": 0.987,
+    "box": [
+     17,
+     515,
+     183,
+     561
+    ]
+   },
+   {
+    "text": "FAQ",
+    "conf": 0.987,
+    "box": [
+     15,
+     579,
+     95,
+     632
+    ]
+   },
+   {
+    "text": "[Поиск по документации",
+    "conf": 0.992,
+    "box": [
+     71,
+     1873,
+     525,
+     1926
+    ]
+   },
+   {
+    "text": "Руководство > Configure the QNN execution pr",
+    "conf": 0.98,
+    "box": [
+     548,
+     233,
+     1211,
+     276
+    ]
+   },
+   {
+    "text": "Configure the QNN execution provider",
+    "conf": 0.997,
+    "box": [
+     549,
+     296,
+     1690,
+     366
+    ]
+   },
+   {
+    "text": "Prerequisites",
+    "conf": 0.999,
+    "box": [
+     548,
+     418,
+     844,
+     470
+    ]
+   },
+   {
+    "text": "Install the Qualcomm AI Engine Direct SDK and set QNN_SDK_ROOT before",
+    "conf": 0.983,
+    "box": [
+     548,
+     502,
+     1835,
+     545
+    ]
+   },
+   {
+    "text": "building onnxruntime.",
+    "conf": 1.0,
+    "box": [
+     549,
+     553,
+     943,
+     601
+    ]
+   },
+   {
+    "text": "Use the HTP backend for quantized models; FP16 precision requires Snapdragon",
+    "conf": 0.991,
+    "box": [
+     546,
+     639,
+     1927,
+     688
+    ]
+   },
+   {
+    "text": "8 Gen 2 or newer.",
+    "conf": 0.954,
+    "box": [
+     546,
+     698,
+     859,
+     740
+    ]
+   },
+   {
+    "text": "'1')",
+    "conf": 0.873,
+    "box": [
+     1622,
+     794,
+     1704,
+     840
+    ]
+   },
+   {
+    "text": "sess_options.add_session_config_entry('ep.context_enable',",
+    "conf": 0.999,
+    "box": [
+     577,
+     797,
+     1625,
+     841
+    ]
+   },
+   {
+    "text": "learn.example.dev/guide/configure-the-qnn-execution-provider",
+    "conf": 0.999,
+    "box": [
+     198,
+     2024,
+     1230,
+     2073
+    ]
+   },
+   {
+    "text": "15",
+    "conf": 0.997,
+    "box": [
+     1792,
+     2022,
+     1855,
+     2078
+    ]
+   }
+  ]
+ }
+}

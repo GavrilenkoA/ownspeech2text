@@ -61,7 +61,10 @@ class SupertonicDriver(TtsDriver):
 
     def voices(self) -> List[VoiceInfo]:
         return [VoiceInfo(system=self.system, voice=f"sid{i}", languages=frozenset({"ru", "en"}),
-                          licence="BigScience OpenRAIL-M (model), MIT (code)", latin_in_ru=LATIN_NATIVE, extra={"sid": i})
+                          licence="BigScience OpenRAIL-M (model), MIT (code)", latin_in_ru=LATIN_NATIVE,
+                          # verified 2026-11-19 through GigaAM/Parakeet: en "9:30", "80%" read correctly;
+                          # ru drops "80%" and "11:30" ("это тридцать")
+                          reads_digits=frozenset({"en"}), extra={"sid": i})
                 for i in range(self.NUM_SPEAKERS)]
 
     def load(self) -> None:
@@ -107,7 +110,7 @@ class KokoroDriver(TtsDriver):
     def voices(self) -> List[VoiceInfo]:
         sid = {name: i for i, name in enumerate(KOKORO_EN)}  # af_/am_/bf_/bm_ ids are 0..27
         return [VoiceInfo(system=self.system, voice=n, languages=frozenset({"en"}), licence="Apache-2.0",
-                          latin_in_ru=LATIN_NATIVE, gender=n[1],
+                          latin_in_ru=LATIN_NATIVE, gender=n[1], reads_digits=frozenset({"en"}),  # espeak-ng
                           extra={"sid": sid[n], "espeak": "en" if n[0] == "b" else "en-us"})
                 for n in KOKORO_EN]
 

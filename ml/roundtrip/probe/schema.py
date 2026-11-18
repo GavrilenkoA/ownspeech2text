@@ -7,7 +7,10 @@
 ``text`` with their exact surface form (inflected where Russian grammar
 inflects them). ``tts_text`` is an optional pronunciation-friendly variant:
 for ru/mixed it is Cyrillic-only (Latin terms respelled), for en it replaces
-spellings an English voice would misread ("k8s" -> "kubernetes").
+spellings an English voice would misread ("k8s" -> "kubernetes"). In every language it
+also carries numbers as spoken words where ``text`` has digits ("через 20 минут" ->
+"через двадцать минут"); ``text`` follows the digit rule of prompts/system/default.v5.md
+(rule 4), checked by ``numstyle.number_style_problems``.
 """
 from __future__ import annotations
 
@@ -24,6 +27,7 @@ from ml.roundtrip.probe.lexicon import (
     TermMatcher,
     surface_occurs,
 )
+from ml.roundtrip.probe.numstyle import markup_problems, number_style_problems
 from ml.roundtrip.probe.textutil import detect_lang, has_cyrillic, has_latin, word_count
 
 LANGS: tuple[str, ...] = ("ru", "en", "mixed")
@@ -102,6 +106,7 @@ def check_record(rec: object, matcher: TermMatcher | None, limits: Limits = Limi
         out.append("text must be a non-empty string")
         return out
     out.extend(_check_text(text, "text"))
+    out.extend(number_style_problems(text))
     n_words = word_count(text)
     if not limits.min_words <= n_words <= limits.max_words:
         out.append(f"text has {n_words} words, allowed {limits.min_words}-{limits.max_words}")
@@ -135,6 +140,7 @@ def _check_text(s: str, name: str) -> list[str]:
         out.append(f"{name} is not NFC")
     if s != s.strip() or "  " in s or "\n" in s or "\t" in s or "\r" in s:
         out.append(f"{name} has stray whitespace")
+    out.extend(f"{name} {p}" for p in markup_problems(s))
     return out
 
 

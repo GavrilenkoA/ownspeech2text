@@ -18,8 +18,9 @@ def test_homoglyph_all_twin_tokens_follow_unanimous_neighbours():
     # Cyrillic "с" between a Russian and an English word stays as recognised
     assert pp.repair_homoglyphs("Встреча с Ingrid") == "Встреча с Ingrid"
     assert pp.repair_homoglyphs("Встреча c Ingrid") == "Встреча c Ingrid"
-    # Latin context: Cyrillic twins turned into Latin
+    # mixed token in Latin context -> Latin; a twin-only Russian word between English terms stays
     assert pp.repair_homoglyphs("open the АРI docs") == "open the API docs"
+    assert pp.repair_homoglyphs("Grafana по kube-prometheus") == "Grafana по kube-prometheus"
 
 
 def test_homoglyph_leaves_digits_and_symbols():
@@ -71,3 +72,30 @@ def test_no_two_pane_on_cover_or_crossing_lines():
     lines2 = lines + [L("wide", (40, 900, 1500, 950))]
     assert pp.find_gutter(lines, W, H, DEFAULT) is not None
     assert pp.find_gutter(lines2, W, H, DEFAULT) is None   # a line crossing the gutter inside the band
+
+
+def test_screen_level_default_script():
+    assert pp.screen_script(["Привет, как дела", "Мама"], 2.0) == "cyr"
+    assert pp.repair_homoglyphs("Bce", "cyr") == "Все"
+    assert pp.repair_homoglyphs("Mama", "cyr") == "Мата"     # known miss: Latin m is т or м, т is twice as frequent
+    assert pp.repair_homoglyphs("CEO", "cyr") == "CEO"        # acronyms stay
+    assert pp.repair_homoglyphs("Mama", None) == "Mama"
+    assert pp.repair_homoglyphs("Меню SІМ-карты") == "Меню SIM-карты"
+
+
+def test_twin_only_rules():
+    r = pp.repair_homoglyphs
+    assert r("Посмотри НАРгоху, пожалуйста") == "Посмотри HAProxy, пожалуйста"     # camel case
+    assert r("Обнови АРІ до вечера") == "Обнови API до вечера"                    # non-Russian І
+    assert r("сервер А100 и Н100, х86_64, р99") == "сервер A100 и H100, x86_64, p99"   # identifiers
+    assert r("Посмотри promрt injection") == "Посмотри prompt injection"          # majority of letters
+    assert r("Google Мeet") == "Google Meet"
+    assert r("LӀamaIndex") == "LlamaIndex"
+    assert r("Прiоритет") == "Приоритет"
+    assert r("доступ к ClickHouse и Kafka") == "доступ к ClickHouse и Kafka"
+
+
+def test_glued_subtokens():
+    assert pp.repair_homoglyphs("Обнови RNN-Т до вечера") == "Обнови RNN-T до вечера"
+    assert pp.repair_homoglyphs("Llama.срр") == "Llama.cpp"
+    assert pp.repair_homoglyphs("Меню SIM-карты") == "Меню SIM-карты"

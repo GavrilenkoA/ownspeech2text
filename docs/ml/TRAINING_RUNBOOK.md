@@ -175,6 +175,11 @@ Other code paths, also run here [V]:
   cards and leaderboard, EXIT 0 (`logs/afterpod-sim.log`).
 * **Teacher backend + judge** (Responses API through `tools/with-teacher`): 3 smoke cases answered and judged
   (`.cache/ml/train/eval/teacher-smoke3/judge.jsonl`, 6 requests).
+* **ctx v2 integration** (`ml/ocr/READY`, `ml/screens/READY` both present at 22:50): `python -m ml.eval.v2_cases
+  ml/eval/cases/v2_screens.v1.jsonl OUT` renders 8 hand-written cases (ru/en/mixed; context_resolution, its
+  counterpart, context_names, injection, code-switch, no-screen, noise) through `ml.screens.build_ctx`, checks the
+  CONTEXT_V2 category rules on the OCR lines (8 written, 0 rejected, 46 s) and writes contract JSONL that
+  `run_eval` consumes unchanged (results in section 4.1).
 * **Real OCR context**: `ml/ocr` (READY) run on a rendered Fold7 inner-screen chat (`.cache/ml/screens/tmp/
   work_chat_fold7_inner_light.png`, status bar / keyboard / Murmur bubble excluded): 26 lines in 3.6 s. Three
   eval cases built on it (`.cache/ml/train/ocr-int/ocrint.test.jsonl`: context_resolution ClickHouse/Airflow,
@@ -188,11 +193,31 @@ Rendered length, measured with the real tokenizers (prompt + target + `<|im_end|
 | smoke (24, ctx v1) | 213 / 332 | 221 / 354 | 1163 / 1282 | 1191 / 1324 |
 | prompts dev.v1 (98, ctx v1) | 227 / 755 | 237 / 845 | 1177 / 1705 | 1207 / 1815 |
 | ctx v2 fixture (5 hand-written OCR contexts) | 205 / 238 | 210 / 249 | 1155 / 1188 | 1180 / 1219 |
+| ctx v2 via `ml.screens.build_ctx` (8 cases, `ml/eval/cases/v2_screens.v1.jsonl`, real render + OCR) | 290 / 356 | 298 / 376 | 1240 / 1306 | 1268 / 1346 |
+| one real OCR chat screen, 26 lines (`ocr-int/ocrint.test.jsonl`) | 385 | 396 | 1335 | 1366 |
 
-With 15 % default.v1 the mean is ~370 tokens per example on v1 contexts and ~530 on the real OCR screen above
-(0.85 x 390 + 0.15 x 1,350) [V], hence the ~500 tokens per example used for GPU sizing. `max_len: auto` re-derives the limit
+With 15 % default.v1 the mean is ~370 tokens per example on v1 contexts, ~440 on the build_ctx cases and ~530 on
+the busiest real OCR screen (render.py trims screen text to its budget, so this is near the ceiling) [V], hence the ~500 tokens per example used for GPU sizing. `max_len: auto` re-derives the limit
 from the real rendered v2 set at training time (`data_stats.json`: `max_len`, `rendered_len` p50/p90/p99/max);
 `python -m ml.train.sft --config X --prepare-only` prints it without training.
+
+### 4.1 Stock models on real ctx v2 (CPU llama.cpp b12503, greedy, `--system default`) [V]
+
+8 build_ctx cases (`.cache/ml/train/ocr-int/v2_screens.test.jsonl`, reports `.cache/ml/train/eval/v2screens-*`)
+and 8 earlier v2 cases (3 on one real OCR screen + the 5-case fixture, `.cache/ml/train/eval/v2-*`). Tiny sets:
+these prove the v2 path through render -> llama.cpp -> metrics -> `ctx:` breakdown, not model quality.
+
+| Model (vendor Q4_0) | set | EM | entity recall | ctx_resolution | distractor insertion | empty-output OK |
+|---|---|---:|---:|---:|---:|---:|
+| Qwen3.5-2B | build_ctx 8 | 0.50 | 0.80 | 0.50 | 0.00 | 0/1 |
+| Qwen3.5-0.8B | build_ctx 8 | 0.25 | 0.40 | 0.00 | 0.00 | 0/1 |
+| Qwen3.5-2B | OCR screen 3 + fixture 5 | 0.25 | 0.50 | 0.50 | 0.50 | 0/1 |
+| LFM3-1.7B (QAD) | OCR screen 3 + fixture 5 | 0.00 | 0.67 | 0.50 | 0.50 | 0/1 |
+
+What it shows: on the real screen the Murmur bubble cut "Grafana" to "Grai"; both Qwen3.5-2B and LFM3 still wrote
+"Grafana" (world knowledge, not the screen) — the counterpart check counts that as a distractor insertion, which is
+exactly the invented-term failure CONTEXT_V2 forbids. Qwen3.5-2B translated the English half of the code-switch
+case into Russian; all models output "э"/"Э" for noise-only input; 0.8B mostly returns the transcript untouched.
 
 ## 5. Known gaps and risks
 
@@ -203,6 +228,13 @@ from the real rendered v2 set at training time (`data_stats.json`: `max_len`, `r
   assumes contract JSONL in `$MURMUR_DATA/{train,dev,test}.jsonl` and a probe command.
 * GPU vs CPU llama.cpp kernels can flip greedy ties; gates come from the CPU build on the dev server, the
   nearest stand-in for the phone; the app's Benchmark and real dictations are the final word.
+* `wrong_language` is a script-share proxy (shared with `prompts/eval/score.py`): a Latin term left in Cyrillic
+  ("клик хаус" for "ClickHouse") can trip it on short sentences. The gate is ≤ 0.5 %, so read the per-item rows
+  before acting on a FAIL of that gate alone.
+* Eval decoding uses `max_new_tokens = min(1024, 2·transcript_tokens + 64)` (prompts/README.md), while
+  `docs/research/llm-catalog.json` runtime_defaults say `ceil(1.3·transcript_tokens) + 16` and n_ctx 2048. The
+  app and the eval must use one formula; until reconciled, a target longer than 1.3x the transcript can be cut
+  on the phone but not in the eval.
 * LFM3 licence: fine-tunes inherit the US$10M revenue threshold — owner decision before shipping an LFM3 fine-tune.
 * Python on the dev server can hang connecting to huggingface.co (IPv6 first, no fallback); `bootstrap.sh`
   checks this on the pod and prefers IPv4 via `/etc/gai.conf` if needed.

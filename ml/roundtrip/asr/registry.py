@@ -1,9 +1,10 @@
 """Registry of the hub's CPU ASR models, resolved from ``docs/research/asr-catalog.json``.
 
 Every model the hub ships with a CPU ONNX variant is registered here. Repos, file names and
-pinned revisions come from the catalog; only the two Whisper sizes whose catalog entries are
-NPU-only (``whisper-small@qnn-sm8750``, ``whisper-medium@qnn-sm8750``) carry their own pins to
-the sherpa-onnx CPU exports of the same checkpoints.
+pinned revisions come from the catalog. Two hub models whose catalog entries are NPU-only carry
+their own pins to sherpa-onnx CPU exports of the same checkpoints (``_OFF_CATALOG``):
+``whisper-medium@qnn-sm8750`` and ``nemotron-speech-streaming-en-0.6b@qnn-sm8750-560ms``.
+``ml/roundtrip/mine/hub_map.json`` maps every hub catalog id to the profile id that stands in for it.
 
 A model that cannot be resolved or loaded stays registered as an ``UnavailableDriver`` with the
 reason, so it is reported instead of silently dropped.
@@ -51,16 +52,21 @@ _MODELS: Dict[str, dict] = {
         kind="offline_whisper", langs=EN, default_lang="en",
         paths={"encoder": "distil-large-v3.5-encoder.int8.onnx",
                "decoder": "distil-large-v3.5-decoder.int8.onnx", "tokens": "distil-large-v3.5-tokens.txt"}),
+    "whisper-small@onnx-int8": dict(
+        kind="offline_whisper", langs=RU_EN,
+        paths={"encoder": "small-encoder.int8.onnx", "decoder": "small-decoder.int8.onnx",
+               "tokens": "small-tokens.txt"}),
 }
 
-# Catalog lists Whisper small/medium only as SM8750 NPU binaries; the CPU path uses the
-# sherpa-onnx int8 exports of the same OpenAI checkpoints (revisions read from the HF API).
+# Hub models the catalog lists only as SM8750 NPU binaries; the CPU path uses sherpa-onnx int8
+# exports of the same checkpoints (revisions read from the HF API).
 _OFF_CATALOG: Dict[str, dict] = {
-    "whisper-small@onnx-int8": dict(
-        kind="offline_whisper", langs=RU_EN, catalog_ref="whisper-small@qnn-sm8750",
-        repo="csukuangfj/sherpa-onnx-whisper-small", revision="8f3c18b358db4d1f2fc1eae49d75cd20989e4309",
-        paths={"encoder": "small-encoder.int8.onnx", "decoder": "small-decoder.int8.onnx",
-               "tokens": "small-tokens.txt"}, licence="Apache-2.0 (openai/whisper-small)"),
+    "nemotron-speech-streaming-en-0.6b@onnx-int8-560ms": dict(
+        kind="online_transducer", langs=EN, default_lang="en",
+        catalog_ref="nemotron-speech-streaming-en-0.6b@qnn-sm8750-560ms",
+        repo="csukuangfj2/sherpa-onnx-nemotron-speech-streaming-en-0.6b-560ms-int8-2026-04-25",
+        revision="52056fdc070914a48dcd68b31b44d6a6f5b85902", paths=_TRANSDUCER_INT8,
+        licence="NVIDIA Open Model License (nvidia/nemotron-speech-streaming-en-0.6b)"),
     "whisper-medium@onnx-int8": dict(
         kind="offline_whisper", langs=RU_EN, catalog_ref="whisper-medium@qnn-sm8750",
         repo="csukuangfj/sherpa-onnx-whisper-medium", revision="8c31d28503847560985df21f90e14f0c736e075e",
@@ -86,6 +92,25 @@ MEM_MB: Dict[str, int] = {
     "distil-large-v3.5@onnx-int8": 2000,  # 1724
     "whisper-small@onnx-int8": 1500,  # 1302
     "whisper-medium@onnx-int8": 4000,  # 3499; 4544 with an en and a ru recogniser both loaded
+    "nemotron-speech-streaming-en-0.6b@onnx-int8-560ms": 1150,  # same architecture as Nemotron 3.5
+}
+
+# Audio-seconds per wall-second of one 2-thread worker inside the 8-worker review run of 2026-11-19
+# (server load average 23-44 from other jobs; an idle box is 3-4x faster). Only used to cut ASR
+# shards to a similar expected wall time; a wrong value costs scheduling balance, not results.
+XRT: Dict[str, float] = {
+    "gigaam-v3-e2e-ctc@onnx-int8": 5.3,
+    "gigaam-v3-e2e-rnnt@onnx-int8": 4.9,
+    "parakeet-tdt-0.6b-v3@onnx-int8": 3.3,
+    "parakeet-ultra-0.6b@onnx-int8": 3.2,
+    "t-one@onnx": 3.0,
+    "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms": 0.92,
+    "nemotron-speech-streaming-en-0.6b@onnx-int8-560ms": 0.92,  # not measured yet: same encoder size
+    "qwen3-asr-0.6b@onnx-int8": 0.71,
+    "whisper-small@onnx-int8": 0.66,
+    "whisper-large-v3-turbo@onnx-int8": 0.49,
+    "distil-large-v3.5@onnx-int8": 0.43,
+    "whisper-medium@onnx-int8": 0.24,
 }
 
 
@@ -136,7 +161,8 @@ def spec_for(name: str) -> AsrSpec:
         notes = ""
     except SpecError as exc:
         files, family, catalog_id, licence, notes = [], "", None, "", f"UNRESOLVED: {exc}"
-    extra = dict(kind=cfg["kind"], paths=cfg["paths"], files=files, mem_mb=MEM_MB.get(name, 2000))
+    extra = dict(kind=cfg["kind"], paths=cfg["paths"], files=files, mem_mb=MEM_MB.get(name, 2000),
+                 xrt=XRT.get(name, 1.0))
     if "default_lang" in cfg:
         extra["default_lang"] = cfg["default_lang"]
     if "catalog_ref" in cfg:

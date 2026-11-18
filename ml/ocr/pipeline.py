@@ -247,8 +247,9 @@ def run_detailed(image, exclude_rects=(), cfg: OcrConfig = DEFAULT) -> dict:
     t3 = time.perf_counter()
     raw = [{"text": pp.norm_text(t), "conf": c, "box": b} for b, (t, c) in zip(boxes, recs)]
     lines = [ln for ln in raw if pp.keep(ln, cfg)]
+    dominant = pp.screen_script([ln["text"] for ln in lines], cfg.screen_script_ratio)
     for ln in lines:
-        ln["text"] = pp.repair_homoglyphs(ln["text"])
+        ln["text"] = pp.repair_homoglyphs(ln["text"], dominant)
     lines = pp.dedup_geometric(lines, cfg.dedup_iou)
     lines = pp.reading_order(lines, w, h, cfg)
     lines = pp.dedup_text(lines)

@@ -1,0 +1,793 @@
+{
+ "source": "ml/roundtrip/probe/terms.jsonl",
+ "method": "ml/ocr/terms_probe.py (docs/ml/OCR_CONTEXT.md)",
+ "note": "terms OCR did not read exactly in at least one rendering; 'ocr' = what it read instead",
+ "terms": {
+  "1С": {
+   "seen": 2,
+   "failed": 2,
+   "ocr": [
+    "1 ",
+    "18"
+   ],
+   "modes": [
+    "letter"
+   ]
+  },
+  "APK": {
+   "seen": 2,
+   "failed": 2,
+   "ocr": [
+    "ATA",
+    "All"
+   ],
+   "modes": [
+    "letter"
+   ]
+  },
+  "Azure OpenAI": {
+   "seen": 2,
+   "failed": 2,
+   "ocr": [
+    "Azure OpenAl"
+   ],
+   "modes": [
+    "letter"
+   ]
+  },
+  "Bun": {
+   "seen": 2,
+   "failed": 2,
+   "ocr": [
+    "hun",
+    "oun"
+   ],
+   "modes": [
+    "digit_letter",
+    "letter"
+   ]
+  },
+  "Canary": {
+   "seen": 2,
+   "failed": 2,
+   "ocr": [
+    "elta L",
+    "infra"
+   ],
+   "modes": [
+    "letter",
+    "mixed:digit_letter+letter"
+   ]
+  },
+  "ETA": {
+   "seen": 2,
+   "failed": 2,
+   "ocr": [
+    "",
+    "ER "
+   ],
+   "modes": [
+    "letter",
+    "missing"
+   ]
+  },
+  "HAProxy": {
+   "seen": 2,
+   "failed": 2,
+   "ocr": [
+    "Petrov"
+   ],
+   "modes": [
+    "letter"
+   ]
+  },
+  "HTTP": {
+   "seen": 2,
+   "failed": 2,
+   "ocr": [
+    "N-T,",
+    "м Tr"
+   ],
+   "modes": [
+    "mixed:homoglyph+letter+punct_symbol",
+    "mixed:letter+punct_symbol"
+   ]
+  },
+  "MCP": {
+   "seen": 2,
+   "failed": 2,
+   "ocr": [
+    "",
+    " CE"
+   ],
+   "modes": [
+    "missing",
+    "mixed:letter+punct_symbol"
+   ]
+  },
+  "NeMo": {
+   "seen": 2,
+   "failed": 2,
+   "ocr": [
+    "№eMo"
+   ],
+   "modes": [
+    "punct_symbol"
+   ]
+  },
+  "OOM": {
+   "seen": 2,
+   "failed": 2,
+   "ocr": [
+    "",
+    "↑Op"
+   ],
+   "modes": [
+    "missing",
+    "mixed:digit_letter+letter"
+   ]
+  },
+  "OpenAI API": {
+   "seen": 2,
+   "failed": 2,
+   "ocr": [
+    " OpenAI",
+    "OpenAl API"
+   ],
+   "modes": [
+    "digit_letter",
+    "mixed:letter+punct_symbol"
+   ]
+  },
+  "PCIe 5.0": {
+   "seen": 2,
+   "failed": 2,
+   "ocr": [
+    "PCle 5.0"
+   ],
+   "modes": [
+    "digit_letter"
+   ]
+  },
+  "Packer": {
+   "seen": 2,
+   "failed": 2,
+   "ocr": [
+    "Priya ",
+    "face-"
+   ],
+   "modes": [
+    "letter"
+   ]
+  },
+  "Qualcomm AI Hub": {
+   "seen": 2,
+   "failed": 2,
+   "ocr": [
+    "Qualcomm Al Hub"
+   ],
+   "modes": [
+    "digit_letter"
+   ]
+  },
+  "Segment Anything": {
+   "seen": 2,
+   "failed": 2,
+   "ocr": [
+    "Anything на с"
+   ],
+   "modes": [
+    "mixed:letter+punct_symbol"
+   ]
+  },
+  "T-one": {
+   "seen": 1,
+   "failed": 1,
+   "ocr": [
+    "T-опе"
+   ],
+   "modes": [
+    "letter"
+   ]
+  },
+  "Trino": {
+   "seen": 2,
+   "failed": 2,
+   "ocr": [
+    "Priya",
+    "erpa-"
+   ],
+   "modes": [
+    "letter"
+   ]
+  },
+  "Triton": {
+   "seen": 2,
+   "failed": 2,
+   "ocr": [
+    " Z Fol",
+    "Priya "
+   ],
+   "modes": [
+    "letter",
+    "mixed:letter+punct_symbol"
+   ]
+  },
+  "Vertex AI": {
+   "seen": 2,
+   "failed": 2,
+   "ocr": [
+    "Vertex Al"
+   ],
+   "modes": [
+    "letter"
+   ]
+  },
+  "git push --force": {
+   "seen": 2,
+   "failed": 2,
+   "ocr": [
+    "git push -force",
+    "git push –force"
+   ],
+   "modes": [
+    "punct_symbol"
+   ]
+  },
+  "git reset --hard": {
+   "seen": 2,
+   "failed": 2,
+   "ocr": [
+    "git reset -hard"
+   ],
+   "modes": [
+    "punct_symbol"
+   ]
+  },
+  "journalctl": {
+   "seen": 2,
+   "failed": 2,
+   "ocr": [
+    "iournalctl",
+    "journalctI"
+   ],
+   "modes": [
+    "letter"
+   ]
+  },
+  "llama.cpp": {
+   "seen": 2,
+   "failed": 2,
+   "ocr": [
+    " Iama.cpp",
+    "IIama.cpp"
+   ],
+   "modes": [
+    "digit_letter"
+   ]
+  },
+  "logits": {
+   "seen": 1,
+   "failed": 1,
+   "ocr": [
+    "Iogits"
+   ],
+   "modes": [
+    "digit_letter"
+   ]
+  },
+  "ls -la": {
+   "seen": 2,
+   "failed": 2,
+   "ocr": [
+    "Is -la"
+   ],
+   "modes": [
+    "digit_letter"
+   ]
+  },
+  "npm install": {
+   "seen": 2,
+   "failed": 2,
+   "ocr": [
+    "прт install"
+   ],
+   "modes": [
+    "homoglyph"
+   ]
+  },
+  "reranker": {
+   "seen": 2,
+   "failed": 2,
+   "ocr": [
+    "Thanks ",
+    "м Docker"
+   ],
+   "modes": [
+    "letter",
+    "mixed:digit_letter+homoglyph+letter+punct_symbol"
+   ]
+  },
+  "большая языковая модель": {
+   "seen": 1,
+   "failed": 1,
+   "ocr": [
+    "вил большая языковая"
+   ],
+   "modes": [
+    "mixed:letter+punct_symbol"
+   ]
+  },
+  "таска": {
+   "seen": 2,
+   "failed": 2,
+   "ocr": [
+    "Бэке",
+    "расша"
+   ],
+   "modes": [
+    "letter"
+   ]
+  },
+  "AAB": {
+   "seen": 2,
+   "failed": 1,
+   "ocr": [
+    "B"
+   ],
+   "modes": [
+    "letter"
+   ]
+  },
+  "API": {
+   "seen": 2,
+   "failed": 1,
+   "ocr": [
+    "APi"
+   ],
+   "modes": [
+    "case"
+   ]
+  },
+  "AWS Lambda": {
+   "seen": 2,
+   "failed": 1,
+   "ocr": [
+    "AWs Lambda"
+   ],
+   "modes": [
+    "case"
+   ]
+  },
+  "Apache Spark": {
+   "seen": 2,
+   "failed": 1,
+   "ocr": [
+    "Арасһе Spark"
+   ],
+   "modes": [
+    "mixed:homoglyph+letter"
+   ]
+  },
+  "Axolotl": {
+   "seen": 2,
+   "failed": 1,
+   "ocr": [
+    "Axoloti"
+   ],
+   "modes": [
+    "letter"
+   ]
+  },
+  "CI": {
+   "seen": 2,
+   "failed": 1,
+   "ocr": [
+    "Ca"
+   ],
+   "modes": [
+    "letter"
+   ]
+  },
+  "CPU": {
+   "seen": 2,
+   "failed": 1,
+   "ocr": [
+    "NP"
+   ],
+   "modes": [
+    "letter"
+   ]
+  },
+  "CTC": {
+   "seen": 2,
+   "failed": 1,
+   "ocr": [
+    ""
+   ],
+   "modes": [
+    "missing"
+   ]
+  },
+  "Gemini 2.5 Pro": {
+   "seen": 2,
+   "failed": 1,
+   "ocr": [
+    "Gemini 2.5 Рго"
+   ],
+   "modes": [
+    "letter"
+   ]
+  },
+  "Gemma": {
+   "seen": 2,
+   "failed": 1,
+   "ocr": [
+    "he pa"
+   ],
+   "modes": [
+    "mixed:letter+punct_symbol"
+   ]
+  },
+  "GitLab CI": {
+   "seen": 2,
+   "failed": 1,
+   "ocr": [
+    "GitLab Cl"
+   ],
+   "modes": [
+    "letter"
+   ]
+  },
+  "Infiniband": {
+   "seen": 2,
+   "failed": 1,
+   "ocr": [
+    "Infiniba.."
+   ],
+   "modes": [
+    "letter"
+   ]
+  },
+  "KV cache": {
+   "seen": 2,
+   "failed": 1,
+   "ocr": [
+    "ya Raghu"
+   ],
+   "modes": [
+    "letter"
+   ]
+  },
+  "Kibana": {
+   "seen": 2,
+   "failed": 1,
+   "ocr": [
+    "infra"
+   ],
+   "modes": [
+    "letter"
+   ]
+  },
+  "Kokoro": {
+   "seen": 2,
+   "failed": 1,
+   "ocr": [
+    "Nikola"
+   ],
+   "modes": [
+    "mixed:digit_letter+letter"
+   ]
+  },
+  "LFM3-1.7B": {
+   "seen": 2,
+   "failed": 1,
+   "ocr": [
+    "LFм3-1.7B"
+   ],
+   "modes": [
+    "homoglyph"
+   ]
+  },
+  "LlamaIndex": {
+   "seen": 2,
+   "failed": 1,
+   "ocr": [
+    "Llamalndex"
+   ],
+   "modes": [
+    "digit_letter"
+   ]
+  },
+  "Metabase": {
+   "seen": 2,
+   "failed": 1,
+   "ocr": [
+    "Metaбase"
+   ],
+   "modes": [
+    "homoglyph"
+   ]
+  },
+  "MinIO": {
+   "seen": 2,
+   "failed": 1,
+   "ocr": [
+    "Minl0"
+   ],
+   "modes": [
+    "letter"
+   ]
+  },
+  "Neo4j": {
+   "seen": 2,
+   "failed": 1,
+   "ocr": [
+    "№eo4j"
+   ],
+   "modes": [
+    "punct_symbol"
+   ]
+  },
+  "Nginx": {
+   "seen": 2,
+   "failed": 1,
+   "ocr": [
+    "№ginx"
+   ],
+   "modes": [
+    "punct_symbol"
+   ]
+  },
+  "OCR": {
+   "seen": 2,
+   "failed": 1,
+   "ocr": [
+    "OK"
+   ],
+   "modes": [
+    "letter"
+   ]
+  },
+  "Parakeet TDT 0.6B v3": {
+   "seen": 2,
+   "failed": 1,
+   "ocr": [
+    "Parakeet TDT 0.6B V3"
+   ],
+   "modes": [
+    "case"
+   ]
+  },
+  "Pinecone": {
+   "seen": 2,
+   "failed": 1,
+   "ocr": [
+    "t me kno"
+   ],
+   "modes": [
+    "mixed:digit_letter+letter+punct_symbol"
+   ]
+  },
+  "Q4_K_M": {
+   "seen": 2,
+   "failed": 1,
+   "ocr": [
+    "Q4_K_М"
+   ],
+   "modes": [
+    "letter"
+   ]
+  },
+  "RAM": {
+   "seen": 2,
+   "failed": 1,
+   "ocr": [
+    "Rel"
+   ],
+   "modes": [
+    "letter"
+   ]
+  },
+  "Raspberry Pi": {
+   "seen": 2,
+   "failed": 1,
+   "ocr": [
+    "Raspberry"
+   ],
+   "modes": [
+    "mixed:letter+punct_symbol"
+   ]
+  },
+  "RoBERTa": {
+   "seen": 2,
+   "failed": 1,
+   "ocr": [
+    "PoBepTa"
+   ],
+   "modes": [
+    "letter"
+   ]
+  },
+  "SQLAlchemy": {
+   "seen": 2,
+   "failed": 1,
+   "ocr": [
+    "SQLAIchemy"
+   ],
+   "modes": [
+    "digit_letter"
+   ]
+  },
+  "WER": {
+   "seen": 2,
+   "failed": 1,
+   "ocr": [
+    "WFR"
+   ],
+   "modes": [
+    "letter"
+   ]
+  },
+  "Webpack": {
+   "seen": 2,
+   "failed": 1,
+   "ocr": [
+    "heck"
+   ],
+   "modes": [
+    "letter"
+   ]
+  },
+  "YDB": {
+   "seen": 2,
+   "failed": 1,
+   "ocr": [
+    "acB"
+   ],
+   "modes": [
+    "letter"
+   ]
+  },
+  "curl": {
+   "seen": 2,
+   "failed": 1,
+   "ocr": [
+    "curI"
+   ],
+   "modes": [
+    "letter"
+   ]
+  },
+  "emulator": {
+   "seen": 2,
+   "failed": 1,
+   "ocr": [
+    "emuIator"
+   ],
+   "modes": [
+    "digit_letter"
+   ]
+  },
+  "foreground service": {
+   "seen": 2,
+   "failed": 1,
+   "ocr": [
+    "авил foreground"
+   ],
+   "modes": [
+    "mixed:letter+punct_symbol"
+   ]
+  },
+  "git commit --amend": {
+   "seen": 2,
+   "failed": 1,
+   "ocr": [
+    "git соттит --amend"
+   ],
+   "modes": [
+    "homoglyph"
+   ]
+  },
+  "gradient accumulation": {
+   "seen": 2,
+   "failed": 1,
+   "ocr": [
+    "accumulation?"
+   ],
+   "modes": [
+    "mixed:letter+punct_symbol"
+   ]
+  },
+  "gradient checkpointing": {
+   "seen": 2,
+   "failed": 1,
+   "ocr": [
+    "checkpointing?"
+   ],
+   "modes": [
+    "mixed:letter+punct_symbol"
+   ]
+  },
+  "kubectl logs": {
+   "seen": 2,
+   "failed": 1,
+   "ocr": [
+    "ь kubectl"
+   ],
+   "modes": [
+    "mixed:letter+punct_symbol"
+   ]
+  },
+  "pgBouncer": {
+   "seen": 2,
+   "failed": 1,
+   "ocr": [
+    "pt injec"
+   ],
+   "modes": [
+    "mixed:digit_letter+letter"
+   ]
+  },
+  "prefill": {
+   "seen": 2,
+   "failed": 1,
+   "ocr": [
+    "prefil?"
+   ],
+   "modes": [
+    "letter"
+   ]
+  },
+  "tmux": {
+   "seen": 2,
+   "failed": 1,
+   "ocr": [
+    "trov"
+   ],
+   "modes": [
+    "letter"
+   ]
+  },
+  "tokenizer.json": {
+   "seen": 2,
+   "failed": 1,
+   "ocr": [
+    "tokenizerjson"
+   ],
+   "modes": [
+    "punct_symbol"
+   ]
+  },
+  "top-k": {
+   "seen": 2,
+   "failed": 1,
+   "ocr": [
+    "тор-k"
+   ],
+   "modes": [
+    "homoglyph"
+   ]
+  },
+  "Яндекс Диск": {
+   "seen": 2,
+   "failed": 1,
+   "ocr": [
+    "Яндекс Duck"
+   ],
+   "modes": [
+    "letter"
+   ]
+  },
+  "ретро": {
+   "seen": 2,
+   "failed": 1,
+   "ocr": [
+    "черо"
+   ],
+   "modes": [
+    "letter"
+   ]
+  }
+ }
+}

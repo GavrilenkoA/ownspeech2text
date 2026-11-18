@@ -4,7 +4,8 @@ Recogniser kinds (``AsrSpec.extra["kind"]``):
 
 - ``offline_transducer`` — NeMo transducers (Parakeet TDT v3, Parakeet Ultra, GigaAM v3 RNN-T).
 - ``offline_nemo_ctc``  — GigaAM v3 CTC.
-- ``online_transducer`` — Nemotron 3.5 streaming (cache-aware, per-stream ``language`` option).
+- ``online_transducer`` — Nemotron 3.5 streaming (cache-aware, per-stream ``language`` option) and the
+  English-only Nemotron Speech Streaming (no language option).
 - ``online_t_one``      — T-one streaming CTC, 8 kHz input (we resample, see ``_transcribe``).
 - ``offline_qwen3``     — Qwen3-ASR 0.6B (audio LLM, auto language).
 - ``offline_whisper``   — Whisper / Distil-Whisper (language fixed per recogniser instance).
@@ -146,8 +147,9 @@ class SherpaDriver(AsrDriver):
         else:  # online_transducer (Nemotron)
             sr = SAMPLE_RATE
             stream = rec.create_stream()
-            hint = lang_hint if lang_hint in ("ru", "en") else "auto"
-            stream.set_option("language", hint)
+            if len(self.spec.languages) > 1:  # the English-only Nemotron has no language prompt
+                hint = lang_hint if lang_hint in ("ru", "en") else "auto"
+                stream.set_option("language", hint)
             stream.accept_waveform(sr, samples)
             stream.accept_waveform(sr, np.zeros(int(ONLINE_TAIL_S * sr), dtype=np.float32))
         stream.input_finished()

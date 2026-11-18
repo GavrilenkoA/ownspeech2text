@@ -21,7 +21,6 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from . import metrics as M
-from .config import REPO
 
 ADB = str(Path.home() / ".local/share/android-sdk/platform-tools/adb")
 
@@ -114,7 +113,10 @@ def report(d: Path) -> dict:
         meta = json.loads(meta_p.read_text())
         name = meta["name"]
         png = d / f"{name}.png"
-        size = Image.open(png).size
+        try:
+            size = Image.open(png).size
+        except Exception:   # failed capture (device restarting, locked screen)
+            continue
         gt = ground_truth((d / f"{name}.xml").read_text(encoding="utf-8"), size)
         det = P.run_detailed(png, meta["exclude_rects"])
         lines = det["result"]["lines"]
@@ -139,6 +141,17 @@ def report(d: Path) -> dict:
         "ocr_lines_per_screen": sum(r["ocr_lines"] for r in per) / max(1, len(per)),
         "median_total_ms": sorted(r["ms"]["total"] for r in per)[len(per) // 2] if per else None,
     }
+    # The dump is taken ~1 s after the screenshot, so a screen that changed in between (loading spinners,
+    # dialogs, app switches) has a GT that does not describe the image. "consistent" screens: >= 50 % of the
+    # GT items found by OCR; their numbers are the fair comparison with the rendered set.
+    cons = [r for r in per if r["items"] and r["missed"] <= 0.5 * r["items"]]
+    found = [x for r in per for x in r["detail"] if x["ocr"]]
+    agg["consistent_screens"] = len(cons)
+    agg["consistent_cer"] = sum(r["errors"] for r in cons) / max(1, sum(r["chars"] for r in cons))
+    agg["consistent_item_exact"] = sum(r["exact"] for r in cons) / max(1, sum(r["items"] for r in cons))
+    agg["consistent_missed_share"] = sum(r["missed"] for r in cons) / max(1, sum(r["items"] for r in cons))
+    agg["found_item_cer"] = sum(x["dist"] for x in found) / max(1, sum(len(x["gt"]) for x in found))
+    agg["label_like_line_share"] = label_like_share([t for r in per for t in r["ocr_texts"]])
     conf = {}
     for r in per:
         for k, v in r["confusions"].items():
@@ -147,6 +160,17 @@ def report(d: Path) -> dict:
     doc = {"aggregate": agg, "screens": per}
     (d / "report.json").write_text(json.dumps(doc, ensure_ascii=False, indent=1))
     return doc
+
+
+def label_like_share(texts: list[str]) -> float:
+    """Share of OCR lines that look like UI labels rather than content: at most 2 words and 18 characters,
+    or a clock / counter / percentage (comparable proxy for real and rendered screens, which have no roles)."""
+    def lab(t):
+        t = t.strip()
+        if re.fullmatch(r"[\d:%.,/ +\-]+[A-Za-zА-Яа-я]{0,3}", t):
+            return True
+        return len(t.split()) <= 2 and len(t) <= 18
+    return sum(1 for t in texts if lab(t)) / max(1, len(texts))
 
 
 def compare_tree(gts: list[dict], lines: list[dict]) -> dict:
@@ -183,6 +207,7 @@ def compare_tree(gts: list[dict], lines: list[dict]) -> dict:
     return {"items": len(items), "chars": chars, "errors": errors, "exact": exact, "missed": missed,
             "ocr_lines": len(lines), "ocr_unmatched": len(lines) - len(used),
             "unmatched_texts": [lines[i]["text"] for i in range(len(lines)) if i not in used],
+            "ocr_texts": [o["text"] for o in lines],
             "mixed": sum(1 for t in toks if M.is_mixed_script(t)), "tokens": len(toks), "confusions": conf,
             "detail": items}
 

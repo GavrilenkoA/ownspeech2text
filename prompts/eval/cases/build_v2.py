@@ -82,12 +82,42 @@ def _attach(item: dict, res: dict, src: str) -> None:
     item["c2"] = c2
 
 
+DENSE_CATS = {"context_names", "injection", "translit_terms", "code_switch", "continuation", "no_answer", "tone"}
+
+
+def build_dense(a) -> int:
+    cases = [c for c in dev_v1.CASES if c["category"] in DENSE_CATS or to_v2.screen_terms(c)]
+    items = [{"group": "dense", "key": f"dense:{c['id']}", "case": c, "filler": True} for c in cases]
+    for it in items:
+        it["spec"] = to_v2.spec_for(it["case"], True, pools=True, force_dense=True)
+    rspecs = [{**to_v2.screens_spec(it["spec"], it["case"]), "id": it["key"]} for it in items]
+    for it, rs, res in zip(items, rspecs, _real_batch(rspecs, "dense", a.workers, a.threads)):
+        it["rspec"] = rs
+        _attach(it, res, "ml.screens.build_ctx (dense)")
+    errs = [e for it in items for e in verify(it["c2"])]
+    rows = [it["c2"] for it in items]
+    (SETS / "dev.v2dense.jsonl").write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows), encoding="utf-8")
+    (SETS / "dev.v2dense.specs.jsonl").write_text("".join(
+        json.dumps({"id": it["case"]["id"], "spec": it["rspec"]}, ensure_ascii=False) + "\n" for it in items), encoding="utf-8")
+    n = [sum(len(l["text"]) + 1 for l in (r["ctx"].get("screen") or {}).get("lines", [])) for r in rows]
+    print(f"sets/dev.v2dense.jsonl: {len(rows)} cases; OCR chars median {sorted(n)[len(n) // 2]}, max {max(n)}, "
+          f"> 800: {sum(x > 800 for x in n)}, > 1400: {sum(x > 1400 for x in n)}")
+    for e in errs:
+        print(e, file=sys.stderr)
+    return 0
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--fixture", action="store_true", help="use the fixture even if ml/screens/READY exists")
     ap.add_argument("--workers", type=int, default=3)
     ap.add_argument("--threads", type=int, default=2)
+    ap.add_argument("--dense", action="store_true",
+                    help="only write sets/dev.v2dense.jsonl: context-relevant dev cases on dense screens (inner display, "
+                         "keyboard hidden, template filler + this module's history pools) for the budget measurement")
     a = ap.parse_args(argv)
+    if a.dense:
+        return build_dense(a)
     real = not a.fixture and (ROOT / "ml" / "screens" / "READY").exists()
     src = "ml.screens.build_ctx" if real else "fixture:prompts/eval/ocr_fixture.py"
     sfx = "" if real else ".fx"  # fixture outputs: sets/*.v2fx.jsonl, shots/*.fx.jsonl, smoke_cases.v2fx.jsonl

@@ -69,8 +69,30 @@ def test_choose_tts_input():
     assert choose_tts_input("в Kubernetes", "в кубернетес", "mixed", ru) == ("в кубернетес", "tts_text")
     assert choose_tts_input("в Kubernetes", "в кубернетес", "mixed", multi) == ("в Kubernetes", "text")
     assert choose_tts_input("в Kubernetes", None, "mixed", ru) == ("в Kubernetes", "text")
-    assert choose_tts_input("deploy", "деплой", "en", ru)[1] == "text"
     assert ru.speaks("mixed") and not ru.speaks("en") and multi.speaks("en")
+
+
+def test_choose_tts_input_en_and_ru_read_tts_text():
+    en = VoiceInfo("s", "e", frozenset({"en"}), "CC0", LATIN_NATIVE, reads_digits=frozenset({"en"}))
+    ru = VoiceInfo("s", "r", frozenset({"ru"}), "CC0", LATIN_RESPELL, reads_digits=frozenset({"ru"}))
+    assert choose_tts_input("Run kubectl get pods.", "Run kube control get pods.", "en", en) == \
+        ("Run kube control get pods.", "tts_text")
+    assert choose_tts_input("Буду через 20 минут.", "Буду через двадцать минут.", "ru", ru) == \
+        ("Буду через двадцать минут.", "tts_text")
+    assert choose_tts_input("Run the tests.", None, "en", en) == ("Run the tests.", "text")
+
+
+def test_choose_tts_input_spells_digits_for_voices_that_cannot_read_them():
+    # Supertonic-like: Latin terms native, digits read in English only
+    sup = VoiceInfo("s", "x", frozenset({"ru", "en"}), "MIT", LATIN_NATIVE, reads_digits=frozenset({"en"}))
+    say, src = choose_tts_input("Обучение через LoRA заняло 20 минут, это 80%.",
+                                "Обучение через лора заняло двадцать минут, это восемьдесят процентов.", "mixed", sup)
+    assert (say, src) == ("Обучение через LoRA заняло двадцать минут, это восемьдесят процентов.", "text_numbers")
+    # no tts_text: digits are spelled in the nominative; a number after a Latin name is part of the name
+    say, src = choose_tts_input("Взял RTX 5090 за 3 дня до 11:30.", None, "mixed", sup)
+    assert (say, src) == ("Взял RTX 5090 за три дня до одиннадцать тридцать.", "text_numbers")
+    # English digits are read by the engine itself
+    assert choose_tts_input("Meet at 9:30.", None, "en", sup) == ("Meet at 9:30.", "text")
 
 
 def test_to_16k_resamples_and_normalises():
@@ -95,7 +117,13 @@ def test_tts_registry_lists_cpu_voices_without_loading():
 # ----------------------------------------------------------------------------------- ASR registry
 def test_asr_registry_resolves_every_model_from_catalog():
     names = asr_reg.resolve_models("all")
-    assert len(names) == 11
+    assert len(names) == 12
+    # whisper-small now resolves from its catalog entry; only medium and the English Nemotron are off-catalog
+    assert asr_reg.spec_for("whisper-small@onnx-int8").catalog_id == "whisper-small@onnx-int8"
+    assert asr_reg.spec_for("whisper-medium@onnx-int8").catalog_id is None
+    nem_en = asr_reg.spec_for("nemotron-speech-streaming-en-0.6b@onnx-int8-560ms")
+    assert nem_en.languages == frozenset({"en"}) and nem_en.extra["catalog_ref"].endswith("@qnn-sm8750-560ms")
+    assert all(asr_reg.spec_for(n).extra["xrt"] > 0 for n in names)
     for n in names:
         spec = asr_reg.spec_for(n)
         assert not spec.notes.startswith("UNRESOLVED"), spec.notes
@@ -250,3 +278,21 @@ def test_chatterbox_dry_run_pins_revision_and_uses_cfg_rule(ref_dir, monkeypatch
     assert seen["load"] == ("/fake/ckpt", "cuda")
     # same-language reference keeps cfg_weight, cross-language cloning sets it to 0 (README advice)
     assert seen["gen"] == [("ru", "ru_f", 0.5), ("en", "ru_f", 0.0)]
+
+
+def test_channel_stats_sees_band_limit_noise_and_clipping(tmp_path, capsys):
+    rng = np.random.default_rng(0)
+    speechy = np.concatenate([0.3 * rng.standard_normal(SR), np.zeros(SR // 2)]).astype(np.float32)  # white burst + pause
+    clean = channel.audio_stats(speechy)
+    phone = channel.audio_stats(channel.apply_channel(speechy, "far", seed=1))
+    assert phone["hf_db"] < clean["hf_db"] - 10 and phone["lf_db"] < clean["lf_db"] - 10
+    assert phone["rolloff99_hz"] < clean["rolloff99_hz"]
+    assert clean["snr_db"] > 60 > phone["snr_db"] > 5
+    assert channel.audio_stats(np.clip(speechy * 10, -1, 1))["clip_ratio"] > 0.4
+    import soundfile as sf
+
+    f = tmp_path / "a.wav"
+    sf.write(f, speechy, SR)
+    assert channel.main(["stats", str(f), "--preset", "phone"]) == 0
+    row = json.loads(capsys.readouterr().out.strip())
+    assert row["preset"] == "phone" and row["duration_s"] == 1.5

@@ -25,8 +25,9 @@ CONTEXT_V2 fields: `template, device (fold7_cover|fold7_inner), theme (light|dar
 locale (ru|en: UI chrome language), title, messages [{author, is_me, text, time?}], snippets [str],
 field {kind?, hint, before_cursor} | null, keyboard, seed`.
 Extras: `app` {package, label, category}, `lang` (ru|en|mixed -> ctx.language.asr), `privacy` (full | other ->
-no screen), `avoid` (strings filler must never contain), `keyboard_layout` (ru|en), `bubble` (bool), `clock`,
-`filler` (false = no filler content), `font` (roboto|noto), `accent`.
+no screen), `avoid` (strings filler must never contain), `keyboard_layout` (ru|en), `bubble` (bool, default 50 %),
+`overlay` (none|headsup|snackbar|dialog|banner, default ~25 % random: transient UI seen on real screenshots),
+`clock`, `filler` (false = no filler content), `font` (roboto|noto), `accent`.
 
 What each template does with the teacher content (nothing is dropped from the spec; what does not fit is
 scrolled off and absent from `visible`):
@@ -64,5 +65,10 @@ Visible text = per-glyph test against every clipping ancestor, the viewport and 
 Fonts (open licences, `.cache/ml/screens/fonts`, `ml/ocr/fetch_assets.sh`): Roboto, Noto Sans (OFL), Roboto Mono,
 JetBrains Mono (OFL/Apache), Noto Color Emoji (OFL). Generic look-alikes: no logos, brand names only as app labels in ctx.
 Deterministic: same spec -> byte-identical PNG and identical `visible` (tested).
+
+Throughput: `build_ctx --batch` with 8 workers x 1 thread renders + recognises 300 screens in 167 s on 8 shared
+cores (3,000 in ~28 min). Visual review: `python -m ml.screens.sheet OUT.png A.png B.png ...`.
+Data engineers: integrate through `specs.from_teacher(...)` + `build_ctx`; check category rules on
+`ctx.screen.lines`; terms OCR cannot read exactly are listed in `ml/ocr/ocr_hard_terms.json`.
 
 Tests: `.cache/ml/ocr/venv/bin/python -m pytest -q ml/screens/tests`

@@ -84,8 +84,13 @@ def is_mixed_script(tok: str) -> bool:
 
 
 def compare(visible: list[dict], ocr_lines: list[dict], exclude_rects=()) -> dict:
-    gts = [g for g in visible if g["role"] not in IGNORED_ROLES and not _inside(g["box"], exclude_rects)
-           and clean(g["text"])]
+    gts, seen = [], set()
+    for g in sorted(visible, key=lambda g: (g["box"][1], g["box"][0])):
+        k = " ".join(clean(g["text"]).casefold().split())
+        if g["role"] in IGNORED_ROLES or _inside(g["box"], exclude_rects) or not k or k in seen:
+            continue   # repeated texts are removed by the pipeline's textual de-duplication: count them once
+        seen.add(k)
+        gts.append(g)
     errs = chars = 0
     content_errs = content_chars = 0
     missed = exact = 0

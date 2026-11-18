@@ -8,7 +8,7 @@ Status words: **VERIFIED** = I ran it here and quote the output; **REFUTED** = I
 **UNVERIFIABLE-HERE** = needs something this server lacks (named); **UNVERIFIED-ON-DEVICE** = only a phone can prove it
 (`tools/device/llm_npu_smoke.sh` measures it). No Fold7 was attached (`adb devices` empty), so nothing below ran on a
 phone or on a Hexagon DSP. Every throughput number from this server is **x86_64 (Xeon E-2388G, 8C/16T), CPU only,
-on a shared machine with load average 13-48 from other tenants**: use it for relative comparisons, never as phone numbers.
+on a shared machine with load average 12-72 from other tenants**: use it for relative comparisons, never as phone numbers.
 
 ---
 
@@ -17,13 +17,16 @@ on a shared machine with load average 13-48 from other tenants**: use it for rel
 | # | Decision | Status |
 |---|---|---|
 | D1 | **Runtime = upstream llama.cpp b12520 with `GGML_HEXAGON=ON` + `GGML_OPENCL=ON` + all Android arm64 CPU variants**, built by `native/llama/build_android.sh` with the local NDK r30 and the public Hexagon SDK 6.7.0.0 "Community Edition" tarball. No Docker image, no Qualcomm account. One GGUF runs on NPU, GPU and CPU. | Build VERIFIED (arm64 npu, arm64 cpu, x86_64 cpu, host). Running on the HTP: UNVERIFIED-ON-DEVICE |
-| D2 | **Ship the prebuilt `.so` set from the script into `jniLibs`, not a Gradle CMake build of llama.cpp.** The app compiles only a thin JNI shim (`native/llama/include/murmur_llm_jni.h`) against `libmurmur_llm.so`. `useLegacyPackaging = true`. | Rationale VERIFIED from source + build times (§6) |
+| D2 | **Ship the prebuilt `.so` set from the script into `jniLibs`, not a Gradle CMake build of llama.cpp.** The app compiles only a thin JNI shim (`native/llama/include/murmur_llm_jni.h`) against `libmurmur_llm.so`. `useLegacyPackaging = true`. | VERIFIED: AGP probe built CPU-only in 397 s and needed two fixes (clang `-g` crash, unpackaged backend modules); NPU needs the Hexagon SDK (§6) |
 | D3 | **Weights: Q4_0 GGUF** ("Q4" in the hub = Q4_0; Liquid's `QAD-Q4_0` where it exists). Q4_K_M is *accepted* by the HTP matmul at this commit (K-quants are tiled types), so it is no longer a correctness problem, but Q4_0 stays the default: smallest tile (576 B per 32x32), the type Qualcomm benchmarks, and what Qualcomm's own manifests point to. | Source VERIFIED; relative speed of K-quants on HTP UNVERIFIED-ON-DEVICE |
-| D4 | **Device per model is chosen by the on-device Benchmark, defaulting to: LFM3 -> NPU, Qwen3.5 -> CPU.** Qualcomm's own S25 data (same SoC, same llama.cpp-Hexagon path, GenieX v0.10.0) gives LFM3 7.1x prefill on NPU and 23% slower decode; Qwen3.5-0.8B 1.7x prefill and **half** the CPU decode. Dictation cleanup is decode-bound, so "NPU for all models" costs Qwen3.5 users latency. **Owner decision needed** (§10). | Qualcomm numbers VERIFIED as published; our phone numbers UNVERIFIED-ON-DEVICE |
-| D5 | **Prefix cache = per-sequence state snapshot** (`llama_state_seq_get_data_ext` / `llama_state_seq_set_data_ext`) taken once after prefilling the ~1.1k-token system prefix; restored per dictation in 2-8 ms (x86). Persist it across `:llm` restarts with `llama_state_seq_save_file` / `llama_state_seq_load_file` keyed by (model sha, prompt version). Works for both hybrid architectures (identical greedy output with and without the cache). | VERIFIED on host (§5) |
+| D4 | **Device per model is chosen by the on-device Benchmark, defaulting to: LFM3 -> NPU, Qwen3.5 -> CPU.** Qualcomm's S25 data (SM8750, same llama.cpp-Hexagon path, GenieX v0.10.0, `.cache/spikes/llm-npu/aihub/*.perf.yaml`): LFM3 NPU prefill 7.0x CPU, decode 23% slower; Qwen3.5-0.8B NPU prefill 1.7x (GPU 1.9x), decode **half** of CPU. With the prefix cached, one dictation (~200 suffix tokens, ~40 out) is LFM3 1.06 s NPU vs 1.29 s CPU, Qwen3.5-0.8B 0.83 s CPU vs 1.15 s NPU. **Owner decision needed** (§10). | Qualcomm numbers VERIFIED as published; our phone numbers UNVERIFIED-ON-DEVICE |
+| D5 | **Prefix cache = per-sequence state snapshot** (`llama_state_seq_get_data_ext` / `llama_state_seq_set_data_ext`) taken once after prefilling the ~1.1k-token system prefix; restored per dictation in 3-5 ms (x86), TTFT 4.7-7x lower than re-prefilling. Persist it across `:llm` restarts with `llama_state_seq_save_file` / `llama_state_seq_load_file` (17-34 MB, loads in 4-11 ms) keyed by (model sha, prompt version, backend). Identical greedy output with and without the cache for all three models (hybrid recurrent + attention state included). | VERIFIED on host and on the x86_64 emulator (§5.1) |
 | D6 | **Thinking off by prompt string, not by a runtime flag**: Qwen3.5 generation prefix `<|im_start|>assistant\n<think>\n\n</think>\n\n`, LFM3 `<|im_start|>assistant\n<think></think>` (LFM3's template defaults `enable_thinking` to **true**, so the off form must be written explicitly). The first generated token is answer text in every host run. | VERIFIED on host (§5.3) |
 | D7 | **`:llm` is its own process**; `mllm_global_init()` runs before anything touches ggml; unload = let the process exit (only way to drop the FastRPC session + rpcmem). Manifest: `uses-native-library libcdsprpc.so` and `libOpenCL.so` (required=false), `uses-feature android.hardware.npu` (required=false). | Manifest entries VERIFIED in GenieX AAR + Android API ref; behaviour on One UI 9 UNVERIFIED-ON-DEVICE |
 | D8 | **Plan B = GenieX AAR `com.qualcomm.qti:geniex-android:0.10.0`** (same llama.cpp-Hexagon code path, GGUF input, 230.7 MB of native libs). Nothing else today runs LFM3 or Qwen3.5 on the Hexagon NPU from a sideloaded app. | VERIFIED (§4) |
+| D9 | **CPU models load with `use_mmap = 0`.** With mmap the process holds the mapped GGUF and ggml-cpu's repacked Q4_0 copy (host LFM3 RSS 1.93 GB vs 1.15 GB); cost +0.1-0.5 s load. (NPU never mmaps.) | VERIFIED on host + emulator (§5.4); phone UNVERIFIED-ON-DEVICE (smoke measures both) |
+| D10 | **Context with `n_outputs_max = n_seq_max`** (we only read the last token's logits): Qwen3.5 compute buffer 501 -> 39 MiB, LFM3 278 -> 77 MiB, same output. Implemented in `murmur_llm.cpp`. | VERIFIED on host; HTP/OpenCL buffer sizes UNVERIFIED-ON-DEVICE |
+| D11 | **Text crosses JNI as UTF-8 `byte[]`**, never `jstring` (`GetStringUTFChars` is modified UTF-8: emoji become surrogate pairs the tokenizer reads as invalid UTF-8). | JNI spec behaviour; shim not built here |
 
 ---
 
@@ -164,7 +167,97 @@ a fallback against *our build* failing, not against the HTP path failing.
 
 ## 5. Host measurements (deliverable 4) — x86_64 CPU, NOT phone numbers
 
-HOST_RESULTS_PLACEHOLDER
+Machine: Xeon E-2388G 8C/16T, shared; load average during the runs 12-55 (other tenants' `llama-server` and Python
+jobs). Builds: `out/host` (gcc, `GGML_CPU_ALL_VARIANTS`, picks `libggml-cpu-icelake.so`). Inputs: `prompts/system/default.v1.md`
+rendered by `prompts/render.py` for `prompts/examples/golden_{en,ru}.input.json`, split by `native/llama/tools/make_prompt.py`
+into the cacheable prefix (BOS + system turn + `<|im_start|>user\n`) and the per-dictation suffix (re-rendered and
+`cmp`-identical to the files used). Greedy, `n_ctx 4096`, `n_batch 512`. Raw data: `.cache/spikes/llm-npu/host-results/run3/`
+(`murmur.jsonl`, `llama-bench*.jsonl`, `*.stderr.log`), tables by `host-results/summarize.py run3`; re-run with
+`bash .cache/spikes/llm-npu/host-results/run3.sh`.
+
+### 5.1 TTFT with and without the restored system-prefix state (a) — VERIFIED
+
+API at b12520 (`include/llama.h:885-943`): `llama_state_seq_get_size_ext` / `llama_state_seq_get_data_ext` /
+`llama_state_seq_set_data_ext` (flags `0`, or `LLAMA_STATE_SEQ_FLAGS_ON_DEVICE = 2` to keep the copy in backend
+buffers), `llama_state_seq_save_file` / `llama_state_seq_load_file` (with the token list), plus `llama_memory_seq_cp`
+for the keep-in-context variant. The old `llama_state_seq_get_data/set_data` still exist; `llama_decode` is deprecated
+in favour of `llama_process`.
+
+| model, threads (load) | prefix tokens | one-time prefix prefill | snapshot size / time | TTFT no cache (1.3k tok) | TTFT RAM snapshot (194-tok suffix) | restore | TTFT seq-copy | same output, all modes |
+|---|---:|---:|---|---:|---:|---:|---:|---|
+| Qwen3.5-0.8B, t6 (15.6) | 1,123 | 3.1 s | 34,028,476 B / 15.5 ms | 2,836 ms | **605 ms** | 2.98 ms | 475 ms | yes |
+| Qwen3.5-0.8B, t4 (18.8) | 1,123 | 5.8 s | same | 3,722 ms | 918 ms | 4.80 ms | 1,038 ms | yes |
+| LFM3-1.7B, t6 (36.0) | 1,145 | 11.0 s | 17,347,640 B / 12.1 ms | 11,961 ms | **1,706 ms** | 3.05 ms | 1,560 ms | yes |
+| LFM3-1.7B, t4 (16.9) | 1,145 | 15.9 s | same | 20,870 ms | 2,838 ms | 3.20 ms | 3,181 ms | yes |
+| Qwen3.5-2B, t4 (35.6) | 1,123 | 18.5 s | 34,028,476 B / 20.5 ms | 30,348 ms | **4,822 ms** | 4.87 ms | 5,509 ms | yes |
+
+- The snapshot cuts TTFT 4.7-7x here (it removes ~85% of the prompt tokens); restore costs 3-5 ms. On the phone the
+  same ratio applies to whichever backend prefills; the absolute numbers come from the smoke script.
+- Snapshot size: Qwen3.5 = 13.8 MB KV (6 attention layers x 2 KV heads x 256 x K+V x F16 x 1,123 tokens) + ~20 MB
+  Gated-DeltaNet/conv state; LFM3 = 17.3 MB.
+- Persisted across processes (cold start of `:llm`), t6: file 34,032,972 B (Qwen3.5) / 17,352,224 B (LFM3); save
+  10-28 ms; **load 4.2 ms** (Qwen3.5-0.8B, LFM3), 11.1 ms (Qwen3.5-2B) instead of a 3.3-14.7 s prefill; the new process
+  produced the same text as the process that saved it (all three models).
+- Seq-copy (`llama_memory_seq_cp` 0 -> 1) restores in 0.1-0.2 ms but needs `n_seq_max = 2` and cannot be persisted;
+  RAM snapshot (D5) is the default, seq-copy stays a `prefix_mode` option.
+- 18/18 app-flow rows: output identical across `ram` / `seqcp` / `none` (bench exit code 0, `output_matches_first_mode`).
+  Greedy output is not identical across CPU kernels: the emulator (ivybridge / icelake kernels) produced
+  "Raghunathan, Jürgen" and "Priya, Raghunathan." where the host produced "Raghunathan. Jürgen". Tests must not compare
+  exact strings across devices.
+
+### 5.2 Decode tokens/s at 4 and 6 threads (b) — VERIFIED as measured, NOT representative
+
+| model | upstream `llama-bench` tg64, run3 (load) t4 / t6 | decode-only pass `-p 0 -n 64 -r 5` (load ~22) t4 / t6 | `mllm_bench` tg64, run1 (load 13-28) t4 / t6 | best observed in the app flow |
+|---|---|---|---|---:|
+| Qwen3.5-0.8B Q4_0 | 32.4 ± 1.8 / 36.7 ± 12.5 (20.6) | 15.5 ± 1.8 / 15.3 ± 5.2 | 2.0 / 34.8 | 45.4 |
+| LFM3-1.7B Q4_0 | 26.2 ± 3.6 / 8.3 ± 3.0 (11.9) | 10.9 ± 0.7 / 12.3 ± 0.6 | 21.4 / 21.4 | 20.2 (run1) |
+| Qwen3.5-2B Q4_0 | 4.2 ± 0.7 / 7.5 ± 4.7 (34.0) | 9.4 ± 0.9 / 14.4 ± 2.9 | 14.5 / 16.7 | 12.9 (run1) |
+
+Prefill (`llama-bench` pp512, run3): Qwen3.5-0.8B 240.9 / 257.0, LFM3 179.8 / 119.1, Qwen3.5-2B 58.6 / 79.4 tok/s (t4 / t6).
+The same test varies 2-10x between passes with the other tenants' load, and 6 threads is not reliably faster than 4 on
+an oversubscribed 16-thread host. The only safe reading: Qwen3.5-0.8B decodes fastest, LFM3 and Qwen3.5-2B are
+roughly 2x slower, as their active weights are ~2x larger. Phone decode numbers come from the smoke script; Qualcomm's
+S25 numbers (§8 #3) are the best prior.
+
+Android x86_64 emulator (API 36, 4 vCPU, same host, `tools/device/llm_npu_smoke.sh --quick` against the emulator,
+reports in `.cache/spikes/llm-npu/emu/`): default CPU model exposes AVX+F16C only -> `libggml-cpu-ivybridge.so`,
+Qwen3.5-0.8B prefix prefill 18.7 s, TTFT with snapshot 3.4 s, decode 20.4 tok/s; LFM3 prefix 78 s, TTFT 12.5 s, 5.0
+tok/s. With `-qemu -cpu host` the guest sees AVX2/AVX-512 (-> `libggml-cpu-icelake.so`): Qwen3.5-0.8B prefix 5.3-7.3 s,
+TTFT 0.9-1.5 s, synthetic pp256 296 tok/s vs 27-36. So the emulator is usable for functional LLM tests with
+Qwen3.5-0.8B, and much faster with host CPU passthrough (a TOOLCHAIN.md decision, not changed here).
+
+### 5.3 Thinking off (c) — VERIFIED
+
+| template | how it is disabled | evidence |
+|---|---|---|
+| Qwen3.5 (`qwen35`, 0.8B and 2B, identical templates) | the template thinks **only if** `enable_thinking is defined and enable_thinking is true`; otherwise it emits `<|im_start|>assistant\n<think>\n\n</think>\n\n`. We write that string ourselves (no Jinja at runtime). | template text read with gguf-py from the GGUF |
+| LFM3 (`lfm3`) | `enable_thinking | default(true)`: thinking is **on by default**; the off form is `<|im_start|>assistant\n<think></think>`, written explicitly at the end of the suffix | same |
+
+`MLLM_TRACE_TOKENS=1` prints the first 8 generated token ids/pieces including special tokens. run3: 57 traced
+generations (3 models x (en, t4 and t6, 3 prefix modes x 3 reps + 1 ru)), 0 pieces containing "think"; the first piece
+is answer text in every one (`Thanks`, `Hi`, `Да`, `да`, `Т`); 66/66 `generate` calls stopped on EOG (`<|im_end|>`),
+none on `max_tokens`. Same result in run1 (60 generations). Outputs (t6, en / ru):
+Qwen3.5-0.8B "Thanks Priya Raghunathan. Jürgen Weiß should also look at the carpenter config before we merge." /
+"Да, Тимур Галиев уже дал доступ к ClickHouse."; LFM3 "Hi Priya,\n\nThanks for sending the draft for review. I think
+Jürgen should also look at the Karpenter configuration before we merge.\n\nBest,\nAlex" / "Тимур Галиев уже дал доступ
+к ClickHouse и скинул дашборд в Grafana вечером." (quality notes in §10).
+
+### 5.4 Memory on the CPU path — VERIFIED on host, phone UNVERIFIED-ON-DEVICE
+
+| model (GGUF bytes) | mmap: RSS after load / peak | `use_mmap = 0`: RSS after load / peak | CPU_REPACK buffer | compute buffer, default -> `n_outputs_max = n_seq_max` |
+|---|---|---|---:|---|
+| Qwen3.5-0.8B (507,154,688) | 871 / 944 MB | 634 / 707 MB | 240 MiB | 501 -> **39 MiB** |
+| LFM3-1.7B (1,049,615,680) | 1,925 / 2,018 MB | 1,153 / 1,243 MB | 787 MiB | 278 -> **77 MiB** |
+
+- With mmap the process keeps the mapped GGUF pages **and** the repacked copy of the Q4_0 weights that ggml-cpu builds
+  for its AVX2/i8mm kernels (`CPU_REPACK model buffer`). `use_mmap = 0` loads only what is needed (LFM3 -0.77 GB) for
+  +0.1-0.5 s load time (LFM3 1.53 s vs 0.89-1.20 s). The emulator shows the same effect only when the guest CPU has
+  AVX2 (repack active): 932 vs 691 MB; with ivybridge kernels (no repack) both are 691 MB. arm64 with i8mm repacks
+  Q4_0 too, so the phone is expected to behave like the host; the smoke script measures both.
+- `n_outputs_max` (new in `murmur_llm.cpp`): the default reserves logits for all `n_batch` tokens (248k vocab x 512 x 4 B
+  for Qwen3.5). Our batches only ever request the last token's logits. Same output after the change (both models). Host
+  RSS did not change (707 vs 724 MB peak), because the CPU buffer is committed lazily; the saving is real for backends
+  whose compute buffer is device memory (HTP rpcmem, OpenCL), which the smoke script's NPU log now prints.
 
 ---
 
@@ -177,6 +270,8 @@ HOST_RESULTS_PLACEHOLDER
 
 **JNI sketch** (`native/llama/include/murmur_llm_jni.h`): one `external fun` per C call on `object LlmNative`,
 streaming through `fun interface TokenSink { fun onPiece(utf8: ByteArray): Boolean }`, stats returned in `DoubleArray`s.
+Prompt text goes in as UTF-8 `ByteArray` (D11). `cancel(h)` must not race `unload(h)`: the Kotlin owner object submits
+`unload` to the engine executor and reads the handle under the same lock as `cancel`.
 
 Threading and cancellation (from the code, VERIFIED by reading; cancel latency on HTP UNVERIFIED-ON-DEVICE):
 - One engine thread owns the engine (single-thread executor in the `:llm` service). `llama_context` is not thread-safe; the C layer does not lock. Only `cancel()` may come from another thread (atomic flag).
@@ -215,14 +310,30 @@ picked automatically), then `tools/device/llm_npu_smoke.sh` (`--quick` ~5 min; d
 runs `llama-bench` pp512/tg64 on CPU (4 and 6 threads), HTP0 and OpenCL, runs the app flow (prefix snapshot -> TTFT ->
 decode) on CPU and NPU, dumps NPU op acceptance per op, and thermal status before/after. Report:
 `.cache/device-reports/llm_npu_smoke-<ts>/report.md` + `report.json`; each failing step is recorded and the next runs.
+`--geniex` adds Qualcomm's own prebuilt `geniex-bench` v0.11.0 (GitHub release asset, 99,799,275 B, sha256
+`7173d3ca…7a4e78`, already cached in `.cache/device-tools/`; contains its own `libggml-hexagon.so` + `libggml-htp-v73…v85.so`
+and the QAIRT plugin) running `--plugin llama_cpp --device cpu|npu` on the same GGUF. If our HTP0 fails and theirs
+works, the fault is in our build; if both fail, the phone blocks the unsigned PD. Its usage text was read from the
+binary (`strings`); the arm64 binary cannot run here, so that step is UNVERIFIED-ON-DEVICE (report parsing tested with a
+synthetic log).
 
 Fixed in this session: the script ran upstream `llama-bench` from `/data/local/tmp/murmur-llm` with the backends in
 `lib/`. `ggml_backend_load_all()` searches only the executable's dir and the cwd (`ggml-backend-reg.cpp:486-505`), so
 it would load no backend, `--list-devices` would show no HTP0, and every NPU step would be skipped. The host run of
 the same layout failed with `llama_bench: error: CPU backend is not loaded` (`run1-highload/*.llama-bench.stderr.log`);
 with cwd = `lib/` it prints `load_backend: loaded CPU backend from …/lib/libggml-cpu-icelake.so`. All llama-bench calls
-now run from `lib/`. `murmur-llm-bench` passes `--backend-dir` and was not affected. The script itself was only
-syntax-checked (`bash -n`): no device here.
+now run from `lib/`. `murmur-llm-bench` passes `--backend-dir` and was not affected.
+
+**Tested end-to-end on the x86_64 emulator** (my own read-only instance of `murmur_fold7_cover`, `emulator-5584`, with
+`--build-dir out/cpu-x86_64`; `SMOKE_REPORT_DIR` keeps such dry runs out of `.cache/device-reports/`): `--quick` with
+LFM3 + Qwen3.5-0.8B ran in 12 m 24 s, every non-NPU step passed and the NPU/GPU steps failed cleanly ("no HTP device
+registered", "no OpenCL GPU device registered", "ro.soc.model is not SM8750"); report in
+`.cache/spikes/llm-npu/emu/smoke-quick2/report.md`. Bugs this found and fixed: device detection matched any log line
+containing "HTP" (now parses only the `Available devices:` list; checked against synthetic HTP0/GPUOpenCL and `(none)`
+outputs), peak RSS was always 0 (`mem_end` arrives after `summary`), CPU rows were labelled `none`. Added: a CPU
+`--no-mmap` row, the CPU variant ggml loaded, output heads, backend buffer sizes from the NPU verbose run. What only
+the phone exercises: steps 3-5 on `HTP0`/`GPUOpenCL` and the op-placement parser (regex checked against the source's
+`ggml-hex: %s supports-op %s|%s` format, `ggml-hexagon.cpp:187`).
 
 ---
 
@@ -269,8 +380,8 @@ N = `docs/research/npu-runtime.md`, L = `docs/research/llm-models.md`. "Source" 
 | 34 | "Weights … are memory-mapped" (L §5 RAM) | REFUTED for NPU | `mmap_support = false`; weights are copied into rpcmem. True for the CPU path |
 | 35 | KV for hybrids ≈ 12 KB/token (Qwen3.5, 6 attn layers) (L §5, §6) | VERIFIED | GGUF: 6 attn layers x 2 kv heads x 256 x 2 (K,V) x 2 B = 12 KB/token; measured snapshot 34,028,476 B at 1,123 tokens = 13.8 MB KV + ~20 MB DeltaNet/conv state. LFM3: 17,347,640 B at 1,145 tokens |
 | 36 | In-process prefix cache via `llama_state_seq_get_data/set_data` (L §6) | VERIFIED | §5.1; greedy outputs identical to the uncached run for all three models |
-| 37 | GenieX latest AAR 89,956,760 B (L §7) | UNVERIFIED | that size is for v0.11.0 (GitHub); the Maven 0.10.0 AAR is 89,045,966 B |
-| 38 | Expected resident footprint 1.0–1.3 GB LFM3, ~1.0 GB Qwen3.5-0.8B (L §5) | see §5 (host CPU, mmap) | phone NPU footprint UNVERIFIED-ON-DEVICE |
+| 37 | GenieX latest AAR 89,956,760 B (L §7) | VERIFIED for GitHub v0.11.0 / REFUTED for Maven | GitHub API `releases/tags/v0.11.0` (published 2026-11-12): `geniex-android-aar-v0.11.0.aar` 89,956,760 B (+ an 8,136,949 B CPU-only AAR and `geniex-bench-android-arm64` 99.8 MB). Maven's latest is still 0.10.0, 89,045,966 B (downloaded) |
+| 38 | Expected resident footprint 1.0–1.3 GB LFM3, ~1.0 GB Qwen3.5-0.8B (L §5) | VERIFIED on host CPU with `use_mmap = 0` / REFUTED with mmap | peak RSS LFM3 1.24 GB (no-mmap) vs 2.02 GB (mmap); Qwen3.5-0.8B 0.71 vs 0.94 GB (§5.4). Phone NPU footprint UNVERIFIED-ON-DEVICE |
 
 ---
 
@@ -287,4 +398,33 @@ N = `docs/research/npu-runtime.md`, L = `docs/research/llm-models.md`. "Source" 
 
 ## 10. Needs from owner, risks
 
-NEEDS_PLACEHOLDER
+Needs from the owner (everything else on this list was done on the server):
+
+1. **DEVICE:** phone on USB with debugging on, then `tools/device/llm_npu_smoke.sh` (default ~20-30 min: LFM3 + Qwen3.5-0.8B; `--quick` ~5-8 min; uses the existing build in `.cache/spikes/llm-npu/work/out/npu`, or run `native/llama/build_android.sh npu` first). Expected: `devices.txt` lists `HTP0` (and `GPUOpenCL`); `report.md` has CPU/HTP0/GPU pp/tg rows per model, the app-flow table (TTFT with the prefix snapshot, decode tok/s, peak RSS, with and without mmap), NPU op acceptance with 0 rejected ops for `lfm3`/`qwen35` (or the list), the CPU variant ggml picked (expected `libggml-cpu-android_armv8.6_1.so`), thermal before/after. Send back `.cache/device-reports/llm_npu_smoke-<ts>/`.
+2. **DEVICE (needs the app, not the script):** FastRPC/unsigned-PD access from an *app* process with `uses-native-library libcdsprpc.so` (the script runs as the `shell` user, which Qualcomm devices usually allow), `useLegacyPackaging` lib-dir resolution inside the installed APK, `android.hardware.npu` enforcement at targetSdk 37, and the ASR QNN PD + ggml-htp PD coexisting on the cDSP.
+3. **Decision (D4):** default device per model. Proposed: LFM3 on NPU, Qwen3.5 on CPU, final answer from the smoke numbers. Arithmetic from Qualcomm's S25 table for one dictation (≈200-token suffix after the cached prefix, ≈40 output tokens): LFM3 CPU 0.54 s prefill + 0.75 s decode = 1.29 s vs NPU 0.08 + 0.98 = 1.06 s; Qwen3.5-0.8B CPU 0.35 + 0.48 = 0.83 s vs NPU 0.20 + 0.95 = 1.15 s (GPU 0.18 + 0.66 = 0.84 s).
+4. **Legal:** redistribution terms of DSP code built with the Hexagon SDK Community Edition (`libggml-htp-v79.so` in our APK). The trimmed tarball ships no SDK license; reading the full one needs a Qualcomm account. GenieX (Qualcomm) ships the same kind of skel in a Maven artifact under BSD-3 + Qualcomm Terms of Use, which suggests it is allowed, but that is not a licence grant to us.
+
+Risks:
+- One UI 9 may refuse unsigned cDSP PDs for third-party apps: then HTP0 never registers and the app runs the same GGUF on CPU/GPU (no other runtime here fixes that; GenieX uses the same mechanism).
+- `ggml-hexagon` still logs "experimental" and changes weekly upstream; we pin `b12520` and bump only with a smoke run.
+- Qwen3.5 attention head dim 256 is the main doubt for HTP `FLASH_ATTN_EXT` VTCM fit; a reject means those 6 layers split to CPU (correct but slower). Smoke step 5 shows it.
+- Cancel on NPU/GPU takes effect only between `llama_process` calls (one 512-token prefill chunk or one token): the app's cancel latency on NPU is up to one chunk; smaller `n_batch` lowers it at some prefill cost.
+- CPU path with mmap holds both the mapped file and the repacked copy (host: LFM3 1.9 GB RSS vs 1.15 GB with `use_mmap = 0`, Qwen3.5-0.8B 0.94 vs 0.71 GB). The app should load CPU models with `use_mmap = 0` unless the phone numbers say otherwise (no-mmap load is ~0.1-0.5 s slower on the host).
+- Quality (for the ML owner, not this spike): with `default.v1` LFM3 rewrote the en golden case into a full email with "Hi Priya," and "Best, Alex", although both were already in the field around the cursor; Qwen3.5 did not. Seen in every LFM3 run (run1, run3).
+- Host numbers in §5 were taken at load average 12-55 from other tenants' `llama-server` and Python jobs: decode tok/s for LFM3 and Qwen3.5-2B varies 5-10x between reps. Only the ratios (cache vs no cache, mmap vs no mmap, buffer sizes, identical outputs) are solid.
+
+---
+
+## 11. Scratch kept and deleted
+
+Kept (`.cache/spikes/llm-npu/`, 5.4 GB): `work/hexagon-sdk/6.7.0.0` (3.3 GB, needed for any `npu` rebuild), `work/build/*`
+(1.6 GB, makes rebuilds 2 s), `work/llama.cpp` (pinned tree), `work/out/*` (the `.so` sets), `host-results/`, `emu/`,
+`aihub/*.perf.yaml`, `aar/*.aar` (GenieX 0.10.0, LiteRT-LM), `gradle-probe/` (config + logs only), `venv/` (gguf-py).
+`.cache/device-tools/geniex-bench-android-arm64-v0.11.0.tar.gz` (100 MB) for `--geniex`.
+Deleted, with how to regenerate: Hexagon SDK tarball (`build_android.sh npu` re-downloads it if `work/hexagon-sdk` is
+missing), Gradle probe `.cxx`/`build` (re-run `tools/heavy ./gradlew --no-daemon :llm:assembleRelease` in
+`gradle-probe/` with `MURMUR_NATIVE_LLAMA` set), llama.cpp source archive copy (FetchContent downloads it, sha256 in
+`versions.env`), MNN sparse clone (`git clone --depth 1 --filter=blob:none --sparse https://github.com/alibaba/MNN`,
+checked at `40ad7e34`), extracted AAR contents (`unzip` the kept `.aar`).
+No containers or images were created. My emulator (`emulator-5584`, read-only instance) is stopped.

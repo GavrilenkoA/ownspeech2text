@@ -228,9 +228,29 @@ def _build_number_lexicon() -> dict[str, tuple[int, str]]:
 
 NUMBER_LEXICON: dict[str, tuple[int, str]] = _build_number_lexicon()
 
+# unit words and abbreviations that make "<number> <unit>" and "<digits><abbr>" the same number
+# ("sixty gigabytes" / "60GB", "сорок гигабайт" / "40 ГБ", "двести миллисекунд" / "200 мс")
+_UNIT_FORMS = {
+    "gb": "gb гб гигабайт гигабайта гигабайтов гигабайтах гигабайтами гигабайту gigabyte gigabytes гиг гигов",
+    "mb": "mb мб мегабайт мегабайта мегабайтов мегабайтах мегабайтами мегабайту megabyte megabytes",
+    "kb": "kb кб килобайт килобайта килобайтов килобайтах килобайтами kilobyte kilobytes",
+    "tb": "tb тб терабайт терабайта терабайтов терабайтах терабайтами terabyte terabytes",
+    "ms": "ms мс миллисекунд миллисекунды миллисекунда миллисекунду миллисекундах миллисекундами millisecond "
+          "milliseconds",
+    "khz": "khz кгц килогерц килогерцах килогерцами kilohertz",
+}
+UNIT_WORDS: dict[str, str] = {w: tag for tag, forms in _UNIT_FORMS.items() for w in forms.split()}
+_UNIT_SUFFIX = "gb|mb|kb|tb|ms|khz|гб|мб|кб|тб|мс|кгц"
+_GLUED_UNIT_RE = re.compile(rf"^(\d+(?:[.,]\d+)?)({_UNIT_SUFFIX})$")
+
 _NUMERIC_RE = re.compile(
-    r"^[+\-]?[$€₽]?\d+(?:[.,:/\-]\d+)*(?:%|st|nd|rd|th|-?(?:й|я|е|го|му|м|х|ми|ой|ый|ая|ое|ые|ых|ий))?[$€₽]?$"
+    rf"^[+\-]?[$€₽]?\d+(?:[.,:/\-]\d+)*(?:%|st|nd|rd|th|{_UNIT_SUFFIX}|-?(?:й|я|е|го|му|м|х|ми|ой|ый|ая|ое|ые|ых|ий))?[$€₽]?$"
 )
+
+
+def unit_of(w: str) -> str | None:
+    """Canonical unit tag of a unit word or abbreviation ("гигабайт" -> "gb"), else None."""
+    return UNIT_WORDS.get(fold(w))
 
 
 def is_numeric_token(core: str) -> bool:
@@ -326,7 +346,8 @@ def number_groups(ws: Sequence[str]) -> list[str] | None:
     """Canonical digit groups of a span made only of numbers, number words, connectors and percent words.
 
     "10:30" -> ["10", "30"]; "десять тридцать" -> ["10", "30"]; "15%" -> ["15", "%"];
-    "пятнадцать процентов" -> ["15", "%"]. Returns None if the span contains any other word or no number.
+    "пятнадцать процентов" -> ["15", "%"]; "sixty gigabytes" and "60GB" -> ["60", "u:gb"]. Returns None if the
+    span contains any other word or no number.
     """
     groups: list[str] = []
     run: list[str] = []
@@ -344,6 +365,19 @@ def number_groups(ws: Sequence[str]) -> list[str] | None:
 
     for w in ws:
         f = fold(w)
+        glued = _GLUED_UNIT_RE.match(f)
+        if glued:
+            if not flush_run():
+                return None
+            f, unit = glued.group(1), UNIT_WORDS[glued.group(2)]
+            groups.extend(str(int(d)) for d in re.split(r"[.,]", f) if d)
+            groups.append("u:" + unit)
+            continue
+        if f in UNIT_WORDS:
+            if not flush_run():
+                return None
+            groups.append("u:" + UNIT_WORDS[f])
+            continue
         if is_numeric_token(f):
             if not flush_run():
                 return None
@@ -365,7 +399,7 @@ def number_groups(ws: Sequence[str]) -> list[str] | None:
             return None
     if not flush_run():
         return None
-    if not any(g != "%" for g in groups):
+    if not any(g != "%" and not g.startswith("u:") for g in groups):
         return None
     return groups
 

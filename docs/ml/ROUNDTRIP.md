@@ -232,7 +232,299 @@ removed. The whole `ml/roundtrip/tests/` suite (176 tests including other sectio
 <!-- BEGIN SECTION: Round trip (owner: round-trip agent) -->
 ## Round trip
 
-_Not written yet: owned by the round-trip part of this workflow._
+Text -> TTS (several systems and voices) -> optional phone-mic channel -> every ASR model the app
+ships, run on the same CPU ONNX graphs the phone uses in CPU mode. Nothing is trained; TTS and ASR
+are noise sources for the cleanup LLM's training inputs. Code: `ml/roundtrip/tts/`,
+`ml/roundtrip/asr/`, `ml/roundtrip/channel.py`, `ml/roundtrip/run_roundtrip.py`; tests
+`ml/roundtrip/tests/test_roundtrip_runner.py`, `ml/roundtrip/tests/test_roundtrip_drivers.py`.
+
+### How to run
+
+```bash
+# shared venv .cache/ml/roundtrip/venv (pins in ml/roundtrip/requirements.txt)
+P=.cache/ml/roundtrip/venv/bin/python
+$P -m ml.roundtrip.asr list                         # registered ASR models and their status
+$P -m ml.roundtrip.tts list --systems all           # TTS systems, voices, licences, Latin policy
+tools/heavy $P -m ml.roundtrip.asr verify --models all --ru ru.flac --en en.flac --json report.json
+tools/heavy $P -m ml.roundtrip.tts say --systems cpu --lang mixed --text "..." --out /tmp/say
+
+# the round trip; resumable: rerun the same command after an interruption
+MURMUR_MEM=16G tools/heavy $P -m ml.roundtrip.run_roundtrip \
+    --probe ml/roundtrip/probe/seed.jsonl --run local_proof --limit 45 \
+    --tts piper,supertonic3,kokoro1 --voices-per-sentence 1 --channels clean --asr all \
+    --workers 8 --threads 2 --mem-gb 12
+
+# throughput only: audio-seconds per wall-second for every TTS system and ASR model
+tools/heavy $P -m ml.roundtrip.run_roundtrip --measure --probe ml/roundtrip/probe/seed.jsonl \
+    --tts cpu --asr all --threads 2 --measure-n 3
+
+$P -m pytest -q ml/roundtrip/tests/test_roundtrip_runner.py ml/roundtrip/tests/test_roundtrip_drivers.py
+```
+
+Main flags: `--tts cpu|gpu|all|<ids>`, `--voices <ids>` (also `system/voice`),
+`--voices-per-sentence K`, `--channels clean,phone,...`, `--asr all|<ids or unique substrings>`,
+`--limit N` (first N probes, round-robin over ru/en/mixed), `--seed`, `--workers`, `--threads`,
+`--tts-shard`, `--asr-shard`, `--mem-gb`, `--skip-asr`, `--measure`, `--measure-n`.
+
+Outputs go to `--out` (default `.cache/ml/roundtrip/out`, gitignored): results
+`<out>/roundtrip/<run>.jsonl` (interface 2), a report `<out>/roundtrip/<run>.report.json`
+(throughput, errors, args of the last invocation) and audio
+`<out>/audio/<tts_system>/<voice>/<probe_id>.<channel>.flac` (16 kHz, 16-bit FLAC). `audio` in each
+row is relative to `--out`. Passing `--out ml/roundtrip/out` gives the layout named in the
+interface, but that directory is not gitignored today, so the default stays in `.cache`.
+
+Each row carries one field beyond interface 2: `tts_input` (`"text"` or `"tts_text"`), which says
+whether the TTS read the probe's `text` or its Cyrillic respelling `tts_text`. The reference for
+mining is always `text`.
+
+### Matrix, routing, execution
+
+**Matrix.** For each probe and each TTS system the runner samples `--voices-per-sentence` voices
+from the voices that speak the probe's language (`random.Random(crc32(seed, probe_id, system))`, so
+the same command always picks the same voices). Each (probe, system, voice) is synthesised once
+(the `clean` clip, TTS seed shared by all channels); every other `--channels` preset is derived
+from that clip with its own seed. Each clip then goes to every selected ASR model that accepts its
+language:
+
+| probe lang | ASR models | language hint |
+|---|---|---|
+| `en` | models that know English (multilingual + distil-large-v3.5) | `en` |
+| `ru` | models that know Russian (multilingual + GigaAM rnnt/ctc + T-one) | `ru` |
+| `mixed` | same as `ru` (never the English-only distil) | `ru` |
+
+The hint matters for Whisper (forced language) and Nemotron (per-stream `language` option);
+Parakeet, GigaAM, T-one and Qwen3-ASR ignore it.
+
+**Execution.** Spawn-context process pools (`--workers`, each with `--threads` ONNX threads;
+8 x 2 fills the 16 cores). TTS work goes out in shards of `--tts-shard` sentences (a voice's clean
+clip and its channel variants stay in one shard). ASR work goes out in shards of `--asr-shard` clips
+for one model and one language hint, interleaved round-robin across models so the slow Whisper
+shards start early. Two memory rules came from two OOM kills of the first local run (journal:
+`oom-kill` at 24 GB and at 16 GB):
+
+- ASR workers exit after one shard (`max_tasks_per_child=1`). onnxruntime does not give a freed
+  model's arena back to the OS (whisper-medium: 3.5 GB peak, still 2.0 GB after `unload()`), so
+  long-lived workers that switch models only grow.
+- Shards are admitted only while the summed peak RSS of the models in flight stays under
+  `--mem-gb` (per-model peaks in `asr/registry.py:MEM_MB`, measured here with `ru_maxrss` over 10
+  real clips: whisper-medium 3499 MB, turbo 2985, qwen3-asr 1715, distil 1724, whisper-small 1302,
+  parakeet 1183, nemotron 991, t-one 615, gigaam 410). The Whisper driver keeps one recogniser
+  (one forced language) at a time; with an en and a ru recogniser both loaded, whisper-medium
+  peaked at 4544 MB.
+
+Results are appended and flushed per shard. Resume skips result keys
+`(probe_id, tts_system, tts_voice, channel, asr_model)` already in the JSONL and audio files that
+exist (a torn last line from a killed run is ignored and re-done). Verified for real: the local run
+below was OOM-killed at 837/960 rows and again at 846/960; each rerun of the same command picked
+up exactly the missing jobs (`123 pending ASR jobs (837 already done)`, then `114 pending (846
+already done)`) and finished at 960 unique keys. A model that cannot load is reported once in the
+report's `errors` and skipped; a clip that fails is logged and retried on the next run.
+
+### ASR drivers
+
+One interface (`ml/roundtrip/asr/base.py`): `name` = catalog id, `load()`, `unload()`, `loaded`,
+`transcribe(wav_path | 16 kHz float32 samples, lang_hint) -> str` (raw recogniser text, untouched;
+loads lazily). All go through the `sherpa-onnx` 2.0.1 Python package. Files are resolved from
+`docs/research/asr-catalog.json` (repo, path and 40-char revision per file) and downloaded lazily
+into `.cache/ml/roundtrip/models/hf` with a file lock (several workers can ask at once).
+
+| id | sherpa-onnx recogniser | languages | notes |
+|---|---|---|---|
+| parakeet-tdt-0.6b-v3@onnx-int8 | `OfflineRecognizer.from_transducer` (nemo_transducer) | ru, en | |
+| parakeet-ultra-0.6b@onnx-int8 | same | ru, en | a CPU entry in the catalog, so registered too |
+| nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms | `OnlineRecognizer.from_transducer`, `stream.set_option("language", hint)` | ru, en | 1.2 s of silence appended to flush the last 560 ms chunk |
+| gigaam-v3-e2e-rnnt@onnx-int8 | `OfflineRecognizer.from_transducer` (nemo_transducer) | ru | punctuated e2e export |
+| gigaam-v3-e2e-ctc@onnx-int8 | `OfflineRecognizer.from_nemo_ctc` | ru | punctuated e2e export |
+| t-one@onnx | `OnlineRecognizer.from_t_one_ctc` | ru | 8 kHz model: we resample 16k -> 8k, pad 0.3 s left (upstream example) and 1.2 s right |
+| qwen3-asr-0.6b@onnx-int8 | `OfflineRecognizer.from_qwen3_asr` (max_new_tokens=256) | ru, en | auto language |
+| whisper-large-v3-turbo@onnx-int8 | `OfflineRecognizer.from_whisper(language=hint)` | ru, en | one recogniser per forced language, one loaded at a time |
+| distil-large-v3.5@onnx-int8 | `from_whisper(language="en")` | en | English-only |
+| whisper-small@onnx-int8 | `from_whisper` | ru, en | the catalog has only the SM8750 NPU build (`whisper-small@qnn-sm8750`); the CPU path uses `csukuangfj/sherpa-onnx-whisper-small` @ 8f3c18b3 (int8 files), same OpenAI checkpoint. Not a catalog id. |
+| whisper-medium@onnx-int8 | `from_whisper` | ru, en | same situation: `csukuangfj/sherpa-onnx-whisper-medium` @ 8c31d285 |
+
+Catalog entries with no CPU ONNX variant are out of scope here (NPU/GPU only):
+`nemotron-3.5-asr-streaming-0.6b@qnn-sm8750-560ms`, `parakeet-tdt-0.6b-v3@qnn-sm8750-20s`,
+`nemotron-speech-streaming-en-0.6b@qnn-sm8750-560ms` (English Nemotron has no CPU entry),
+`whisper-small@qnn-sm8750`, `whisper-medium@qnn-sm8750`, `whisper-large-v3-turbo@qaihub-sm8750-w8a16`,
+`qwen3-asr-0.6b@litert-npu-sm8750`, `qwen3-asr-1.7b@litert-gpu-15s`.
+
+Verification (`python -m ml.roundtrip.asr verify`, 4 threads, through tools/heavy, saved in
+`ml/roundtrip/samples/roundtrip/asr_verify.json`): **all 11 models loaded and transcribed both a
+Russian and an English clip on this machine**, and all 11 then ran in the 960-row local round trip
+with 0 errors. None had to be registered as unavailable; the `UnavailableDriver` path (model stays
+registered, `load()` raises with the reason, the runner reports it once) is unit-tested.
+
+### TTS drivers
+
+One interface (`ml/roundtrip/tts/base.py`): system id, `voices()` (no model load), `load()`,
+`prepare(voice)`, `unload()`, `synthesize(text, voice, lang, seed) -> 16 kHz mono float32`
+(peak-normalised to 0.9), `synthesize_batch(items)` (GPU drivers batch, CPU loops). Each voice
+declares `latin_in_ru`: `respell` voices read the probe's `tts_text` for ru/mixed probes when it
+exists, `native` voices read `text` as written.
+
+| system | engine | voices used | languages | licence (checked 2026-11-18) | Latin words in a Russian sentence |
+|---|---|---|---|---|---|
+| `piper` | `piper-tts` 1.8.0 (VITS, espeak-ng phonemiser), voices from `rhasspy/piper-voices` @ 0ca208af | ru: denis, dmitri (medium); en: joe, john, kristin, norman, alba, cori (medium), libritts_r medium speakers 0, 117, 263, 509, 771 | ru or en per voice | per MODEL_CARD: denis, dmitri, joe CC0; john, kristin, norman public domain; alba, cori, libritts_r CC-BY-4.0 | espeak-ng switches to English phonemes the Russian voices never saw, which garbles the term and its neighbours: the ru clip in `asr_verify.json` was read from `text` ("Созвон с Laura по Kubernetes...") and came back as "Создался покупан эти..." from Parakeet. So `respell`: mixed probes use `tts_text` |
+| `supertonic3` | sherpa-onnx `OfflineTts` Supertonic, archive `sherpa-onnx-supertonic-3-tts-int8-2026-05-11` (k2-fsa `tts-models` release), 8 flow steps | sid0..sid9 | one multilingual model, `lang` per call | code MIT; **model weights BigScience OpenRAIL-M** (`Supertone/supertonic-3` LICENSE @ 3cadd1ee): commercial use allowed, with the use-based restrictions of Attachment A. Synthesising training audio is not a restricted use | character-level model; under `lang=ru` it reads Latin words with a Russian accent, recognisably ("Laura", "Kubernetes" came back as "Слаура", "Кубернец"). `native`: reads `text` |
+| `kokoro1` | sherpa-onnx `OfflineTts` Kokoro, archive `kokoro-multi-lang-v1_0` (hexgrad/Kokoro-82M) | 28 English voices af_*, am_*, bf_*, bm_* (speaker ids 0-27, checked against the model's `id2speaker` metadata) | en only (no Russian voice) | Apache-2.0 (archive LICENSE) | not used for ru/mixed. Text is phonemised with espeak-ng (the piper-tts phonemiser) and passed as phoneme code points, because sherpa's lexicon path drops unknown words: verified here, `OOV word skipped: 'Kubernetes'`, `'10'`, `'30'` |
+| `qwen3tts-1.7b` (GPU) | `qwen-tts` 0.1.1, `Qwen/Qwen3-TTS-12Hz-1.7B-Base` @ fd4b2543 | one voice per reference clip | ru, en (`language="Russian"/"English"`) | package Apache-2.0 (wheel METADATA), model apache-2.0 (HF API) | `native` |
+| `chatterbox-mtl` (GPU) | `chatterbox-tts` 0.1.7, `ResembleAI/chatterbox` @ 5bb1f6ee | one voice per reference clip | ru, en (`language_id`) | package MIT (wheel METADATA), model mit (HF API) | `native` |
+
+Rejected voices (from each MODEL_CARD at the pinned piper-voices revision): `ru_RU-ruslan-medium`
+(CC BY-NC-SA 4.0), `ru_RU-irina-medium` (licence "Unknown"), `en_US-ryan-*`,
+`en_US-hfc_female/hfc_male-medium` (CC BY-NC-SA 4.0), `en_US-lessac-*` (Blizzard 2013 Lessac
+licence, non-commercial terms), `en_US-amy-*`, `en_GB-alan-*`, `en_GB-jenny_dioco-*` (MODEL_CARD
+only says "See URL"; not verifiable), `en_GB-northern_english_male-medium` (CC-BY-SA, share-alike,
+avoided). That leaves Piper with only two Russian voices, both male; Supertonic adds ten
+multilingual voices, and the GPU cloning systems are where Russian speaker variety has to come from.
+
+**GPU systems (code complete, dry-run tested only).** Facts read from the wheels
+(`pip download --no-deps qwen-tts==0.1.1 chatterbox-tts==0.1.7`) and the HF API:
+
+- Qwen3-TTS: `Qwen3TTSModel.from_pretrained(local_snapshot, device_map="cuda:0",
+  dtype=torch.bfloat16, attn_implementation="flash_attention_2")` (pass `"sdpa"` without
+  flash-attn); `create_voice_clone_prompt(ref_audio, ref_text, x_vector_only_mode=False)` is cached
+  per voice; `generate_voice_clone(text=[...], language=[...], voice_clone_prompt=[...])` returns
+  `(list of arrays, sr)`, one prompt item per text, so one call batches different voices
+  (`synthesize_batch`). `qwen-tts` pins transformers==4.57.3: own venv
+  (`ml/roundtrip/tts/requirements-gpu-qwen3tts.txt`).
+- Chatterbox: `ChatterboxMultilingualTTS.from_pretrained(device)` would download from `main`;
+  the driver instead downloads the same six files at the pinned revision and calls
+  `from_local(ckpt_dir, device)`; `generate(text, language_id, audio_prompt_path, exaggeration=0.5,
+  cfg_weight=0.5)` returns a (1, N) tensor at `model.sr`; for cross-language cloning the driver
+  sets `cfg_weight=0` (README advice). Pins transformers==5.2.0: own venv
+  (`requirements-gpu-chatterbox.txt`). Outputs carry Resemble's Perth watermark. The README says
+  the project is archived.
+- Reference voices (`ml/roundtrip/tts/refvoices.py`): a directory (runner `--ref-dir`, which sets env
+  `MURMUR_REFVOICE_DIR` for the workers) with clips and a `manifest.jsonl` line per clip
+  (`file, text, lang, licence, source, attribution`). Only CC0 / public domain / CC-BY clips of
+  2-20 s are accepted; others are listed as rejected with the reason. Nothing is downloaded.
+- On the pod: one process per GPU (`CUDA_VISIBLE_DEVICES=<i>`), `--workers 1`, batched clean
+  clips with `--tts-batch 8 --tts-shard 32` (Qwen3-TTS batches inside one `generate_voice_clone`
+  call; Chatterbox has no batch API and loops), `--skip-asr` to only synthesise, then the CPU ASR
+  stage on the same `--out` (it reuses every clip that exists). The batched path is unit-tested with
+  a fake GPU driver.
+- UNVERIFIED until the first pod run: actual model loading, CUDA/flash-attn availability, generation
+  speed, batching memory, output quality and Russian accent of cloned voices.
+
+### Channel simulation (`channel.py`)
+
+numpy/scipy only, deterministic per seed. `clean` is the identity. Chain for the other presets:
+diffuse reverb -> room noise at a given SNR -> Butterworth band-pass -> slow AGC -> soft clipping
+(noise is added before the band limit so it goes through the same microphone path as the voice).
+`phone`: RT60 0.25 s / 12% wet, pink noise at 25 dB SNR, 120 Hz-7 kHz, drive 1.6. `phone_noisy`:
+RT60 0.4 s / 20% wet, pink noise at 12 dB, 150 Hz-7 kHz, drive 2.0. `far`: RT60 0.6 s / 35% wet,
+white noise at 18 dB, 200 Hz-5 kHz, drive 1.3. `python -m ml.roundtrip.channel IN OUT --preset P`
+applies a preset to a file; `python -m ml.roundtrip.channel stats FILE... [--preset P]` prints a
+channel fingerprint per file (`rolloff99_hz`, `hf_db` = 6-8 kHz energy vs 300-3400 Hz, `lf_db` =
+below 150 Hz vs 300-3400 Hz, frame-percentile `snr_db`, `clip_ratio`, `rms_dbfs`) so the presets can
+be compared with real Fold7 recordings. On a Supertonic clip: clean rolloff 2281 Hz, hf -21.8 dB,
+snr 59 dB; `phone` 6109 Hz, -17.2 dB, 25 dB; `phone_noisy` 6156 Hz, -17.0 dB, 16 dB; `far` 4578 Hz,
+-39.1 dB, 16 dB. The presets are engineering guesses until fitted to device recordings.
+
+### Local proof (2026-11-18)
+
+`ml/roundtrip/samples/roundtrip/local_proof.jsonl`: 45 probes from `probe/seed.jsonl` (15 ru, 15 en,
+15 mixed) x {piper, supertonic3, kokoro1 (en only)} x 1 voice per sentence x `clean` x every
+language-compatible ASR model = 105 clips (539 s of audio), **960 rows, all 11 ASR models, 0
+errors**. `ml/roundtrip/samples/roundtrip/channel_demo.jsonl`: the first 12 probes again through
+the `phone` preset (28 clips x language-compatible models = 256 rows, 0 errors). On those 12
+probes the word error rate over all models went from 0.237 (clean) to 0.245 (phone): the `phone`
+preset at 25 dB SNR is mild; `phone_noisy` (12 dB) is the one to use for robustness data.
+
+Quick sanity numbers (word error rate after lower-casing and stripping punctuation, and the share
+of probe terms that appear verbatim in the hypothesis; the mining stage computes the real
+profiles). Over all three TTS systems; the term columns give the share and, in brackets, the
+number of term occurrences; `x realtime` is audio-s per wall-s of the model's calls inside the
+8-worker run (contended, so lower than `--measure`):
+
+| ASR model | WER en | WER ru | WER mixed | term exact en | term exact ru | term exact mixed | x realtime |
+|---|---|---|---|---|---|---|---|
+| gigaam-v3-e2e-ctc@onnx-int8 | - | 0.16 | 0.31 | - | 0.40 (68) | 0.07 (68) | 2.59 |
+| gigaam-v3-e2e-rnnt@onnx-int8 | - | 0.13 | 0.31 | - | 0.49 (68) | 0.09 (68) | 2.14 |
+| parakeet-ultra-0.6b@onnx-int8 | 0.08 | 0.16 | 0.30 | 0.69 (87) | 0.51 (68) | 0.22 (68) | 1.43 |
+| t-one@onnx | - | 0.24 | 0.44 | - | 0.43 (68) | 0.01 (68) | 1.48 |
+| parakeet-tdt-0.6b-v3@onnx-int8 | 0.09 | 0.19 | 0.31 | 0.71 (87) | 0.44 (68) | 0.19 (68) | 1.47 |
+| nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms | 0.17 | 0.23 | 0.40 | 0.33 (87) | 0.49 (68) | 0.06 (68) | 0.46 |
+| qwen3-asr-0.6b@onnx-int8 | 0.13 | 0.28 | 0.45 | 0.57 (87) | 0.29 (68) | 0.07 (68) | 0.39 |
+| whisper-small@onnx-int8 | 0.12 | 0.22 | 0.38 | 0.59 (87) | 0.41 (68) | 0.15 (68) | 0.36 |
+| distil-large-v3.5@onnx-int8 | 0.09 | - | - | 0.62 (87) | - | - | 0.26 |
+| whisper-large-v3-turbo@onnx-int8 | 0.08 | 0.16 | 0.26 | 0.69 (87) | 0.57 (68) | 0.34 (68) | 0.26 |
+| whisper-medium@onnx-int8 | 0.10 | 0.19 | 0.31 | 0.69 (87) | 0.50 (68) | 0.29 (68) | 0.18 |
+
+By TTS system, WER over all models: supertonic3 en 0.07 / ru 0.13 / mixed 0.27; kokoro1 en 0.09;
+piper en 0.16 / ru 0.26 / mixed 0.43 (mixed read from `tts_text`). Piper's two Russian voices are
+clearly the harder input.
+
+### Throughput
+
+`--measure` (saved as `ml/roundtrip/samples/roundtrip/measure.json`; one process, 2 threads, 3 probes per language, one voice per system, including each
+model's first call) on 2026-11-18 22:35-22:45, **with the server heavily shared (load average
+21-36 on 16 cores from other workloads)**, so these are pessimistic. The `verify` column is the
+earlier 4-thread single-clip check from `asr_verify.json` (~6 s clips, lighter load).
+
+| stage | system | x realtime, `--measure` (2 thr, loaded) | x realtime, `verify` (4 thr) |
+|---|---|---|---|
+| tts | piper | 7.97 | - |
+| tts | supertonic3 | 2.15 | - |
+| tts | kokoro1 | 0.87 | - |
+| asr | parakeet-tdt-0.6b-v3@onnx-int8 | 4.73 | 19.6 ru/18.3 en |
+| asr | parakeet-ultra-0.6b@onnx-int8 | 4.12 | 20.0 ru/19.2 en |
+| asr | nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms | 1.19 | 5.5 ru/5.7 en |
+| asr | gigaam-v3-e2e-rnnt@onnx-int8 | 4.94 | 29.6 ru |
+| asr | gigaam-v3-e2e-ctc@onnx-int8 | 6.64 | 30.3 ru |
+| asr | t-one@onnx | 2.72 | 16.2 ru |
+| asr | qwen3-asr-0.6b@onnx-int8 | 0.77 | 3.1 ru/4.4 en |
+| asr | whisper-small@onnx-int8 | 0.53 | 2.1 ru/1.8 en |
+| asr | whisper-medium@onnx-int8 | 0.35 | 0.6 ru/0.5 en |
+| asr | whisper-large-v3-turbo@onnx-int8 | 0.63 | 1.9 ru/1.4 en |
+| asr | distil-large-v3.5@onnx-int8 | 0.45 | 2.9 en |
+
+Whole-run figure: the 960-row local proof transcribed 4936 audio-seconds in 11274 worker-seconds
+of ASR calls; with 8 workers that is about 3.5 audio-s per wall-s on this loaded machine. Whisper
+models dominate: in the final resume, whisper-medium alone used 1798 of the 874 s x 8 worker-seconds. For pod sizing:
+these are CPU numbers for the CPU graphs; the GPU TTS systems are UNVERIFIED (above).
+
+### Fifteen examples (local proof, raw hypotheses)
+
+| lang | TTS | ASR | text | hypothesis |
+|---|---|---|---|---|
+| mixed | supertonic3/sid5 | nemotron-3.5 streaming | Созвон с Laura по Kubernetes перенесли на 10:30, ссылку кину в Slack. | Со звон Слаура по Кубернец перенесли на 1030, ссылку кину в слак |
+| mixed | supertonic3/sid3 | parakeet-tdt-v3 | Greenplum не тянет такие запросы, предлагаю вынести аналитику в ClickHouse. | Гримплум не тянет такие запросы, предлагаю вынести аналитику в Клыкхаус. |
+| mixed | piper/denis (tts_text) | gigaam-v3 rnnt | Обучение через LoRA на H100 заняло двадцать минут, eval loss вышел ниже, чем у прошлого запуска. | Обучение через Лора нашто заняло 20 минут. Эволос вышел ниже, чем у прошлого запуска. |
+| mixed | piper/denis (tts_text) | whisper-small | Кто трогал values.yaml в Helm chart бэкенда? После деплоя поды не стартуют. | Кто трогал вылезьям в Хомчак Бекенда? После диплора падыни стартуют |
+| mixed | supertonic3/sid8 | gigaam-v3 ctc | Переехали с Heroku на DigitalOcean, деплой стал дольше, зато счёт меньше вдвое. | Переехали с Herok на Digitalotion, деplй стал дольше, зато счёт меньше вдвое |
+| mixed | supertonic3/sid1 | gigaam-v3 rnnt | Кто-нибудь пробовал SGLang? Говорят, structured output там быстрее, чем в vLLM. | Кто-нибудь пробовал SGLANG? Говорят, strocchurd Out путь там быстрее, чем в |
+| mixed | supertonic3/sid6 | whisper-medium | Kafka отстаёт на миллион сообщений, консьюмеры не успевают, добавляю партиции. | Кавка отстает на миллион сообщений. Консюмеры не успевают. Добавляю партиции. |
+| en | supertonic3/sid5 | whisper-large-v3-turbo | Anyone tried SGLang instead of vLLM? I heard structured decoding is faster there. | Anyone tried SG Lang instead of VLM? I heard structured decoding is faster there. |
+| en | piper/libritts_r#117 | whisper-large-v3-turbo | The Jupyter server on the shared box is using sixty gigabytes of RAM again. | The Dubbiter server on the shared box is using 60GB of our RAM again. |
+| en | supertonic3/sid3 | parakeet-tdt-v3 | Can someone with IAM admin rights give me read access to the S3 bucket? | Can someone with I am admin write give me red access to the S3 bucket? |
+| en | kokoro1/am_liam | nemotron-3.5 streaming | Linear tickets are now synced with GitHub, so please stop updating Jira. | Your tickets are now synced with GitHub, so please stop updating Gira |
+| en | supertonic3/sid0 | qwen3-asr-0.6b | Sentry is flooding us with the same JWT expiry error from the mobile app. | Century is flooding us with the same JWT expiry error from the mobile app. |
+| ru | supertonic3/sid3 | whisper-medium | Слушай, а как у вас в Яндексе устроен онбординг для джунов? | Слушай, а как у вас в Яндексе устроен анбординг для женов? |
+| ru | piper/dmitri | parakeet-ultra | Скинь мне конфиг от воркера, у меня локально всё падает с таймаутом. | В скин мне конфликт от вакера у меня локально все падает с Темлтом. |
+| ru | supertonic3/sid3 | whisper-large-v3-turbo | Кинь, пожалуйста, ссылку на дашборд, хочу посмотреть, что там с лейтенси после вчерашнего. | Кинь, пожалуйста, ссылку на дашборд. Хочу посмотреть, что там с latency после вчерашнего. |
+
+What these show: Latin terms in Russian speech come back Cyrillised (Кавка, Клыкхаус, Слаура),
+split (SG Lang, Со звон), or as half-Latin hybrids (`деplй`, `Herok`); English homophones replace
+acronyms and brands (IAM -> "I am", Sentry -> Century, Jira -> Gira); Russian IT slang turns into
+ordinary words (джунов -> женов, конфиг -> конфликт); words are dropped at the end of streaming
+and CTC output (`чем в` with vLLM gone); and some models write the English word where the speaker
+used Cyrillic slang (лейтенси -> latency), which the cleanup model must not "fix" back blindly.
+Numbers flip between digits and words in both directions (двадцать -> 20, 10:30 -> 1030).
+
+### Disk
+
+Under `.cache/ml/roundtrip/` (2026-11-18, end of the work): models 7.5 GB (HF ASR + Piper files 7.0 GB: whisper-turbo 989 MB, qwen3-asr 942, distil 939, whisper-medium 903, nemotron 651, parakeet v3 640, parakeet ultra 640, piper voices 438, whisper-small 359, gigaam rnnt 222, gigaam ctc 215, t-one 138; sherpa TTS archives 523 MB), audio and results 15 MB, shared venv 612 MB. Within the 14 GB budget. No GPU wheels or torch are installed here.
+
+### UNVERIFIED / limits
+
+- GPU TTS (Qwen3-TTS, Chatterbox): see above; only the call shapes are tested, with fakes.
+- Throughput was measured on a shared, heavily loaded server; expect better numbers on an idle box.
+- Supertonic's Russian accent on Latin words and Piper's handling of `tts_text` respellings are
+  judged only through the ASR outputs above, not by listening.
+- The phone channel presets are plausible engineering choices, not fitted to recordings from the
+  Fold7 microphone; fitting them needs the device (see the DEVICE line in the orchestrator report).
 <!-- END SECTION: Round trip -->
 
 <!-- BEGIN SECTION: Mining (owner: mining agent) -->

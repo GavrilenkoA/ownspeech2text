@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Murmur LLM smoke test on a real phone (Galaxy Z Fold7 / any SM8750): CPU vs NPU (Hexagon HTP) vs GPU (OpenCL).
 #
-#   tools/device/llm_npu_smoke.sh [--model PATH.gguf]... [--build-dir DIR] [--threads 4,6] [--quick] [--extended]
+#   tools/device/llm_npu_smoke.sh [--model PATH.gguf]... [--build-dir DIR] [--threads 4,6] [--quick] [--extended] [--geniex]
 #
 # What it does (each step is independent; a failure is recorded and the next step still runs):
 #   1. device facts (model, SoC, Android, build fingerprint) + vendor FastRPC/OpenCL libraries visible to apps
@@ -10,6 +10,8 @@
 #   4. murmur-llm-bench: the app's real flow (system-prefix snapshot -> TTFT for one dictation), CPU and NPU
 #   5. NPU op placement: which graph ops the Hexagon backend accepted/rejected (GGML_HEXAGON_VERBOSE)
 #   6. thermal status before/after
+#   7. (--geniex) Qualcomm's own prebuilt geniex-bench v0.11.0 (same llama.cpp-Hexagon path, downloaded from GitHub,
+#      sha256-pinned, ~100 MB) on the same GGUF, CPU vs NPU: tells "our build is broken" apart from "HTP is blocked"
 # Output: a compact markdown report on stdout, plus report.md / report.json / raw logs in
 #         .cache/device-reports/llm_npu_smoke-<timestamp>/   (send that folder back)
 #
@@ -25,6 +27,7 @@ MODELS=()
 THREADS="4,6"
 QUICK=0
 EXTENDED=0
+GENIEX=0
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --model) MODELS+=("$2"); shift 2 ;;
@@ -32,7 +35,8 @@ while [[ $# -gt 0 ]]; do
         --threads) THREADS="$2"; shift 2 ;;
         --quick) QUICK=1; shift ;;
         --extended) EXTENDED=1; shift ;;
-        -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
+        --geniex) GENIEX=1; shift ;;
+        -h|--help) sed -n '2,19p' "$0"; exit 0 ;;
         *) echo "unknown argument: $1 (see --help)"; exit 2 ;;
     esac
 done
@@ -188,6 +192,36 @@ if [[ -n "$HTP_DEV" ]]; then
 fi
 echo "after: $(thermal)" >> "$R/thermal.txt"
 
+# ------------------------------------------------------------------ 7. optional: Qualcomm geniex-bench cross-check
+if [[ $GENIEX == 1 ]]; then
+    GX_URL=https://github.com/qualcomm/GenieX/releases/download/v0.11.0/geniex-bench-android-arm64-v0.11.0.tar.gz
+    GX_SHA=7173d3ca43cf924b083c8c9fda479e7e3f4d388ee2d83c2e2fa3fe887e7a4e78
+    GX_DIR="$repo/.cache/device-tools"; GX_TGZ="$GX_DIR/geniex-bench-android-arm64-v0.11.0.tar.gz"
+    mkdir -p "$GX_DIR"
+    if ! echo "$GX_SHA  $GX_TGZ" | sha256sum -c --quiet 2>/dev/null; then
+        say "download geniex-bench v0.11.0 (100 MB)"
+        curl -fL --retry 3 -o "$GX_TGZ.part" "$GX_URL" && mv "$GX_TGZ.part" "$GX_TGZ" || fail "download geniex-bench"
+    fi
+    if echo "$GX_SHA  $GX_TGZ" | sha256sum -c --quiet 2>/dev/null; then
+        rm -rf "$GX_DIR/geniex-bench-android-arm64-v0.11.0"; tar -xzf "$GX_TGZ" -C "$GX_DIR"
+        G=$D/geniex
+        T=60 sh_dev "rm -rf $G && mkdir -p $G"
+        timeout 900 "${ADB[@]}" push --sync "$GX_DIR/geniex-bench-android-arm64-v0.11.0/." "$G/" >> "$R/push.log" 2>&1 || fail "push geniex-bench"
+        T=30 sh_dev "chmod 755 $G/bin/geniex-bench"
+        GX_ENV="cd $G && export LD_LIBRARY_PATH=$G/lib:$G/lib/llama_cpp ADSP_LIBRARY_PATH='$G/lib/llama_cpp;/vendor/lib64/rfs/dsp/snap;/vendor/dsp/cdsp;/vendor/dsp'"
+        for m in "${MODELS[@]}"; do
+            mb="$D/models/$(basename "$m")"
+            for dev in cpu npu; do
+                say "geniex-bench llama_cpp $dev $(basename "$m")"
+                T=900 sh_dev "$GX_ENV && ./bin/geniex-bench --plugin llama_cpp --device $dev -m $mb -p $PP -n $TG -r $REPS --log info --output-json $G/out-$dev.json; echo exit=\$?; cat $G/out-$dev.json" \
+                    > "$R/geniex.$dev.$(basename "$m").log" 2>&1 || fail "geniex-bench $dev $(basename "$m")"
+            done
+        done
+    else
+        fail "geniex-bench sha256 mismatch or download failed"
+    fi
+fi
+
 # ------------------------------------------------------------------ 6. report
 python3 -I - "$R" <<'PY'
 import glob, json, os, re, sys, collections
@@ -256,6 +290,16 @@ for p in sorted(glob.glob(f"{R}/npu-verbose.*.log")):
     bufs = sorted(set(re.findall(r"(\S+ (?:model|KV|RS|compute|output) buffer size =\s*[\d.]+ MiB)", txt)))
     for b in bufs[:10]: md.append(f"  - buffer: `{b}`")
     summary["npu_ops"][name] = {"accepted": dict(yes), "rejected": dict(no), "hex_lines": hw[:20], "splits": splits, "buffers": bufs}
+gx = sorted(glob.glob(f"{R}/geniex.*.log"))
+if gx:
+    md += ["", "## Qualcomm geniex-bench v0.11.0 cross-check (llama_cpp plugin; raw JSON in the logs)", ""]
+    for p in gx:
+        txt = open(p, encoding="utf-8", errors="replace").read()
+        nums = re.findall(r'"(?:pp|tg|prefill|decode|tokens_per_second|prompt_tps|gen_tps|[a-z_]*tps[a-z_]*)"\s*:\s*([\d.]+)', txt)
+        ex = re.findall(r"exit=(\d+)", txt)
+        tail = [l for l in txt.splitlines() if re.search(r"t/s|tok/s|tps|error|ERROR|HTP|ggml-hex", l)][-4:]
+        md.append(f"- **{os.path.basename(p)[7:-4]}**: exit {ex[-1] if ex else '?'}; " + "; ".join(t.strip()[:140] for t in tail))
+    summary["geniex"] = {os.path.basename(p): open(p, errors="replace").read()[-4000:] for p in gx}
 md += ["", "**Thermal:** " + open(f"{R}/thermal.txt").read().replace("\n", " | "), "", f"Raw logs: `{R}`"]
 open(f"{R}/report.md", "w").write("\n".join(md) + "\n")
 json.dump(summary, open(f"{R}/report.json", "w"), indent=1)

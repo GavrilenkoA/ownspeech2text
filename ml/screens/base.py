@@ -86,9 +86,59 @@ def frame(c: Ctx, app_html: str, extra_css: str = "", status_style: str = "", bu
     if c.spec.get("bubble", c.r.random() < 0.5):
         z = bubble_zone or (90, int(c.dev["css_h"] * (0.45 if c.keyboard else 0.8)))
         bubble = C.murmur_bubble(c.r, c.dev["css_w"], c.dev["css_h"], z[0], z[1], c.locale)
+    over = overlay(c)
     body = (f'<div style="{status_style}">{C.status_bar(c.r, clock)}</div>'
-            f'<div class="grow col" style="position:relative;overflow:hidden">{app_html}</div>'
+            f'<div class="grow col" style="position:relative;overflow:hidden">{app_html}{over}</div>'
             f'{kb}{C.gesture_bar()}{bubble}')
     font = c.spec.get("font") or ("roboto" if c.r.random() < 0.7 else "noto")
     css = C.css_base(c.theme, c.accent, font, float(c.spec.get("font_scale", 1.0)), extra_css + "".join(c.css))
     return C.page(css, body, c.title or c.spec.get("template", "screen"))
+
+
+OVERLAYS = {
+    "ru": {"sent": "Сообщение отправлено", "undo": "Отменить", "copied": "Скопировано в буфер обмена",
+           "translate": "Перевести эту страницу?", "translate_btn": "Перевести", "cookies": "Мы используем файлы cookie",
+           "accept": "Принять", "notif_allow": "Разрешить приложению отправлять вам уведомления?", "allow": "Разрешить",
+           "deny": "Не разрешать", "update": "Доступно обновление", "now": "сейчас"},
+    "en": {"sent": "Message sent", "undo": "Undo", "copied": "Copied to clipboard", "translate": "Translate this page?",
+           "translate_btn": "Translate", "cookies": "We use cookies", "accept": "Accept",
+           "notif_allow": "Allow this app to send you notifications?", "allow": "Allow", "deny": "Don't allow",
+           "update": "Update available", "now": "now"},
+}
+
+
+def overlay(c: Ctx) -> str:
+    """Transient UI seen on real screenshots (emulator probe): heads-up notification, snackbar, permission
+    dialog, browser banners. spec["overlay"] = none|headsup|snackbar|dialog|banner, default random (~25 %)."""
+    kind = c.spec.get("overlay")
+    if kind is None:
+        x = c.r.random()
+        kind = "headsup" if x < 0.08 else "snackbar" if x < 0.15 else "dialog" if x < 0.18 else \
+            "banner" if x < 0.25 and c.spec.get("template", "").startswith("browser") else "none"
+    t = OVERLAYS["ru" if c.locale == "ru" else "en"]
+    if kind == "headsup":
+        who = (c.fill.names(1) or ["—"])[0]
+        msg = (c.fill.msgs(1) or [""])[0]
+        app = c.r.choice(["Почта", "Mail", "Messages", "Сообщения", "Calendar", "Банк"])
+        return (f'<div style="position:absolute;top:6px;left:8px;right:8px;z-index:40;background:var(--surface2);border-radius:20px;'
+                f'padding:10px 14px;box-shadow:0 4px 14px rgba(0,0,0,.3)"><div class="row t2" style="gap:6px;font-size:{C.fs(12)}">'
+                f'{C.icon("chat", 14)}<span data-role="filler">{C.e(app)} · {t["now"]}</span></div>'
+                f'<div style="font-weight:600;font-size:{C.fs(14)}" data-role="filler">{C.e(who)}</div>'
+                f'<div class="ell" style="font-size:{C.fs(14)}" data-role="filler">{C.e(msg)}</div></div>')
+    if kind == "snackbar":
+        txt = c.r.choice([t["sent"], t["copied"]])
+        return (f'<div class="row" style="position:absolute;bottom:12px;left:12px;right:12px;z-index:40;background:#323232;color:#f1f1f1;'
+                f'border-radius:6px;padding:12px 16px;font-size:{C.fs(14)}"><span class="grow" data-role="chrome">{C.e(txt)}</span>'
+                f'<span style="color:#9fc4ff;font-weight:600" data-role="chrome">{C.e(t["undo"])}</span></div>')
+    if kind == "dialog":
+        return (f'<div style="position:absolute;inset:0;z-index:40;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center">'
+                f'<div style="width:82%;background:var(--bg);border-radius:24px;padding:22px"><div style="font-size:{C.fs(18)};margin-bottom:18px" '
+                f'data-role="chrome">{C.e(t["notif_allow"])}</div><div style="text-align:center;padding:10px;color:var(--accent);font-weight:600" '
+                f'data-role="chrome">{C.e(t["allow"])}</div><div style="text-align:center;padding:10px;color:var(--accent);font-weight:600" '
+                f'data-role="chrome">{C.e(t["deny"])}</div></div></div>')
+    if kind == "banner":
+        a, b = c.r.choice([(t["translate"], t["translate_btn"]), (t["cookies"], t["accept"])])
+        return (f'<div class="row" style="position:absolute;top:0;left:0;right:0;z-index:40;background:var(--surface);padding:10px 14px;gap:10px;'
+                f'box-shadow:0 2px 6px rgba(0,0,0,.2);font-size:{C.fs(14)}"><span class="grow" data-role="chrome">{C.e(a)}</span>'
+                f'<span style="color:var(--accent);font-weight:600" data-role="chrome">{C.e(b)}</span></div>')
+    return ""

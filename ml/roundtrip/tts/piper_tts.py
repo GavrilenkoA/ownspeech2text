@@ -81,7 +81,8 @@ class PiperDriver(TtsDriver):
                 out.append(VoiceInfo(
                     system=self.system, voice=_voice_id(m.stem, spk), languages=frozenset({m.lang}),
                     licence=m.licence, latin_in_ru=LATIN_RESPELL if m.lang == "ru" else LATIN_NATIVE,
-                    gender=m.gender, extra={"stem": m.stem, "speaker": spk}))
+                    gender=m.gender, reads_digits=frozenset({m.lang}),  # espeak-ng normalises numbers
+                    extra={"stem": m.stem, "speaker": spk}))
         return out
 
     def load(self) -> None:

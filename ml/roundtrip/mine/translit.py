@@ -12,8 +12,11 @@ voicing pairs are merged (b/p, d/t, g/k/c/q, v/f/w, z/s); every vowel run become
 """
 from __future__ import annotations
 
+import json
 import re
 from functools import lru_cache
+from pathlib import Path
+from typing import Sequence
 
 from .norm import fold
 
@@ -319,3 +322,176 @@ def lat2cyr(term: str, split_camel: bool = False, acronym_style: str = "en") -> 
                 conv.append(_lat_word_to_cyr(p))
         pieces.append((" " if split_camel else "").join(conv))
     return re.sub(r"\s+", " ", "".join(pieces)).strip()
+
+
+# ----------------------------------------------------------------------------- faithful transliteration
+
+_LETTERWISE = {
+    "a": "а", "b": "б", "c": "к", "d": "д", "e": "е", "f": "ф", "g": "г", "h": "х", "i": "и", "j": "дж",
+    "k": "к", "l": "л", "m": "м", "n": "н", "o": "о", "p": "п", "q": "к", "r": "р", "s": "с", "t": "т",
+    "u": "у", "v": "в", "w": "в", "x": "кс", "y": "и", "z": "з",
+}
+_CYR_V = set("аеиоуыюя")
+# Russian case endings an ASR model may put on a transliterated term ("в кубернетисе", "с Лорой")
+_ENDINGS = ("ами", "ями", "ого", "его", "ому", "ему", "ой", "ей", "ом", "ем", "ам", "ям", "ах", "ях", "ов", "ев",
+            "ую", "ою", "у", "ю", "е", "а", "я", "ы", "и")
+LEXICON_PATH = Path(__file__).resolve().parents[1] / "probe" / "terms.jsonl"
+_lexicon_override: dict[str, tuple[str, ...]] | None = None
+
+
+def letterwise(term: str) -> str:
+    """Letter-by-letter Cyrillic rendering ("Kafka" -> "кафка", "Laura" -> "лаура", "TTL" -> "ттл")."""
+    out = []
+    for c in term:
+        lc = c.lower()
+        if lc in _LETTERWISE:
+            out.append(_LETTERWISE[lc])
+        elif c.isdigit():
+            out.append(c)
+        elif not c.isalnum():
+            out.append(" ")
+    return re.sub(r"\s+", " ", "".join(out)).strip()
+
+
+def norm_cyr(s: str) -> str:
+    """Spelling-variant-free Cyrillic skeleton: lowercase, ё/э -> е, й -> и, no ь/ъ, letters and digits only."""
+    s = fold(s).replace("э", "е").replace("й", "и")
+    return "".join(c for c in s if (c.isalpha() and c not in "ьъ") or c.isdigit())
+
+
+def _first_vowel(s: str) -> int:
+    for i, c in enumerate(s):
+        if c in _CYR_V or c == "е":
+            return i
+    return -1
+
+
+def translit_cost(cand: str, hyp: str) -> float:
+    """Weighted edit distance from a faithful reading ``cand`` to ``hyp`` (both ``norm_cyr``-normalised).
+
+    Vowel substitutions cost 0.5 (unstressed vowels are spelled loosely), except the first vowel, which
+    is usually the stressed one in an English loan ("Kafka" -> "кофка" is a mishearing, cost 1).
+    Consonant substitutions cost 1, so voicing changes ("Kafka" -> "кавка", "Slack" -> "слаг") are errors.
+    Inserting or deleting a vowel costs 0.5, a doubled letter 0.25 ("хероку" / "херроку"), a consonant 1.25
+    (an extra or missing sound: "пиджи" / "пиджин").
+    """
+    fv = _first_vowel(cand)
+    n, m = len(cand), len(hyp)
+
+    def is_v(c: str) -> bool:
+        return c in _CYR_V or c == "е"
+
+    def indel(s: str, i: int) -> float:
+        c = s[i]
+        if (i > 0 and s[i - 1] == c) or (i + 1 < len(s) and s[i + 1] == c):
+            return 0.25
+        return 0.5 if is_v(c) else 1.25
+
+    prev = [0.0] * (m + 1)
+    for j in range(1, m + 1):
+        prev[j] = prev[j - 1] + indel(hyp, j - 1)
+    for i in range(1, n + 1):
+        cur = [prev[0] + indel(cand, i - 1)] + [0.0] * m
+        a = cand[i - 1]
+        for j in range(1, m + 1):
+            b = hyp[j - 1]
+            if a == b:
+                sub = 0.0
+            elif is_v(a) and is_v(b):
+                sub = 1.0 if i - 1 == fv else 0.5
+            else:
+                sub = 1.0
+            cur[j] = min(prev[j - 1] + sub, prev[j] + indel(cand, i - 1), cur[j - 1] + indel(hyp, j - 1))
+        prev = cur
+    return prev[m]
+
+
+def set_term_lexicon(readings: dict[str, Sequence[str]] | None) -> None:
+    """Override the term -> Cyrillic readings table (tests); None restores the probe lexicon."""
+    global _lexicon_override
+    _lexicon_override = None if readings is None else {k: tuple(v) for k, v in readings.items()}
+    lexicon_readings.cache_clear()
+    faithful_translit.cache_clear()
+
+
+@lru_cache(maxsize=1)
+def _probe_lexicon() -> dict[str, tuple[str, ...]]:
+    table: dict[str, tuple[str, ...]] = {}
+    if not LEXICON_PATH.exists():
+        return table
+    with open(LEXICON_PATH, encoding="utf-8") as fh:
+        for line in fh:
+            if not line.strip():
+                continue
+            e = json.loads(line)
+            for f in e.get("written_forms", []):
+                table.setdefault(f, tuple(e.get("ru_spoken", [])))
+    return table
+
+
+@lru_cache(maxsize=65536)
+def lexicon_readings(term: str) -> tuple[str, ...]:
+    """How Russian engineers say ``term`` (``ru_spoken`` of the probe lexicon), empty when unknown."""
+    table = _lexicon_override if _lexicon_override is not None else _probe_lexicon()
+    return table.get(term) or table.get(term.strip()) or ()
+
+
+def _spelled(ref: str) -> bool:
+    """Every segment is spelled letter by letter: acronyms and upper-case codes ("SSD", "Q4_K_M", "H100")."""
+    segs = [w for w in re.split(r"[\s/_.\-]+", ref) if w]
+    return bool(segs) and all(is_acronym(w) or (w.upper() == w and any(c.isalpha() for c in w)) for w in segs)
+
+
+def _letterwise_ok(ref: str) -> bool:
+    """Letter-by-letter Cyrillic is a real writing convention for plain words ("Kafka" -> "кафка") and for
+    all-caps acronyms ("TTL" -> "ттл"), not for names mixing an acronym with a word ("SGLang", "pgBouncer")."""
+    for w in re.split(r"[\s/_.\-]+", ref):
+        if w and not w.isupper() and (re.search(r"[A-Z]{2}", w) or re.match(r"^[a-z]{1,3}[A-Z]", w)):
+            return False
+    return True
+
+
+def _tolerance(ref: str, cand_len: int) -> float:
+    if _spelled(ref):
+        return 0.0  # spelled letters: every letter must be there
+    if cand_len <= 6:
+        return 0.25
+    if cand_len <= 10:
+        return 0.5
+    return 1.0
+
+
+_NORM_ENDINGS = tuple(sorted({norm_cyr(e) for e in _ENDINGS}, key=lambda e: (-len(e), e)))
+
+
+@lru_cache(maxsize=262144)
+def faithful_translit(ref: str, hyp: str) -> bool:
+    """Is Cyrillic ``hyp`` a faithful rendering of Latin ``ref`` (style), not a mishearing (error)?
+
+    Candidates: the term's lexicon readings, an English-style and a letter-by-letter transliteration and
+    spelled-acronym readings. ``hyp`` may add a Russian case ending ("лору", "кубернетисе", "Марком").
+    It is faithful when it is within a small weighted edit distance (``translit_cost``) of a candidate:
+    0 for acronyms, 0.25 for readings of up to 6 letters, 0.5 up to 10, 1.0 beyond.
+    """
+    cands = set(lexicon_readings(ref))
+    cands.update((lat2cyr(ref), lat2cyr(ref, acronym_style="ru")))
+    if _letterwise_ok(ref):
+        cands.add(letterwise(ref))
+    cands.update(r for r in acronym_readings(ref) if not re.search(r"[A-Za-z]", r))
+    h = norm_cyr(hyp)
+    if not h:
+        return False
+    hyps = [(h, False)] + [(h[: -len(e)], True) for e in _NORM_ENDINGS if h.endswith(e) and len(h) - len(e) >= 3]
+    for c in cands:
+        cn = norm_cyr(c)
+        if not cn:
+            continue
+        tol = _tolerance(ref, len(cn))
+        stems = [cn] + ([cn[:-1]] if cn[-1] in _CYR_V and len(cn) > 3 else [])
+        for hv, stripped in hyps:
+            for k, cv in enumerate(stems):
+                if k and not stripped:
+                    continue  # the reading's own final vowel may only give way to a case ending
+                if translit_cost(cv, hv) <= tol:
+                    return True
+    return False

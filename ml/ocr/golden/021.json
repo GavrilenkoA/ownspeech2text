@@ -1,0 +1,702 @@
+{
+ "pipeline": "ocr.v1",
+ "spec": {
+  "template": "terminal",
+  "device": "fold7_inner",
+  "theme": "light",
+  "font_scale": 1.15,
+  "locale": "en",
+  "title": "ssh build-01",
+  "messages": [
+   {
+    "author": "",
+    "is_me": true,
+    "text": "kubectl get pods -n murmur-staging"
+   },
+   {
+    "author": "",
+    "is_me": false,
+    "text": "NAME                         READY   STATUS             RESTARTS\nasr-worker-7c9f8d6b5-x2kqp   1/1     Running            0\nllm-gateway-5f4b9c7d8-9wz2m  0/1     CrashLoopBackOff   12"
+   }
+  ],
+  "snippets": [],
+  "field": {
+   "kind": "code",
+   "hint": "",
+   "before_cursor": "kubectl logs llm-gateway-5f4b9c7d8-9wz2m "
+  },
+  "keyboard": false,
+  "seed": 1021,
+  "app": {
+   "package": "com.termux",
+   "label": "Termux",
+   "category": "code"
+  },
+  "lang": "en",
+  "privacy": "full",
+  "avoid": [],
+  "bubble": true
+ },
+ "exclude_rects": [
+  [
+   0,
+   0,
+   1968,
+   80
+  ],
+  [
+   21,
+   778,
+   160,
+   918
+  ]
+ ],
+ "exclude_kinds": [
+  "status_bar",
+  "murmur_bubble"
+ ],
+ "visible": [
+  {
+   "role": "status",
+   "text": "13:49",
+   "box": [
+    48,
+    19,
+    136,
+    60
+   ]
+  },
+  {
+   "role": "status",
+   "text": "72%",
+   "box": [
+    1804,
+    19,
+    1870,
+    60
+   ]
+  },
+  {
+   "role": "status",
+   "text": "LTE",
+   "box": [
+    1693,
+    20,
+    1741,
+    55
+   ]
+  },
+  {
+   "role": "filler",
+   "text": "Банк · now",
+   "box": [
+    112,
+    125,
+    294,
+    168
+   ]
+  },
+  {
+   "role": "filler",
+   "text": "Noah Davis",
+   "box": [
+    58,
+    175,
+    277,
+    226
+   ]
+  },
+  {
+   "role": "filler",
+   "text": "Voice message",
+   "box": [
+    58,
+    232,
+    351,
+    284
+   ]
+  },
+  {
+   "role": "filler",
+   "text": "Welcome to the terminal!",
+   "box": [
+    16,
+    1777,
+    546,
+    1826
+   ]
+  },
+  {
+   "role": "chrome",
+   "text": "dev@pixel:~$",
+   "box": [
+    16,
+    1873,
+    281,
+    1922
+   ]
+  },
+  {
+   "role": "message",
+   "text": "kubectl get pods -n murmur-staging",
+   "box": [
+    303,
+    1873,
+    1054,
+    1922
+   ]
+  },
+  {
+   "role": "message",
+   "text": "NAME READY STATUS RESTARTS",
+   "box": [
+    16,
+    1920,
+    1429,
+    1969
+   ]
+  },
+  {
+   "role": "message",
+   "text": "asr-worker-7c9f8d6b5-x2kqp 1/1 Running 0",
+   "box": [
+    16,
+    1968,
+    1275,
+    2017
+   ]
+  },
+  {
+   "role": "message",
+   "text": "llm-gateway-5f4b9c7d8-9wz2m 0/1 CrashLoopBackOff 12",
+   "box": [
+    16,
+    2016,
+    1297,
+    2065
+   ]
+  },
+  {
+   "role": "chrome",
+   "text": "dev@pixel:~$",
+   "box": [
+    16,
+    2064,
+    281,
+    2113
+   ]
+  },
+  {
+   "role": "field",
+   "text": "kubectl logs llm-gateway-5f4b9c7d8-9wz2m",
+   "box": [
+    303,
+    2064,
+    1187,
+    2113
+   ]
+  }
+ ],
+ "stages": {
+  "det_input": [
+   864,
+   960
+  ],
+  "det_boxes": [
+   [
+    1637,
+    13,
+    1917,
+    65,
+    0.6867
+   ],
+   [
+    43,
+    14,
+    146,
+    57,
+    0.902
+   ],
+   [
+    245,
+    20,
+    301,
+    62,
+    0.6208
+   ],
+   [
+    166,
+    25,
+    200,
+    57,
+    0.6264
+   ],
+   [
+    59,
+    125,
+    301,
+    166,
+    0.8489
+   ],
+   [
+    52,
+    175,
+    283,
+    226,
+    0.8996
+   ],
+   [
+    48,
+    230,
+    360,
+    287,
+    0.754
+   ],
+   [
+    63,
+    809,
+    117,
+    874,
+    0.5497
+   ],
+   [
+    9,
+    1774,
+    549,
+    1822,
+    0.8686
+   ],
+   [
+    7,
+    1868,
+    1061,
+    1922,
+    0.745
+   ],
+   [
+    650,
+    1916,
+    776,
+    1965,
+    0.8104
+   ],
+   [
+    823,
+    1916,
+    970,
+    1965,
+    0.8503
+   ],
+   [
+    8,
+    1917,
+    113,
+    1964,
+    0.8311
+   ],
+   [
+    1248,
+    1920,
+    1433,
+    1961,
+    0.9897
+   ],
+   [
+    641,
+    1964,
+    730,
+    2015,
+    0.8325
+   ],
+   [
+    823,
+    1964,
+    997,
+    2019,
+    0.7321
+   ],
+   [
+    1244,
+    1966,
+    1287,
+    2011,
+    0.7608
+   ],
+   [
+    9,
+    1968,
+    602,
+    2016,
+    0.8448
+   ],
+   [
+    11,
+    2013,
+    731,
+    2061,
+    0.8146
+   ],
+   [
+    1241,
+    2013,
+    1305,
+    2064,
+    0.7667
+   ],
+   [
+    825,
+    2014,
+    1193,
+    2061,
+    0.8425
+   ],
+   [
+    11,
+    2063,
+    1212,
+    2112,
+    0.8303
+   ]
+  ],
+  "rec": [
+   {
+    "box": [
+     59,
+     125,
+     301,
+     166
+    ],
+    "text": "Банк·now",
+    "conf": 0.8767
+   },
+   {
+    "box": [
+     52,
+     175,
+     283,
+     226
+    ],
+    "text": "Noah Davis",
+    "conf": 0.9994
+   },
+   {
+    "box": [
+     48,
+     230,
+     360,
+     287
+    ],
+    "text": "Voice message",
+    "conf": 0.9997
+   },
+   {
+    "box": [
+     9,
+     1774,
+     549,
+     1822
+    ],
+    "text": "Welcome to the terminal!",
+    "conf": 0.9805
+   },
+   {
+    "box": [
+     7,
+     1868,
+     1061,
+     1922
+    ],
+    "text": "dev@pixel:~$ kubectl get pods -n murmur-staging",
+    "conf": 0.9938
+   },
+   {
+    "box": [
+     650,
+     1916,
+     776,
+     1965
+    ],
+    "text": "READY",
+    "conf": 0.9977
+   },
+   {
+    "box": [
+     823,
+     1916,
+     970,
+     1965
+    ],
+    "text": "STATUS",
+    "conf": 0.9971
+   },
+   {
+    "box": [
+     8,
+     1917,
+     113,
+     1964
+    ],
+    "text": "NAME",
+    "conf": 0.9888
+   },
+   {
+    "box": [
+     1248,
+     1920,
+     1433,
+     1961
+    ],
+    "text": "RESTARTS",
+    "conf": 0.9978
+   },
+   {
+    "box": [
+     641,
+     1964,
+     730,
+     2015
+    ],
+    "text": "1/1",
+    "conf": 0.9913
+   },
+   {
+    "box": [
+     823,
+     1964,
+     997,
+     2019
+    ],
+    "text": "Running",
+    "conf": 0.9994
+   },
+   {
+    "box": [
+     1244,
+     1966,
+     1287,
+     2011
+    ],
+    "text": "0",
+    "conf": 0.9965
+   },
+   {
+    "box": [
+     9,
+     1968,
+     602,
+     2016
+    ],
+    "text": "asr-worker-7c9f8d6b5-x2kqp",
+    "conf": 0.9984
+   },
+   {
+    "box": [
+     11,
+     2013,
+     731,
+     2061
+    ],
+    "text": "llm-gateway-5f4b9c7d8-9wz2m 0/1",
+    "conf": 0.9922
+   },
+   {
+    "box": [
+     1241,
+     2013,
+     1305,
+     2064
+    ],
+    "text": "12",
+    "conf": 0.9997
+   },
+   {
+    "box": [
+     825,
+     2014,
+     1193,
+     2061
+    ],
+    "text": "CrashLoopBackOff",
+    "conf": 0.9766
+   },
+   {
+    "box": [
+     11,
+     2063,
+     1212,
+     2112
+    ],
+    "text": "dev@pixel:~$ kubectl logs llm-gateway-5f4b9c7d8-9wz2m",
+    "conf": 0.9838
+   }
+  ]
+ },
+ "ocr": {
+  "size": [
+   1968,
+   2184
+  ],
+  "lines": [
+   {
+    "text": "Банк·поw",
+    "conf": 0.877,
+    "box": [
+     59,
+     125,
+     301,
+     166
+    ]
+   },
+   {
+    "text": "Noah Davis",
+    "conf": 0.999,
+    "box": [
+     52,
+     175,
+     283,
+     226
+    ]
+   },
+   {
+    "text": "Voice message",
+    "conf": 1.0,
+    "box": [
+     48,
+     230,
+     360,
+     287
+    ]
+   },
+   {
+    "text": "Welcome to the terminal!",
+    "conf": 0.981,
+    "box": [
+     9,
+     1774,
+     549,
+     1822
+    ]
+   },
+   {
+    "text": "dev@pixel:~$ kubectl get pods -n murmur-staging",
+    "conf": 0.994,
+    "box": [
+     7,
+     1868,
+     1061,
+     1922
+    ]
+   },
+   {
+    "text": "NAME",
+    "conf": 0.989,
+    "box": [
+     8,
+     1917,
+     113,
+     1964
+    ]
+   },
+   {
+    "text": "READY",
+    "conf": 0.998,
+    "box": [
+     650,
+     1916,
+     776,
+     1965
+    ]
+   },
+   {
+    "text": "STATUS",
+    "conf": 0.997,
+    "box": [
+     823,
+     1916,
+     970,
+     1965
+    ]
+   },
+   {
+    "text": "RESTARTS",
+    "conf": 0.998,
+    "box": [
+     1248,
+     1920,
+     1433,
+     1961
+    ]
+   },
+   {
+    "text": "asr-worker-7c9f8d6b5-x2kqp",
+    "conf": 0.998,
+    "box": [
+     9,
+     1968,
+     602,
+     2016
+    ]
+   },
+   {
+    "text": "1/1",
+    "conf": 0.991,
+    "box": [
+     641,
+     1964,
+     730,
+     2015
+    ]
+   },
+   {
+    "text": "Running",
+    "conf": 0.999,
+    "box": [
+     823,
+     1964,
+     997,
+     2019
+    ]
+   },
+   {
+    "text": "llm-gateway-5f4b9c7d8-9wz2m 0/1",
+    "conf": 0.992,
+    "box": [
+     11,
+     2013,
+     731,
+     2061
+    ]
+   },
+   {
+    "text": "CrashLoopBackOff",
+    "conf": 0.977,
+    "box": [
+     825,
+     2014,
+     1193,
+     2061
+    ]
+   },
+   {
+    "text": "12",
+    "conf": 1.0,
+    "box": [
+     1241,
+     2013,
+     1305,
+     2064
+    ]
+   },
+   {
+    "text": "dev@pixel:~$ kubectl logs llm-gateway-5f4b9c7d8-9wz2m",
+    "conf": 0.984,
+    "box": [
+     11,
+     2063,
+     1212,
+     2112
+    ]
+   }
+  ]
+ }
+}

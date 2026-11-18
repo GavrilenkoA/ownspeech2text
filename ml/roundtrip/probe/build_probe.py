@@ -10,7 +10,12 @@ src/seed.txt   -- one sentence per line under "@<lang> <domain>" headers:
     Обновил [Helm chart] и [задеплоил] на [стейджинг], {Laura=Лора} проверит.
   [x]        a lexicon term (surface as written; must resolve to an entry)
   {Name}     a person's name; {Latin=Кириллица} also gives its Cyrillic reading
-             for tts_text.
+             for tts_text. Inside Russian sentences write names in declined Cyrillic
+             ({Марком}), as a careful writer would.
+  <20=двадцать>  a number written in digits in text (prompts/system/default.v5.md
+             rule 4) and spoken as the words after "=" in tts_text, declined as said
+             ("до <11:00=одиннадцати>"). A sentence with such a marker gets a tts_text
+             in every language, ru included.
   Lexicon terms the matcher finds outside brackets are added too and listed
   as warnings, so annotations stay complete.
 
@@ -39,7 +44,7 @@ from ml.roundtrip.probe.respell import respell
 from ml.roundtrip.probe.schema import DOMAINS, LANGS, ProbeRecord, check_record, dumps
 
 HERE = Path(__file__).resolve().parent
-_MARK_RE = re.compile(r"\[([^\[\]]+)\]|\{([^{}=]+)(?:=([^{}]+))?\}")
+_MARK_RE = re.compile(r"\[([^\[\]]+)\]|\{([^{}=]+)(?:=([^{}]+))?\}|<([^<>=]+)=([^<>]+)>")
 
 
 def _split(field: str) -> list[str]:
@@ -101,13 +106,24 @@ def build_record(sl: SeedLine, rid: str, matcher: TermMatcher) -> tuple[ProbeRec
     errors: list[str] = []
     warnings: list[str] = []
     text_parts: list[str] = []
+    spoken_parts: list[str] = []  # the same sentence with number markers in their spoken form
     spans: list[tuple[int, int, dict[str, str]]] = []
     persons: dict[str, str] = {}
     pos = 0
     cur = 0
     for m in _MARK_RE.finditer(sl.raw):
         text_parts.append(sl.raw[pos: m.start()])
+        spoken_parts.append(sl.raw[pos: m.start()])
         cur += m.start() - pos
+        if m.group(4) is not None:
+            written, spoken = m.group(4).strip(), m.group(5).strip()
+            if not any(c.isdigit() for c in written):
+                errors.append(f"<{written}={spoken}>: the written side of a number marker needs digits")
+            text_parts.append(written)
+            spoken_parts.append(spoken)
+            cur += len(written)
+            pos = m.end()
+            continue
         if m.group(1) is not None:
             surface = m.group(1)
             entry = matcher.resolve(surface)
@@ -123,11 +139,14 @@ def build_record(sl: SeedLine, rid: str, matcher: TermMatcher) -> tuple[ProbeRec
             term = {"term": surface, "category": "person"}
         spans.append((cur, cur + len(surface), term))
         text_parts.append(surface)
+        spoken_parts.append(surface)
         cur += len(surface)
         pos = m.end()
     text_parts.append(sl.raw[pos:])
+    spoken_parts.append(sl.raw[pos:])
     text = "".join(text_parts)
-    if "[" in text or "]" in text or "{" in text or "}" in text:
+    spoken = "".join(spoken_parts)
+    if any(c in text for c in "[]{}<>"):
         errors.append("unbalanced markup")
     for m in matcher.find(text):
         if any(not (m.end <= s or m.start >= e) for s, e, _ in spans):
@@ -141,11 +160,12 @@ def build_record(sl: SeedLine, rid: str, matcher: TermMatcher) -> tuple[ProbeRec
         if t["term"] not in seen:
             terms.append(t)
             seen.add(t["term"])
-    rs = respell(text, sl.lang, matcher, persons)
+    rs = respell(spoken, sl.lang, matcher, persons)
     if rs.leftovers:
         errors.append(f"tts_text keeps Latin tokens {list(rs.leftovers)} (add a lexicon entry or {{Name=Имя}})")
+    tts_text = rs.tts_text or (spoken if spoken != text else None)
     rec: ProbeRecord = {"id": rid, "lang": sl.lang, "domain": sl.domain, "text": text,
-                        "terms": terms, "tts_text": rs.tts_text}  # type: ignore[typeddict-item]
+                        "terms": terms, "tts_text": tts_text}  # type: ignore[typeddict-item]
     errors.extend(check_record(rec, matcher))
     return rec, errors, warnings
 

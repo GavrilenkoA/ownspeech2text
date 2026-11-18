@@ -52,7 +52,7 @@ FRAMES = {
            "Не забудь записать в заметки, что {t} надо разобрать до пятницы.",
            "Слушай, я всё ещё жду ответа насчёт {t}, напомни им, пожалуйста.",
            "Мне кажется, {t} стоит перенести на следующий спринт, слишком много рисков.",
-           "Напоминаю всем: в четверг созвон по теме {t}, начало ровно в одиннадцать.",
+           "Напоминаю всем: в четверг созвон по теме {t}, начало ровно в 11:00.",
            "Вчера полдня разбирался, почему {t} так тормозит у клиентов из Казани.",
            "Отправь, пожалуйста, Марине короткую сводку про {t} до конца дня."],
     "en": ["Tomorrow morning I will look at {t} and then message you directly.",
@@ -60,7 +60,7 @@ FRAMES = {
            "Remember to note that {t} must be sorted out before Friday.",
            "I am still waiting for an answer about {t}, please remind them.",
            "Honestly {t} should move to the next sprint, there are too many risks.",
-           "Quick reminder: Thursday call about {t} starts at eleven sharp.",
+           "Quick reminder: Thursday call about {t} starts at 11:00 sharp.",
            "Spent half of yesterday figuring out why {t} is so slow for customers.",
            "Please send Marina a short summary on {t} before the end of the day."],
 }
@@ -371,3 +371,29 @@ def test_shipped_prompt_has_all_blocks() -> None:
     user = p.render_user(2, "[]", "- example")
     assert "Write 2 sentences" in user and "$" not in user
     assert "boom" in p.render_repair("boom")
+
+
+def test_candidate_takes_spoken_numbers_from_teacher_and_normalises_apostrophes(lexicon: Path) -> None:
+    matcher = TermMatcher(load_lexicon(lexicon))
+    slot = Slot(0, 0, "mixed", "work_chat", (6, 20), (SlotTerm("LoRA", "ai_ml_jargon", ("LoRA",), ""),))
+    text = "Обучение через LoRA заняло 20 минут, завтра в 11:00 покажу команде."
+    tts = "Обучение через лору заняло двадцать минут, завтра в одиннадцать покажу команде."
+    v = build_candidate_record(slot, Candidate(0, text, tts, ()), matcher)
+    assert v.record is not None, v.reasons
+    # the lexicon respelling of LoRA is kept; only the numbers come from the teacher, declined as said
+    assert v.record["tts_text"] == "Обучение через лора заняло двадцать минут, завтра в одиннадцать покажу команде."
+    en = Slot(1, 0, "en", "standup", (6, 20), (SlotTerm("GPU", "acronyms", ("GPU",), ""),))
+    v = build_candidate_record(en, Candidate(1, "Today I’ll check why the GPU node keeps restarting.", None, ()), matcher)
+    assert v.record is not None and "’" not in v.record["text"] and "I'll" in v.record["text"]
+    # numbers above ten in words break default.v5 rule 4 and are rejected
+    v = build_candidate_record(en, Candidate(1, "The GPU node restarted twenty times since Monday morning.", None, ()),
+                               matcher)
+    assert v.record is None and any("rule 4" in r for r in v.reasons)
+
+
+def test_teacher_api_defaults_to_responses() -> None:
+    from ml.roundtrip.probe.teacher import config_from_env
+
+    cfg = config_from_env({"MURMUR_TEACHER_BASE_URL": "http://127.0.0.1:1/v1", "MURMUR_TEACHER_API_KEY": "k",
+                           "MURMUR_TEACHER_MODEL": "m"})
+    assert cfg.api == "responses"

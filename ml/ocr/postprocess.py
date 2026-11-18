@@ -6,9 +6,10 @@ de-duplication -> reading order -> textual de-duplication.
 """
 from __future__ import annotations
 
+import re
 import unicodedata
 
-from .config import CYR2LAT_STRONG, CYR2LAT_WEAK, LAT2CYR_STRONG, LAT2CYR_WEAK, WEAK_WEIGHT, OcrConfig
+from .config import CYR2LAT_STRONG, CYR2LAT_WEAK, LAT2CYR_STRONG, LAT2CYR_WEAK, NON_RU_TO_LAT, WEAK_WEIGHT, OcrConfig
 
 # ----------------------------------------------------------------------------- geometry
 
@@ -57,7 +58,9 @@ def script_score(tok: str) -> tuple[float, float]:
     """(cyrillic, latin) evidence: 1 per letter that has no twin, WEAK_WEIGHT per weak twin, 0 per strong twin."""
     cy = la = 0.0
     for c in tok:
-        if _is_cyr(c):
+        if c in NON_RU_TO_LAT:
+            la += 1.0
+        elif _is_cyr(c):
             cy += 0.0 if c in CYR2LAT_STRONG else WEAK_WEIGHT if c in CYR2LAT_WEAK else 1.0
         elif _is_lat(c):
             la += 0.0 if c in LAT2CYR_STRONG else WEAK_WEIGHT if c in LAT2CYR_WEAK else 1.0
@@ -69,49 +72,95 @@ def _to_cyr(tok: str) -> str:
 
 
 def _to_lat(tok: str) -> str:
-    return "".join(CYR2LAT_STRONG.get(c) or CYR2LAT_WEAK.get(c) or c for c in tok)
+    return "".join(CYR2LAT_STRONG.get(c) or CYR2LAT_WEAK.get(c) or NON_RU_TO_LAT.get(c) or c for c in tok)
+
+
+def _has_unambiguous(tok: str) -> bool:
+    """True when the token has a letter with no Latin/Cyrillic twin (strong or weak)."""
+    return any(c in NON_RU_TO_LAT or (_is_cyr(c) and c not in CYR2LAT_STRONG and c not in CYR2LAT_WEAK) or
+               (_is_lat(c) and c not in LAT2CYR_STRONG and c not in LAT2CYR_WEAK) for c in tok)
 
 
 def _has_both(tok: str) -> bool:
     return any(_is_cyr(c) for c in tok) and any(_is_lat(c) for c in tok)
 
 
-def repair_homoglyphs(text: str) -> str:
-    """Make every whitespace token single-script where the evidence says so.
+def screen_script(texts: list[str], ratio: float) -> str | None:
+    """'cyr' / 'lat' when one script's evidence over all lines is >= ratio times the other's, else None."""
+    cy = la = 0.0
+    for t in texts:
+        a, b = script_score(t)
+        cy, la = cy + a, la + b
+    if cy >= ratio * max(la, 1e-9) and cy > 0:
+        return "cyr"
+    if la >= ratio * max(cy, 1e-9) and la > 0:
+        return "lat"
+    return None
 
-    Token decision: the script with more evidence wins (script_score). A token with no evidence either way
-    (only strong twins, e.g. "Сосо", "ТОР", "с") takes the script of the decisive tokens among the two on each
-    side on the same line, but only when they all agree; otherwise it is left as recognised. Ties with
-    evidence on both sides are left alone (genuinely mixed tokens are rare but exist).
-    Only tokens that contain both scripts are changed, plus all-twin tokens whose neighbours decide the
-    opposite script of what they were recognised as.
+
+_CODE = re.compile(r"[0-9#+@$=<>\\]")
+_CAMEL = re.compile(r"[a-zа-яё][A-ZА-ЯЁ]|[A-ZА-ЯЁ]{2}[a-zа-яё]")
+
+
+def _twin_only(t: str, i: int, toks: list[str], scores: list, default: str | None, seps: list[str] = ()) -> str:
+    """Decide a token made only of twin letters (e.g. "Bce", "по", "НАРгоху", "А100", "promрt")."""
+    letters = [c for c in t if _is_cyr(c) or _is_lat(c)]
+    if not letters:
+        return t
+    if _CODE.search(t):                              # A100, x86, p99, C#, BM25: identifiers are Latin
+        return _to_lat(t)
+    ncy = sum(1 for c in letters if _is_cyr(c))
+    if 0 < ncy < len(letters):                       # both scripts: the recogniser's majority reading
+        if 2 * ncy > len(letters):
+            return _to_cyr(t)
+        if 2 * ncy < len(letters):
+            return _to_lat(t)
+    if _CAMEL.search("".join(letters)):              # НАРгоху, НеМо: Russian words have no inner capitals
+        return _to_lat(t)
+    # glued to a decisive token by "-", "/", "_" or "." (RNN-T, llama.cpp, SIM-карта): the same word, its script
+    glued = set()
+    for j, sep_i in ((i - 1, i - 1), (i + 1, i)):
+        if 0 <= j < len(toks) and 0 <= sep_i < len(seps) and seps[sep_i] != " " and scores[j][0] != scores[j][1]:
+            glued.add("cyr" if scores[j][0] > scores[j][1] else "lat")
+    if len(glued) == 1:
+        return _to_cyr(t) if glued == {"cyr"} else _to_lat(t)
+    votes = set()
+    for j in range(max(0, i - 2), min(len(toks), i + 3)):
+        if j != i and scores[j][0] != scores[j][1]:
+            votes.add("cyr" if scores[j][0] > scores[j][1] else "lat")
+    if not votes and default and any(c.islower() for c in letters):
+        votes = {default}                            # no decisive neighbour: the screen's dominant script
+    if votes == {"cyr"}:
+        return _to_cyr(t)
+    return t   # never flip to Latin on context alone: "по", "с", "и" between English terms are Russian
+
+
+def repair_homoglyphs(text: str, default: str | None = None) -> str:
+    """Make every token single-script where the evidence says so. Tokens are separated by space, "-", "/",
+    "_", "." (kept). Rules, in order (README.md section 6.3):
+    1. a token with an unambiguous letter (no twin; non-Russian Cyrillic counts as Latin) and both scripts takes
+       the script with more evidence (script_score; ties unchanged); single-script tokens are kept;
+    2. a twin-only token (_twin_only): identifiers with digits or #+@$=<>\ -> Latin; both scripts -> majority of
+       its letters; camel case -> Latin; glued by -/_. to decisive tokens of one script -> that script; else the
+       unanimous script of the 2 tokens on each side, or the screen's
+       dominant script for tokens with a lowercase letter, applied only towards Cyrillic.
     """
-    toks = text.split(" ")
+    parts = re.split(r"([ \-/_.])", text)          # tokens and the separators between them
+    toks = parts[0::2]
+    seps = parts[1::2]
     scores = [script_score(t) for t in toks]
     out = []
     for i, t in enumerate(toks):
         cy, la = scores[i]
-        if cy == 0 and la == 0:
-            # all-twin token: follow the neighbours only when every decisive neighbour agrees
-            votes = set()
-            for j in range(max(0, i - 2), min(len(toks), i + 3)):
-                if j != i and scores[j][0] != scores[j][1]:
-                    votes.add("cyr" if scores[j][0] > scores[j][1] else "lat")
-            letters = [c for c in t if _is_cyr(c) or _is_lat(c)]
-            if not letters or len(votes) != 1:
-                out.append(t)
-            elif votes == {"cyr"}:
-                out.append(_to_cyr(t) if all(c in LAT2CYR_STRONG or _is_cyr(c) for c in letters) else t)
-            else:
-                out.append(_to_lat(t) if all(c in CYR2LAT_STRONG or _is_lat(c) for c in letters) else t)
-            continue
-        if not _has_both(t) or cy == la:
+        if not _has_unambiguous(t):
+            out.append(_twin_only(t, i, toks, scores, default, seps))
+        elif (not _has_both(t) and not any(c in NON_RU_TO_LAT for c in t)) or cy == la:
             out.append(t)
         elif cy > la:
             out.append(_to_cyr(t))
         else:
             out.append(_to_lat(t))
-    return " ".join(out)
+    return "".join(t + (seps[i] if i < len(seps) else "") for i, t in enumerate(out))
 
 
 # ----------------------------------------------------------------------------- de-duplication

@@ -18,7 +18,7 @@ The recommended default per model and the numbers behind it are in `docs/ml/PROM
 
 | File | What it is | Changes when |
 |---|---|---|
-| `system/default.v{1,2,3,4}.md`, `default_inline.v2.md` | Default system prompts for stock models. v4 = current (OCR wording, no-translation first). v1–v3 kept: history items and eval runs refer to them. | Prompt release |
+| `system/default.v{1,2,3,4,5}.md`, `default_inline.v2.md` | Default system prompts for stock models. **v4 = current** (OCR wording, no-translation first). v1–v3 kept: history items and eval runs refer to them; v5 measured and rejected (PROMPT_EVAL.md §4.2). | Prompt release |
 | `system/finetuned.v{1,2}.md` | Short system prompt of Murmur fine-tunes (identical at training and inference). | Only with a new fine-tune |
 | `system/preferences_block.v1.md` | "My preferences" wrapper appended to either system prompt. | Prompt release |
 | `profiles/*.json` | A profile = system prompt + few-shot file + optional `answer_prefix` + `ctx2` (v2 context options). The unit the app ships and the eval measures. `v3x2.json` is eval-only. | Prompt release |

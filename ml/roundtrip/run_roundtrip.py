@@ -20,18 +20,19 @@ The ASR language hint is ``en`` for en probes and ``ru`` for ru/mixed probes.
 from __future__ import annotations
 
 import argparse
+import ctypes
 import gc
 import json
 import multiprocessing as mp
 import os
 import random
+import signal
 import sys
 import time
 import zlib
 from collections import defaultdict
 from concurrent.futures import FIRST_COMPLETED, Future, ProcessPoolExecutor, wait
 from dataclasses import dataclass
-from itertools import zip_longest
 from pathlib import Path
 from typing import Callable, Dict, Iterable, Iterator, List, Optional, Sequence, Set, Tuple
 
@@ -105,7 +106,7 @@ class Utterance:
     probe: Probe
     tts_system: str
     tts_voice: str
-    tts_input: str  # "text" or "tts_text"
+    tts_input: str  # "text", "tts_text" or "text_numbers" (see tts.base.choose_tts_input)
     say: str  # what the TTS actually read
     channel: str
     seed: int  # channel noise / reverb seed
@@ -175,6 +176,35 @@ def read_done(path: Path) -> Set[ResultKey]:
     return done
 
 
+# ------------------------------------------------------------------------------- worker lifetime
+# A worker whose runner died (SIGKILL, OOM kill of the main process) must not keep transcribing a shard
+# whose results nobody will write: observed, 9 orphaned workers still alive 28 s after `kill -9` of the
+# runner, one at 2 GB RSS for 6 more minutes, keeping the systemd scope alive.
+_PARENT_PID: Optional[int] = None
+_PR_SET_PDEATHSIG = 1
+
+
+def _worker_init(parent_pid: int) -> None:
+    """Pool initializer: die with the runner. Linux delivers SIGTERM when the parent thread exits
+    (prctl PR_SET_PDEATHSIG); everywhere, shards also poll the parent pid between clips."""
+    global _PARENT_PID
+    _PARENT_PID = parent_pid
+    if sys.platform.startswith("linux"):
+        try:
+            libc = ctypes.CDLL(None, use_errno=True)
+            libc.prctl(_PR_SET_PDEATHSIG, int(signal.SIGTERM), 0, 0, 0)
+        except (OSError, AttributeError):  # pragma: no cover - libc without prctl
+            pass
+    if os.getppid() != parent_pid:  # the parent died before the signal was armed
+        os._exit(1)
+
+
+def check_parent() -> None:
+    """Exit the worker if its runner is gone (no-op outside pool workers)."""
+    if _PARENT_PID is not None and os.getppid() != _PARENT_PID:
+        os._exit(1)  # nobody is left to receive this shard's results
+
+
 # --------------------------------------------------------------------------------- worker state
 # Each worker process keeps at most one ASR model and one TTS system loaded at a time.
 _TTS: Dict[str, TtsDriver] = {}
@@ -215,16 +245,58 @@ def _asr_driver(name: str, threads: int, factory: AsrFactory) -> AsrDriver:
     return _ASR[name]
 
 
+def _batch_synthesize(out: Path, utts: List[Utterance], threads: int, factory: TtsFactory,
+                      batch: int) -> Dict[str, dict]:
+    """GPU systems: synthesise every missing clean clip with ``synthesize_batch`` calls of ``batch``
+    items. Returns clean_rel -> {wall_s, audio_s} for the clips written, or {error} for failed ones."""
+    need: Dict[str, Utterance] = {}
+    for u in utts:
+        if u.clean_rel not in need and not (out / u.clean_rel).exists():
+            need[u.clean_rel] = u
+    done: Dict[str, dict] = {}
+    if not need:
+        return done
+    drv = _tts_driver(utts[0].tts_system, threads, factory)
+    items = list(need.values())
+    for part in chunks(items, batch):
+        try:
+            for u in part:
+                drv.prepare(u.tts_voice)
+            t0 = time.perf_counter()
+            xs = drv.synthesize_batch([(u.say, u.tts_voice, u.probe.lang, u.tts_seed) for u in part])
+            wall = time.perf_counter() - t0
+            total = sum(len(x) for x in xs) or 1
+            for u, x in zip(part, xs):
+                write_audio(out / u.clean_rel, x)
+                # the batch's wall time is shared out in proportion to clip length
+                done[u.clean_rel] = {"wall_s": wall * len(x) / total, "audio_s": len(x) / SAMPLE_RATE}
+        except (TtsUnavailable, RuntimeError, ValueError, KeyError, OSError) as exc:
+            for u in part:
+                done[u.clean_rel] = {"error": f"{type(exc).__name__}: {exc}"}
+    return done
+
+
 def tts_shard(out_dir: str, utts: List[Utterance], threads: int,
-              factory: TtsFactory = _default_tts) -> List[dict]:
-    """Synthesise the clean clip (once) and every channel variant. Returns one status per utterance."""
+              factory: TtsFactory = _default_tts, batch: int = 1) -> List[dict]:
+    """Synthesise the clean clip (once) and every channel variant. Returns one status per utterance.
+
+    With ``batch > 1`` and a GPU system, clean clips are made with batched ``synthesize_batch`` calls."""
     out = Path(out_dir)
     stats: List[dict] = []
+    batched: Dict[str, dict] = {}
+    if batch > 1 and utts and _tts_driver(utts[0].tts_system, threads, factory).gpu:
+        batched = _batch_synthesize(out, utts, threads, factory, batch)
     for u in utts:
+        check_parent()
         rec = {"key": (u.probe.id, u.tts_system, u.tts_voice, u.channel), "tts_system": u.tts_system,
                "audio_s": 0.0, "wall_s": 0.0, "error": None}
         try:
             clean = out / u.clean_rel
+            b = batched.pop(u.clean_rel, None)
+            if b and b.get("error"):
+                raise RuntimeError(b["error"])
+            if b:
+                rec["wall_s"], rec["audio_s"] = b["wall_s"], b["audio_s"]
             if clean.exists():
                 x = read_audio(clean)
             else:
@@ -258,6 +330,7 @@ def asr_shard(out_dir: str, model: str, utts: List[Utterance], threads: int,
     rows: List[dict] = []
     clip_errors: List[dict] = []
     for u in utts:
+        check_parent()
         try:
             x = read_audio(out / u.audio_rel)
             t0 = time.perf_counter()
@@ -307,21 +380,24 @@ class Progress:
 
 
 def make_pool(workers: int) -> ProcessPoolExecutor:
-    return ProcessPoolExecutor(max_workers=workers, mp_context=mp.get_context("spawn"))
+    return ProcessPoolExecutor(max_workers=workers, mp_context=mp.get_context("spawn"),
+                               initializer=_worker_init, initargs=(os.getpid(),))
 
 
 def make_recycling_pool(workers: int) -> ProcessPoolExecutor:
     """Pool whose workers exit after one task. ASR shards switch models; onnxruntime does not hand
     a freed model's arena back to the OS, so long-lived workers grow until the scope is OOM-killed
     (observed: 8 workers reached 24 GB). A fresh process per shard costs one model load (1-3 s)."""
-    return ProcessPoolExecutor(max_workers=workers, mp_context=mp.get_context("spawn"), max_tasks_per_child=1)
+    return ProcessPoolExecutor(max_workers=workers, mp_context=mp.get_context("spawn"), max_tasks_per_child=1,
+                               initializer=_worker_init, initargs=(os.getpid(),))
 
 
 DEFAULT_MODEL_MEM_MB = 2000  # used for models without a measured peak RSS
 
 
 def run_tts_stage(utts: List[Utterance], out: Path, workers: int, threads: int, shard: int,
-                  errors: List[dict], pool_factory=make_pool, factory: TtsFactory = _default_tts) -> Dict[str, dict]:
+                  errors: List[dict], pool_factory=make_pool, factory: TtsFactory = _default_tts,
+                  batch: int = 1) -> Dict[str, dict]:
     """Synthesise every missing clip. Returns per-system {audio_s, wall_s, n}."""
     todo = [u for u in utts if not (out / u.audio_rel).exists()]
     # Clean clips first so channel variants of the same voice reuse them; group by system.
@@ -342,7 +418,8 @@ def run_tts_stage(utts: List[Utterance], out: Path, workers: int, threads: int, 
                 groups[(u.tts_voice, u.probe.id)].append(u)
             flat = [grp for grp in groups.values()]
             for part in chunks(flat, shard):
-                futs.append(pool.submit(tts_shard, str(out), [u for g in part for u in g], threads, factory))
+                futs.append(pool.submit(tts_shard, str(out), [u for g in part for u in g], threads, factory,
+                                        batch))
         for f in _as_completed(futs):
             for r in f.result():
                 if r["error"]:
@@ -390,14 +467,57 @@ def _as_completed(futs: Iterable[Future]) -> Iterator[Future]:
         yield from done
 
 
+DEFAULT_XRT = 1.0  # audio-s per wall-s of one worker for models without a measured speed
+SHARD_TARGET_S = 150.0  # expected wall time of one ASR shard
+
+
+def clip_seconds(path: Path) -> float:
+    """Duration of an audio file from its header (0.0 when unreadable; the shard then counts it as 1 s)."""
+    try:
+        import soundfile as sf
+
+        return float(sf.info(str(path)).duration)
+    except Exception:  # noqa: BLE001 - only a scheduling estimate
+        return 0.0
+
+
+def plan_asr_shards(by_model: Dict[str, List[Utterance]], out: Path, max_clips: int,
+                    xrt: Dict[str, float], target_s: float = SHARD_TARGET_S,
+                    duration: Callable[[Path], float] = clip_seconds) -> List[Tuple[str, list]]:
+    """Cut each model's clips into shards of about ``target_s`` expected wall seconds (clip seconds
+    divided by the model's x-realtime per worker), at most ``max_clips`` clips, one language hint per
+    shard, then order all shards longest-expected first (LPT). A fixed clip count let one whisper-medium
+    shard run alone for 20 minutes at the end of a run while 7 workers sat idle."""
+    planned: List[Tuple[float, str, int, list]] = []
+    for m, us in by_model.items():
+        speed = max(1e-3, xrt.get(m, DEFAULT_XRT))
+        for k, part in enumerate(shard_by_hint(us, max(1, len(us)))):
+            cur: list = []
+            cur_s = 0.0
+            for u in part:
+                est = max(1.0, duration(out / u.audio_rel)) / speed
+                if cur and (cur_s + est > target_s or len(cur) >= max_clips):
+                    planned.append((cur_s, m, len(planned), cur))
+                    cur, cur_s = [], 0.0
+                cur.append(u)
+                cur_s += est
+            if cur:
+                planned.append((cur_s, m, len(planned), cur))
+    planned.sort(key=lambda t: (-t[0], t[1], t[2]))
+    return [(m, part) for _, m, _, part in planned]
+
+
 def run_asr_stage(jobs: List[Tuple[Utterance, str]], out: Path, results: Path, workers: int, threads: int,
                   shard: int, errors: List[dict], pool_factory=make_recycling_pool,
                   factory: AsrFactory = _default_asr, mem_mb: Optional[Dict[str, int]] = None,
-                  mem_budget_mb: Optional[int] = None) -> Dict[str, dict]:
+                  mem_budget_mb: Optional[int] = None, xrt: Optional[Dict[str, float]] = None,
+                  shard_target_s: float = SHARD_TARGET_S) -> Dict[str, dict]:
     """Transcribe every pending (utterance, model) job; append rows to ``results`` as shards finish.
 
-    Shards are submitted only while the summed peak memory of the models in flight stays within
-    ``mem_budget_mb`` (``mem_mb``: model -> peak RSS of one worker); at least one shard always runs."""
+    Shards come from :func:`plan_asr_shards` (``xrt``: model -> x-realtime of one worker; ``shard`` is
+    the clip cap per shard). They are submitted only while the summed peak memory of the models in
+    flight stays within ``mem_budget_mb`` (``mem_mb``: model -> peak RSS of one worker); at least one
+    shard always runs."""
     by_model: Dict[str, List[Utterance]] = defaultdict(list)
     for u, m in jobs:
         if (out / u.audio_rel).exists():
@@ -409,10 +529,8 @@ def run_asr_stage(jobs: List[Tuple[Utterance, str]], out: Path, results: Path, w
     prog = Progress("asr", total)
     dead: Set[str] = set()
     results.parent.mkdir(parents=True, exist_ok=True)
-    # Round-robin over models so every model (and the slow Whisper ones) starts early. A shard holds
-    # one language hint only, so a Whisper worker never needs two recognisers.
-    per_model = [[(m, part) for part in shard_by_hint(us, shard)] for m, us in by_model.items()]
-    shards = [s for tier in zip_longest(*per_model) for s in tier if s is not None]
+    # A shard holds one language hint only, so a Whisper worker never needs two recognisers.
+    shards = plan_asr_shards(by_model, out, shard, xrt or {}, shard_target_s)
     mem = mem_mb or {}
     budget = mem_budget_mb if mem_budget_mb and mem_budget_mb > 0 else None
     with pool_factory(workers) as pool, open(results, "a", encoding="utf-8") as fh:
@@ -555,7 +673,15 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
                     help="worker processes (each loads one model at a time)")
     ap.add_argument("--threads", type=int, default=2, help="intra-op threads per worker")
     ap.add_argument("--tts-shard", type=int, default=8, help="sentences per TTS task")
-    ap.add_argument("--asr-shard", type=int, default=24, help="clips per ASR task")
+    ap.add_argument("--tts-batch", type=int, default=1,
+                    help="GPU TTS only: clips per synthesize_batch call (use with --tts-shard >= this)")
+    ap.add_argument("--ref-dir", default=None,
+                    help="reference-voice directory for the GPU cloning systems (sets MURMUR_REFVOICE_DIR)")
+    ap.add_argument("--asr-shard", type=int, default=48, help="at most this many clips per ASR task")
+    ap.add_argument("--asr-shard-s", type=float, default=SHARD_TARGET_S,
+                    help="expected wall seconds per ASR task (clip length / the model's measured x-realtime)")
+    ap.add_argument("--allow-errors", action="store_true",
+                    help="exit 0 even when jobs failed or stayed pending (default: exit 1)")
     ap.add_argument("--mem-gb", type=float, default=14.0,
                     help="cap on the summed peak RSS of ASR models in flight (tools/heavy default scope is 16G)")
     ap.add_argument("--skip-asr", action="store_true", help="only synthesise audio")
@@ -573,6 +699,8 @@ def execute(args: argparse.Namespace, tts_factory: TtsFactory = _default_tts,
             pool_factory=None, systems: Optional[List[str]] = None,
             models: Optional[List[str]] = None) -> dict:
     """Run the round trip described by ``args``; returns the report (also written next to the results)."""
+    if getattr(args, "ref_dir", None):
+        os.environ["MURMUR_REFVOICE_DIR"] = str(args.ref_dir)  # spawned workers inherit it
     if systems is None:
         from .tts.registry import resolve_systems
 
@@ -600,21 +728,28 @@ def execute(args: argparse.Namespace, tts_factory: TtsFactory = _default_tts,
           f"({len(done)} already done) -> {results}", file=sys.stderr, flush=True)
     need_audio = list({u.audio_rel: u for u, _ in jobs}.values()) if not args.skip_asr else utts
     tts_agg = run_tts_stage(need_audio, args.out, args.workers, args.threads, args.tts_shard, errors,
-                            pool_factory or make_pool, tts_factory)
+                            pool_factory or make_pool, tts_factory, args.tts_batch)
     asr_agg: Dict[str, dict] = {}
     if not args.skip_asr:
         mem = {s.name: int(s.extra.get("mem_mb", DEFAULT_MODEL_MEM_MB)) for s in specs}
+        xrt = {s.name: float(s.extra.get("xrt", DEFAULT_XRT)) for s in specs}
         asr_agg = run_asr_stage(jobs, args.out, results, args.workers, args.threads, args.asr_shard, errors,
                                 pool_factory or make_recycling_pool, asr_factory, mem,
-                                int(args.mem_gb * 1024))
+                                int(args.mem_gb * 1024), xrt, getattr(args, "asr_shard_s", SHARD_TARGET_S))
+        done_now = read_done(results)
+        pending = [(u, m) for u, m in jobs if (u.probe.id, u.tts_system, u.tts_voice, u.channel, m) not in done_now]
+    else:
+        pending = [u for u in need_audio if not (args.out / u.audio_rel).exists()]
     wall = time.time() - t_start
     print(throughput_table(tts_agg, asr_agg, args.threads))
     print(f"total wall {wall:.1f}s with {args.workers} workers x {args.threads} threads; "
           f"{len(errors)} errors", flush=True)
     for e in errors[:20]:
         print(f"  error: {json.dumps(e, ensure_ascii=False)[:300]}", file=sys.stderr)
+    if pending:
+        print(f"{len(pending)} job(s) still pending; rerun the same command to retry them", file=sys.stderr)
     report = {"run": run, "probes": len(probes), "utterances": len(utts), "jobs": len(jobs),
-              "workers": args.workers, "threads": args.threads, "wall_s": round(wall, 1),
+              "pending": len(pending), "workers": args.workers, "threads": args.threads, "wall_s": round(wall, 1),
               "tts": _jsonable(tts_agg), "asr": _jsonable(asr_agg), "errors": errors,
               "args": {k: str(v) for k, v in vars(args).items()}}
     (args.out / "roundtrip").mkdir(parents=True, exist_ok=True)
@@ -623,9 +758,20 @@ def execute(args: argparse.Namespace, tts_factory: TtsFactory = _default_tts,
     return report
 
 
+def exit_status(report: dict, allow_errors: bool) -> int:
+    """0 when every job produced a row and nothing failed; 1 otherwise (unless ``allow_errors``)."""
+    if allow_errors:
+        return 0
+    return 1 if report.get("errors") or report.get("pending") else 0
+
+
 def main(argv: Optional[Sequence[str]] = None) -> int:
-    execute(parse_args(argv))
-    return 0
+    args = parse_args(argv)
+    report = execute(args)
+    if args.measure:
+        bad = [k for k, v in report.get("status", {}).items() if v != "ok"]
+        return 0 if args.allow_errors or not bad else 1
+    return exit_status(report, args.allow_errors)
 
 
 if __name__ == "__main__":

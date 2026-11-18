@@ -1,15 +1,35 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <uses-permission android:name="android.permission.QUERY_ADVANCED_PROTECTION_MODE" />
+    <!-- Deliberately NOT requested: SYSTEM_ALERT_WINDOW, QUERY_ALL_PACKAGES (platform spike). Module manifests add
+         RECORD_AUDIO + FGS microphone (:platform:audio), INTERNET + UIDT (:data:models), npu/FastRPC (:infer:llm). -->
 
     <application
+        android:name=".MurmurApp"
         android:allowBackup="false"
         android:label="@string/app_name"
         android:supportsRtl="true"
+        android:enableOnBackInvokedCallback="true"
         android:theme="@style/Theme.Murmur">
+        <!-- D9 (no analytics) + "no native model code in :main": the ONNX Runtime 1.32.0 AAR ships a
+             ContentProvider that, at app start in :main, System.loadLibrary("onnxruntime") (36 MB) and creates an
+             HTTP telemetry client (reads android_id, locale, time zone, battery; architect check of the AAR,
+             docs/DECISIONS.md ADR-022). Removed here; PrivacyManifestTest guards it. -->
+        <provider
+            android:name="ai.onnxruntime.TelemetryInitializer"
+            android:authorities="${applicationId}.onnxruntime_telemetry_initializer"
+            tools:node="remove" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:resizeableActivity="true">
+            android:launchMode="singleTop"
+            android:resizeableActivity="true"
+            android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

@@ -50,12 +50,14 @@ def _merge(items: list[dict]) -> list[dict]:
             ov = min(b[3], ob[3]) - max(b[1], ob[1])
             gap = b[0] - ob[2]
             if o["role"] == it["role"] and ov >= 0.6 * min(h, oh) and -2 <= gap <= 0.6 * max(h, oh):
-                o["text"] = o["text"] + (" " if gap > 0.12 * max(h, oh) else "") + it["text"]
+                sep = " " if (gap > 0.12 * max(h, oh) or it.get("lead") or o.get("trail")) else ""
+                o["text"] = o["text"] + sep + it["text"]
+                o["trail"] = it.get("trail", False)
                 o["box"] = [min(ob[0], b[0]), min(ob[1], b[1]), max(ob[2], b[2]), max(ob[3], b[3])]
                 break
         else:
-            out.append({"role": it["role"], "text": it["text"], "box": list(b)})
-    return out
+            out.append({"role": it["role"], "text": it["text"], "box": list(b), "trail": it.get("trail", False)})
+    return [{"role": o["role"], "text": o["text"], "box": o["box"]} for o in out]
 
 
 def _px(box, s: float, w: int, h: int) -> list[int]:
@@ -117,7 +119,8 @@ class Renderer:
         for it in res["visible"]["items"]:
             b = _px(it["box"], s, w, h)
             if b[2] > b[0] and b[3] > b[1]:
-                vis.append({"role": it["role"], "text": it["text"], "box": b})
+                vis.append({"role": it["role"], "text": it["text"], "box": b, "lead": bool(it.get("lead")),
+                            "trail": bool(it.get("trail"))})
         ex = [{"kind": x["kind"], "box": _px(x["box"], s, w, h)} for x in res["visible"]["exclude"]]
         data = png.read_bytes()
         return {"png": data, "size": [w, h], "visible": _merge(vis), "exclude_rects": [x["box"] for x in ex],

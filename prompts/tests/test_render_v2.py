@@ -125,7 +125,7 @@ class V2Render(unittest.TestCase):
 
 class V2Sets(unittest.TestCase):
     def test_fixture_deterministic(self):
-        spec = json.loads((HERE / "eval" / "sets" / "dev.v2.specs.jsonl").read_text(encoding="utf-8").splitlines()[0])["spec"]
+        spec = json.loads((HERE / "eval" / "sets" / "dev.v2fx.specs.jsonl").read_text(encoding="utf-8").splitlines()[0])["spec"]
         self.assertEqual(ocr_fixture.build_ctx(spec), ocr_fixture.build_ctx(spec))
 
     def test_sets_valid(self):

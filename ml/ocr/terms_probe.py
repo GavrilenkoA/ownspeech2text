@@ -68,6 +68,7 @@ def make_specs(reps: int, seed: int = 7) -> list[dict]:
                                 template=tpl, font_scale=r.choice(FONT_SCALES), keyboard=r.random() < 0.5)
             spec["bubble"] = False
             spec["filler"] = False
+            spec["overlay"] = "none"
             spec["id"] = f"terms-{rep}-{n:04d}"
             spec["terms"] = chunk
             specs.append(spec)

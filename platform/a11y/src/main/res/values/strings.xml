@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Product name is never written in resources (D10): the service label is ${productName} from gradle.properties. -->
+    <string name="a11y_summary">Shows the dictation bubble, types the text into the field and reads the screen while you dictate.</string>
+    <string name="a11y_description">Used for: showing the dictation bubble over other apps, typing the recognised text into the focused field, and reading the screen while you dictate so that names and terms are spelled right. Screen text and keystrokes are never sent anywhere and never stored.</string>
+</resources>

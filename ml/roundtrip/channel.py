@@ -1,5 +1,8 @@
 """Phone-microphone channel simulation (numpy/scipy only), applied to 16 kHz mono float32 PCM.
 
+``python -m ml.roundtrip.channel stats FILE...`` prints a channel fingerprint (pass band,
+SNR, clipping) to compare presets with real phone recordings.
+
 Presets (``PRESETS``):
 
 - ``clean``     -- identity.
@@ -13,6 +16,7 @@ Every stage is deterministic given ``seed`` (noise and room impulse response com
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from dataclasses import dataclass
 from typing import Dict, Optional
@@ -125,19 +129,79 @@ def apply_channel(x: np.ndarray, preset: str, seed: int = 0, sr: int = SR) -> np
     y = x
     if p.rt60_s > 0:
         y = reverb(y, p.rt60_s, p.wet, rng, sr)
+    # Room noise reaches the microphone with the speech, so it goes through the same band limit,
+    # AGC (which lifts it in pauses) and clipping as the voice.
+    if p.snr_db is not None:
+        y = add_noise(y, p.snr_db, p.noise_colour, rng)
     if p.band:
         y = band_limit(y, p.band[0], p.band[1], sr)
     if p.agc:
         y = agc(y, sr=sr)
-    if p.snr_db is not None:
-        y = add_noise(y, p.snr_db, p.noise_colour, rng)
     y = soft_clip(y, p.drive)
     peak = float(np.max(np.abs(y))) if y.size else 0.0
     return (y * (0.95 / peak) if peak > 0.95 else y).astype(np.float32)
 
 
+def audio_stats(x: np.ndarray, sr: int = SR) -> Dict[str, float]:
+    """Channel fingerprint of a clip, for comparing presets with real phone recordings.
+
+    - ``rolloff99_hz``: frequency below which 99% of the energy lies (Welch PSD).
+    - ``hf_db`` / ``lf_db``: energy in 6-8 kHz / below 150 Hz relative to the 300-3400 Hz speech band;
+      a band-limited microphone path shows a much lower ``hf_db`` than clean TTS.
+    - ``snr_db``: 10*log10 of the 95th over the 10th percentile of 20 ms frame energies (speech
+      frames vs. pauses; a rough estimate that needs some silence in the clip).
+    - ``clip_ratio``: share of samples with |x| >= 0.99; ``rms_dbfs``: overall level."""
+    from scipy.signal import welch
+
+    x = np.asarray(x, dtype=np.float64)
+    if x.size < sr // 10:
+        raise ValueError("clip shorter than 100 ms")
+    f, pxx = welch(x, fs=sr, nperseg=1024)
+    cum = np.cumsum(pxx) / (np.sum(pxx) + 1e-30)
+
+    def band(lo: float, hi: float) -> float:
+        return float(np.sum(pxx[(f >= lo) & (f < hi)])) + 1e-30
+
+    speech = band(300.0, 3400.0)
+    hop = int(0.02 * sr)
+    frames = x[: x.size // hop * hop].reshape(-1, hop)
+    e = np.mean(frames ** 2, axis=1) + 1e-12
+    return {
+        "duration_s": round(x.size / sr, 3),
+        "rms_dbfs": round(20 * np.log10(_rms(x) + 1e-12), 2),
+        "rolloff99_hz": round(float(f[np.searchsorted(cum, 0.99)]), 1),
+        "hf_db": round(10 * np.log10(band(6000.0, 8000.0) / speech), 2),
+        "lf_db": round(10 * np.log10(band(0.0, 150.0) / speech), 2),
+        "snr_db": round(float(10 * np.log10(np.percentile(e, 95) / np.percentile(e, 10))), 2),
+        "clip_ratio": round(float(np.mean(np.abs(x) >= 0.99)), 5),
+    }
+
+
+def stats_main(argv) -> int:
+    sp = argparse.ArgumentParser(prog="python -m ml.roundtrip.channel stats",
+                                 description="Print the channel fingerprint (pass band, SNR, clipping, level) "
+                                             "of WAV/FLAC files as JSON lines.")
+    sp.add_argument("files", nargs="+")
+    sp.add_argument("--preset", default=None, choices=sorted(PRESETS),
+                    help="apply this preset to each file first (to compare a TTS clip with a recording)")
+    sp.add_argument("--seed", type=int, default=0)
+    a = sp.parse_args(argv)
+    from .asr.audio import read_audio
+
+    for path in a.files:
+        x = read_audio(path)
+        if a.preset:
+            x = apply_channel(x, a.preset, a.seed)
+        print(json.dumps({"file": path, "preset": a.preset, **audio_stats(x)}))
+    return 0
+
+
 def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(description="Apply a phone-mic channel preset to a WAV/FLAC file.")
+    argv = list(sys.argv[1:] if argv is None else argv)
+    if argv[:1] == ["stats"]:
+        return stats_main(argv[1:])
+    ap = argparse.ArgumentParser(description="Apply a phone-mic channel preset to a WAV/FLAC file "
+                                             "(python -m ml.roundtrip.channel stats FILE... prints a channel fingerprint).")
     ap.add_argument("input")
     ap.add_argument("output")
     ap.add_argument("--preset", default="phone", choices=sorted(PRESETS))

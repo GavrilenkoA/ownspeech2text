@@ -306,3 +306,40 @@ def test_whisper_driver_keeps_one_recogniser(monkeypatch):
     monkeypatch.setattr(drv, "_build", lambda lang: built.append(lang) or object())
     drv._recogniser("ru"), drv._recogniser("ru"), drv._recogniser("en")
     assert built == ["ru", "en"] and list(drv._rec) == ["en"]
+
+
+class FakeGpuTts(FakeTts):
+    """A 'GPU' system: counts synthesize_batch calls and their sizes."""
+
+    gpu = True
+    batches: list = []
+
+    def __init__(self, system="fg", num_threads=1):
+        super().__init__("fb", num_threads)
+        self.system = "fg"
+
+    def voices(self):
+        return [VoiceInfo("fg", "clone1", frozenset({"ru", "en"}), "CC0", LATIN_NATIVE),
+                VoiceInfo("fg", "clone2", frozenset({"ru", "en"}), "CC-BY-4.0", LATIN_NATIVE)]
+
+    def synthesize_batch(self, items):
+        FakeGpuTts.batches.append(len(items))
+        return super().synthesize_batch(items)
+
+
+def test_gpu_tts_is_batched_and_ref_dir_is_exported(probe_file, tmp_path, monkeypatch):
+    monkeypatch.setenv("MURMUR_REFVOICE_DIR", "unset-by-test")  # restored (removed) at teardown
+    out = tmp_path / "out"
+    FakeGpuTts.batches = []
+    args = _args(probe_file, out, ["--channels", "clean,phone", "--tts-shard", "6", "--tts-batch", "4",
+                                   "--ref-dir", str(tmp_path / "refs")])
+    rep = rr.execute(args, tts_factory=lambda s, t: FakeGpuTts(s, t), asr_factory=asr_factory,
+                     spec_for=SPECS.__getitem__, pool_factory=thread_pool, systems=["fg"], models=["multi"])
+    import os
+
+    assert os.environ["MURMUR_REFVOICE_DIR"] == str(tmp_path / "refs")
+    # 6 probes x 1 voice: one shard of 6 clean clips -> batches of 4 + 2; phone variants reuse them
+    assert FakeGpuTts.batches == [4, 2]
+    assert rep["tts"]["fg"]["n"] == 6 and rep["tts"]["fg"]["audio_s"] > 0
+    rows = (out / "roundtrip" / "probe.jsonl").read_text(encoding="utf-8").splitlines()
+    assert len(rows) == 6 * 2  # 6 clips x 2 channels x 1 model

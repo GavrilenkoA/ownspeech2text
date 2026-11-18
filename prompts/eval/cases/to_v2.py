@@ -114,7 +114,7 @@ def screen_terms(case: dict) -> list[str]:
     return out
 
 
-def spec_for(case: dict, filler: bool = True, pools: bool = True) -> dict:
+def spec_for(case: dict, filler: bool = True, pools: bool = True, force_dense: bool = False) -> dict:
     """v1 case -> render spec (deterministic in the case id). filler=False (few-shot turns, which are prefill
     cost on every request): only the case's own screen content and minimal chrome, no history/page text.
     pools=False (real renderer): no filler from this module's pools; ml.screens' own template filler is used."""
@@ -136,7 +136,7 @@ def spec_for(case: dict, filler: bool = True, pools: bool = True) -> dict:
 
     def ok(s: str) -> bool:
         return not (_words(s) & case_words)
-    dense = filler and h % 4 == 0  # inner display, keyboard hidden, long history/page: the screens where the budget binds
+    dense = force_dense or (filler and h % 4 == 0)  # inner display, keyboard hidden, long history/page: the screens where the budget binds
     spec: dict = {"template": tpl, "device": "fold7_inner" if dense or h % 5 == 0 else "fold7_cover",
                   "theme": "dark" if h % 3 == 0 else "light", "font_scale": 1.0, "locale": loc,
                   "app": app, "language": dict(c1.get("language") or {"asr": lang}), "seed": h,
@@ -152,7 +152,7 @@ def spec_for(case: dict, filler: bool = True, pools: bool = True) -> dict:
              "text": m["text"], "time": TIMES[(h + i) % len(TIMES)]} for i, m in enumerate(conv.get("messages") or [])]
     snippets = list(c1.get("screen_snippets") or [])
     has_content = bool(title or msgs or snippets or c1.get("terms"))
-    if filler and not screen_terms(case) and case["category"] not in ("injection", "context_names", "continuation") \
+    if filler and not force_dense and not screen_terms(case) and case["category"] not in ("injection", "context_names", "continuation") \
             and h % 8 == 0:
         spec["screen"] = False  # screenshot unavailable (secure window / error): must exist in eval data
         spec["privacy"] = {"level": "full", "reason": "no_screenshot"}

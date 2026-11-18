@@ -1,0 +1,44 @@
+package app.murmur.platform.overlay
+
+import app.murmur.core.dictation.DictationBubble
+
+/**
+ * The 10 visual states of DESIGN 5.3 = dictation state (from the orchestrator) + visibility policy +
+ * overlay-local drag. Pure merge function; the Compose bubble renders exactly one of these.
+ */
+sealed interface BubbleVisual {
+    data object Hidden : BubbleVisual
+    data object Rest : BubbleVisual
+    data object Ready : BubbleVisual
+    data class Active(val state: DictationBubble) : BubbleVisual
+    data class Dragging(val overHideTarget: Boolean) : BubbleVisual
+}
+
+/** DESIGN 5.2 visibility inputs (computed by :platform:a11y from focus events and settings). */
+data class VisibilityInput(
+    val editableFocused: Boolean,
+    val bubbleAllowedForField: Boolean,   // FieldKinds.bubbleAllowed (no password/number/phone)
+    val appHidden: Boolean,               // "Hidden in" list or built-in denylist or Murmur's own UI
+    val hiddenUntilMs: Long?,             // drag-to-hide / notification "Hide 1 h"
+    val nowMs: Long,
+    val showAlways: Boolean,              // Settings "Show the bubble: Always"
+    val idleSinceMs: Long?,               // Ready without interaction since
+    val tuckIn: Boolean,
+    val talkBackOn: Boolean,              // DESIGN 8: no tuck-in under TalkBack
+)
+
+object BubblePolicy {
+    const val TUCK_AFTER_MS = 4_000L
+
+    fun merge(dictation: DictationBubble, v: VisibilityInput, dragging: Boolean, overHideTarget: Boolean): BubbleVisual {
+        if (dictation !is DictationBubble.Idle) return if (dragging) BubbleVisual.Dragging(overHideTarget) else BubbleVisual.Active(dictation)
+        if (dragging) return BubbleVisual.Dragging(overHideTarget)
+        if (v.hiddenUntilMs != null && v.nowMs < v.hiddenUntilMs) return BubbleVisual.Hidden
+        if (v.appHidden) return BubbleVisual.Hidden
+        val show = (v.editableFocused && v.bubbleAllowedForField) || v.showAlways
+        if (!show) return BubbleVisual.Hidden
+        if (!v.editableFocused && v.showAlways) return BubbleVisual.Rest
+        val idle = v.idleSinceMs
+        return if (v.tuckIn && !v.talkBackOn && idle != null && v.nowMs - idle >= TUCK_AFTER_MS) BubbleVisual.Rest else BubbleVisual.Ready
+    }
+}

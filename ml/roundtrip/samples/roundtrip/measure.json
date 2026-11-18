@@ -1,0 +1,107 @@
+{
+ "threads": 2,
+ "tts": {
+  "piper": {
+   "audio_s": 45.3604375,
+   "wall_s": 5.694474863994401,
+   "n": 9,
+   "x_realtime": 7.965692813363624
+  },
+  "supertonic3": {
+   "audio_s": 56.17275,
+   "wall_s": 26.17544958606595,
+   "n": 9,
+   "x_realtime": 2.1460089850721262
+  },
+  "kokoro1": {
+   "audio_s": 15.839125,
+   "wall_s": 18.161815388011746,
+   "n": 3,
+   "x_realtime": 0.8721113314726837
+  }
+ },
+ "asr": {
+  "parakeet-tdt-0.6b-v3@onnx-int8": {
+   "audio_s": 45.3604375,
+   "wall_s": 9.589850606862456,
+   "n": 9,
+   "x_realtime": 4.7300463124566585
+  },
+  "parakeet-ultra-0.6b@onnx-int8": {
+   "audio_s": 45.3604375,
+   "wall_s": 11.022046969039366,
+   "n": 9,
+   "x_realtime": 4.115427708429864
+  },
+  "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms": {
+   "audio_s": 45.3604375,
+   "wall_s": 38.133118369907606,
+   "n": 9,
+   "x_realtime": 1.1895286679674162
+  },
+  "gigaam-v3-e2e-rnnt@onnx-int8": {
+   "audio_s": 28.641937499999997,
+   "wall_s": 5.798509143991396,
+   "n": 6,
+   "x_realtime": 4.939534764669589
+  },
+  "gigaam-v3-e2e-ctc@onnx-int8": {
+   "audio_s": 28.641937499999997,
+   "wall_s": 4.310617952956818,
+   "n": 6,
+   "x_realtime": 6.644508470149482
+  },
+  "t-one@onnx": {
+   "audio_s": 28.641937499999997,
+   "wall_s": 10.532111156964675,
+   "n": 6,
+   "x_realtime": 2.7194868220755204
+  },
+  "qwen3-asr-0.6b@onnx-int8": {
+   "audio_s": 45.3604375,
+   "wall_s": 58.72122014098568,
+   "n": 9,
+   "x_realtime": 0.7724709634965462
+  },
+  "whisper-large-v3-turbo@onnx-int8": {
+   "audio_s": 45.3604375,
+   "wall_s": 72.35533535201102,
+   "n": 9,
+   "x_realtime": 0.6269121313489879
+  },
+  "distil-large-v3.5@onnx-int8": {
+   "audio_s": 16.7185,
+   "wall_s": 37.51288537803339,
+   "n": 3,
+   "x_realtime": 0.44567352874940236
+  },
+  "whisper-small@onnx-int8": {
+   "audio_s": 45.3604375,
+   "wall_s": 86.19206501700683,
+   "n": 9,
+   "x_realtime": 0.5262716178229375
+  },
+  "whisper-medium@onnx-int8": {
+   "audio_s": 45.3604375,
+   "wall_s": 128.03553516889224,
+   "n": 9,
+   "x_realtime": 0.3542800632665365
+  }
+ },
+ "status": {
+  "tts:piper": "ok",
+  "tts:supertonic3": "ok",
+  "tts:kokoro1": "ok",
+  "asr:parakeet-tdt-0.6b-v3@onnx-int8": "ok",
+  "asr:parakeet-ultra-0.6b@onnx-int8": "ok",
+  "asr:nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms": "ok",
+  "asr:gigaam-v3-e2e-rnnt@onnx-int8": "ok",
+  "asr:gigaam-v3-e2e-ctc@onnx-int8": "ok",
+  "asr:t-one@onnx": "ok",
+  "asr:qwen3-asr-0.6b@onnx-int8": "ok",
+  "asr:whisper-large-v3-turbo@onnx-int8": "ok",
+  "asr:distil-large-v3.5@onnx-int8": "ok",
+  "asr:whisper-small@onnx-int8": "ok",
+  "asr:whisper-medium@onnx-int8": "ok"
+ }
+}

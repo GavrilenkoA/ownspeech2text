@@ -1,0 +1,95 @@
+{
+ "_doc": "Hub catalog id (docs/research/asr-catalog.json) -> the mined profile id that stands in for it in the noise sampler. proxy=true: the profile was mined on a different build (CPU int8 ONNX instead of the NPU/GPU build the app runs, or a different model size). Whether the NPU builds make the same errors is checked on the device (ROUNDTRIP.md, Device-only checks).",
+ "map": {
+  "nemotron-3.5-asr-streaming-0.6b@qnn-sm8750-560ms": {
+   "profile": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms",
+   "proxy": true,
+   "note": "same checkpoint and chunk size; QNN NPU binary instead of the CPU int8 ONNX graph"
+  },
+  "parakeet-tdt-0.6b-v3@qnn-sm8750-20s": {
+   "profile": "parakeet-tdt-0.6b-v3@onnx-int8",
+   "proxy": true,
+   "note": "same checkpoint; QNN NPU binary with a fixed 20 s input window"
+  },
+  "nemotron-speech-streaming-en-0.6b@qnn-sm8750-560ms": {
+   "profile": "nemotron-speech-streaming-en-0.6b@onnx-int8-560ms",
+   "proxy": true,
+   "note": "same checkpoint and chunk size; the CPU export is csukuangfj2/sherpa-onnx-nemotron-speech-streaming-en-0.6b-560ms-int8-2026-04-25 (not a catalog entry)"
+  },
+  "whisper-small@qnn-sm8750": {
+   "profile": "whisper-small@onnx-int8",
+   "proxy": true,
+   "note": "same checkpoint; QNN NPU binary"
+  },
+  "whisper-medium@qnn-sm8750": {
+   "profile": "whisper-medium@onnx-int8",
+   "proxy": true,
+   "note": "same checkpoint; the CPU export csukuangfj/sherpa-onnx-whisper-medium is not a catalog entry"
+  },
+  "whisper-large-v3-turbo@qaihub-sm8750-w8a16": {
+   "profile": "whisper-large-v3-turbo@onnx-int8",
+   "proxy": true,
+   "note": "same checkpoint; Qualcomm AI Hub w8a16 build with app-side decoding glue, CPU graph is int8"
+  },
+  "parakeet-tdt-0.6b-v3@onnx-int8": {
+   "profile": "parakeet-tdt-0.6b-v3@onnx-int8",
+   "proxy": false,
+   "note": "the CPU build the app runs in CPU mode; mined directly"
+  },
+  "parakeet-ultra-0.6b@onnx-int8": {
+   "profile": "parakeet-ultra-0.6b@onnx-int8",
+   "proxy": false,
+   "note": "the CPU build the app runs in CPU mode; mined directly"
+  },
+  "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms": {
+   "profile": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms",
+   "proxy": false,
+   "note": "the CPU build the app runs in CPU mode; mined directly"
+  },
+  "gigaam-v3-e2e-rnnt@onnx-int8": {
+   "profile": "gigaam-v3-e2e-rnnt@onnx-int8",
+   "proxy": false,
+   "note": "the CPU build the app runs in CPU mode; mined directly"
+  },
+  "gigaam-v3-e2e-ctc@onnx-int8": {
+   "profile": "gigaam-v3-e2e-ctc@onnx-int8",
+   "proxy": false,
+   "note": "the CPU build the app runs in CPU mode; mined directly"
+  },
+  "t-one@onnx": {
+   "profile": "t-one@onnx",
+   "proxy": false,
+   "note": "the CPU build the app runs in CPU mode; mined directly"
+  },
+  "qwen3-asr-0.6b@onnx-int8": {
+   "profile": "qwen3-asr-0.6b@onnx-int8",
+   "proxy": false,
+   "note": "the CPU build the app runs in CPU mode; mined directly"
+  },
+  "qwen3-asr-0.6b@litert-npu-sm8750": {
+   "profile": "qwen3-asr-0.6b@onnx-int8",
+   "proxy": true,
+   "note": "same checkpoint; LiteRT NPU build with app-side decode loop"
+  },
+  "qwen3-asr-1.7b@litert-gpu-15s": {
+   "profile": "qwen3-asr-0.6b@onnx-int8",
+   "proxy": true,
+   "note": "DIFFERENT SIZE: no CPU export of Qwen3-ASR 1.7B exists for sherpa-onnx (HF search of csukuangfj, csukuangfj2, k2-fsa on 2026-11-19), so the 0.6B profile stands in; the 1.7B model is expected to make fewer errors (published WER ru FLEURS 5.99)"
+  },
+  "whisper-large-v3-turbo@onnx-int8": {
+   "profile": "whisper-large-v3-turbo@onnx-int8",
+   "proxy": false,
+   "note": "the CPU build the app runs in CPU mode; mined directly"
+  },
+  "distil-large-v3.5@onnx-int8": {
+   "profile": "distil-large-v3.5@onnx-int8",
+   "proxy": false,
+   "note": "the CPU build the app runs in CPU mode; mined directly"
+  },
+  "whisper-small@onnx-int8": {
+   "profile": "whisper-small@onnx-int8",
+   "proxy": false,
+   "note": "the CPU build the app runs in CPU mode; mined directly"
+  }
+ }
+}

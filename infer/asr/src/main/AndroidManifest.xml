@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <!-- :asr = sherpa-onnx + ORT 1.32 + Silero VAD + OCR + QNN 2.52 (ADR-005). Bound on demand by :main,
+             unloads and kills itself on unbind (D5). Not exported. -->
+        <service
+            android:name=".AsrService"
+            android:exported="false"
+            android:process=":asr" />
+    </application>
+</manifest>

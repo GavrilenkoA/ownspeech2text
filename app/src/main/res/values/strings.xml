@@ -1,4 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Murmur</string>
+    <!-- app_name is generated from gradle.properties murmur.productName (D10); do not add it here. -->
+    <string name="tab_dashboard">Dashboard</string>
+    <string name="tab_history">History</string>
+    <string name="tab_models">Models</string>
+    <string name="tab_settings">Settings</string>
 </resources>

@@ -1,7 +1,7 @@
 """Measurements for docs/ml/OCR_CONTEXT.md.
 
     python -m ml.ocr.measure detlimit [--n 48] [--threads 4]      # detector input size / tiling sweep
-    python -m ml.ocr.measure profile SPECS.jsonl [--threads 4]     # CER profile of rendered specs (one config)
+    python -m ml.ocr.measure profile CTX.jsonl                     # profile of a build_ctx --batch output
 Writes JSON reports to .cache/ml/ocr/measure/.
 """
 from __future__ import annotations
@@ -80,14 +80,50 @@ def detlimit(n: int, threads: int) -> dict:
     return rep
 
 
+def profile(ctx_path: str) -> dict:
+    """Error / chrome profile of a build_ctx --batch output (rendered screens), comparable with real_probe."""
+    from .real_probe import label_like_share
+    res, texts, ms_r, ms_o, by_dev = [], [], [], [], {}
+    for line in Path(ctx_path).read_text(encoding="utf-8").splitlines():
+        d = json.loads(line)
+        if "error" in d or "screen" not in d["ctx"]:
+            continue
+        lines = d["ctx"]["screen"]["lines"]
+        r = M.compare(d["visible"], lines, d["exclude_rects"])
+        res.append(r)
+        by_dev.setdefault(d["meta"]["device"], []).append(r)
+        texts += [ln["text"] for ln in lines]
+        ms_r.append(d["meta"]["ms"]["render"])
+        ms_o.append(d["meta"]["ms"]["ocr"])
+    a = M.aggregate(res)
+    roles = a["line_roles"]
+    rep = {k: a[k] for k in ("screens", "cer", "content_cer", "item_recall_exact", "missed_share",
+                             "non_content_line_share", "mixed_script_token_share", "line_roles", "cer_by_role",
+                             "top_confusions")}
+    rep["no_gt_line_share"] = roles.get(None, 0) / max(1, sum(roles.values()))
+    rep["label_like_line_share"] = label_like_share(texts)
+    rep["ocr_lines_per_screen"] = len(texts) / max(1, len(res))
+    rep["by_device"] = {k: {x: M.aggregate(v)[x] for x in ("screens", "cer", "content_cer", "non_content_line_share")}
+                        for k, v in by_dev.items()}
+    rep["ms_median"] = {"render": statistics.median(ms_r), "ocr": statistics.median(ms_o)} if ms_r else {}
+    out = Path(ctx_path).with_suffix(".profile.json")
+    out.write_text(json.dumps(rep, ensure_ascii=False, indent=1, default=str))
+    return rep
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="python -m ml.ocr.measure")
-    ap.add_argument("what", choices=["detlimit"])
+    ap.add_argument("what", choices=["detlimit", "profile"])
+    ap.add_argument("path", nargs="?")
     ap.add_argument("--n", type=int, default=48)
     ap.add_argument("--threads", type=int, default=4)
     a = ap.parse_args(argv)
     if a.what == "detlimit":
         detlimit(a.n, a.threads)
+    else:
+        rep = profile(a.path)
+        print(json.dumps({k: v for k, v in rep.items() if k not in ("top_confusions",)}, ensure_ascii=False, indent=1,
+                         default=str))
     return 0
 
 

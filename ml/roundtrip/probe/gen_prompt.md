@@ -1,4 +1,4 @@
-# Probe-sentence generation prompt (v1)
+# Probe-sentence generation prompt (v2)
 
 Loaded by `gen_probe.py`. Only the three blocks between `<!-- BEGIN name -->` and
 `<!-- END name -->` are sent; everything outside them is documentation. Placeholders use
@@ -37,6 +37,11 @@ Rules for each slot:
 4. Sound like real dictation for the slot's `domain`, with natural grammar and natural word order.
    Add concrete realistic details where they fit: first names, colleagues, version numbers, numbers,
    dates, times, durations, file names. Keep facts plausible; do not invent statistics about real companies.
+   Write numbers the way a careful writer types the final text: digits for times, dates, money,
+   percentages, measurements, versions and numbers above ten ("в 11:30", "20 минут", "80%", "40 GB",
+   "at 9:00"); small counts may stay words ("два бага", "three times"). In Russian sentences write people's
+   names in Cyrillic and decline them ("с Марком"). Plain text only: no backticks, no Markdown, straight
+   apostrophes (').
 5. Do not add other hard technical terms beyond the required ones (at most one extra, ordinary one).
 6. Every slot must read differently: vary the opening words, sentence structure and intent.
    Never write two sentences that differ only in the terms.
@@ -44,9 +49,12 @@ Rules for each slot:
    - "mixed": REQUIRED. The same sentence with every Latin-script word respelled in Cyrillic the way
      a Russian engineer pronounces it (Kubernetes -> кубернетес, LoRA -> лора, H100 -> аш сто,
      GitHub Actions -> гитхаб экшнс). Change nothing else.
-   - "ru": null.
+   - "ru": null, unless the text has digits; then the same sentence with every number in words,
+     declined as said ("до 11:00" -> "до одиннадцати", "80%" -> "восемьдесят процентов").
    - "en": null, unless a term is read differently from its spelling (k8s -> kubernetes,
-     nginx -> engine x); then the sentence with only those words replaced.
+     nginx -> engine x) or the text has digits; then the sentence with only those words replaced
+     and numbers in words ("9:30" -> "nine thirty").
+   - "mixed": numbers in words as well, declined as said.
 8. `names`: every person name used in the text, exactly as written in the text (inflected form included).
    Empty list if none.
 9. No offensive, political, medical or personal-data content; no real people other than public figures.

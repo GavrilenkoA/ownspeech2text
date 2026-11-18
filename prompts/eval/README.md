@@ -12,7 +12,9 @@ Results and decisions: `docs/ml/PROMPT_EVAL.md`. Everything here is stdlib Pytho
 | `sets/{dev,test}.v2.specs.jsonl` | Render spec per case (`{"id", "spec"}`, CONTEXT_V2 spec format + fixture keys). Re-run `make sets` to regenerate the v2 contexts from them. |
 | `cases/to_v2.py`, `cases/build_v2.py` | v1 case → render spec (title/messages/terms/snippets/field + neutral filler history, ~12 % without screenshot, ~25 % "dense" screens) → ctx v2 via `ml.screens.build_ctx` when `ml/screens/READY` exists, else `ocr_fixture.py`; verifies that each case's `meta.check.screen_terms` is in the OCR lines **and** in the rendered `<context>`. Also writes `smoke_cases.v2.jsonl` and the v2 few-shot files. |
 | `ocr_fixture.py` | Stand-in for `ml.screens.build_ctx` (no image, no OCR model): lays the spec out like real OCR output of a phone screenshot (calibrated on the spike's real screenshot ground truth) with low-confidence icon junk and rare character errors; never corrupts `spec["protect"]` strings. `meta.ctx_source` says which producer made a set. |
-| `cases/shots_v4.py` | Few-shot turns of `default.v4`/`default.v4s` (v3 shots + 2). |
+| `cases/shots_v4.py` | Few-shot turns of `default.v4`/`default.v4s`/`default.v5` (v3 shots + 2). |
+| `sets/dev.v2dense.jsonl` | 45 context-relevant dev cases re-rendered on dense screens (inner display, keyboard hidden, long history): the budget/order measurement (`build_v2 --dense`). |
+| `device_prompt_bench.py` | Prefix/request prefill cost per profile and greedy parity with the host runs, on the phone over adb or on the host with `--local`. |
 | `score.py` | Deterministic scorer (no LLM judge). `--raw` scores the transcript itself (identity baseline). |
 | `run_eval.py` | Harness: llama-server, greedy, cached system prefix, N parallel slots; writes raw + guarded outputs. |
 | `report.py` | Re-scores stored runs (raw and after `prompts/guard.py`), guard statistics, per-category tables. |

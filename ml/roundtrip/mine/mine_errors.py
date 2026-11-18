@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
@@ -30,11 +31,16 @@ from multiprocessing import Pool
 from pathlib import Path
 from typing import Any, Iterable, Sequence
 
-from .align import (ERROR_KINDS, Alignment, EditCounts, TermHit, align, cer_counts, raw_wer_counts, term_hits)
+from .align import (ERROR_KINDS, Alignment, EditCounts, TermHit, align, cer_counts, is_error_variant, raw_wer_counts,
+                    ref_surface, term_hits)
 from .norm import (cardinal_word_run, ends_with_terminal, fold, has_digit, has_upper, is_number_word,
                    is_numeric_token, punctuation_of, script_of)
 
 TAIL_MIN_WORDS = 2         # trailing insertion runs at least this long are hallucination tails
+MIN_LANG_WORDS = 1         # per-language sampler rates are written for every language with data
+# letters that are neither basic Latin nor Russian Cyrillic: a recogniser that answered in another script
+# or language (Qwen3-ASR: Chinese, Arabic, Czech on Russian speech)
+_FOREIGN_RE = re.compile(r"[^\W\d_a-zA-Zа-яА-ЯёЁ]")
 CONFUSION_KINDS = ("sub", "sub_near", "del", "ins", "translit", "number", "punct")
 REQUIRED = ("probe_id", "text", "asr_model", "hypothesis")
 _OTHER_PUNCT = set(":;—–-\"«»„“”()[]")
@@ -147,6 +153,11 @@ class ModelStats:
     total: _Bucket = field(default_factory=_Bucket)
     by_lang: dict[str, _Bucket] = field(default_factory=lambda: defaultdict(_Bucket))
     by_channel: dict[str, _Bucket] = field(default_factory=lambda: defaultdict(_Bucket))
+    # (tts_system, lang) -> WER bucket and term / Latin counts: the TTS that read a sentence changes the
+    # statistics a lot (Piper's Russian voices read Cyrillic respellings, Supertonic reads the Latin)
+    by_tts_lang: dict[tuple[str, str], _Bucket] = field(default_factory=lambda: defaultdict(_Bucket))
+    tts_lang_counts: dict[tuple[str, str], Counter] = field(default_factory=lambda: defaultdict(Counter))
+    tts_inputs: dict[str, Counter] = field(default_factory=lambda: defaultdict(Counter))
     kinds: Counter = field(default_factory=Counter)
     term_words: int = 0
     term_errors: int = 0
@@ -158,6 +169,7 @@ class ModelStats:
     nt_del: int = 0
     nt_ins: int = 0
     nonterm_words_nonempty: int = 0
+    nt_by_lang: dict[str, Counter] = field(default_factory=lambda: defaultdict(Counter))
     # casing
     has_upper: int = 0
     first_upper: int = 0
@@ -200,6 +212,8 @@ class ModelStats:
     n_tail: int = 0
     n_lead: int = 0
     overlong: int = 0
+    foreign: int = 0  # hypotheses in a script other than Latin/Cyrillic (CJK, Arabic, accented Latin)
+    foreign_examples: Counter = field(default_factory=Counter)
     # terms
     terms_n: int = 0
     terms_exact: int = 0
@@ -226,6 +240,12 @@ def _accumulate(st: ModelStats, a: RowAnalysis, conf: Counter, terms: dict, tail
     st.total.add(a)
     st.by_lang[lang].add(a)
     st.by_channel[channel].add(a)
+    tts_sys = row.get("tts_system") or "?"
+    st.by_tts_lang[(tts_sys, lang)].add(a)
+    st.tts_inputs[tts_sys][row.get("tts_input") or "?"] += 1
+    if _FOREIGN_RE.search(hyp):
+        st.foreign += 1
+        st.foreign_examples[hyp] += 1
     if not al.hyp:
         st.n_empty += 1
     if not style_ok:
@@ -266,15 +286,21 @@ def _accumulate(st: ModelStats, a: RowAnalysis, conf: Counter, terms: dict, tail
             if empty:
                 continue
             in_tail = op.kind == "ins" and ((is_tail and op.h0 >= tail_lo) or (is_lead and op.h1 <= lead_hi))
+            nl = st.nt_by_lang[lang]
             if op.kind == "sub":
                 st.nt_sub += max(op.n_ref, op.n_hyp)
+                nl["sub"] += max(op.n_ref, op.n_hyp)
             elif op.kind == "sub_near":
                 st.nt_sub += max(op.n_ref, op.n_hyp)
                 st.nt_near += max(op.n_ref, op.n_hyp)
+                nl["sub"] += max(op.n_ref, op.n_hyp)
+                nl["near"] += max(op.n_ref, op.n_hyp)
             elif op.kind == "del":
                 st.nt_del += op.n_ref
+                nl["del"] += op.n_ref
             elif op.kind == "ins" and not in_tail:
                 st.nt_ins += op.n_hyp
+                nl["ins"] += op.n_hyp
             if in_tail:
                 continue
         if op.kind in CONFUSION_KINDS and not empty:
@@ -284,6 +310,7 @@ def _accumulate(st: ModelStats, a: RowAnalysis, conf: Counter, terms: dict, tail
     st.nonterm_words += len(al.ref) - len(term_tokens)
     if not empty:
         st.nonterm_words_nonempty += len(al.ref) - len(term_tokens)
+        st.nt_by_lang[lang]["words"] += len(al.ref) - len(term_tokens)
 
     # token-level style facts
     tok_op: dict[int, int] = {}
@@ -305,15 +332,18 @@ def _accumulate(st: ModelStats, a: RowAnalysis, conf: Counter, terms: dict, tail
                 st.num_examples[(al.ref_span(op), hspan)] += 1
         if script_of(t.core) in ("lat", "mixed") and not is_numeric_token(t.core):
             st.ref_latin += 1
+            tc = st.tts_lang_counts[(tts_sys, lang)]
             if op.kind in ERROR_KINDS:
                 st.lat_error += 1
                 st.latin_by_lang[lang]["error"] += 1
             elif script_of(hspan) in ("lat", "mixed"):
                 st.lat_kept += 1
                 st.latin_by_lang[lang]["latin"] += 1
+                tc["lat_kept"] += 1
             else:
                 st.lat_cyr += 1
                 st.latin_by_lang[lang]["cyrillic"] += 1
+                tc["lat_cyr"] += 1
             st.latin_by_lang[lang]["n"] += 1
         if style_ok and "ё" in t.core.lower() and op.kind not in ERROR_KINDS:
             st.ref_yo += 1
@@ -349,10 +379,19 @@ def _accumulate(st: ModelStats, a: RowAnalysis, conf: Counter, terms: dict, tail
 
     for h in a.hits if not empty else []:
         key = (h.term, h.category, lang, st.model)
-        rec = terms.setdefault(key, {"variants": Counter(), "n": 0, "exact": 0, "folded": 0, "translit": 0,
-                                     "error": 0})
-        rec["variants"][h.hyp] += 1
+        rec = terms.setdefault(key, {"variants": Counter(), "merged": Counter(), "n": 0, "exact": 0, "folded": 0,
+                                     "translit": 0, "error": 0})
+        if h.merged:
+            # the hypothesis covers neighbouring words too: a phrase-level mangling of that whole span,
+            # not a rendering of the term alone (the sampler replaces the whole span with it)
+            rec["merged"][(ref_surface(al, h.span_r0, h.span_r1), h.hyp)] += 1
+        else:
+            rec["variants"][h.hyp] += 1
         rec["n"] += 1
+        tc = st.tts_lang_counts[(tts_sys, lang)]
+        tc["terms"] += 1
+        tc["terms_exact"] += h.exact
+        tc["terms_error"] += h.is_error
         rec["exact"] += h.exact
         rec["folded"] += h.folded_equal
         rec["translit"] += (not h.is_error) and "translit" in h.kinds
@@ -439,7 +478,17 @@ def _profile(st: ModelStats, conf: Counter) -> dict[str, Any]:
     hall = {
         "tail_rate": _rate(st.n_tail, st.n), "lead_rate": _rate(st.n_lead, st.n), "empty_rate": _rate(st.n_empty, st.n),
         "overlong_rate": _rate(st.overlong, st.n), "tails": _top(st.tails, 10), "leads": _top(st.leads, 5),
+        "foreign_script_rate": _rate(st.foreign, st.n), "foreign_examples": _top(st.foreign_examples, 5),
     }
+    by_tts: dict[str, Any] = {}
+    for (tts_sys, lg), b in sorted(st.by_tts_lang.items()):
+        c = st.tts_lang_counts[(tts_sys, lg)]
+        d = b.as_dict()
+        d.update({"term_n": c["terms"], "term_exact_rate": _rate(c["terms_exact"], c["terms"]),
+                  "term_error_rate": _rate(c["terms_error"], c["terms"]),
+                  "latin_kept_rate": _rate(c["lat_kept"], c["lat_kept"] + c["lat_cyr"])})
+        by_tts.setdefault(tts_sys, {"inputs": dict(sorted(st.tts_inputs[tts_sys].items())), "by_lang": {}})
+        by_tts[tts_sys]["by_lang"][lg] = d
     terms = {
         "n": st.terms_n, "exact_rate": _rate(st.terms_exact, st.terms_n),
         "folded_rate": _rate(st.terms_folded, st.terms_n), "translit_rate": _rate(st.terms_translit, st.terms_n),
@@ -468,6 +517,11 @@ def _profile(st: ModelStats, conf: Counter) -> dict[str, Any]:
         "nonterm_words": st.nonterm_words_nonempty,
         "confusable_words": {w: st.ref_word_counts[w] for w in sorted(sub_targets) if st.ref_word_counts[w]},
         "ins_words": _top(ins_words, 30), "del_words": _top(del_words, 30),
+        # the same rates per spoken-text language: non-term error rates differ 2-4x between en, ru and mixed
+        "by_lang": {lg: {"p_sub": _rate(c["sub"], c["words"]) or 0.0, "p_del": _rate(c["del"], c["words"]) or 0.0,
+                         "p_ins": _rate(c["ins"], c["words"]) or 0.0, "near_share": _rate(c["near"], c["sub"]) or 0.0,
+                         "nonterm_words": c["words"]}
+                    for lg, c in sorted(st.nt_by_lang.items()) if c["words"] >= MIN_LANG_WORDS},
     }
     return {
         "n": st.n, "n_ref_words": st.total.words, "langs": dict(sorted(st.langs.items())),
@@ -476,6 +530,7 @@ def _profile(st: ModelStats, conf: Counter) -> dict[str, Any]:
         "cer": _r(st.total.cer.rate),
         "wer_by_lang": {k: v.as_dict() for k, v in sorted(st.by_lang.items())},
         "wer_by_channel": {k: v.as_dict() for k, v in sorted(st.by_channel.items())},
+        "by_tts": by_tts,
         "term_wer": _rate(st.term_errors, st.term_words), "nonterm_wer": _rate(st.nonterm_errors, st.nonterm_words),
         "term_words": st.term_words, "nonterm_words": st.nonterm_words,
         "kinds": {k: st.kinds[k] for k in sorted(st.kinds)},
@@ -521,7 +576,9 @@ def mine_rows(rows: Sequence[dict[str, Any]], jobs: int = 1, tail_min: int = TAI
         manglings.append({
             "term": term, "category": cat, "lang_context": lg, "asr_model": m,
             "variants": [{"hyp": h, "count": c} for h, c in sorted(rec["variants"].items(), key=lambda kv: (-kv[1], kv[0]))],
-            "n": n, "exact_rate": _r(rec["exact"] / n), "folded_rate": _r(rec["folded"] / n),
+            "merged": [{"ref": r, "hyp": h, "count": c}
+                       for (r, h), c in sorted(rec["merged"].items(), key=lambda kv: (-kv[1], kv[0]))],
+            "n": n, "error_n": rec["error"], "exact_rate": _r(rec["exact"] / n), "folded_rate": _r(rec["folded"] / n),
             "translit_rate": _r(rec["translit"] / n), "error_rate": _r(rec["error"] / n),
         })
     return MinedTables(profiles, confusions, manglings, len(usable), len(rows) - len(usable))
@@ -593,6 +650,28 @@ def render_report(tables: MinedTables, title: str, sources: Sequence[str], top: 
         L.append(f"| `{m}` | {_pct(c['has_upper_rate'])} | {_pct(c['first_upper_rate'])} | {_pct(c['proper_case_kept_rate'])} | "
                  f"{_pct(pu['any_rate'])} | {_pct(pu['terminal_kept_rate'])} | {_pct(pu['comma_ratio'])} | "
                  f"{_pct(d['kept_digits_rate'])} | {_pct(la['kept_latin_rate'])} | {_pct(p['yo']['kept_rate'])} |")
+    if any(p.get("by_tts") for p in P.values()):
+        L += ["", "## By TTS system", "",
+              "The voice that read a sentence moves these numbers as much as the recogniser does: Piper's Russian "
+              "voices read the Cyrillic respelling (`tts_text`), Supertonic reads the Latin terms as written. "
+              "Every per-model figure above pools the TTS systems in the proportions of the input rows.", "",
+              "| ASR model | TTS | lang | rows | WER | style-aware WER | term exact | term error | Latin kept |",
+              "|---|---|---|---:|---:|---:|---:|---:|---:|"]
+        for m, p in P.items():
+            for tts_sys, d in p.get("by_tts", {}).items():
+                for lg, b in d["by_lang"].items():
+                    L.append(f"| `{m}` | {tts_sys} | {lg} | {b['n']} | {_pct(b['wer'])} | {_pct(b['wer_style_aware'])} | "
+                             f"{_pct(b['term_exact_rate'])} | {_pct(b['term_error_rate'])} | {_pct(b['latin_kept_rate'])} |")
+    hard = hardest_terms(tables.term_manglings)
+    if hard:
+        L += ["", "## Hardest terms across models", "",
+              "Ranked by recognition errors summed over every model (then by error rate).", "",
+              "| term | context | models | n | errors | error rate | most frequent wrong renderings |",
+              "|---|---|---:|---:|---:|---:|---|"]
+        for h in hard[:25]:
+            var = "; ".join(f"{v or '∅'} ×{c}" for v, c in h["wrong"][:4])
+            L.append(f"| {h['term']} | {h['lang_context']} | {h['models']} | {h['n']} | {h['errors']} | "
+                     f"{_pct(h['error_rate'])} | {var} |")
     by_model: dict[str, list[dict]] = defaultdict(list)
     for t in tables.term_manglings:
         by_model[t["asr_model"]].append(t)
@@ -603,13 +682,17 @@ def render_report(tables: MinedTables, title: str, sources: Sequence[str], top: 
         L += ["", f"## `{m}`", ""]
         L.append("What the cleanup LLM must learn to undo:")
         L += [f"- {x}" for x in _undo_list(p)]
-        mang = [t for t in by_model.get(m, []) if t["exact_rate"] < 1.0]
-        mang.sort(key=lambda t: (t["exact_rate"], -t["n"], t["term"]))
+        mang = [t for t in by_model.get(m, []) if t.get("error_n", 0) > 0]
+        # most errors first: at a few observations per term, sorting by exact rate shows the alphabet
+        mang.sort(key=lambda t: (-t.get("error_n", 0), -t["error_rate"], -t["n"], t["term"]))
         if mang:
-            L += ["", "Top term manglings:", "", "| term | context | n | exact | variants |", "|---|---|---:|---:|---|"]
+            L += ["", "Top term manglings (by error count):", "", "| term | context | n | errors | exact | variants |",
+                  "|---|---|---:|---:|---:|---|"]
             for t in mang[:top]:
-                var = "; ".join(f"{v['hyp'] or '∅'} ×{v['count']}" for v in t["variants"][:4])
-                L.append(f"| {t['term']} | {t['lang_context']} | {t['n']} | {_pct(t['exact_rate'])} | {var} |")
+                var = "; ".join([f"{v['hyp'] or '∅'} ×{v['count']}" for v in t["variants"][:4]] +
+                                [f"{v['ref']} → {v['hyp'] or '∅'} ×{v['count']}" for v in t.get("merged", [])[:2]])
+                L.append(f"| {t['term']} | {t['lang_context']} | {t['n']} | {t.get('error_n', 0)} | "
+                         f"{_pct(t['exact_rate'])} | {var} |")
         errs = [c for c in conf_by_model.get(m, []) if c["kind"] in ERROR_KINDS and not c["in_term"]]
         if errs:
             L += ["", "Top non-term recognition errors:", "", "| kind | ref | hyp | count |", "|---|---|---|---:|"]
@@ -623,6 +706,35 @@ def render_report(tables: MinedTables, title: str, sources: Sequence[str], top: 
             L += ["", f"Hallucinated tails: {ex}"]
     L.append("")
     return "\n".join(L)
+
+
+def hardest_terms(manglings: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Terms ranked by recognition errors summed over all models, with their commonest wrong renderings.
+
+    The wrong renderings are the variants that the aligner counts as errors (for merged phrase blocks the
+    phrase "ref → hyp")."""
+    agg: dict[tuple[str, str], dict[str, Any]] = {}
+    for t in manglings:
+        key = (t["term"], "en" if t["lang_context"] == "en" else t["lang_context"])
+        a = agg.setdefault(key, {"term": t["term"], "lang_context": t["lang_context"], "models": 0, "n": 0,
+                                 "errors": 0, "wrong": Counter()})
+        a["models"] += 1
+        a["n"] += t["n"]
+        a["errors"] += t.get("error_n", 0)
+        for v in t["variants"]:
+            if is_error_variant(t["term"], v["hyp"]):
+                a["wrong"][v["hyp"]] += v["count"]
+        for v in t.get("merged", []):
+            a["wrong"][f"{v['ref']} → {v['hyp']}"] += v["count"]
+    out = []
+    for a in agg.values():
+        if not a["errors"]:
+            continue
+        a["error_rate"] = _r(a["errors"] / a["n"])
+        a["wrong"] = sorted(a["wrong"].items(), key=lambda kv: (-kv[1], kv[0]))
+        out.append(a)
+    out.sort(key=lambda a: (-a["errors"], -a["error_rate"], a["term"], a["lang_context"]))
+    return out
 
 
 def write_outputs(tables: MinedTables, out: Path, title: str, sources: Sequence[str]) -> None:

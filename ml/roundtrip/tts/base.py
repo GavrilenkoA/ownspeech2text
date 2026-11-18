@@ -4,8 +4,9 @@ A TTS system turns probe text into 16 kHz mono float32 PCM. TTS is inference-onl
 realistic acoustic variety for the ASR stage, never a product component.
 
 Mixed ru+en sentences: each voice declares how it treats Latin words inside a Russian sentence
-(``latin_in_ru``). The runner uses that to pick between the probe's ``text`` and its ``tts_text``
-(a Cyrillic respelling of the Latin terms) -- see :func:`choose_tts_input`.
+(``latin_in_ru``) and in which languages its own text normaliser reads digits (``reads_digits``).
+The runner uses both to pick between the probe's ``text``, its ``tts_text`` (Latin terms respelled,
+numbers in words) and ``text`` with only the numbers spoken -- see :func:`choose_tts_input`.
 """
 from __future__ import annotations
 
@@ -16,11 +17,17 @@ from typing import FrozenSet, List, Optional, Sequence, Tuple
 import numpy as np
 
 from ..asr.audio import SAMPLE_RATE, resample, to_mono_float
+from ..probe.spoken import has_number_token, spell_digits, transfer_spoken_numbers
 
 # How a voice handles Latin-script words in a Russian sentence.
 LATIN_NATIVE = "native"  # reads them acceptably (language switching or multilingual model)
 LATIN_RESPELL = "respell"  # cannot: feed the Cyrillic tts_text when the probe has one
 LATIN_POLICIES = (LATIN_NATIVE, LATIN_RESPELL)
+
+# Which probe field the TTS read (the ``tts_input`` field of round-trip rows).
+INPUT_TEXT = "text"  # ``text`` as written
+INPUT_TTS_TEXT = "tts_text"  # the probe's ``tts_text``
+INPUT_TEXT_NUMBERS = "text_numbers"  # ``text`` with its digits replaced by spoken words
 
 
 @dataclass(frozen=True)
@@ -33,6 +40,9 @@ class VoiceInfo:
     licence: str
     latin_in_ru: str = LATIN_RESPELL
     gender: str = ""  # "f", "m" or "" (unknown)
+    # spoken languages ("ru"/"en") whose digits the engine's own normaliser reads correctly; elsewhere
+    # numbers are handed over as words (Supertonic under lang=ru drops "80%" and "11:30")
+    reads_digits: FrozenSet[str] = frozenset()
     extra: dict = field(default_factory=dict, compare=False, hash=False)
 
     def speaks(self, probe_lang: str) -> bool:
@@ -50,14 +60,28 @@ class TtsUnavailable(RuntimeError):
 
 
 def choose_tts_input(text: str, tts_text: Optional[str], lang: str, voice: VoiceInfo) -> Tuple[str, str]:
-    """Return ``(string to synthesise, which field it came from: "text"|"tts_text")``.
+    """Return ``(string to synthesise, INPUT_TEXT | INPUT_TTS_TEXT | INPUT_TEXT_NUMBERS)``.
 
-    Russian voices that cannot pronounce Latin words get the probe's ``tts_text`` for ``ru`` and
-    ``mixed`` sentences when it exists. Everything else is read from ``text`` as written.
+    - ``en`` and ``ru``: ``tts_text`` whenever the probe has one. It differs from ``text`` only where a
+      speaker says something else than the spelling ("kubectl" -> "kube control", "20" -> "двадцать").
+    - ``mixed``: ``respell`` voices read ``tts_text``. ``native`` voices read ``text`` with its Latin terms
+      as written; if the voice cannot read digits in Russian, the numbers are taken from ``tts_text``
+      (declined as said), and numbers ``tts_text`` cannot supply are spelled in the nominative.
+    - Any digits left in a language the voice does not read digits in are spelled out.
     """
-    if lang != "en" and voice.latin_in_ru == LATIN_RESPELL and tts_text:
-        return tts_text, "tts_text"
-    return text, "text"
+    spoken_lang = "en" if lang == "en" else "ru"
+    digits_ok = spoken_lang in voice.reads_digits
+    if tts_text and (lang != "mixed" or voice.latin_in_ru == LATIN_RESPELL):
+        say, src = tts_text, INPUT_TTS_TEXT
+    elif tts_text and not digits_ok and has_number_token(text):
+        say, src = transfer_spoken_numbers(text, tts_text, lang), INPUT_TEXT_NUMBERS
+    else:
+        say, src = text, INPUT_TEXT
+    if not digits_ok and has_number_token(say):
+        spelled = spell_digits(say, lang)
+        if spelled != say:
+            say, src = spelled, (INPUT_TEXT_NUMBERS if src == INPUT_TEXT else src)
+    return say, src
 
 
 def to_16k(samples: np.ndarray, sr: int, peak: float = 0.9) -> np.ndarray:

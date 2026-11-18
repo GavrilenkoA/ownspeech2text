@@ -44,6 +44,7 @@ End-to-end procedure, run matrix and measured timings: `docs/ml/TRAINING_RUNBOOK
 | `eval/contract.py` | shared data contract: validate/load/write JSONL, `render_prompt()`, `render_messages()` |
 | `eval/metrics.py` | all metric definitions (pure Python, unit-tested) |
 | `eval/ctxview.py` | the only reader of ctx internals (screen lines, context source) |
+| `eval/v2_cases.py`, `eval/cases/v2_screens.v1.jsonl` | hand-written cases with a real ctx v2: spec -> `ml.screens.build_ctx` -> contract JSONL, CONTEXT_V2 rules checked on OCR lines (OCR venv, `tools/heavy`) |
 | `eval/tests/fixtures/ctx_v2.sample.jsonl` | 5 hand-written ctx v2 examples (stand-in until `ml/screens` build_ctx data exists) |
 | `eval/gates.py` | ship gates as data + PASS / FAIL / NO_DATA evaluator |
 | `eval/backends.py` | llama-server (GGUF), HF, teacher (Responses API) backends |

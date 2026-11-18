@@ -34,10 +34,10 @@ networks is **BGR** (PaddleOCR convention).
 
 ## 2. Detector pre-processing
 
-1. Scale `r = det_limit / max(W, H)` if `max(W, H) > det_limit`, else `r = 1` (never upscale). `det_limit = 1600`
+1. Scale `r = det_limit / max(W, H)` if `max(W, H) > det_limit`, else `r = 1` (never upscale). `det_limit = 960`
    (see OCR_CONTEXT.md for the sweep). `det_limit = 0` means native size.
 2. Target size per side: `max(32, floor(side * r / 32 + 0.5) * 32)` (round half up to a multiple of 32).
-   Cover 1080x2520 -> 704x1600; inner 1968x2184 -> 1440x1600 (native would be 1088x2528 / 1984x2176).
+   Cover 1080x2520 -> 416x960; inner 1968x2184 -> 864x960 (native would be 1088x2528 / 1984x2176).
 3. Resize: bilinear, half-pixel centres (`src = (dst + 0.5) * scale - 0.5`, clamped to the edge), computed in
    float32 on 0..255 values (OpenCV `INTER_LINEAR` on a float32 image). Not area averaging, not uint8 fixed point.
 4. Normalise per channel in B, G, R order: `(v / 255 - mean) / std`, mean `(0.485, 0.456, 0.406)`,
@@ -74,7 +74,8 @@ rectangle (status bar, IME window incl. suggestion strip, Murmur's own bubble/pi
    `(320, 480, 640, 800, 960, 1280, 1600, 1920, 2560, 3200)`; if `rw > 3200`, `rw = bw = 3200` (squeezed).
 3. Resize the crop to `rw x 48` (same bilinear as §2), normalise `(v / 255 - 0.5) / 0.5`, place at the left of a
    zero tensor `[3, 48, bw]` (zero = mid-grey after normalisation; right padding).
-4. Batching: group by `bw`, batches of up to 8 in box order. The padded width per line does not depend on the
+4. Batching: group by `bw`, batches of up to `rec_batch` in box order (reference: 1 — on x86 CPU a batch of 8 costs
+   more per line than single lines; outputs were checked identical for batch 1 and 8 on the golden suite). The padded width per line does not depend on the
    batch (the model has global attention over width, so padding changes outputs: never pad a line to the
    batch's widest line, pad to its own bucket).
 5. Greedy CTC: argmax per time step (first index on ties), merge consecutive repeats, drop class 0;
@@ -84,13 +85,26 @@ rectangle (status bar, IME window incl. suggestion strip, Murmur's own bubble/pi
 
 1. Text: Unicode NFC, collapse whitespace runs to one space, strip.
 2. Filter: drop if `conf < 0.5` or fewer than 2 non-space characters.
-3. Homoglyph repair per space-separated token (`repair_homoglyphs`):
+3. Homoglyph repair per token (`repair_homoglyphs`; tokens are split on space, `-`, `/`, `_`, `.`, which are kept):
    - strong twins (identical shapes) `a c e o p x y A B C E H K M O P T X` <-> `а с е о р х у А В С Е Н К М О Р Т Х`;
-     weak twins Latin `k n u r b m t` -> `к п и г ь т т`, Cyrillic `к п и г ь т і ј ѕ ԁ` -> `k n u r b m i j s d`;
-   - evidence per script: 1 per letter of that script with no twin, 0.25 per weak twin, 0 per strong twin;
-   - a token holding both scripts becomes the script with more evidence (ties: unchanged);
-   - a token with no evidence (only strong twins, e.g. `Bce`, `c`) takes the script of the decisive tokens
-     among the 2 before and 2 after it on the same line, only when they all agree; otherwise unchanged.
+     weak twins Latin `k n u r b m t i` -> `к п и г ь т т и`, Cyrillic `к п и г ь т` -> `k n u r b m`;
+     non-Russian Cyrillic `і ї є ј ѕ ԁ І Ї Є Ј Ѕ Ӏ ӏ` (in the dictionary for other languages) is a misread Latin
+     letter: it counts as unambiguous Latin and maps to `i i e j s d I I E J S l l`;
+   - evidence per script: 1 per letter with no twin, 0.25 per weak twin, 0 per strong twin;
+   - a token with at least one unambiguous letter: if it holds both scripts (or a non-Russian letter), it becomes
+     the script with more evidence (ties: unchanged); otherwise unchanged;
+   - a token made only of twins (`Bce`, `c`, `по`, `НАРгоху`, `А100`, `promрt`), first rule that applies:
+     (a) contains a digit or one of `# + @ $ = < > \` -> Latin (identifiers: `A100`, `x86`, `p99`, `C#`);
+     (b) holds both scripts -> the script of the majority of its letters (ties fall through);
+     (c) camel case (lowercase then uppercase, or two uppercase then lowercase) -> Latin (`HAProxy`, `NeMo`);
+     (c2) glued without a space (`-`, `/`, `_`, `.`) to a decisive token, all such of one script -> that script
+          (`RNN-T`, `llama.cpp`);
+     (d) the unanimous script of the decisive tokens among the 2 before and 2 after it on the same line, or, with
+         no decisive neighbour and a lowercase letter in the token, the screen's dominant script (evidence summed
+         over all lines after step 2, one script >= 2.0 x the other) -- applied only towards Cyrillic: `по`, `с`,
+         `и` between English terms are Russian, while `B`, `Bce`, `Mama` are the recogniser's Latin guesses;
+     (e) otherwise unchanged. Known misses: all-twin Latin words in Russian sentences stay Cyrillic (`Сапагу` for
+         `Canary`), Latin `m` becomes `т` (also `м` in reality).
 4. Geometric de-duplication: visit lines by `(-conf, y0, x0)`; drop a line whose IoU with a kept line is
    `>= 0.5` or that lies `>= 80 %` inside a kept line; restore box order.
 5. Reading order:

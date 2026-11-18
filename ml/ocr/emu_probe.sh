@@ -21,7 +21,7 @@ up() {
     echo no | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" -s create avd -n "$AVD" -k "$IMAGE" -d pixel_7 --force
     cfg="$HOME/.android/avd/$AVD.avd/config.ini"
     for kv in hw.lcd.width=1080 hw.lcd.height=2520 hw.lcd.density=420 hw.ramSize=3072M hw.cpu.ncore=4 \
-              hw.keyboard=yes hw.gpu.enabled=yes hw.gpu.mode=swiftshader disk.dataPartition.size=4G; do
+              hw.keyboard=no hw.gpu.enabled=yes hw.gpu.mode=swiftshader disk.dataPartition.size=4G; do
       k=${kv%%=*}; grep -q "^$k" "$cfg" && sed -i "s|^$k.*|$kv|" "$cfg" || echo "$kv" >> "$cfg"
     done
   fi
@@ -91,8 +91,13 @@ round() {  # $1 = tag (ru_cover, en_inner, ...)
 shots() {
   A shell pm list packages | grep -E "messaging|chrome|calendar|documentsui|contacts" | sort > "$OUT/packages.txt"
   seed_data
-  for loc in ru-RU en-US; do
-    locale $loc; tag=${loc%%-*}
+  A root >/dev/null; sleep 2; A wait-for-device
+  A shell 'echo "_ --disable-fre --no-default-browser-check --no-first-run" > /data/local/tmp/chrome-command-line'
+  A shell am set-debug-app --persistent com.android.chrome
+  for loc in ${LOCALES:-ru-RU en-US}; do
+    # a fresh image boots in en-US: switch only when needed (the zygote restart killed the emulator once)
+    [ "$(A shell getprop persist.sys.locale | tr -d '\r')" = "$loc" ] || { [ "$loc" = en-US ] && [ -z "$(A shell getprop persist.sys.locale | tr -d '\r')" ]; } || locale $loc
+    tag=${loc%%-*}
     A shell wm size reset; A shell wm density reset; sleep 3; round "${tag}_cover"
     A shell wm size 1968x2184; A shell wm density 420; sleep 4; round "${tag}_inner"
     A shell wm size reset; A shell wm density reset; sleep 2

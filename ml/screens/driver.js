@@ -45,8 +45,8 @@ function collectVisible() {
     if (clip[2] <= clip[0] || clip[3] <= clip[1]) continue;
     const role = roleOf(el);
     const ell = getComputedStyle(el).textOverflow === 'ellipsis';
-    let cur = null;
-    const flush = () => { if (cur && cur.text.trim()) out.push(cur); cur = null; };
+    let cur = null, lead = false;
+    const flush = () => { if (cur && cur.text.trim()) { cur.trail = !!cur.pendingSpace; out.push(cur); } cur = null; };
     // iterate by code point (keeps surrogate pairs / emoji together)
     let i = 0;
     while (i < s.length) {
@@ -69,8 +69,8 @@ function collectVisible() {
       }
       if (!vis) { if (cur) cur.cut = true; continue; }
       if (cur && (Math.abs(r.top - cur.top) > r.height * 0.5 || cur.cut)) flush();
-      if (!cur) cur = { role, text: '', x0: r.left, y0: r.top, x1: r.right, y1: r.bottom, top: r.top, ell };
-      if (/\s/.test(ch)) { cur.pendingSpace = true; continue; }
+      if (/\s/.test(ch)) { if (cur) cur.pendingSpace = true; else lead = true; continue; }
+      if (!cur) { cur = { role, lead, text: '', x0: r.left, y0: r.top, x1: r.right, y1: r.bottom, top: r.top, ell }; lead = false; }
       if (cur.pendingSpace && cur.text) cur.text += ' ';
       cur.pendingSpace = false;
       cur.text += ch;
@@ -86,7 +86,7 @@ function collectVisible() {
     const r = e.getBoundingClientRect();
     if (r.width > 0 && r.height > 0) ex.push({ kind: e.getAttribute('data-exclude'), box: [r.left, r.top, r.right, r.bottom] });
   });
-  return { items: out.map(o => ({ role: o.role, text: o.text, box: [o.x0, o.y0, o.x1, o.y1] })), exclude: ex, vw, vh };
+  return { items: out.map(o => ({ role: o.role, text: o.text, lead: o.lead, trail: o.trail, box: [o.x0, o.y0, o.x1, o.y1] })), exclude: ex, vw, vh };
 }
 
 async function main() {

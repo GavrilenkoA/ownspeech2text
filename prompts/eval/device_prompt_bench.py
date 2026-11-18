@@ -54,7 +54,7 @@ class Target:
     def complete(self, prompt_file: str, n_predict: int) -> tuple[str, str]:
         args = ["-m", self.model, "-f", prompt_file, "-n", str(n_predict), "-t", str(self.threads), "--temp", "0",
                 "--top-k", "1", "--repeat-penalty", "1", "-c", "8192", "-no-cnv", "--no-display-prompt",
-                "-r", "<|im_end|>", "--seed", "0"]
+                "-r", "<|im_end|>", "--seed", "0", "--no-escape", "--no-warmup"]
         if self.local:
             p = subprocess.run([str(HOST_BIN / "llama-completion")] + args, capture_output=True, text=True,
                                env={"LD_LIBRARY_PATH": str(HOST_BIN), "PATH": "/usr/bin:/bin"}, timeout=900)
