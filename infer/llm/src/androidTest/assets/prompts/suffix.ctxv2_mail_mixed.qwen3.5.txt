@@ -1,0 +1,36 @@
+Style: Email. Use complete sentences and paragraphs; put a greeting and a sign-off on their own lines only if they were dictated.
+<context>
+App: Gmail — email body
+Field hint: «Текст письма»
+Dictation language: Russian
+Text already in the field before the cursor: «Юрген, добрый день!»
+Screen text (OCR, nearest to the field first):
+Обсудили релиз 2.4, Kotlin Multiplatform и ONNX Runtime
+Weekly sync — заметки
+Notion
+16 нояб.
+Зачислено 1 250,00 EUR от Ingrid Sørensen
+Tinkoff Пополнение счёта
+Внесла правки по NDA, которые обсуждали в Zoom
+Contract draft v3
+Анна Петрова
+Вчера
+Bubble прыгает, когда открывается клавиатура
+MUR-231 назначена на вас
+Яндекс Трекер
+timur-galiev смержил 3 коммита в main
+[murmur] PR #4182 merged
+GitHub
+Посмотри обновлённые цифры в Google Sheets до пятницы
+Бюджет Q4 review
+Jürgen Weber
+Входящие
+</context>
+<transcript>
+посмотрел цифры в гугл шитс по q4 всё ок только проверь строку про ноушен
+</transcript><|im_end|>
+<|im_start|>assistant
+<think>
+
+</think>
+

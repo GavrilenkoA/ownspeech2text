@@ -1,37 +1,90 @@
 package app.murmur.infer.llm
 
 /**
- * Kotlin side of native/llama/include/murmur_llm_jni.h (WP-10 builds the shim in native/llama, not in Gradle).
- * Text crosses JNI as UTF-8 byte arrays only (llm spike D11). All calls except [cancel] on the engine thread.
+ * The native engine surface [LlmEngine] drives: [LlmNative] (JNI over native/llama/include/murmur_llm.h) on the
+ * device, a fake in JVM tests. Contract, array layouts and threading: native/llama/include/murmur_llm_jni.h.
+ * Text crosses as UTF-8 byte arrays only (llm spike D11). Every call except [cancel] runs on the engine thread.
  */
-object LlmNative {
-    @Volatile private var loaded = false
+interface LlmBackend {
+    fun init(nativeLibDir: String, htpLibDir: String?, powerMode: String?, verbose: Int): Int
+    fun buildInfo(): String
+    fun runtimeInfo(): String
+    fun devices(): String
+    /** out[0] = handle; info = [load_ms, ctx_ms, n_layers, n_vocab]. */
+    fun load(path: String, device: Int, nCtx: Int, nBatch: Int, nThreads: Int, useMmap: Boolean, kvType: Int,
+             out: LongArray, info: DoubleArray): Int
+    fun deviceName(h: Long): String
+    fun tokenCount(h: Long, utf8: ByteArray): Int
+    /** stats = [n_tokens, prefill_ms, snapshot_ms, snapshot_bytes]. */
+    fun prefixSet(h: Long, prefixUtf8: ByteArray, stats: DoubleArray): Int
+    fun prefixSave(h: Long, file: String): Int
+    /** stats = [n_tokens, file_load_ms, snapshot_ms, snapshot_bytes]. */
+    fun prefixLoad(h: Long, file: String, stats: DoubleArray): Int
+    /** stats = [n_prompt, n_gen, restore_ms, prefill_ms, ttft_ms, decode_ms, total_ms, stop_reason]. */
+    fun generate(h: Long, suffixUtf8: ByteArray, maxTokens: Int, temperature: Float, repeatPenalty: Float,
+                 stopsUtf8: Array<ByteArray>?, sink: TokenSink, stats: DoubleArray): Int
+    fun cancel(h: Long)
+    fun cancelClear(h: Long)
+    /** out = [pp_tps, tg_tps, pp_ms, tg_ms]. */
+    fun bench(h: Long, nPrompt: Int, nGen: Int, reps: Int, out: DoubleArray): Int
+    /** Fixed English messages from murmur_llm.cpp (codes and numbers, never user text). */
+    fun lastError(h: Long): String
+    fun unload(h: Long)
 
-    /** Loads libmurmur_llm_jni.so; false when the prebuilt set is not packaged (EngineRuntimeMissing). */
-    fun ensureLoaded(): Boolean {
-        if (!loaded) loaded = runCatching { System.loadLibrary("murmur_llm_jni") }.isSuccess
-        return loaded
+    companion object {
+        /** murmur_llm.h return codes. */
+        const val OK = 0
+        const val E_ARG = -1
+        const val E_LOAD = -2
+        const val E_DEVICE = -3
+        const val E_CTX = -4
+        const val E_DECODE = -5
+        const val E_CANCELLED = -6
+        const val E_STATE = -7
+        const val E_OVERFLOW = -8
+
+        /** mllm_device. */
+        const val DEV_CPU = 0
+        const val DEV_NPU = 1
+        const val DEV_GPU = 2
+
+        /** mllm_kv_type. */
+        const val KV_F16 = 0
+        const val KV_Q8_0 = 1
+
+        /** mllm_gen_stats.stop_reason 4: the sink returned false (the binder client went away). */
+        const val STOP_CALLBACK = 4
     }
-
-    external fun init(nativeLibDir: String, htpLibDir: String?, powerMode: String?, verbose: Int): Int
-    external fun devices(): String
-    external fun load(path: String, device: Int, nCtx: Int, nThreads: Int, prefixMode: Int, out: LongArray): Int
-    external fun prefixSet(h: Long, prefixUtf8: ByteArray, stats: DoubleArray): Int
-    external fun prefixSave(h: Long, file: String): Int
-    external fun prefixLoad(h: Long, file: String, stats: DoubleArray): Int
-    external fun generate(h: Long, suffixUtf8: ByteArray, maxTokens: Int, temperature: Float, repeatPenalty: Float,
-                          stops: Array<String>?, sink: TokenSink, stats: DoubleArray): Int
-    external fun cancel(h: Long)
-    external fun bench(h: Long, nPrompt: Int, nGen: Int, reps: Int, out: DoubleArray): Int
-    external fun unload(h: Long)
-
-    /** murmur_llm.h mllm_device. */
-    const val DEV_CPU = 0
-    const val DEV_NPU = 1
-    const val DEV_GPU = 2
 }
 
 fun interface TokenSink {
-    /** Return false to stop. Runs on the engine thread: only post to a channel. */
+    /** One complete UTF-8 piece (never a split code point). Return false to stop. Runs on the engine thread. */
     fun onPiece(utf8: ByteArray): Boolean
+}
+
+/** JNI binding of libmurmur_llm_jni.so (native/llama/src/murmur_llm_jni.cpp). */
+object LlmNative : LlmBackend {
+    /** Loads libmurmur_llm_jni.so (and through it libmurmur_llm, libllama, libggml*); null when not packaged. */
+    fun loadOrNull(): LlmBackend? = if (loaded) this else null
+
+    private val loaded: Boolean by lazy { runCatching { System.loadLibrary("murmur_llm_jni") }.isSuccess }
+
+    external override fun init(nativeLibDir: String, htpLibDir: String?, powerMode: String?, verbose: Int): Int
+    external override fun buildInfo(): String
+    external override fun runtimeInfo(): String
+    external override fun devices(): String
+    external override fun load(path: String, device: Int, nCtx: Int, nBatch: Int, nThreads: Int, useMmap: Boolean,
+                               kvType: Int, out: LongArray, info: DoubleArray): Int
+    external override fun deviceName(h: Long): String
+    external override fun tokenCount(h: Long, utf8: ByteArray): Int
+    external override fun prefixSet(h: Long, prefixUtf8: ByteArray, stats: DoubleArray): Int
+    external override fun prefixSave(h: Long, file: String): Int
+    external override fun prefixLoad(h: Long, file: String, stats: DoubleArray): Int
+    external override fun generate(h: Long, suffixUtf8: ByteArray, maxTokens: Int, temperature: Float, repeatPenalty: Float,
+                                   stopsUtf8: Array<ByteArray>?, sink: TokenSink, stats: DoubleArray): Int
+    external override fun cancel(h: Long)
+    external override fun cancelClear(h: Long)
+    external override fun bench(h: Long, nPrompt: Int, nGen: Int, reps: Int, out: DoubleArray): Int
+    external override fun lastError(h: Long): String
+    external override fun unload(h: Long)
 }
