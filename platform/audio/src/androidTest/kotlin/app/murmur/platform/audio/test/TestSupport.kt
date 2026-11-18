@@ -13,8 +13,14 @@ import android.os.IBinder
 import android.os.ParcelFileDescriptor
 import android.os.SystemClock
 import androidx.test.platform.app.InstrumentationRegistry
+import android.util.Log
+import app.murmur.core.model.Outcome
+import app.murmur.core.model.SessionId
+import app.murmur.platform.audio.AndroidAudioCapture
+import app.murmur.platform.audio.OpusAudioStore
 import app.murmur.platform.audio.StatusAction
 import app.murmur.platform.audio.StatusActionHandler
+import kotlinx.coroutines.runBlocking
 import java.io.File
 import java.util.concurrent.LinkedBlockingQueue
 import kotlin.math.PI
@@ -52,6 +58,31 @@ object Shell {
             v = check()
         }
         return v
+    }
+}
+
+/**
+ * The emulator's virtual microphone delivers exact digital zeros for a while after it is first opened in a process
+ * (measured: first non-zero sample 600-950 ms after a cold boot under host load, sometimes > 1 s, which the start check
+ * rightly reports as MicSilenced). Tests that measure capture open it once per process first; the cold numbers are
+ * logged (tag WP09, "mic_warm_up"), not asserted (device item: first dictation after boot, DC5).
+ */
+object EmulatorMic {
+    @Volatile private var warm = false
+
+    fun warmUp() = runBlocking {
+        if (warm) return@runBlocking
+        val store = OpusAudioStore(Shell.context, dir = File(Shell.context.filesDir, "history/audio-warm-up"))
+        repeat(3) { attempt ->
+            val t0 = SystemClock.uptimeMillis()
+            val o = AndroidAudioCapture(Shell.context, store).start(SessionId(100L + attempt), false, "unused")
+            Log.i("WP09", "mic_warm_up attempt=$attempt result=${if (o is Outcome.Ok) "ok" else o} ms=${SystemClock.uptimeMillis() - t0}")
+            if (o is Outcome.Ok) {
+                o.value.stop()
+                warm = true
+                return@runBlocking
+            }
+        }
     }
 }
 

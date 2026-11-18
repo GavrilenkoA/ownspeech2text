@@ -8,6 +8,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import app.murmur.core.dictation.CaptureSignal
 import app.murmur.core.model.Outcome
 import app.murmur.core.model.SessionId
+import app.murmur.platform.audio.test.EmulatorMic
 import app.murmur.platform.audio.test.Shell
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -36,6 +37,7 @@ class GsmCallSignalTest {
         )
         val context = Shell.context
         Shell.grant(Manifest.permission.RECORD_AUDIO)
+        EmulatorMic.warmUp()
         val modes = AndroidAudioModeSource(context)
         val seen = Collections.synchronizedList(ArrayList<String>())
         val t0 = SystemClock.uptimeMillis()

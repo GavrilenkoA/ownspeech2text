@@ -11,6 +11,7 @@ import app.murmur.core.dictation.CaptureSignal
 import app.murmur.core.model.AudioKey
 import app.murmur.core.model.Outcome
 import app.murmur.core.model.SessionId
+import app.murmur.platform.audio.test.EmulatorMic
 import app.murmur.platform.audio.test.PlayerService
 import app.murmur.platform.audio.test.Shell
 import kotlinx.coroutines.CoroutineScope
@@ -49,6 +50,7 @@ class MicCaptureTest {
     fun setUp() {
         Shell.grant(Manifest.permission.RECORD_AUDIO, Manifest.permission.POST_NOTIFICATIONS)
         store = OpusAudioStore(context, dir = File(context.filesDir, "history/audio-mic-test").also { it.deleteRecursively() })
+        EmulatorMic.warmUp()
     }
 
     @After
@@ -82,15 +84,24 @@ class MicCaptureTest {
                 expectedStart = c.endSample
             }
         }
-        val windowStart = SystemClock.uptimeMillis() + 1_000 // steady state after the first second
-        Thread.sleep(11_200)
+        Thread.sleep(12_500) // 1 s settle + 1 s of window starts + 10 s windows + margin
+        val stopAt = SystemClock.uptimeMillis()
         val r = h.stop()
         job.join()
-        val inWindow = synchronized(arrivals) { arrivals.filter { it.first >= windowStart && it.first < windowStart + 10_000 } }
-        Log.i(TAG, "chunks_in_10s=${inWindow.size} total=${arrivals.size} duration_ms=${r.durationMs} peak=${r.peakAbs}")
+        val times = synchronized(arrivals) { arrivals.map { it.first } }
+        // Chunks delivered in 10 s of wall time, for every 10 s window that starts at one of the chunks of the second
+        // second (steady state). The median is the rate; a single host stall cannot move it, a real drop would.
+        val counts = times.filter { it >= times.first() + 1_000 && it < times.first() + 2_000 && it + 10_000 <= stopAt }
+            .map { from -> times.count { it >= from && it < from + 10_000 } }.sorted()
+        val median = counts[counts.size / 2]
+        // The audio clock must keep pace with the wall clock: samples delivered vs time since the first chunk.
+        val audioVsWallMs = r.durationMs - (stopAt - times.first())
+        Log.i(TAG, "chunks_in_10s median=$median min=${counts.first()} max=${counts.last()} windows=${counts.size} " +
+            "total=${arrivals.size} duration_ms=${r.durationMs} audio_minus_wall_ms=$audioVsWallMs peak=${r.peakAbs}")
         assertTrue("every chunk is one 20 ms frame", arrivals.all { it.second == PcmFormat.FRAME_SAMPLES })
         assertTrue("chunks are contiguous from sample 0", contiguous)
-        assertTrue("${inWindow.size} chunks in 10 s (500 +- 2)", inWindow.size in 498..502)
+        assertTrue("$median chunks in 10 s (500 +- 2)", median in 498..502)
+        assertTrue("audio clock within 100 ms of the wall clock: $audioVsWallMs", audioVsWallMs in -100..100)
         assertEquals(arrivals.size * 20L, r.durationMs)
         assertNull("keepRecording=false: no file", r.audio)
         assertFalse(r.silenced)
@@ -188,23 +199,25 @@ class MicCaptureTest {
     @Test
     fun recordingContinuesWhileAnotherClientTakesFocusAndPlays() = runBlocking {
         val result = File(context.filesDir, PlayerService.RESULT).also { it.delete() }
+        val tStart = SystemClock.uptimeMillis()
         val h = started(capture().start(SessionId(8), keepRecording = false, audioKey = "unused"))
-        val arrivals = Collections.synchronizedList(ArrayList<Long>())
+        val tStarted = SystemClock.uptimeMillis()
         var silenced = false
-        val job = scope.launch { h.chunks.collect { arrivals += SystemClock.uptimeMillis() } }
         val sig = scope.launch { h.signals.collect { if (it == CaptureSignal.Silenced) silenced = true } }
         Thread.sleep(500)
-        val playStart = SystemClock.uptimeMillis()
         context.startService(Intent(context, PlayerService::class.java).putExtra(PlayerService.EXTRA_MS, 3_000L))
         Shell.waitFor(10_000, { result.isFile }) { it }
-        val playEnd = SystemClock.uptimeMillis()
+        Thread.sleep(500)
+        val tStop = SystemClock.uptimeMillis()
         val r = h.stop()
-        job.join(); sig.cancel()
-        val during = synchronized(arrivals) { arrivals.count { it in (playStart + 500)..(playStart + 2_500) } }
-        Log.i(TAG, "focus_measurement player=${result.readText()} chunks_in_2s_during_playback=$during silenced=$silenced " +
-            "played_window_ms=${playEnd - playStart} duration_ms=${r.durationMs}")
-        assertTrue("player ran: ${result.readText()}", result.readText().startsWith("focus="))
-        assertTrue("$during chunks in 2 s while the other client plays (100 +- 2)", during in 98..102)
+        sig.cancel()
+        // The audio clock must keep pace with the wall clock through the other client's focus + playback: a paused or
+        // dropped recording would come up short by the pause. Allowed slack: the start latency plus 100 ms.
+        val wallMs = tStop - tStart
+        Log.i(TAG, "focus_measurement player=${result.readText()} recorded_ms=${r.durationMs} wall_ms=$wallMs " +
+            "start_ms=${tStarted - tStart} silenced=$silenced")
+        assertTrue("player ran: ${result.readText()}", result.readText().startsWith("focus=1"))
+        assertTrue("recorded ${r.durationMs} ms of $wallMs ms", r.durationMs >= wallMs - (tStarted - tStart) - 100)
         assertFalse("not silenced by the other client's focus/playback", silenced || r.silenced)
     }
 
