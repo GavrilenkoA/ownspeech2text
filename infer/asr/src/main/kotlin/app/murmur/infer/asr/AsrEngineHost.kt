@@ -139,8 +139,9 @@ class AsrEngineHost(private val nativeLibraryDir: String) {
     }
 
     inner class SessionHandle(private val core: AsrSessionCore, private val reader: PcmPipeReader) {
-        fun finish(reply: (Outcome<Transcript>) -> Unit) = post {
-            core.requestFinish { r -> sessions -= core; reply(r) }
+        fun finish(reply: (Outcome<Transcript>) -> Unit) {
+            val at = core.nowMs()
+            post { core.requestFinish(at) { r -> sessions -= core; reply(r) } }
         }
 
         fun cancel() {

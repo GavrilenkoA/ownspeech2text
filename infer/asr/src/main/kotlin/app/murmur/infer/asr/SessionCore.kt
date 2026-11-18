@@ -181,7 +181,7 @@ class StreamingProcessor(
 class AsrSessionCore(
     private val options: AsrSessionOptions,
     private val emit: (AsrEvent) -> Unit,
-    private val nowMs: () -> Long = { System.nanoTime() / 1_000_000 },
+    val nowMs: () -> Long = { System.nanoTime() / 1_000_000 },
 ) {
     private val inbox = ConcurrentLinkedQueue<ShortArray>()
     @Volatile private var eofAtMs = -1L
@@ -252,10 +252,11 @@ class AsrSessionCore(
         tryComplete()
     }
 
-    fun requestFinish(cb: (Outcome<Transcript>) -> Unit) {
+    /** [atMs] = when the stop arrived (the binder call), not when the engine thread got to it. */
+    fun requestFinish(atMs: Long = nowMs(), cb: (Outcome<Transcript>) -> Unit) {
         if (closed || reply != null) return
         reply = cb
-        finishAtMs = nowMs()
+        finishAtMs = atMs
         pump()
     }
 
