@@ -2,7 +2,9 @@ package app.murmur.core.store
 
 import kotlinx.coroutines.flow.Flow
 import java.time.Instant
+import java.text.Normalizer
 import java.time.LocalDate
+import java.util.Locale
 
 /**
  * Numbers-only record of one dictation, written next to the history row and kept for the stats retention
@@ -77,9 +79,8 @@ interface DeliveryMetrics {
 }
 
 /**
- * The real [DeliveryMetrics] (ARCHITECTURE 12). Tokens follow prompts/guard.py `_words`: runs of letters, digits and
- * underscores joined by inner hyphens or apostrophes ("э-э", "uh-huh", "don't" are one token), casefolded, with
- * "ё" folded to "е", so the filler lexicon (OutputGuard.fillers = guard.py FILLERS) matches token for token.
+ * The real [DeliveryMetrics] (ARCHITECTURE 12). Tokens are [Words.tokens], the prompts/guard.py `_words` of the NFC
+ * text, so the filler lexicon (OutputGuard.fillers = guard.py FILLERS) matches token for token.
  */
 class DefaultDeliveryMetrics : DeliveryMetrics {
     override fun wordCount(text: String): Int = Words.tokens(text).size
@@ -141,12 +142,57 @@ class DefaultDeliveryMetrics : DeliveryMetrics {
     }
 }
 
-/** Word tokens shared by the delivery metrics and history search normalisation (guard.py `_WORD` + `_words`). */
+/**
+ * Word tokens shared by the delivery metrics and the history search folding: prompts/guard.py `_WORD` + `_words`
+ * applied to NFC text (guard.py `precheck` NFC-normalises the transcript before its words are taken).
+ *
+ * - `\w` in Python's `re` is `str.isalnum()` or "_": letters and numbers of every kind, never combining marks. A
+ *   stress mark therefore splits a word ("за́мок" -> "за", "мок") exactly as in guard.py; after NFC, a mark that has a
+ *   precomposed form ("е" + U+0308) is part of its letter ("ё").
+ * - [fold] is Python's `str.casefold()` per code point ("ß" -> "ss", final "ς" -> "σ"), then "ё" -> "е".
+ */
 object Words {
-    private val WORD = Regex("""[\p{L}\p{M}\p{N}_]+(?:[-'’][\p{L}\p{M}\p{N}_]+)*""")
+    private val WORD = Regex("""[\p{L}\p{N}_]+(?:[-'’][\p{L}\p{N}_]+)*""")
 
-    fun tokens(text: String): List<String> = WORD.findAll(text).map { fold(it.value) }.toList()
+    fun tokens(text: String): List<String> = WORD.findAll(nfc(text)).map { fold(it.value) }.toList()
 
-    /** Casefold (locale independent) with "ё" -> "е", as guard.py does before comparing words. */
-    fun fold(s: String): String = s.lowercase(java.util.Locale.ROOT).replace('ё', 'е')
+    /** NFC, then Python's `str.casefold()`, then "ё" -> "е" (guard.py compares words this way). */
+    fun fold(s: String): String {
+        val n = nfc(s)
+        val out = StringBuilder(n.length)
+        var i = 0
+        while (i < n.length) {
+            val cp = n.codePointAt(i)
+            caseFold(cp, out)
+            i += Character.charCount(cp)
+        }
+        for (k in out.indices) if (out[k] == 'ё') out.setCharAt(k, 'е')
+        return out.toString()
+    }
+
+    private fun nfc(s: String): String =
+        if (Normalizer.isNormalized(s, Normalizer.Form.NFC)) s else Normalizer.normalize(s, Normalizer.Form.NFC)
+
+    /**
+     * Full Unicode case folding of one code point. Upper-casing the code point alone (no final-sigma context, which
+     * only lower-casing a whole string applies) and lower-casing each result equals CaseFolding.txt (C + F) for every
+     * code point except the four handled first; checked against Python over all code points the JVM defines.
+     */
+    private fun caseFold(cp: Int, out: StringBuilder) {
+        when {
+            cp == 0x130 -> out.append("i\u0307") // İ: F mapping, not the Turkic one
+            cp == 0x131 -> out.appendCodePoint(cp) // ı has no folding
+            cp == 0x1E9E -> out.append("ss") // ẞ
+            cp in 0x13A0..0x13FD || cp in 0xAB70..0xABBF -> out.appendCodePoint(Character.toUpperCase(cp)) // Cherokee folds to upper
+            else -> {
+                val upper = String(Character.toChars(cp)).uppercase(Locale.ROOT)
+                var j = 0
+                while (j < upper.length) {
+                    val u = upper.codePointAt(j)
+                    out.appendCodePoint(Character.toLowerCase(u))
+                    j += Character.charCount(u)
+                }
+            }
+        }
+    }
 }

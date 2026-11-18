@@ -87,9 +87,45 @@ class DeliveryMetricsTest {
         assertEquals(1, m.fixes("ну вот и всё", "Ну и всё.", guardFillers))
         // Two of three "uh" removed.
         assertEquals(2, m.fillersRemoved("uh uh fine uh", "Uh, fine.", guardFillers))
+        // One filler replaced by another: one removed (the multiset difference), not 0 (total counts are equal)
+        // and not 2; the substitution is that filler, so no fix.
+        assertEquals(1, m.fillersRemoved("um ok", "uh ok", guardFillers))
+        assertEquals(0, m.fixes("um ok", "uh ok", guardFillers))
+        assertEquals(1, m.fillersRemoved("ну ok", "э ok", guardFillers))
+        assertEquals(2, m.fillersRemoved("ну ну ладно", "э ладно", guardFillers))
         // No lexicon: everything is a fix.
         assertEquals(0, m.fillersRemoved("um ok", "ok", emptySet()))
         assertEquals(1, m.fixes("um ok", "ok", emptySet()))
+    }
+
+    /**
+     * Expected tokens are prompts/guard.py `_words(unicodedata.normalize("NFC", text))`, computed with python3 when this
+     * table was written. Python's `\w` takes no combining marks, `casefold()` is full case folding.
+     */
+    @Test
+    fun tokensAreGuardPyWordsOfTheNfcText() {
+        val expected = listOf(
+            "за\u0301мок" to listOf("за", "мок"), // combining stress mark splits, as in guard.py
+            "e\u0301clair" to listOf("éclair"), // NFD: composes under NFC
+            "\u0435\u0308лка" to listOf("елка"), // NFD "ё" composes, then folds to "е"
+            "Ёлка" to listOf("елка"),
+            "Straße" to listOf("strasse"),
+            "ẞ" to listOf("ss"),
+            "ΟΔΟΣ" to listOf("οδοσ"), // casefold has no final-sigma rule
+            "ὈΔΌΣ" to listOf("ὀδόσ"),
+            "İstanbul" to listOf("i\u0307stanbul"),
+            "ılık" to listOf("ılık"),
+            "ﬁle" to listOf("file"),
+            "ǅemal" to listOf("ǆemal"),
+            "µs" to listOf("μs"),
+            "Ꭰᏸ" to listOf("ᎠᏰ"), // Cherokee folds to upper case
+            "snake_case x²" to listOf("snake_case", "x²"),
+            "Ⅻ legion" to listOf("ⅻ", "legion"),
+            "don't кто-нибудь uh-huh э-э-э" to listOf("don't", "кто-нибудь", "uh-huh", "э-э-э"),
+        )
+        for ((text, tokens) in expected) assertEquals(text, tokens, Words.tokens(text))
+        // The same word in NFC and NFD is the same token, so nothing counts as an edit.
+        assertEquals(0, m.editDistanceWords("\u0435\u0308лка e\u0301clair", "Ёлка éclair"))
     }
 
     @Test

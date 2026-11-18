@@ -70,6 +70,20 @@ class StatsCalculatorTest {
     }
 
     @Test
+    fun p90IsTheNearestRankWhereNinetyPercentIsWhole() {
+        // n = 10 and n = 20: 90 % is exactly 9 and 18 values, so nearest rank is the 9th / 18th value, not the next one.
+        fun readyOf(n: Int) = calc.compute(
+            (1..n).map { row(TODAY, "a.app", EntryStatus.INSERTED, wordsFinal = 1, recordMs = 5_000, speechMs = 4_000, stopToDoneMs = it * 100L) },
+            TODAY,
+            40,
+        ).readyP90Ms
+        assertEquals(900L, readyOf(10))
+        assertEquals(1_800L, readyOf(20))
+        // One value: it is its own p90.
+        assertEquals(100L, readyOf(1))
+    }
+
+    @Test
     fun typedIntoTheAppShareAndCopiedOnlyApp() {
         // 8 inserted, 3 copied (Termux twice, Telegram once).
         assertEquals(8 / 11.0, stats.typedShare!!, eps)
