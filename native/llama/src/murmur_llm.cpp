@@ -462,6 +462,8 @@ extern "C" int mllm_generate(mllm_engine * e, const char * suffix, const mllm_ge
 
         size_t ready = pending.size() - utf8_incomplete_tail(pending);
         ready = ready > (max_stop ? max_stop - 1 : 0) ? ready - (max_stop ? max_stop - 1 : 0) : 0;
+        // the stop-string hold-back counts bytes: never cut inside a multi-byte code point (Cyrillic, emoji)
+        while (ready > 0 && ((unsigned char) pending[ready] & 0xC0) == 0x80) --ready;
         if (!deliver(ready)) { s.stop_reason = 4; break; }
 
         // feed the token back
