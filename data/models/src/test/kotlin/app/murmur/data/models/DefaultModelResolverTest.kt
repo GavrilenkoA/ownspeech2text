@@ -1,0 +1,261 @@
+package app.murmur.data.models
+
+import app.murmur.core.catalog.CatalogParser
+import app.murmur.core.catalog.RuntimeKeys
+import app.murmur.core.engine.HostState
+import app.murmur.core.engine.InferenceHost
+import app.murmur.core.engine.LoadOptions
+import app.murmur.core.engine.ProcessMemory
+import app.murmur.core.engine.ProcessProbe
+import app.murmur.core.dictation.ActiveModels
+import app.murmur.core.dictation.LlmSpeed
+import app.murmur.core.model.ArtifactId
+import app.murmur.core.model.ComputeUnit
+import app.murmur.core.model.ComputeUnit.CPU
+import app.murmur.core.model.ComputeUnit.GPU
+import app.murmur.core.model.ComputeUnit.NPU
+import app.murmur.core.model.InferProcess
+import app.murmur.core.model.ModelId
+import app.murmur.core.model.MurmurError
+import app.murmur.core.model.Outcome
+import app.murmur.core.model.UnitPreference
+import app.murmur.core.store.BenchmarkRecord
+import app.murmur.core.store.BenchmarkResultData
+import app.murmur.core.store.CleanupChoice
+import app.murmur.core.store.InstallState
+import app.murmur.core.store.InstalledModelsRepository
+import app.murmur.core.store.Settings
+import app.murmur.core.store.StorageInfo
+import app.murmur.testing.FakeCatalogRepository
+import app.murmur.testing.FakeDeviceProfileRepository
+import app.murmur.testing.FakeUnitHealth
+import app.murmur.testing.InMemoryBenchmarkRepository
+import java.io.File
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+/** Resolver tables with fake install states (WP-13 acceptance). */
+class DefaultModelResolverTest {
+    @get:org.junit.Rule val timeout: org.junit.rules.Timeout = org.junit.rules.Timeout.seconds(60)
+
+    private val catalog = FakeCatalogRepository(CatalogParser.bundled())
+    private val health = FakeUnitHealth()
+    private val bench = InMemoryBenchmarkRepository()
+
+    private val pNpu = ArtifactId("parakeet-tdt-0.6b-v3@qnn-sm8750-20s")
+    private val pCpu = ArtifactId("parakeet-tdt-0.6b-v3@onnx-int8")
+    private val vad = ArtifactId("silero-vad-v5@onnx")
+    private val det = ArtifactId("pp-ocrv6-tiny-det@onnx")
+    private val rec = ArtifactId("pp-ocrv5-cyrillic-mobile-rec@onnx")
+    private val lfm = ArtifactId("lfm3-1.7b@q4_0-qad")
+    private val qwen = ArtifactId("qwen3.5-0.8b@q4_0")
+
+    /** Explicit install states: only [ids] are installed, under /data/models/<id>. */
+    private class Installed(ids: List<ArtifactId>) : InstalledModelsRepository {
+        private val map = MutableStateFlow(ids.associateWith { InstallState.Installed("/data/models/${it.value}", 1) as InstallState })
+        override val states: StateFlow<Map<ArtifactId, InstallState>> = map
+        override fun state(id: ArtifactId): Flow<InstallState> = flowOf(map.value[id] ?: InstallState.NotInstalled)
+        override suspend fun download(id: ArtifactId, wifiOnly: Boolean) = Unit
+        override suspend fun pause(id: ArtifactId) = Unit
+        override suspend fun delete(id: ArtifactId) = Unit
+        override suspend fun storage() = StorageInfo(0, 0)
+    }
+
+    private fun resolver(installed: InstalledModelsRepository, device: FakeDeviceProfileRepository = FakeDeviceProfileRepository(FakeDeviceProfileRepository.FOLD7)) =
+        DefaultModelResolver(catalog, installed, device, health, bench)
+
+    private fun ok(r: Outcome<ActiveModels>): ActiveModels = (r as? Outcome.Ok)?.value ?: error("expected Ok, got $r")
+
+    private val everything = listOf(pNpu, pCpu, vad, det, rec, lfm, qwen)
+
+    @Test
+    fun emulatorProfileGetsCpuArtifactsAndNoAsrFallback() = runBlocking {
+        val m = ok(resolver(Installed(everything), FakeDeviceProfileRepository(FakeDeviceProfileRepository.EMULATOR)).resolve(Settings()))
+        assertEquals(pCpu, m.asr.artifactId)
+        assertEquals(CPU, m.asr.unit)
+        assertNull(m.asrFallback)
+        assertEquals(listOf(CPU, CPU, CPU), listOf(m.vad!!.unit, m.ocrDet!!.unit, m.ocrRec!!.unit))
+        // LLM: the default LFM3 Q4_0 on CPU, no other unit on the emulator.
+        assertEquals(lfm to CPU, m.llm!!.spec.artifactId to m.llm!!.spec.unit)
+        assertNull(m.llm!!.fallback)
+        assertEquals("0", m.llm!!.spec.options[LoadOptions.USE_MMAP])
+    }
+
+    @Test
+    fun fold7WithBothParakeetArtifactsGetsNpuPrimaryAndCpuFallback() = runBlocking {
+        val m = ok(resolver(Installed(everything)).resolve(Settings()))
+        assertEquals(pNpu to NPU, m.asr.artifactId to m.asr.unit)
+        assertEquals(pCpu to CPU, m.asrFallback!!.artifactId to m.asrFallback!!.unit)
+        assertEquals(20.0, m.asr.maxWindowSec)
+        // The tarball extracts into one folder: the spec points at it and drops the "dir" role.
+        assertEquals("/data/models/${pNpu.value}/sherpa-onnx-qnn-SM8750-binary-parakeet-tdt-0.6b-v3-20s-transducer", m.asr.dir)
+        assertEquals(setOf("encoder", "decoder", "joiner", "tokens"), m.asr.layout.keys)
+        assertEquals("/data/models/${pCpu.value}", m.asrFallback!!.dir)
+    }
+
+    @Test
+    fun llmFallbackIsTheSameArtifactOnGpu() = runBlocking {
+        val m = ok(resolver(Installed(everything)).resolve(Settings()))
+        val llm = m.llm!!
+        assertEquals(lfm to NPU, llm.spec.artifactId to llm.spec.unit)
+        assertEquals(lfm to GPU, llm.fallback!!.artifactId to llm.fallback!!.unit)
+        assertEquals("lfm3", llm.template)
+        assertEquals("default.v4", llm.profile)
+        assertEquals(9_216, llm.nCtx)
+        assertEquals(3_240, llm.prefixTokens)
+        val gguf = catalog.catalog.value.artifact(lfm)!!.second.files.single()
+        assertEquals(gguf.sha256, llm.modelSha256)
+        assertEquals(catalog.catalog.value.artifact(lfm)!!.second.memoryMb[NPU], llm.memoryMb)
+        assertEquals(mapOf(LoadOptions.N_CTX to "9216", LoadOptions.THREADS to "4"), llm.spec.options)
+        // GPU fallback keeps mmap; only CPU specs set use_mmap=0 (ADR-031).
+        assertNull(llm.fallback!!.options[LoadOptions.USE_MMAP])
+        assertNull(llm.speed)
+    }
+
+    @Test
+    fun failedNpuInUnitHealthGivesCpuPrimary() = runBlocking {
+        health.markFailed(pNpu, NPU, "engine.load.asr")
+        val m = ok(resolver(Installed(everything)).resolve(Settings()))
+        assertEquals(pCpu to CPU, m.asr.artifactId to m.asr.unit)
+        assertNull(m.asrFallback)
+        health.markFailed(lfm, NPU, "engine.load.llm")
+        val llm = ok(resolver(Installed(everything)).resolve(Settings())).llm!!
+        assertEquals(GPU, llm.spec.unit)
+        assertEquals(CPU, llm.fallback!!.unit)
+    }
+
+    @Test
+    fun previewOnlyModelSelectedFallsBackToTheDefaultAsr() = runBlocking {
+        val nemotron = catalog.catalog.value.models.first { it.asr?.previewOnly == true }
+        val installed = Installed(everything + nemotron.artifacts.map { it.id })
+        val m = ok(resolver(installed).resolve(Settings(asrModel = nemotron.id)))
+        assertEquals(ModelId("parakeet-tdt-0.6b-v3"), m.asr.modelId)
+    }
+
+    @Test
+    fun batchAsrWithoutVadIsNoVadModel() = runBlocking {
+        val r = resolver(Installed(listOf(pNpu, pCpu, det, rec, lfm))).resolve(Settings())
+        assertEquals(Outcome.Err(MurmurError.NoVadModel), r)
+        // A streaming model needs no VAD.
+        val tone = ArtifactId("t-one@onnx")
+        val m = ok(resolver(Installed(listOf(tone))).resolve(Settings(asrModel = ModelId("t-one"), languages = listOf("ru"))))
+        assertEquals(tone, m.asr.artifactId)
+        assertTrue(m.asrTraits.streaming)
+        assertNull(m.vad)
+    }
+
+    @Test
+    fun noInstalledAsrIsNoAsrModel() = runBlocking {
+        assertEquals(Outcome.Err(MurmurError.NoAsrModel), resolver(Installed(listOf(vad, lfm))).resolve(Settings()))
+        // Only the NPU build installed on the emulator: unusable, so still no speech model.
+        assertEquals(Outcome.Err(MurmurError.NoAsrModel),
+            resolver(Installed(listOf(pNpu, vad)), FakeDeviceProfileRepository(FakeDeviceProfileRepository.EMULATOR)).resolve(Settings()))
+    }
+
+    @Test
+    fun probeFailureGivesCpuOnlyProfileAndNoException() = runBlocking {
+        val broken = object : InferenceHost {
+            override val process = InferProcess.ASR
+            override val state: StateFlow<HostState> = MutableStateFlow(HostState.Down)
+            override suspend fun connect(): Boolean = throw IllegalStateException("binder died")
+            override suspend fun probe(): ProcessProbe = error("unreachable")
+            override suspend fun memory(): ProcessMemory = error("unreachable")
+            override fun scheduleIdleExit(ms: Long) = Unit
+            override suspend fun shutdown() = Unit
+        }
+        val cache = File(tempDir("probe"), "device-profile.json")
+        val prober = DeviceProfileProber(cache, "1.0+1", broken, broken, { app.murmur.data.models.BaseDeviceInfo("SM8750", "arm64-v8a", 11_500) })
+        val device = object : app.murmur.core.catalog.DeviceProfileRepository {
+            override val profile = prober.profile
+            override suspend fun ensure() = prober.ensure()
+            override suspend fun reprobe() = prober.reprobe()
+        }
+        val r = DefaultModelResolver(catalog, Installed(everything), device, health, bench).resolve(Settings())
+        val m = ok(r)
+        assertEquals(pCpu to CPU, m.asr.artifactId to m.asr.unit)
+        assertNull(m.asrFallback)
+        assertEquals(CPU, m.llm!!.spec.unit)
+        assertEquals(setOf(CPU), prober.profile.value!!.availableUnits)
+        assertEquals(null, prober.profile.value!!.soc)
+        assertTrue("a failed probe is not cached on disk", !cache.exists())
+    }
+
+    @Test
+    fun cleanupChoicesNoneDefaultMissingAndChosen() = runBlocking {
+        val all = resolver(Installed(everything))
+        ok(all.resolve(Settings(cleanup = CleanupChoice.None))).let { assertNull(it.llm); assertEquals("none", it.llmUnavailable) }
+        ok(resolver(Installed(listOf(pCpu, vad))).resolve(Settings())).let { assertNull(it.llm); assertEquals("no_model", it.llmUnavailable) }
+        ok(all.resolve(Settings(cleanup = CleanupChoice.Model(ModelId("lfm2.5-350m"))))).let { assertNull(it.llm); assertEquals("no_model", it.llmUnavailable) }
+        ok(all.resolve(Settings(cleanup = CleanupChoice.Model(ModelId("murmur-cleanup-qwen3.5-0.8b"))))).let { assertEquals("no_model", it.llmUnavailable) }
+        val q = ok(all.resolve(Settings(cleanup = CleanupChoice.Model(ModelId("qwen3.5-0.8b"))))).llm!!
+        assertEquals(qwen to CPU, q.spec.artifactId to q.spec.unit)   // Qwen3.5 prefers CPU (llm spike D4)
+        assertEquals("qwen3.5", q.template)
+        assertEquals(3_129, q.prefixTokens)
+    }
+
+    @Test
+    fun useScreenOffOrOcrPairIncompleteGivesNoOcr() = runBlocking {
+        ok(resolver(Installed(everything)).resolve(Settings(useScreen = false))).let { assertNull(it.ocrDet); assertNull(it.ocrRec) }
+        ok(resolver(Installed(listOf(pCpu, vad, det))).resolve(Settings())).let { assertNull(it.ocrDet); assertNull(it.ocrRec) }
+    }
+
+    @Test
+    fun pinnedUnitIsHonouredAndAPinNothingInstalledServesFallsBackToAuto() = runBlocking {
+        val pinCpu = Settings(unitPreference = mapOf("parakeet-tdt-0.6b-v3" to UnitPreference.Pinned(CPU)))
+        ok(resolver(Installed(everything)).resolve(pinCpu)).let {
+            assertEquals(pCpu, it.asr.artifactId)
+            assertEquals(pNpu, it.asrFallback!!.artifactId)
+        }
+        val pinNpu = Settings(unitPreference = mapOf("parakeet-tdt-0.6b-v3" to UnitPreference.Pinned(NPU)))
+        ok(resolver(Installed(listOf(pCpu, vad))).resolve(pinNpu)).let { assertEquals(pCpu, it.asr.artifactId) }
+    }
+
+    @Test
+    fun validBenchmarkOverridesAndInvalidLatestIsIgnored() = runBlocking {
+        fun asr(unit: ComputeUnit, rtfx: Double, valid: Boolean, at: Long, artifact: ArtifactId) = BenchmarkRecord(
+            artifact, unit, "1", "fp", at,
+            BenchmarkResultData.Asr(rtfx, 100, 1000, null, 900, unit.name, emptyList(), valid = valid, invalidReason = if (valid) null else "wer_high"),
+        )
+        // CPU measured faster than NPU: CPU wins.
+        bench.save(asr(NPU, 5.0, true, 1, pNpu))
+        bench.save(asr(CPU, 20.0, true, 1, pCpu))
+        assertEquals(pCpu, ok(resolver(Installed(everything)).resolve(Settings())).asr.artifactId)
+        // The latest CPU run is invalid (wrong text): it no longer scores, NPU's valid run wins.
+        bench.save(asr(CPU, 40.0, false, 2, pCpu))
+        assertEquals(pNpu, ok(resolver(Installed(everything)).resolve(Settings())).asr.artifactId)
+        // LLM speed comes from the latest valid record of the chosen (artifact, unit).
+        bench.save(BenchmarkRecord(lfm, NPU, "1", "fp", 3, BenchmarkResultData.Llm(40.9, 569.0, 120.0, 1300.0, 900, 1200, "NPU", 1.0)))
+        assertEquals(LlmSpeed(prefillTps = 569.0, decodeTps = 40.9), ok(resolver(Installed(everything)).resolve(Settings())).llm!!.speed)
+        val scores = BenchScores(listOf(asr(CPU, 20.0, true, 1, pCpu), asr(CPU, 40.0, false, 2, pCpu)))
+        assertNull(scores.score(pCpu, CPU))
+        assertEquals(50.0, BenchScores(listOf(asr(NPU, 20.0, true, 1, pNpu))).score(pNpu, NPU)!!, 1e-9)
+    }
+
+    @Test
+    fun languageProfilePicksTheDefaultAsr() = runBlocking {
+        assertEquals("ru", DefaultModelResolver.languageProfile(listOf("ru")))
+        assertEquals("en", DefaultModelResolver.languageProfile(listOf("en")))
+        assertEquals("ru+en", DefaultModelResolver.languageProfile(listOf("ru", "en")))
+        assertEquals("ru+en", DefaultModelResolver.languageProfile(listOf("de")))
+        val giga = ArtifactId("gigaam-v3-e2e-rnnt@onnx-int8")
+        val m = ok(resolver(Installed(listOf(giga, vad))).resolve(Settings(languages = listOf("ru"))))
+        assertEquals(giga, m.asr.artifactId)
+    }
+
+    @Test
+    fun resolverNeverThrows() = runBlocking {
+        val exploding = object : InstalledModelsRepository by Installed(emptyList()) {
+            override fun state(id: ArtifactId): Flow<InstallState> = throw IllegalStateException("db closed")
+        }
+        val r = resolver(exploding).resolve(Settings())
+        assertTrue(r is Outcome.Err && r.error is MurmurError.Internal)
+        assertTrue(RuntimeKeys.isBatchAsr(RuntimeKeys.SHERPA_OFFLINE_TRANSDUCER))
+    }
+}
