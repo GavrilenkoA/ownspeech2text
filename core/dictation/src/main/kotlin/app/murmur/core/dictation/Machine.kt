@@ -15,7 +15,8 @@ import app.murmur.core.model.Stage
  * (state, event): anything a row does not mention leaves the state unchanged with no effects. Every timer value is
  * scaled by [DictationConfig.timeoutScale] here, except the LLM timer, which [CleanupBudget.plan] already scaled.
  *
- * Decisions beyond the table (WP-11 report): Discarded goes straight to Idle (the bubble maps it to Idle anyway);
+ * Decisions beyond the table (WP-11 report): row 39 shows plain Inserted for a user-chosen raw insert (see noCleanup);
+ * Discarded goes straight to Idle (the bubble maps it to Idle anyway);
  * every Done(Failed) starts the 6 s error dismiss timer and plays REJECT (DESIGN 5.3) unless the accessibility
  * service is gone (no overlay); Copied plays CLOCK_TICK (DESIGN 5.3); DELIVERY is started with every Deliver;
  * an ASR death in Arming after the preflight follows rows 21/22; a Tap also finishes a HOLD pill (recovers from a
@@ -374,7 +375,7 @@ object DictationMachine {
                 when (val r = e.result) {
                     // Row 39.
                     is DeliveryResult.Inserted -> Transition(
-                        DictationState.Done(s, DictationOutcome.Inserted(r.entry, noCleanup = !st.cleaned, skipReason = if (st.cleaned) null else st.cleanupOutcome)),
+                        DictationState.Done(s, DictationOutcome.Inserted(r.entry, noCleanup = noCleanup(st), skipReason = if (st.cleaned) null else st.cleanupOutcome)),
                         listOf(cancel, Effect.Haptic(HapticKind.CLOCK_TICK), Effect.StartTimer(s, Timer.RESULT_DISMISS, c.scaled(c.insertedShowMs)), idle),
                     )
                     // Row 40.
@@ -392,6 +393,13 @@ object DictationMachine {
             else -> Transition(st)
         }
     }
+
+    /**
+     * DESIGN 5.3: "Inserted, no cleanup" is for a cleanup that failed, timed out, did not fit or had no memory; a
+     * dictation the user chose to insert as recognised (cleanup None) or a password-context one shows plain Inserted.
+     */
+    private fun noCleanup(st: DictationState.Delivering): Boolean =
+        !st.cleaned && st.cleanupOutcome != "skipped:none" && st.cleanupOutcome != "skipped:password"
 
     private fun copied(s: SessionId, entry: EntryId?, c: DictationConfig, vararg extra: Effect) = Transition(
         DictationState.Done(s, DictationOutcome.Copied(entry)),

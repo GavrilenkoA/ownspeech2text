@@ -67,6 +67,8 @@ class InMemorySettingsRepository(initial: Settings = Settings()) : SettingsRepos
     private val _settings = MutableStateFlow(initial)
     override val settings: StateFlow<Settings> = _settings.asStateFlow()
     override suspend fun update(transform: (Settings) -> Settings) { _settings.value = transform(_settings.value) }
+    /** Non-suspending [update] for test setup. */
+    fun edit(transform: (Settings) -> Settings) { _settings.value = transform(_settings.value) }
 }
 
 /** Every artifact is "installed" under /fake/models/<id> unless listed in [missing]. */

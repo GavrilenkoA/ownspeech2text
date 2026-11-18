@@ -16,6 +16,7 @@ import app.murmur.core.model.UnitPreference
 import app.murmur.core.store.CleanupChoice
 import app.murmur.core.store.Settings
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeoutOrNull
@@ -85,6 +86,48 @@ class FakesTest {
         val events = FakeBenchmarkRunner().run(entry, cands).toList()
         val finished = events.last() as BenchProgress.Finished
         assertEquals(2, finished.records.size)
+    }
+
+    @Test
+    fun fakeCaptureIsPacedStopsOnStopAndWritesTheHistoryAudio() = runTest {
+        val store = InMemoryAudioStore()
+        val cap = FakeAudioCapture(pcm = syntheticSpeech(totalMs = 2_000), store = store)
+        val h = (cap.start(app.murmur.core.model.SessionId(1), keepRecording = true, audioKey = "k-1") as Outcome.Ok).value
+        val got = mutableListOf<PcmChunk>()
+        val job = launch { h.chunks.collect { got += it } }
+        kotlinx.coroutines.delay(1_010)
+        val r = h.stop()
+        job.join()
+        assertEquals(50, got.size)                                           // 1 s of 20 ms chunks, then the stream ends
+        assertEquals(1_000L, r.durationMs)
+        assertEquals(16_000, store.files.getValue(r.audio!!.path).size)
+        assertEquals(listOf("k-1"), cap.audioKeys)
+    }
+
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    @Test
+    fun shadeWaitReturnsTheTargetOnceCollapsedOrNullAfterTheTimeout() = runTest {
+        val r = FakeTargetReader(shadeDelayMs = 400)
+        val t0 = testScheduler.currentTime
+        assertEquals("org.telegram.messenger", r.snapshotAfterShade(1_000)?.pkg)
+        assertEquals(400, testScheduler.currentTime - t0)
+        r.shadeDelayMs = 5_000
+        assertNull(r.snapshotAfterShade(1_000))
+    }
+
+    @Test
+    fun resolverSkipsFailedUnitsLikeTheSelectorAndPreparesEveryUnit() = runTest {
+        val health = FakeUnitHealth()
+        val m = FakeModelResolver(npuFirst = true, health = health)
+        assertEquals(ComputeUnit.NPU, (m.resolve(Settings()) as Outcome.Ok).value.llm!!.spec.unit)
+        health.markFailed(m.llmNpu.artifactId, ComputeUnit.NPU, "engine.load.llm")
+        health.markFailed(m.asrNpu.artifactId, ComputeUnit.NPU, "engine.unit_unavailable")
+        val after = (m.resolve(Settings()) as Outcome.Ok).value
+        assertEquals(ComputeUnit.CPU, after.llm!!.spec.unit)
+        assertNull(after.llm!!.fallback)
+        assertEquals(ComputeUnit.CPU, after.asr.unit)
+        val llm = (FakeModelResolver(npuFirst = true).prepareTargets(m.llmCpu.artifactId, Settings()) as Outcome.Ok).value
+        assertEquals(listOf(ComputeUnit.NPU, ComputeUnit.CPU), llm.specs.map { it.unit })
     }
 
     @Test

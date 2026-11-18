@@ -43,7 +43,6 @@ import app.murmur.core.store.RetentionPolicy
 import app.murmur.core.store.Settings
 import app.murmur.core.store.SettingsRepository
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
@@ -541,8 +540,8 @@ class DictationOrchestrator(
         return true
     }
 
-    private fun sessionOptions(s: Settings) =
-        AsrSessionOptions(language = s.languages.singleOrNull()?.takeIf { !s.autoDetectLanguage || s.languages.size == 1 })
+    /** A language hint only when exactly one dictation language is selected; otherwise the model detects it. */
+    private fun sessionOptions(s: Settings) = AsrSessionOptions(language = s.languages.singleOrNull())
 
     private suspend fun loadLlm(r: SessionRun, llm: ActiveLlm, reload: Boolean) {
         val s = r.session
@@ -945,14 +944,19 @@ class DictationOrchestrator(
         return if (res.cleaned) Outcome.Ok(res.text) else Outcome.Err(res.error ?: MurmurError.LlmFailed(res.outcome))
     }
 
-    /** invalidatePrefix: the active LLM's snapshot for the current prompt inputs (loads the model if needed). */
+    /**
+     * invalidatePrefix: the active LLM's snapshot for the current prompt inputs (loads the model if needed). An
+     * optimisation only: skipped when the model does not fit in memory now (the next dictation decides again).
+     */
     private suspend fun rebuildPrefix() {
         val settings = deps.settings.settings.value
         val models = deps.models.resolve(settings).getOrNull() ?: return
         val llm = models.llm ?: return
+        val cfg = effectiveConfig(settings)
+        if (!settings.debugIgnoreMemoryGate && !keeper.llmWarm(llm) && deps.memory.availableMb() - llm.memoryMb < cfg.llmMemoryMarginMb) return
         val prefix = cleaner.prefix(llm, settings.preferences, cleaner.systemOverride(cleaner.profile(llm), settings))
         keeper.loadLlm(llm, llm.spec, prefix)
-        scheduleIdle(effectiveConfig(settings).idleUnloadMs)
+        scheduleIdle(cfg.idleUnloadMs)
     }
 
     /** ARCHITECTURE 8.5: prove [artifact] on every usable unit. */

@@ -1,0 +1,399 @@
+package app.murmur.core.dictation
+
+import app.murmur.core.dictation.DictationBubble.Inserted
+import app.murmur.core.dictation.DictationBubble.Listening
+import app.murmur.core.dictation.DictationBubble.Polishing
+import app.murmur.core.dictation.DictationBubble.Transcribing
+import app.murmur.core.model.AudioKey
+import app.murmur.core.model.ModelKind
+import app.murmur.core.model.MurmurError
+import app.murmur.core.model.SessionId
+import app.murmur.core.store.CleanupChoice
+import app.murmur.core.store.EntryStatus
+import app.murmur.core.store.InsertMethod
+import app.murmur.testing.FakeInAppTarget
+import app.murmur.testing.FakeTargetReader
+import app.murmur.testing.syntheticSpeech
+import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import java.time.Instant
+
+/** Orchestrator on FakeWorld + virtual time: the normal flow, delivery rules, context, modes (WP-11 acceptance). */
+class OrchestratorFlowTest {
+    private val origin = Instant.parse("2026-11-18T12:00:00Z")
+    private val cleaned = "Привет это тестовая диктовка."
+    private val raw = "привет это тестовая диктовка"
+
+    @Test fun happyPathInsertsWritesHistoryAndMetricsAndSchedulesTheIdleUnload() = runTest {
+        val h = harness()
+        h.dictate(stopAt = 2_800)
+        val e = h.only()
+        assertEquals(EntryStatus.INSERTED, e.status)
+        assertEquals(cleaned, e.finalText)
+        assertEquals(raw, e.rawText)
+        assertEquals("accept", e.cleanup?.outcome)
+        assertEquals("default.v4", e.cleanup?.promptVersion)
+        assertEquals(InsertMethod.COMMIT_TEXT, e.insertMethod)
+        assertEquals(2, e.contextWords)                                     // "Лёша Козлов": the count only
+        assertEquals(2_800L, e.timings.recordMs)
+        assertNotNull(e.timings.stopToDoneMs)
+        // Audio file named by AudioKey = createdAt-session (ADR-053), and it is the entry's audio.
+        val key = AudioKey.of(origin.toEpochMilli(), SessionId(1)).value
+        assertEquals(listOf(key), h.w.audio.audioKeys)
+        assertEquals("mem://audio/$key.ogg", e.audio?.path)
+        assertEquals(1, h.w.metrics.snapshot().size)
+        val m = h.w.metrics.snapshot().single()
+        assertEquals(4, m.wordsFinal)
+        assertTrue(m.cleanupApplied)
+        // I5: clipboard first, then the ladder.
+        assertEquals(listOf("clipboard", "insert"), h.w.inserter.calls)
+        assertEquals(listOf(cleaned), h.w.inserter.inserted)
+        // D5: both processes stay warm 60 s.
+        assertEquals(60_000L, h.w.engines.asrHost.idleExitMs)
+        assertEquals(60_000L, h.w.engines.llmHost.idleExitMs)
+        // ctx v2 reached the LLM with the screen text.
+        assertTrue(h.w.engines.llm.requests.single().suffix.contains("Лёша Козлов"))
+        assertEquals(DictationState.Idle, h.state)
+        h.assertNoInternalErrors()
+    }
+
+    @Test fun bubbleSequenceOfTheHappyPathWithASlowTailIsExact() = runTest {
+        val slow = harness { engines.asr.finishDelayMs = 500 }
+        slow.dictate(stopAt = 2_800)
+        assertEquals(listOf(DictationBubble.Idle, Listening(0, hold = false, warn = false), Listening(0, false, false, frozenAtMs = 2_800),
+            Transcribing, Polishing, Inserted(noCleanup = false), DictationBubble.Idle), slow.bubbles)
+        slow.assertNoInternalErrors()
+    }
+
+    @Test fun bubbleSequenceOfTheHappyPathWithAFastTailHasNoTranscribing() = runTest {
+        val fast = harness()
+        fast.dictate(stopAt = 2_800)
+        assertEquals(listOf(DictationBubble.Idle, Listening(0, false, false), Listening(0, false, false, frozenAtMs = 2_800),
+            Polishing, Inserted(noCleanup = false), DictationBubble.Idle), fast.bubbles)
+        fast.assertNoInternalErrors()
+    }
+
+    @Test fun deliveringKeepsTheFrozenListeningBubble() = runTest {
+        // Raw path: Delivering keeps the previous working bubble (here the frozen Listening pill): no flash.
+        val quick = harness { settings.edit { it.copy(cleanup = CleanupChoice.None) } }
+        quick.dictate(stopAt = 2_800)
+        assertEquals(listOf(DictationBubble.Idle, Listening(0, false, false), Listening(0, false, false, frozenAtMs = 2_800),
+            Inserted(noCleanup = false), DictationBubble.Idle), quick.bubbles)
+    }
+
+    @Test fun deliveringKeepsTranscribingAfterASlowTail() = runTest {
+        val slow = harness { settings.edit { it.copy(cleanup = CleanupChoice.None) }; engines.asr.finishDelayMs = 500 }
+        slow.dictate(stopAt = 2_800)
+        assertEquals(listOf(DictationBubble.Idle, Listening(0, false, false), Listening(0, false, false, frozenAtMs = 2_800),
+            Transcribing, Inserted(noCleanup = false), DictationBubble.Idle), slow.bubbles)
+    }
+
+    @Test fun cleanupNoneMakesNoLlmCallNeverShowsPolishingAndRecordsSkippedNone() = runTest {
+        val h = harness { settings.edit { it.copy(cleanup = CleanupChoice.None) } }
+        h.dictate()
+        assertTrue(h.w.engines.llm.loadAttempts.isEmpty())
+        assertTrue(h.w.engines.llm.requests.isEmpty())
+        assertFalse(Polishing in h.bubbles)
+        assertEquals(raw, h.only().finalText)
+        h.assertInserted("skipped:none")
+    }
+
+    @Test fun passwordAtDeliveryStoresAndCopiesNothing() = runTest {
+        val password = FakeTargetReader.defaultTarget().let {
+            it.copy(field = it.field!!.copy(inputType = 0x00000081, isPassword = true))
+        }
+        val h = harness { target.currentOverride = password }
+        h.dictate()
+        assertEquals(DictationState.Idle, h.state)
+        assertTrue(h.w.inserter.clipboard.isEmpty())
+        assertTrue(h.w.inserter.inserted.isEmpty())
+        assertTrue(h.history().isEmpty())
+        assertTrue(h.w.metrics.snapshot().isEmpty())
+        assertTrue(h.w.audioStore.files.isEmpty())                          // the recording is deleted too
+        assertTrue(h.outcomes().isEmpty())
+        h.assertNoInternalErrors()
+    }
+
+    @Test fun targetChangedIsCopied() = runTest {
+        val h = harness { target.currentOverride = FakeTargetReader.defaultTarget("com.other.app") }
+        h.dictate(stopAt = 2_800)
+        assertEquals(listOf(cleaned), h.w.inserter.clipboard)
+        assertTrue(h.w.inserter.inserted.isEmpty())
+        val e = h.only()
+        assertEquals(EntryStatus.COPIED, e.status)
+        assertEquals(InsertMethod.CLIPBOARD_ONLY, e.insertMethod)
+        assertEquals(DictationOutcome.Copied(e.id), h.outcomes().single())
+        h.assertNoInternalErrors()
+    }
+
+    @Test fun copiedPillTapOpensTheEntry() = runTest {
+        val h = harness { target.currentOverride = FakeTargetReader.defaultTarget("com.other.app") }
+        h.at(0); h.tap(); h.at(2_800); h.tap(); h.at(3_500)
+        assertTrue(h.state is DictationState.Done)
+        h.press(UserInput.ResultTap)
+        assertEquals(listOf(OpenTarget.Entry(h.only().id)), h.w.navigator.opened)
+        assertEquals(DictationState.Idle, h.state)
+        h.assertNoInternalErrors()
+    }
+
+    @Test fun insertionRejectedIsCopied() = runTest {
+        val h = harness { inserter.result = InsertResult.Failed(MurmurError.InsertRejected) }
+        h.dictate()
+        assertEquals(listOf(cleaned), h.w.inserter.clipboard)
+        assertEquals(EntryStatus.COPIED, h.only().status)
+        assertTrue(h.outcomes().single() is DictationOutcome.Copied)
+        h.assertNoInternalErrors()
+    }
+
+    @Test fun serviceLostWhileListeningFailsWithTheAudioKept() = runTest {
+        val h = harness()
+        h.at(0); h.tap(); h.at(1_000)
+        h.o.onAccessibilityLost()
+        h.scope.testScheduler.advanceUntilIdle()
+        assertEquals(DictationOutcome.Failed(MurmurError.AccessibilityOff, h.only().id), h.outcomes().single())
+        val e = h.only()
+        assertEquals(EntryStatus.FAILED, e.status)
+        assertEquals("perm.a11y", e.failureCode)
+        assertNotNull(e.audio)
+        assertTrue(h.w.audioStore.files.containsKey(e.audio!!.path))
+        assertTrue(h.w.inserter.clipboard.isEmpty())
+        h.assertNoInternalErrors()
+    }
+
+    @Test fun serviceLostInPolishingStoresTheTextButDeliversNothing() = runTest {
+        val h = harness { engines.llm.delayPerPieceMs = 500 }
+        h.at(0); h.tap(); h.at(2_800); h.tap(); h.at(3_000)
+        assertTrue(h.state is DictationState.Polishing)
+        h.o.onAccessibilityLost()
+        h.scope.testScheduler.advanceUntilIdle()
+        val e = h.only()
+        assertEquals(EntryStatus.FAILED, e.status)
+        assertEquals(cleaned, e.finalText)
+        assertEquals(DictationOutcome.Failed(MurmurError.AccessibilityOff, e.id), h.outcomes().single())
+        assertTrue(h.w.inserter.clipboard.isEmpty())
+        assertTrue(h.w.inserter.inserted.isEmpty())
+        h.assertNoInternalErrors()
+    }
+
+    @Test fun callSignalWhileListeningFinishesWithTheAudioSoFar() = runTest {
+        val h = harness()
+        h.at(0); h.tap(); h.at(1_200)
+        h.w.audio.signal(CaptureSignal.CallStarted)
+        h.scope.testScheduler.advanceUntilIdle()
+        val e = h.only()
+        assertEquals(EntryStatus.INSERTED, e.status)
+        assertEquals(1_200L, e.timings.recordMs)
+        assertEquals(1_200L * 16, h.w.engines.asr.sessions.single().samples)
+        assertTrue(h.states.any { it is DictationState.Finishing && it.stoppedAtMs == 1_200L })
+        h.assertNoInternalErrors()
+    }
+
+    @Test fun autoStopAtFiveMinutesAfterTheWarnAtFourThirty() = runTest {
+        val h = harness { audio.pcm = syntheticSpeech(totalMs = 320_000, speechMs = 310_000) }
+        h.at(0); h.tap()
+        h.at(269_000)
+        assertFalse((h.state as DictationState.Listening).warn)
+        h.at(270_000)
+        assertTrue((h.state as DictationState.Listening).warn)
+        assertEquals(Listening(0, false, warn = true), h.bubbles.last())
+        h.at(300_000)
+        assertTrue(h.state is DictationState.Finishing || h.state is DictationState.Polishing || h.state is DictationState.Delivering || h.state is DictationState.Done)
+        h.scope.testScheduler.advanceUntilIdle()
+        assertEquals(300_000L, h.only().timings.recordMs)
+        assertEquals(EntryStatus.INSERTED, h.only().status)
+        h.assertNoInternalErrors()
+    }
+
+    @Test fun cancelDuringListeningStoresNothing() = runTest {
+        val h = harness()
+        h.at(0); h.tap(); h.at(1_000)
+        h.press(UserInput.Cancel)
+        h.scope.testScheduler.advanceUntilIdle()
+        assertEquals(DictationState.Idle, h.state)
+        assertTrue(h.history().isEmpty())
+        assertTrue(h.w.metrics.snapshot().isEmpty())
+        assertTrue(h.w.audioStore.files.isEmpty())
+        assertTrue(h.w.audio.current!!.cancelled)
+        assertTrue(h.w.engines.asr.sessions.single().cancelled)
+        assertTrue(h.w.engines.llm.requests.isEmpty())
+        assertEquals(60_000L, h.w.engines.asrHost.idleExitMs)               // processes stay warm
+        h.assertNoInternalErrors()
+    }
+
+    @Test fun tapDuringArmingAfter300msStopsRightAfterTheMicStarts() = runTest {
+        val h = harness { audio.startDelayMs = 500 }
+        h.at(0); h.tap()
+        h.at(200); h.tap()                                                   // < 300 ms: double-tap protection
+        h.at(400); h.tap()                                                   // remembered
+        assertTrue((h.state as DictationState.Arming).stopRequested)
+        h.at(500)
+        val f = h.states.filterIsInstance<DictationState.Finishing>().first()
+        assertEquals(500L, f.stoppedAtMs)
+        assertTrue(h.states.none { it is DictationState.Listening })
+        assertTrue(h.w.audio.current!!.stopped)
+        h.scope.testScheduler.advanceUntilIdle()
+        h.assertNoInternalErrors()
+    }
+
+    @Test fun earlyTapIsIgnoredAndTheDictationKeepsListening() = runTest {
+        val h = harness { audio.startDelayMs = 500 }
+        h.at(0); h.tap(); h.at(200); h.tap(); h.at(600)
+        assertTrue(h.state is DictationState.Listening)
+        h.at(2_800); h.tap(); h.scope.testScheduler.advanceUntilIdle()
+        assertEquals(EntryStatus.INSERTED, h.only().status)
+    }
+
+    @Test fun notificationStartWaitsForTheShadeBeforeTheSnapshot() = runTest {
+        val h = harness { target.shadeDelayMs = 400 }
+        h.at(0); h.o.onInput(UserInput.NotificationStart); h.at(300)
+        assertTrue(h.state is DictationState.Arming)
+        assertTrue(h.w.feedback.haptics.isEmpty())                           // row 3: no haptic
+        h.at(400)
+        assertTrue(h.state is DictationState.Listening)
+        assertEquals(1, h.w.target.shadeWaits)
+        assertEquals(1_000L, h.w.target.lastShadeTimeoutMs)
+        assertEquals(0, h.w.target.snapshots)
+        h.at(2_800); h.tap(); h.scope.testScheduler.advanceUntilIdle()
+        assertEquals(EntryStatus.INSERTED, h.only().status)
+        h.assertNoInternalErrors()
+    }
+
+    @Test fun inAppPracticeInsertsIntoTheTargetAndStoresNothing() = runTest {
+        val h = harness()
+        val field = FakeInAppTarget()
+        h.at(0); h.o.startInApp(field); h.at(2_800); h.tap(); h.scope.testScheduler.advanceUntilIdle()
+        assertEquals(listOf(cleaned), field.inserted)
+        assertTrue(h.history().isEmpty())
+        assertTrue(h.w.metrics.snapshot().isEmpty())
+        assertTrue(h.w.inserter.clipboard.isEmpty())
+        assertEquals(listOf(false), h.w.audio.keepFlags)
+        assertEquals(0, h.w.target.screenshots)                             // privacy app_only: no screenshot
+        assertEquals(DictationOutcome.Inserted(null, noCleanup = false), h.outcomes().single())
+        h.assertNoInternalErrors()
+    }
+
+    @Test fun staleEventsOfAPreviousSessionAreIgnored() = runTest {
+        val h = harness { models.delayMs = 1_000 }
+        h.at(0); h.tap()                                                     // session 1: preflight answers at 1,000
+        h.at(400); h.press(UserInput.Cancel)
+        h.at(500); h.tap()                                                   // session 2: preflight answers at 1,500
+        h.at(1_200)
+        val st = h.state as DictationState.Arming
+        assertEquals(SessionId(2), st.session)
+        assertNull(st.plan)                                                  // session 1's PreflightPassed was dropped
+        h.at(3_500); h.tap(); h.scope.testScheduler.advanceUntilIdle()
+        assertEquals(EntryStatus.INSERTED, h.only().status)
+        assertTrue(h.only().audio!!.path.endsWith("-2.ogg"))
+        h.assertNoInternalErrors()
+    }
+
+    @Test fun retentionZeroWritesNoRowAndNoAudio() = runTest {
+        val h = harness { settings.edit { it.copy(retentionDays = 0) } }
+        h.dictate()
+        assertTrue(h.history().isEmpty())
+        assertTrue(h.w.audioStore.files.isEmpty())
+        assertEquals(listOf(false), h.w.audio.keepFlags)
+        assertEquals(1, h.w.metrics.snapshot().size)                         // numbers-only stats are independent (ADR-035)
+        assertEquals(DictationOutcome.Inserted(null, noCleanup = false), h.outcomes().single())
+        h.assertNoInternalErrors()
+    }
+
+    @Test fun ocrInTimeIsUsedByTheCleanup() = runTest {
+        val inTime = harness()
+        inTime.dictate(stopAt = 1_500)
+        assertTrue(inTime.w.engines.llm.requests.single().suffix.contains("Лёша Козлов"))
+        assertEquals(2, inTime.only().contextWords)
+        inTime.assertNoInternalErrors()
+    }
+
+    @Test fun lateOcrIsDroppedAfterContextWait() = runTest {
+        // OCR answers 3 s after the 0.6 s screenshot; the transcript is ready at 1.5 s: wait 800 ms, then no screen.
+        val late = harness { engines.ocr.delayMs = 3_000 }
+        late.at(0); late.tap(); late.at(1_500); late.tap(); late.at(2_299)
+        assertTrue(late.state is DictationState.Polishing && !(late.state as DictationState.Polishing).cleanupStarted)
+        late.at(2_300)
+        late.scope.testScheduler.advanceUntilIdle()
+        assertFalse(late.w.engines.llm.requests.single().suffix.contains("Лёша Козлов"))
+        assertNull(late.only().contextWords)
+        assertEquals("accept", late.only().cleanup?.outcome)
+        late.assertNoInternalErrors()
+    }
+
+    @Test fun secureWindowRunsCleanupWithoutTheScreen() = runTest {
+        val h = harness { target.screenshotError = MurmurError.SecureWindow }
+        h.dictate(stopAt = 2_800)
+        assertEquals(0, h.w.engines.ocr.calls)
+        assertFalse(h.w.engines.llm.requests.single().suffix.contains("Лёша Козлов"))
+        h.assertInserted("accept")
+    }
+
+    @Test fun micBusyFailsWithoutHistory() = runTest {
+        val h = harness { audio.startError = MurmurError.MicBusy }
+        h.at(0); h.tap(); h.at(100)
+        assertEquals(DictationBubble.Error(BubbleError.MIC_BUSY, null), h.o.bubble.value)
+        h.scope.testScheduler.advanceUntilIdle()
+        assertEquals(DictationOutcome.Failed(MurmurError.MicBusy, null), h.outcomes().single())
+        assertTrue(h.history().isEmpty())
+        assertTrue(HapticKind.REJECT in h.w.feedback.haptics)
+        h.assertNoInternalErrors()
+    }
+
+    @Test fun noAsrModelShowsOpenModelsAndTheActionOpensIt() = runTest { openModels(harness { models.noAsr = true }, MurmurError.NoAsrModel) }
+
+    @Test fun noVadModelShowsOpenModelsAndTheActionOpensIt() = runTest { openModels(harness { models.noVad = true }, MurmurError.NoVadModel) }
+
+    private fun openModels(h: Harness, error: MurmurError) {
+        h.at(0); h.tap(); h.at(100)
+        assertEquals(DictationBubble.Error(BubbleError.NO_MODEL, BubbleAction.OPEN_MODELS), h.o.bubble.value)
+        assertEquals(DictationOutcome.Failed(error, null), (h.state as DictationState.Done).outcome)
+        h.press(UserInput.ResultAction)
+        assertEquals(listOf(OpenTarget.Models(ModelKind.ASR)), h.w.navigator.opened)
+        assertEquals(DictationState.Idle, h.state)
+        assertTrue(h.history().isEmpty())
+        h.assertNoInternalErrors()
+    }
+
+    @Test fun noSpeechIsStoredWithAudioAndRetryStartsANewDictation() = runTest {
+        val h = harness { audio.pcm = ShortArray(48_000) }
+        h.at(0); h.tap(); h.at(2_800); h.tap(); h.at(3_000)
+        assertEquals(DictationBubble.Error(BubbleError.NO_SPEECH, BubbleAction.RETRY), h.o.bubble.value)
+        val e = h.only()
+        assertEquals(EntryStatus.FAILED, e.status)
+        assertEquals("audio.no_speech", e.failureCode)
+        assertNotNull(e.audio)
+        assertEquals(DictationOutcome.Failed(MurmurError.NoSpeech, e.id), (h.state as DictationState.Done).outcome)
+        h.press(UserInput.ResultAction); h.at(3_100)
+        assertEquals(SessionId(2), h.state.session)
+        assertTrue(h.state is DictationState.Listening)
+        assertEquals(2, h.w.audio.starts)
+        h.assertNoInternalErrors()
+    }
+
+    @Test fun holdToTalkFinishesOnRelease() = runTest {
+        val h = harness()
+        h.at(0); h.o.onInput(UserInput.HoldStart); h.at(2_000)
+        assertEquals(Listening(0, hold = true, warn = false), h.o.bubble.value)
+        h.o.onInput(UserInput.HoldRelease); h.scope.testScheduler.advanceUntilIdle()
+        assertEquals(EntryStatus.INSERTED, h.only().status)
+        assertTrue(h.bubbles.contains(Listening(0, hold = true, warn = false, frozenAtMs = 2_000)))
+        h.assertNoInternalErrors()
+    }
+
+    @Test fun joinPolicyIsAppliedAgainstTheCurrentField() = runTest {
+        val before = FakeTargetReader.defaultTarget().let { it.copy(field = it.field!!.copy(beforeCursor = "Смотри, ")) }
+        val h = harness { target.target = before }
+        h.dictate()
+        assertEquals(listOf("привет это тестовая диктовка."), h.w.inserter.inserted)   // mid-sentence, accepted: lowercased
+        assertEquals(cleaned, h.only().finalText)                                        // history keeps the text itself
+        val word = FakeTargetReader.defaultTarget().let { it.copy(field = it.field!!.copy(beforeCursor = "Смотри")) }
+        val h2 = harness { target.target = word; settings.edit { it.copy(cleanup = CleanupChoice.None) } }
+        h2.dictate()
+        assertEquals(listOf(" $raw"), h2.w.inserter.inserted)
+    }
+
+}

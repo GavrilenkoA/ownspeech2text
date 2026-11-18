@@ -90,8 +90,9 @@ class DictationMachineTest {
         assertEquals(ContextReadiness.Pending, st.engines.context)
         assertEquals(listOf(Effect.PrepareEngines(s, plan), Effect.CaptureContext(s, 600)), r.effects)
         val raw = reduce(arming(), DictationEvent.PreflightPassed(s, rawPlan))
-        assertEquals(LlmReadiness.NotRequested("none"), (raw.state as DictationState.Arming).engines.llm)
-        assertEquals(ContextReadiness.NotRequested, (raw.state as DictationState.Arming).engines.context)
+        val rawArming = raw.state as DictationState.Arming
+        assertEquals(LlmReadiness.NotRequested("none"), rawArming.engines.llm)
+        assertEquals(ContextReadiness.NotRequested, rawArming.engines.context)
         assertEquals(listOf(Effect.PrepareEngines(s, rawPlan)), raw.effects)
     }
 
@@ -398,6 +399,8 @@ class DictationMachineTest {
             Effect.ScheduleIdleUnload(60_000)), r.effects)
         val raw = reduce(delivering(cleaned = false, outcome = "skipped:timeout"), DictationEvent.Delivered(s, DeliveryResult.Inserted(entry, InsertMethod.PASTE)))
         assertEquals(DictationState.Done(s, DictationOutcome.Inserted(entry, noCleanup = true, skipReason = "skipped:timeout")), raw.state)
+        val none = reduce(delivering(cleaned = false, outcome = "skipped:none"), DictationEvent.Delivered(s, DeliveryResult.Inserted(entry, InsertMethod.PASTE)))
+        assertEquals(DictationState.Done(s, DictationOutcome.Inserted(entry, noCleanup = false, skipReason = "skipped:none")), none.state)
     }
 
     @Test fun row40_copiedOnlyShowsCopiedFor4s() {
