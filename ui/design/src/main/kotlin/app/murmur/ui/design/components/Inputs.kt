@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -136,29 +137,41 @@ fun SearchField(
                 .clip(MurmurShapes.full)
                 .background(if (active) c.surface else c.surface2)
                 .then(if (active) Modifier.border(2.dp, c.ink, MurmurShapes.full) else Modifier)
-                .padding(start = 16.dp, end = if (active && query.isNotEmpty()) 2.dp else 16.dp),
+                .padding(end = if (active && query.isNotEmpty()) 2.dp else 0.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            if (!active) Icon(MurmurIcons.search, null, tint = c.ink3, modifier = Modifier.size(20.dp))
-            Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
-                if (query.isEmpty()) {
-                    Text(hint, style = textStyle, color = if (active) c.ink3 else c.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                }
-                BasicTextField(
-                    value = query,
-                    onValueChange = { if (!active) onActivate(); onQueryChange(it) },
-                    singleLine = true,
-                    textStyle = textStyle,
-                    cursorBrush = SolidColor(c.accent),
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                    keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = { onSearch() }),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .focusRequester(focusRequester)
-                        .onFocusChanged { if (it.isFocused && !active) onActivate() },
-                )
-            }
+            // The text field spans the whole pill (minus the clear button), so the full 48 dp height focuses it.
+            BasicTextField(
+                value = query,
+                onValueChange = { if (!active) onActivate(); onQueryChange(it) },
+                singleLine = true,
+                textStyle = textStyle,
+                cursorBrush = SolidColor(c.accent),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = { onSearch() }),
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .focusRequester(focusRequester)
+                    .onFocusChanged { if (it.isFocused && !active) onActivate() },
+                decorationBox = { inner ->
+                    Row(
+                        Modifier
+                            .fillMaxHeight()
+                            .padding(start = 16.dp, end = if (active && query.isNotEmpty()) 4.dp else 16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        if (!active) Icon(MurmurIcons.search, null, tint = c.ink3, modifier = Modifier.size(20.dp))
+                        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+                            if (query.isEmpty()) {
+                                Text(hint, style = textStyle, color = if (active) c.ink3 else c.ink2, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                            inner()
+                        }
+                    }
+                },
+            )
             if (active && query.isNotEmpty()) {
                 MurmurIconButton(MurmurIcons.x, stringResource(R.string.design_clear_search), { onQueryChange("") }, small = true)
             }

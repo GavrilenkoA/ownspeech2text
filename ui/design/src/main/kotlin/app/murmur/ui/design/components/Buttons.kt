@@ -90,9 +90,10 @@ fun MurmurButton(
         textLike -> MinTouch
         else -> Sizes.button
     }
+    // Prototype: .btn.sm (padding 0 16) is declared after .btn.t (0 12), so small text buttons get 16 too.
     val hPad = when {
-        textLike -> 12.dp
         size == ButtonSize.Small -> 16.dp
+        textLike -> 12.dp
         else -> 24.dp
     }
     val container = when (style) {

@@ -123,7 +123,6 @@ fun ComponentGallery(modifier: Modifier = Modifier, scrollState: ScrollState = r
         "App tiles" to { TileSection() },
         "Skeleton" to { SkeletonSection() },
         "Empty state" to { EmptySection() },
-        "Bars" to { BarSection() },
         "Navigation" to { NavSection(wide) },
     )
     Column(
@@ -145,7 +144,8 @@ fun ComponentGallery(modifier: Modifier = Modifier, scrollState: ScrollState = r
         } else {
             sections.forEach { (t, s) -> Section(t, s) }
         }
-        // Full width: the side sheet is 420 dp wide on medium+.
+        // Full width on medium+: the top bar needs a detail pane's width, the side sheet is 420 dp wide.
+        if (wide) Row(Modifier.padding(horizontal = 8.dp)) { Column { Section("Bars") { BarSection() } } } else Section("Bars") { BarSection() }
         Section(if (wide) "Sheet (side, medium+)" else "Sheet (bottom, compact)") { SheetSection(wide) }
     }
 }
@@ -203,7 +203,7 @@ private fun ColorSection() {
     @OptIn(ExperimentalLayoutApi::class)
     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         roles.forEach { (name, color) ->
-            Column(Modifier.width(72.dp)) {
+            Column(Modifier.width(92.dp)) {
                 Box(Modifier.fillMaxWidth().height(28.dp).clip(MurmurShapes.xs).background(color).border(1.dp, c.line, MurmurShapes.xs))
                 Text(name, style = MurmurTheme.type.caption, color = c.ink2, maxLines = 1)
             }
@@ -248,9 +248,10 @@ private fun ButtonSection() {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun IconButtonSection() {
-    Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), itemVerticalAlignment = Alignment.CenterVertically) {
         MurmurIconButton(MurmurIcons.search, "Search", {})
         MurmurIconButton(MurmurIcons.share, "Share", {}, interactionSource = pressedSource())
         MurmurIconButton(MurmurIcons.pause, "Pause download", {}, tonal = true, small = true, iconSize = 18.dp)
@@ -351,11 +352,12 @@ private fun ListSection() {
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ControlSection() {
     var s by remember { mutableStateOf(true) }
     var r by remember { mutableStateOf(true) }
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    FlowRow(itemVerticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         MurmurSwitch(s, { s = it })
         MurmurSwitch(!s, { s = !it })
         MurmurSwitch(true, {}, enabled = false)
@@ -535,7 +537,7 @@ private fun NavSection(wide: Boolean) {
     var sel by remember { mutableIntStateOf(1) }
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Box(Modifier.clip(MurmurShapes.lg)) { MurmurNavigationBar(items, sel, { sel = it }) }
-        Row(Modifier.height(360.dp).clip(MurmurShapes.lg)) {
+        Row(Modifier.height(400.dp).clip(MurmurShapes.lg)) {
             MurmurNavigationRail(items, sel, { sel = it })
             Box(Modifier.fillMaxSize().background(MurmurTheme.colors.bg).padding(Spacing.s16)) {
                 Caption(if (wide) "Rail: medium+ width" else "Rail (shown on medium+ width)")
