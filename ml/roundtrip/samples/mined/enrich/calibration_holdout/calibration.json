@@ -1,0 +1,286 @@
+{
+ "gigaam-v2@enrich-dataset": {
+  "all_lower_rate": {
+   "gap": 0.0158,
+   "mined": 0.0086,
+   "ok": true,
+   "real": 0.0029,
+   "sampler_gap": 0.0101,
+   "sim": 0.0187,
+   "support": 694,
+   "tol": 0.08
+  },
+  "cer": {
+   "gap": -0.0021,
+   "mined": 0.0082,
+   "ok": true,
+   "real": 0.0093,
+   "sampler_gap": -0.001,
+   "sim": 0.0072,
+   "support": 8105,
+   "tol": 0.05
+  },
+  "digits_kept_rate": {
+   "gap": null,
+   "mined": null,
+   "ok": null,
+   "real": null,
+   "sampler_gap": null,
+   "sim": null,
+   "support": 0,
+   "tol": 0.1
+  },
+  "empty_rate": {
+   "gap": 0.0,
+   "mined": 0.0,
+   "ok": true,
+   "real": 0.0,
+   "sampler_gap": 0.0,
+   "sim": 0.0,
+   "support": 763,
+   "tol": 0.05
+  },
+  "first_upper_rate": {
+   "gap": -0.0166,
+   "mined": 0.9803,
+   "ok": true,
+   "real": 0.9899,
+   "sampler_gap": -0.007,
+   "sim": 0.9733,
+   "support": 694,
+   "tol": 0.08
+  },
+  "latin_kept_rate": {
+   "gap": null,
+   "mined": null,
+   "ok": null,
+   "real": null,
+   "sampler_gap": null,
+   "sim": null,
+   "support": 0,
+   "tol": 0.1
+  },
+  "punct_any_rate": {
+   "gap": -0.0598,
+   "mined": 0.9896,
+   "ok": true,
+   "real": 0.9957,
+   "sampler_gap": -0.0537,
+   "sim": 0.9359,
+   "support": 694,
+   "tol": 0.08
+  },
+  "tail_rate": {
+   "gap": -0.0013,
+   "mined": 0.0006,
+   "ok": true,
+   "real": 0.0013,
+   "sampler_gap": -0.0006,
+   "sim": 0.0,
+   "support": 763,
+   "tol": 0.05
+  },
+  "term_error_rate": {
+   "gap": null,
+   "mined": null,
+   "ok": null,
+   "real": null,
+   "sampler_gap": null,
+   "sim": null,
+   "support": 0,
+   "tol": 0.08
+  },
+  "term_exact_rate": {
+   "gap": null,
+   "mined": null,
+   "ok": null,
+   "real": null,
+   "sampler_gap": null,
+   "sim": null,
+   "support": 0,
+   "tol": 0.08
+  },
+  "terminal_kept_rate": {
+   "gap": -0.0156,
+   "mined": 0.9759,
+   "ok": true,
+   "real": 0.9885,
+   "sampler_gap": -0.003,
+   "sim": 0.9729,
+   "support": 694,
+   "tol": 0.1
+  },
+  "wer": {
+   "gap": -0.0066,
+   "mined": 0.025,
+   "ok": true,
+   "real": 0.0281,
+   "sampler_gap": -0.0035,
+   "sim": 0.0215,
+   "support": 8105,
+   "tol": 0.05
+  },
+  "wer_style_aware": {
+   "gap": -0.0031,
+   "mined": 0.021,
+   "ok": true,
+   "real": 0.0236,
+   "sampler_gap": -0.0005,
+   "sim": 0.0205,
+   "support": 8105,
+   "tol": 0.03
+  },
+  "words_to_digits_rate": {
+   "gap": -0.2206,
+   "mined": 0.3333,
+   "ok": null,
+   "real": 0.75,
+   "sampler_gap": 0.1961,
+   "sim": 0.5294,
+   "support": 8,
+   "tol": 0.1
+  }
+ },
+ "nemotron-3.5-transcribe@enrich-dataset": {
+  "all_lower_rate": {
+   "gap": 0.0043,
+   "mined": 0.0019,
+   "ok": true,
+   "real": 0.0015,
+   "sampler_gap": 0.0039,
+   "sim": 0.0058,
+   "support": 683,
+   "tol": 0.08
+  },
+  "cer": {
+   "gap": -0.0117,
+   "mined": 0.0251,
+   "ok": true,
+   "real": 0.0333,
+   "sampler_gap": -0.0035,
+   "sim": 0.0216,
+   "support": 8105,
+   "tol": 0.05
+  },
+  "digits_kept_rate": {
+   "gap": null,
+   "mined": null,
+   "ok": null,
+   "real": null,
+   "sampler_gap": null,
+   "sim": null,
+   "support": 0,
+   "tol": 0.1
+  },
+  "empty_rate": {
+   "gap": -0.0052,
+   "mined": 0.0098,
+   "ok": true,
+   "real": 0.017,
+   "sampler_gap": 0.002,
+   "sim": 0.0118,
+   "support": 763,
+   "tol": 0.05
+  },
+  "first_upper_rate": {
+   "gap": -0.0065,
+   "mined": 0.9969,
+   "ok": true,
+   "real": 0.9985,
+   "sampler_gap": -0.0049,
+   "sim": 0.992,
+   "support": 683,
+   "tol": 0.08
+  },
+  "latin_kept_rate": {
+   "gap": null,
+   "mined": null,
+   "ok": null,
+   "real": null,
+   "sampler_gap": null,
+   "sim": null,
+   "support": 0,
+   "tol": 0.1
+  },
+  "punct_any_rate": {
+   "gap": -0.0686,
+   "mined": 0.9969,
+   "ok": true,
+   "real": 0.9985,
+   "sampler_gap": -0.067,
+   "sim": 0.9299,
+   "support": 694,
+   "tol": 0.08
+  },
+  "tail_rate": {
+   "gap": 0.0,
+   "mined": 0.0,
+   "ok": true,
+   "real": 0.0,
+   "sampler_gap": 0.0,
+   "sim": 0.0,
+   "support": 763,
+   "tol": 0.05
+  },
+  "term_error_rate": {
+   "gap": null,
+   "mined": null,
+   "ok": null,
+   "real": null,
+   "sampler_gap": null,
+   "sim": null,
+   "support": 0,
+   "tol": 0.08
+  },
+  "term_exact_rate": {
+   "gap": null,
+   "mined": null,
+   "ok": null,
+   "real": null,
+   "sampler_gap": null,
+   "sim": null,
+   "support": 0,
+   "tol": 0.08
+  },
+  "terminal_kept_rate": {
+   "gap": -0.0156,
+   "mined": 0.9823,
+   "ok": true,
+   "real": 0.9819,
+   "sampler_gap": -0.016,
+   "sim": 0.9663,
+   "support": 694,
+   "tol": 0.1
+  },
+  "wer": {
+   "gap": -0.0217,
+   "mined": 0.056,
+   "ok": true,
+   "real": 0.0669,
+   "sampler_gap": -0.0108,
+   "sim": 0.0452,
+   "support": 8105,
+   "tol": 0.05
+  },
+  "wer_style_aware": {
+   "gap": -0.0163,
+   "mined": 0.0499,
+   "ok": true,
+   "real": 0.0611,
+   "sampler_gap": -0.0051,
+   "sim": 0.0448,
+   "support": 8105,
+   "tol": 0.03
+  },
+  "words_to_digits_rate": {
+   "gap": -0.1111,
+   "mined": 0.0,
+   "ok": null,
+   "real": 0.1111,
+   "sampler_gap": 0.0,
+   "sim": 0.0,
+   "support": 9,
+   "tol": 0.1
+  }
+ }
+}

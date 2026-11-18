@@ -1,0 +1,18 @@
+# a11y nofgs recording with a 440 Hz / amp 8000 tone injected via emulator gRPC injectAudio (+ setMicrophoneState realAudioEnabled=true); host has no PulseAudio ('Could not init pa audio driver'). Tone never reached the guest: peak stays 8, so sample content on this emulator is not evidence either way; isClientSilenced is.
+  1867  1867 I MurmurSpike: EV bubble_tap {"pid":1867,"up":129540,"display":0}
+  1867  1867 I MurmurSpike: EV dictation_start {"pid":1867,"up":129570,"micMode":"nofgs","targetPkg":"com.google.android.apps.nexuslauncher","targetWindow":8,"imeStarted":true,"imePkg":"com.google.android.apps.nexuslauncher"}
+  1867  1867 I MurmurSpike: EV rec_started {"pid":1867,"up":129799,"label":"a11y-nofgs","recordingState":3,"session":185}
+  1867  3583 I MurmurSpike: EV rec_config {"pid":1867,"up":129862,"label":"a11y-nofgs","silenced":false,"source":6,"device":"sdk_gphone64_x86_64"}
+  1867  2119 I MurmurSpike: EV context {"pid":1867,"up":130026,"data":{"windows":[{"id":1,"type":4,"layer":2,"focused":false,"active":false,"display":0,"title":"MurmurBubble","pkg":"app.murmur.spike"},{"id":16,"type":3,"layer":1,"focused":false,"active":false,"display":0,"pkg":"com.android.systemui"},{"id":8,"type":1,"layer":0,"focused":true,"active":true,"display":0,"title":"Home","pkg":"com.google.android.apps.nexuslauncher"}],"displaysWithWindows":[0],"rootInActiveWindowPkg":"com.google.android.apps.nexuslauncher","foregroundPkg":"com.google.android.apps.nexuslauncher","texts":[],"nodesVisited":0,"ime":{"started":true,"pkg":"com.google.android.apps.nexuslauncher","inputType":0,"fieldId":0},"ms":220}}
+  1867  3581 I MurmurSpike: EV rec_tick {"pid":1867,"up":130817,"label":"a11y-nofgs","t":1,"nonZeroFrac":"0.062","silenced":false}
+  1867  1867 I MurmurSpike: EV rec_first_buffer {"pid":1867,"up":131477,"label":"a11y-nofgs","ms":357,"silenced":false}
+  1867  1867 I MurmurSpike: EV shot {"pid":1867,"up":131478,"reason":"tap","msSinceTap":667,"r":{"kind":"window","id":8,"ok":true,"ms":128,"w":1080,"h":2520,"centreLuma":0,"file":"window_130691.png"}}
+  1867  3581 I MurmurSpike: EV rec_tick {"pid":1867,"up":131823,"label":"a11y-nofgs","t":2,"nonZeroFrac":"0.000","silenced":false}
+  1867  3581 I MurmurSpike: EV rec_tick {"pid":1867,"up":132845,"label":"a11y-nofgs","t":3,"nonZeroFrac":"0.000","silenced":false}
+  1867  3581 I MurmurSpike: EV rec_tick {"pid":1867,"up":134016,"label":"a11y-nofgs","t":4,"nonZeroFrac":"0.000","silenced":false}
+  1867  3581 I MurmurSpike: EV rec_tick {"pid":1867,"up":134851,"label":"a11y-nofgs","t":5,"nonZeroFrac":"0.000","silenced":false}
+  1867  1867 I MurmurSpike: EV shot {"pid":1867,"up":135353,"reason":"tap","r":{"kind":"display","id":0,"ok":true,"ms":47,"w":1080,"h":2520,"centreLuma":17,"file":"display_131703.png"}}
+  1867  3581 I MurmurSpike: EV rec_tick {"pid":1867,"up":135858,"label":"a11y-nofgs","t":6,"nonZeroFrac":"0.000","silenced":false}
+  1867  3581 I MurmurSpike: EV rec_tick {"pid":1867,"up":136874,"label":"a11y-nofgs","t":7,"nonZeroFrac":"0.000","silenced":false}
+  1867  1867 I MurmurSpike: EV bubble_tap {"pid":1867,"up":137457,"display":0}
+  1867  1867 I MurmurSpike: EV dictation_stop {"pid":1867,"up":137526,"rec":{"label":"a11y-nofgs","samples":121280,"seconds":7.58,"nonZero":928,"peak":8,"firstBufferMs":357,"silencedAtStop":false,"silencedCallback":false}}

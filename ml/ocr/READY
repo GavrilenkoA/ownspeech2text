@@ -1,0 +1,7 @@
+ml/ocr ready (interface of docs/ml/CONTEXT_V2.md), 2026-11-18.
+  python -m ml.ocr.run IMG [--exclude x0,y0,x1,y1 ...]  -> {"size", "lines"}
+  from ml.ocr.pipeline import run; run(image, exclude_rects=()) -> dict
+Venv: .cache/ml/ocr/venv (ml/ocr/requirements.txt). Models: .cache/ml/ocr/ (MURMUR_OCR_MODELS to override).
+Output is deterministic (byte-identical across runs and thread counts). Pipeline constants: ml/ocr/config.py
+(PIPELINE_VERSION in each golden file); they may still be tuned, the interface will not change.
+Tests: .cache/ml/ocr/venv/bin/python -m pytest -q ml/ocr/tests

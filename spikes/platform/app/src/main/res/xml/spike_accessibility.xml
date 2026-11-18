@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Same configuration as docs/research/android-platform.md section 2.1. -->
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityEventTypes="typeViewFocused|typeWindowStateChanged|typeWindowsChanged|typeViewTextSelectionChanged"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:accessibilityFlags="flagRetrieveInteractiveWindows|flagInputMethodEditor|flagReportViewIds"
+    android:canRetrieveWindowContent="true"
+    android:canTakeScreenshot="true"
+    android:isAccessibilityTool="false"
+    android:notificationTimeout="100"
+    android:description="@string/a11y_description"
+    android:summary="@string/a11y_summary"
+    android:settingsActivity="app.murmur.spike.MainActivity" />

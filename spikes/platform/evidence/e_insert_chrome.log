@@ -1,0 +1,69 @@
+### chrome-index commit
+  1867  1867 I MurmurSpike: EV cmd {"pid":1867,"up":797005,"c":"insert"}
+  1867  1867 I MurmurSpike: EV insert_try {"pid":1867,"up":800647,"r":{"method":"commit","node":{"cls":"android.widget.EditText","pkg":"com.android.chrome","editable":true,"password":false,"text":"abc ","hint":"chrome input","showingHint":false,"selStart":4,"selEnd":4,"inputType":1,"viewId":"f","window":86,"dataSensitive":false,"actions":[16908342,16908348,16908372,1024,2048,256,512,2097152,32768,131072,65536,16384,2,16,128]},"focusPath":"bfs(findFocus=android.widget.FrameLayout)","imeStarted":true,"imePkg":"com.android.chrome","called":true,"readBack":{"nodeText":"abc Murmur_ok","nodeContains":true,"surrounding":"abc Murmur_ok","surroundingContains":true},"ms":3642,"verified":true}}
+  1867  1867 I MurmurSpike: EV insert_result {"pid":1867,"up":800647,"method":"commit","ok":true}
+  1867  1867 I MurmurSpike: EV service_unbind {"pid":1867,"up":802218}
+  1867  1867 I MurmurSpike: EV bubble_detached {"pid":1867,"up":802381,"display":0}
+  1867  1867 I MurmurSpike: EV service_destroy {"pid":1867,"up":802398}
+  1867  1867 I MurmurSpike: EV service_connected {"pid":1867,"up":803354,"sdk":36,"flags":32848,"caps":129,"isAccessibilityTool":false,"inputMethod":true}
+  1867  1867 I MurmurSpike: EV bubble_attached {"pid":1867,"up":803405,"display":0,"ok":true,"type":2032,"bounds":"[0,0][1080,2520]"}
+  1867  1867 I MurmurSpike: EV ime_start_input {"pid":1867,"up":803421,"pkg":"com.android.chrome","inputType":49313,"hint":null,"fieldId":-1,"restarting":true}
+PAGE_ECHO: echo:abc Murmur_ok 
+### chrome-index paste
+  1867  1867 I MurmurSpike: EV cmd {"pid":1867,"up":812348,"c":"insert"}
+  1867  1867 I MurmurSpike: EV insert_try {"pid":1867,"up":813077,"r":{"method":"paste","node":{"cls":"android.widget.EditText","pkg":"com.android.chrome","editable":true,"password":false,"text":"abc ","hint":"chrome input","showingHint":false,"selStart":4,"selEnd":4,"inputType":1,"viewId":"f","window":86,"dataSensitive":false,"actions":[16908342,16908348,16908372,1024,2048,256,512,2097152,32768,131072,65536,16384,2,128,16]},"focusPath":"bfs(findFocus=android.widget.FrameLayout)","clipOk":true,"performAction":true,"called":true,"readBack":{"nodeText":"abc ","nodeContains":false,"surrounding":"abc Murmur_ok","surroundingContains":true},"ms":729,"verified":true}}
+  1867  1867 I MurmurSpike: EV insert_result {"pid":1867,"up":813077,"method":"paste","ok":true}
+  1867  1867 I MurmurSpike: EV fg_window_state {"pid":1867,"up":813302,"pkg":"com.android.systemui","cls":"android.widget.FrameLayout"}
+  1867  1867 I MurmurSpike: EV service_unbind {"pid":1867,"up":816631}
+  1867  1867 I MurmurSpike: EV bubble_detached {"pid":1867,"up":816824,"display":0}
+  1867  1867 I MurmurSpike: EV service_destroy {"pid":1867,"up":816824}
+  1867  1867 I MurmurSpike: EV service_connected {"pid":1867,"up":817767,"sdk":36,"flags":32848,"caps":129,"isAccessibilityTool":false,"inputMethod":true}
+  1867  1867 I MurmurSpike: EV bubble_attached {"pid":1867,"up":817904,"display":0,"ok":true,"type":2032,"bounds":"[0,0][1080,2520]"}
+  1867  1867 I MurmurSpike: EV ime_start_input {"pid":1867,"up":817906,"pkg":"com.android.chrome","inputType":49313,"hint":null,"fieldId":-1,"restarting":true}
+PAGE_ECHO: echo:abc Murmur_ok 
+### chrome-index settext
+  1867  1867 I MurmurSpike: EV cmd {"pid":1867,"up":827323,"c":"insert"}
+  1867  1867 I MurmurSpike: EV insert_try {"pid":1867,"up":827738,"r":{"method":"settext","node":{"cls":"android.widget.EditText","pkg":"com.android.chrome","editable":true,"password":false,"text":"abc ","hint":"chrome input","showingHint":false,"selStart":4,"selEnd":4,"inputType":1,"viewId":"f","window":86,"dataSensitive":false,"actions":[16908342,16908348,16908372,1024,2048,256,512,2097152,32768,131072,65536,16384,2,16,128]},"focusPath":"bfs(findFocus=android.widget.FrameLayout)","setText":true,"setSelection":true,"composed":"abc Murmur_ok","called":true,"readBack":{"nodeText":"abc Murmur_ok","nodeContains":true,"surrounding":"abc Murmur_ok","surroundingContains":true},"ms":415,"verified":true}}
+  1867  1867 I MurmurSpike: EV insert_result {"pid":1867,"up":827739,"method":"settext","ok":true}
+  1867  1867 I MurmurSpike: EV service_unbind {"pid":1867,"up":830904}
+  1867  1867 I MurmurSpike: EV bubble_detached {"pid":1867,"up":830951,"display":0}
+  1867  1867 I MurmurSpike: EV service_destroy {"pid":1867,"up":830951}
+  1867  1867 I MurmurSpike: EV service_connected {"pid":1867,"up":831991,"sdk":36,"flags":32848,"caps":129,"isAccessibilityTool":false,"inputMethod":true}
+  1867  1867 I MurmurSpike: EV bubble_attached {"pid":1867,"up":832012,"display":0,"ok":true,"type":2032,"bounds":"[0,0][1080,2520]"}
+PAGE_ECHO: echo:abc Murmur_ok 
+### chrome-ce commit
+  1867  1867 I MurmurSpike: EV cmd {"pid":1867,"up":840260,"c":"insert"}
+  1867  1867 I MurmurSpike: EV insert_try {"pid":1867,"up":840598,"r":{"method":"commit","node":{"cls":"android.widget.EditText","pkg":"com.android.chrome","editable":true,"password":false,"text":"abc ","hint":"","showingHint":false,"selStart":4,"selEnd":4,"inputType":0,"viewId":"f","window":86,"dataSensitive":false,"actions":[16908342,16908348,16908372,1024,2048,256,512,2097152,32768,131072,65536,16384,2,128]},"focusPath":"bfs(findFocus=android.widget.FrameLayout)","imeStarted":true,"imePkg":"com.android.chrome","called":true,"readBack":{"nodeText":"abc Murmur_ok","nodeContains":true,"surrounding":"abc Murmur_ok","surroundingContains":true},"ms":337,"verified":true}}
+  1867  1867 I MurmurSpike: EV insert_result {"pid":1867,"up":840599,"method":"commit","ok":true}
+  1867  1867 I MurmurSpike: EV service_unbind {"pid":1867,"up":843994}
+  1867  1867 I MurmurSpike: EV bubble_detached {"pid":1867,"up":844148,"display":0}
+  1867  1867 I MurmurSpike: EV service_destroy {"pid":1867,"up":844155}
+  1867  1867 I MurmurSpike: EV service_connected {"pid":1867,"up":845127,"sdk":36,"flags":32848,"caps":129,"isAccessibilityTool":false,"inputMethod":true}
+  1867  1867 I MurmurSpike: EV bubble_attached {"pid":1867,"up":845165,"display":0,"ok":true,"type":2032,"bounds":"[0,0][1080,2520]"}
+  1867  1867 I MurmurSpike: EV ime_start_input {"pid":1867,"up":845206,"pkg":"com.android.chrome","inputType":180385,"hint":null,"fieldId":-1,"restarting":true}
+  1867  1867 I MurmurSpike: EV fg_window_state {"pid":1867,"up":846380,"pkg":"app.murmur.spike","cls":"androidx.compose.ui.platform.ComposeView"}
+PAGE_ECHO: echo:abc Murmur_ok 
+### chrome-ce paste
+  1867  1867 I MurmurSpike: EV cmd {"pid":1867,"up":854186,"c":"insert"}
+  1867  1867 I MurmurSpike: EV insert_try {"pid":1867,"up":854770,"r":{"method":"paste","node":{"cls":"android.widget.EditText","pkg":"com.android.chrome","editable":true,"password":false,"text":"abc ","hint":"","showingHint":false,"selStart":4,"selEnd":4,"inputType":0,"viewId":"f","window":86,"dataSensitive":false,"actions":[16908342,16908348,16908372,1024,2048,256,512,2097152,32768,131072,65536,16384,2,128]},"focusPath":"bfs(findFocus=android.widget.FrameLayout)","clipOk":true,"performAction":true,"called":true,"readBack":{"nodeText":"abc ","nodeContains":false,"surrounding":"abc Murmur_ok","surroundingContains":true},"ms":572,"verified":true}}
+  1867  1867 I MurmurSpike: EV insert_result {"pid":1867,"up":854770,"method":"paste","ok":true}
+  1867  1867 I MurmurSpike: EV fg_window_state {"pid":1867,"up":854925,"pkg":"com.android.systemui","cls":"android.widget.FrameLayout"}
+  1867  1867 I MurmurSpike: EV service_unbind {"pid":1867,"up":857930}
+  1867  1867 I MurmurSpike: EV bubble_detached {"pid":1867,"up":857971,"display":0}
+  1867  1867 I MurmurSpike: EV service_destroy {"pid":1867,"up":857972}
+  1867  1867 I MurmurSpike: EV service_connected {"pid":1867,"up":859045,"sdk":36,"flags":32848,"caps":129,"isAccessibilityTool":false,"inputMethod":true}
+  1867  1867 I MurmurSpike: EV bubble_attached {"pid":1867,"up":859067,"display":0,"ok":true,"type":2032,"bounds":"[0,0][1080,2520]"}
+  1867  1867 I MurmurSpike: EV ime_start_input {"pid":1867,"up":859068,"pkg":"com.android.chrome","inputType":180385,"hint":null,"fieldId":-1,"restarting":true}
+  1867  1867 I MurmurSpike: EV fg_window_state {"pid":1867,"up":859897,"pkg":"app.murmur.spike","cls":"androidx.compose.ui.platform.ComposeView"}
+PAGE_ECHO: echo:abc Murmur_ok 
+### chrome-ce settext
+  1867  1867 I MurmurSpike: EV cmd {"pid":1867,"up":868021,"c":"insert"}
+  1867  1867 I MurmurSpike: EV insert_try {"pid":1867,"up":868352,"r":{"method":"settext","node":{"cls":"android.widget.EditText","pkg":"com.android.chrome","editable":true,"password":false,"text":"Abc ","hint":"","showingHint":false,"selStart":4,"selEnd":4,"inputType":0,"viewId":"f","window":86,"dataSensitive":false,"actions":[16908342,16908348,16908372,1024,2048,256,512,2097152,32768,131072,65536,16384,2,128]},"focusPath":"bfs(findFocus=android.widget.FrameLayout)","setText":true,"setSelection":true,"composed":"Abc Murmur_ok","called":true,"readBack":{"nodeText":"Abc Murmur_ok","nodeContains":true,"surrounding":"Abc Murmur_ok","surroundingContains":true},"ms":330,"verified":true}}
+  1867  1867 I MurmurSpike: EV insert_result {"pid":1867,"up":868352,"method":"settext","ok":true}
+  1867  1867 I MurmurSpike: EV service_unbind {"pid":1867,"up":871210}
+  1867  1867 I MurmurSpike: EV bubble_detached {"pid":1867,"up":871241,"display":0}
+  1867  1867 I MurmurSpike: EV service_destroy {"pid":1867,"up":871241}
+  1867  1867 I MurmurSpike: EV service_connected {"pid":1867,"up":872441,"sdk":36,"flags":32848,"caps":129,"isAccessibilityTool":false,"inputMethod":true}
+  1867  1867 I MurmurSpike: EV bubble_attached {"pid":1867,"up":872508,"display":0,"ok":true,"type":2032,"bounds":"[0,0][1080,2520]"}
+  1867  1867 I MurmurSpike: EV ime_start_input {"pid":1867,"up":872516,"pkg":"com.android.chrome","inputType":180385,"hint":null,"fieldId":-1,"restarting":true}
+PAGE_ECHO: echo:Abc  

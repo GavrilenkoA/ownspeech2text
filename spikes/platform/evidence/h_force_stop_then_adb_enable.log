@@ -1,0 +1,3 @@
+ 11742 11742 I MurmurSpike: EV service_connected {"pid":11742,"up":1620290,"sdk":36,"flags":32848,"caps":129,"isAccessibilityTool":false,"inputMethod":true}
+ 11742 11742 I MurmurSpike: EV bubble_attached {"pid":11742,"up":1620766,"display":0,"ok":true,"type":2032,"bounds":"[0,0][1080,2520]"}
+ 11742 11742 I MurmurSpike: EV ime_start_input {"pid":11742,"up":1620774,"pkg":"com.android.settings","inputType":0,"hint":null,"fieldId":0,"restarting":false}

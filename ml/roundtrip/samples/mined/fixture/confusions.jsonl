@@ -1,0 +1,227 @@
+{"asr_model": "gigaam-v3-e2e-rnnt@onnx-int8", "count": 1, "hyp": "апи", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "api"}
+{"asr_model": "gigaam-v3-e2e-rnnt@onnx-int8", "count": 1, "hyp": "сиайсиди", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "ci/cd"}
+{"asr_model": "gigaam-v3-e2e-rnnt@onnx-int8", "count": 1, "hyp": "кликхаус", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "clickhouse"}
+{"asr_model": "gigaam-v3-e2e-rnnt@onnx-int8", "count": 1, "hyp": "компос", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "compose"}
+{"asr_model": "gigaam-v3-e2e-rnnt@onnx-int8", "count": 1, "hyp": "докер", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "docker"}
+{"asr_model": "gigaam-v3-e2e-rnnt@onnx-int8", "count": 1, "hyp": "эмбеддинги", "in_term": true, "kind": "sub_near", "lang": "mixed", "ref": "embeddings"}
+{"asr_model": "gigaam-v3-e2e-rnnt@onnx-int8", "count": 1, "hyp": "файнтюнинг", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "fine-tuning"}
+{"asr_model": "gigaam-v3-e2e-rnnt@onnx-int8", "count": 1, "hyp": "гит", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "git"}
+{"asr_model": "gigaam-v3-e2e-rnnt@onnx-int8", "count": 1, "hyp": "гитхабе", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "github"}
+{"asr_model": "gigaam-v3-e2e-rnnt@onnx-int8", "count": 1, "hyp": "графаны", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "grafana"}
+{"asr_model": "gigaam-v3-e2e-rnnt@onnx-int8", "count": 1, "hyp": "аш сто", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "h100"}
+{"asr_model": "gigaam-v3-e2e-rnnt@onnx-int8", "count": 1, "hyp": "ишью", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "issue"}
+{"asr_model": "gigaam-v3-e2e-rnnt@onnx-int8", "count": 1, "hyp": "джакс", "in_term": true, "kind": "sub_near", "lang": "mixed", "ref": "jax"}
+{"asr_model": "gigaam-v3-e2e-rnnt@onnx-int8", "count": 1, "hyp": "кубернетису", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "kubernetes"}
+{"asr_model": "gigaam-v3-e2e-rnnt@onnx-int8", "count": 1, "hyp": "латенси", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "latency"}
+{"asr_model": "gigaam-v3-e2e-rnnt@onnx-int8", "count": 1, "hyp": "лаурой", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "laura"}
+{"asr_model": "gigaam-v3-e2e-rnnt@onnx-int8", "count": 1, "hyp": "лору", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "lora"}
+{"asr_model": "gigaam-v3-e2e-rnnt@onnx-int8", "count": 1, "hyp": "мейн", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "main"}
+{"asr_model": "gigaam-v3-e2e-rnnt@onnx-int8", "count": 1, "hyp": "опен эй ай", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "openai"}
+{"asr_model": "gigaam-v3-e2e-rnnt@onnx-int8", "count": 1, "hyp": "пи 99", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "p99"}
+{"asr_model": "gigaam-v3-e2e-rnnt@onnx-int8", "count": 1, "hyp": "постгрес", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "postgres"}
+{"asr_model": "gigaam-v3-e2e-rnnt@onnx-int8", "count": 1, "hyp": "пул", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "pull"}
+{"asr_model": "gigaam-v3-e2e-rnnt@onnx-int8", "count": 1, "hyp": "пайторч", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "pytorch"}
+{"asr_model": "gigaam-v3-e2e-rnnt@onnx-int8", "count": 1, "hyp": "кудрант", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "qdrant"}
+{"asr_model": "gigaam-v3-e2e-rnnt@onnx-int8", "count": 1, "hyp": "квен 3", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "qwen3"}
+{"asr_model": "gigaam-v3-e2e-rnnt@onnx-int8", "count": 1, "hyp": "ранк", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "rank"}
+{"asr_model": "gigaam-v3-e2e-rnnt@onnx-int8", "count": 1, "hyp": "слак", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "slack"}
+{"asr_model": "gigaam-v3-e2e-rnnt@onnx-int8", "count": 1, "hyp": "стек", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "stack"}
+{"asr_model": "gigaam-v3-e2e-rnnt@onnx-int8", "count": 1, "hyp": "трейс", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "trace"}
+{"asr_model": "gigaam-v3-e2e-rnnt@onnx-int8", "count": 1, "hyp": "ап", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "up"}
+{"asr_model": "gigaam-v3-e2e-rnnt@onnx-int8", "count": 1, "hyp": "128 000", "in_term": false, "kind": "number", "lang": "ru", "ref": "128 тысяч"}
+{"asr_model": "gigaam-v3-e2e-rnnt@onnx-int8", "count": 1, "hyp": "4", "in_term": false, "kind": "number", "lang": "ru", "ref": "четырех"}
+{"asr_model": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms", "count": 1, "hyp": "one point two", "in_term": false, "kind": "number", "lang": "en", "ref": "1.2"}
+{"asr_model": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms", "count": 1, "hyp": "twenty-two", "in_term": false, "kind": "number", "lang": "en", "ref": "22"}
+{"asr_model": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms", "count": 1, "hyp": "three", "in_term": false, "kind": "number", "lang": "en", "ref": "3"}
+{"asr_model": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms", "count": 1, "hyp": "four fifteen", "in_term": false, "kind": "number", "lang": "en", "ref": "4:15"}
+{"asr_model": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms", "count": 1, "hyp": "sixty-four", "in_term": false, "kind": "number", "lang": "en", "ref": "64"}
+{"asr_model": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms", "count": 1, "hyp": "a m", "in_term": false, "kind": "punct", "lang": "en", "ref": "a.m"}
+{"asr_model": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms", "count": 1, "hyp": "kron", "in_term": true, "kind": "sub_near", "lang": "en", "ref": "cron"}
+{"asr_model": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms", "count": 1, "hyp": "home", "in_term": true, "kind": "sub", "lang": "en", "ref": "helm"}
+{"asr_model": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms", "count": 1, "hyp": "cafe", "in_term": true, "kind": "sub", "lang": "en", "ref": "kafka"}
+{"asr_model": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms", "count": 1, "hyp": "l.l.m", "in_term": true, "kind": "punct", "lang": "en", "ref": "llm"}
+{"asr_model": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms", "count": 1, "hyp": "node js", "in_term": true, "kind": "punct", "lang": "en", "ref": "node.js"}
+{"asr_model": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms", "count": 1, "hyp": "p m", "in_term": false, "kind": "punct", "lang": "en", "ref": "pm"}
+{"asr_model": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms", "count": 1, "hyp": "freya", "in_term": true, "kind": "sub_near", "lang": "en", "ref": "priya"}
+{"asr_model": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms", "count": 1, "hyp": "re-run", "in_term": false, "kind": "punct", "lang": "en", "ref": "rerun"}
+{"asr_model": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms", "count": 1, "hyp": "sink", "in_term": false, "kind": "sub_near", "lang": "en", "ref": "sync"}
+{"asr_model": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms", "count": 1, "hyp": "v llm", "in_term": true, "kind": "punct", "lang": "en", "ref": "vllm"}
+{"asr_model": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms", "count": 1, "hyp": "десять тридцать", "in_term": false, "kind": "number", "lang": "mixed", "ref": "10:30"}
+{"asr_model": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms", "count": 1, "hyp": "шестнадцать", "in_term": false, "kind": "number", "lang": "mixed", "ref": "16"}
+{"asr_model": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms", "count": 1, "hyp": "три", "in_term": false, "kind": "number", "lang": "mixed", "ref": "3"}
+{"asr_model": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms", "count": 1, "hyp": "восьмисот", "in_term": false, "kind": "number", "lang": "mixed", "ref": "800"}
+{"asr_model": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms", "count": 1, "hyp": "ci cd", "in_term": true, "kind": "punct", "lang": "mixed", "ref": "ci/cd"}
+{"asr_model": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms", "count": 1, "hyp": "клик хаус", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "clickhouse"}
+{"asr_model": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms", "count": 1, "hyp": "компост", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "compose"}
+{"asr_model": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms", "count": 1, "hyp": "докер", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "docker"}
+{"asr_model": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms", "count": 1, "hyp": "эмбеддинги", "in_term": true, "kind": "sub_near", "lang": "mixed", "ref": "embeddings"}
+{"asr_model": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms", "count": 1, "hyp": "файн тюнинг", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "fine-tuning"}
+{"asr_model": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms", "count": 1, "hyp": "гид", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "git"}
+{"asr_model": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms", "count": 1, "hyp": "графаны", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "grafana"}
+{"asr_model": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms", "count": 1, "hyp": "h сто", "in_term": true, "kind": "sub_near", "lang": "mixed", "ref": "h100"}
+{"asr_model": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms", "count": 1, "hyp": "иш", "in_term": true, "kind": "sub", "lang": "mixed", "ref": "issue"}
+{"asr_model": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms", "count": 1, "hyp": "кубернетес", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "kubernetes"}
+{"asr_model": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms", "count": 1, "hyp": "лейтенси", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "latency"}
+{"asr_model": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms", "count": 1, "hyp": "лаурой", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "laura"}
+{"asr_model": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms", "count": 1, "hyp": "лору", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "lora"}
+{"asr_model": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms", "count": 1, "hyp": "пи девяносто девять", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "p99"}
+{"asr_model": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms", "count": 1, "hyp": "пул", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "pull"}
+{"asr_model": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms", "count": 1, "hyp": "кидрант", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "qdrant"}
+{"asr_model": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms", "count": 1, "hyp": "квен три", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "qwen3"}
+{"asr_model": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms", "count": 1, "hyp": "ранк", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "rank"}
+{"asr_model": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms", "count": 1, "hyp": "стек", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "stack"}
+{"asr_model": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms", "count": 1, "hyp": "трейс", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "trace"}
+{"asr_model": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms", "count": 1, "hyp": "ап", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "up"}
+{"asr_model": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms", "count": 1, "hyp": "закомить", "in_term": true, "kind": "sub_near", "lang": "mixed", "ref": "закоммить"}
+{"asr_model": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms", "count": 1, "hyp": "миллисекунд", "in_term": false, "kind": "sub", "lang": "mixed", "ref": "мс"}
+{"asr_model": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms", "count": 1, "hyp": "ноль тридцать пять", "in_term": false, "kind": "number", "lang": "ru", "ref": "0,35"}
+{"asr_model": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms", "count": 1, "hyp": "десять тридцать", "in_term": false, "kind": "number", "lang": "ru", "ref": "10:30"}
+{"asr_model": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms", "count": 1, "hyp": "двенадцать", "in_term": false, "kind": "number", "lang": "ru", "ref": "12"}
+{"asr_model": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms", "count": 1, "hyp": "сто двадцать восемь", "in_term": false, "kind": "number", "lang": "ru", "ref": "128"}
+{"asr_model": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms", "count": 1, "hyp": "восемнадцати", "in_term": false, "kind": "number", "lang": "ru", "ref": "18:00"}
+{"asr_model": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms", "count": 1, "hyp": "два", "in_term": false, "kind": "number", "lang": "ru", "ref": "2"}
+{"asr_model": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms", "count": 1, "hyp": "пятьсот два", "in_term": false, "kind": "number", "lang": "ru", "ref": "502"}
+{"asr_model": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms", "count": 1, "hyp": "рокер", "in_term": true, "kind": "sub_near", "lang": "ru", "ref": "воркер"}
+{"asr_model": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms", "count": 1, "hyp": "интерфейс", "in_term": true, "kind": "sub_near", "lang": "ru", "ref": "инференс"}
+{"asr_model": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms", "count": 1, "hyp": "лос", "in_term": true, "kind": "sub_near", "lang": "ru", "ref": "лосс"}
+{"asr_model": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms", "count": 1, "hyp": "пулл реквесту", "in_term": true, "kind": "punct", "lang": "ru", "ref": "пулл-реквесту"}
+{"asr_model": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms", "count": 1, "hyp": "фон", "in_term": true, "kind": "sub_near", "lang": "ru", "ref": "фронт"}
+{"asr_model": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms", "count": 1, "hyp": "имбеддинги", "in_term": true, "kind": "sub_near", "lang": "ru", "ref": "эмбеддинги"}
+{"asr_model": "parakeet-tdt-0.6b-v3@onnx-int8", "count": 1, "hyp": "zero point zero zero zero three", "in_term": false, "kind": "number", "lang": "en", "ref": "0.0003"}
+{"asr_model": "parakeet-tdt-0.6b-v3@onnx-int8", "count": 1, "hyp": "one point two", "in_term": false, "kind": "number", "lang": "en", "ref": "1.2"}
+{"asr_model": "parakeet-tdt-0.6b-v3@onnx-int8", "count": 1, "hyp": "twenty two", "in_term": false, "kind": "number", "lang": "en", "ref": "22"}
+{"asr_model": "parakeet-tdt-0.6b-v3@onnx-int8", "count": 1, "hyp": "three", "in_term": false, "kind": "number", "lang": "en", "ref": "3"}
+{"asr_model": "parakeet-tdt-0.6b-v3@onnx-int8", "count": 1, "hyp": "four fifteen", "in_term": false, "kind": "number", "lang": "en", "ref": "4:15"}
+{"asr_model": "parakeet-tdt-0.6b-v3@onnx-int8", "count": 1, "hyp": "sixty four", "in_term": false, "kind": "number", "lang": "en", "ref": "64"}
+{"asr_model": "parakeet-tdt-0.6b-v3@onnx-int8", "count": 1, "hyp": "am", "in_term": false, "kind": "punct", "lang": "en", "ref": "a.m"}
+{"asr_model": "parakeet-tdt-0.6b-v3@onnx-int8", "count": 1, "hyp": "node js", "in_term": true, "kind": "punct", "lang": "en", "ref": "node.js"}
+{"asr_model": "parakeet-tdt-0.6b-v3@onnx-int8", "count": 1, "hyp": "pria", "in_term": true, "kind": "sub_near", "lang": "en", "ref": "priya"}
+{"asr_model": "parakeet-tdt-0.6b-v3@onnx-int8", "count": 1, "hyp": "pie test", "in_term": true, "kind": "sub_near", "lang": "en", "ref": "pytest"}
+{"asr_model": "parakeet-tdt-0.6b-v3@onnx-int8", "count": 1, "hyp": "vlm", "in_term": true, "kind": "sub_near", "lang": "en", "ref": "vllm"}
+{"asr_model": "parakeet-tdt-0.6b-v3@onnx-int8", "count": 1, "hyp": "десять тридцать", "in_term": false, "kind": "number", "lang": "mixed", "ref": "10:30"}
+{"asr_model": "parakeet-tdt-0.6b-v3@onnx-int8", "count": 1, "hyp": "шестнадцать", "in_term": false, "kind": "number", "lang": "mixed", "ref": "16"}
+{"asr_model": "parakeet-tdt-0.6b-v3@onnx-int8", "count": 1, "hyp": "три", "in_term": false, "kind": "number", "lang": "mixed", "ref": "3"}
+{"asr_model": "parakeet-tdt-0.6b-v3@onnx-int8", "count": 1, "hyp": "восьмисот", "in_term": false, "kind": "number", "lang": "mixed", "ref": "800"}
+{"asr_model": "parakeet-tdt-0.6b-v3@onnx-int8", "count": 1, "hyp": "эй пи ай", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "api"}
+{"asr_model": "parakeet-tdt-0.6b-v3@onnx-int8", "count": 1, "hyp": "си ай си ди", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "ci/cd"}
+{"asr_model": "parakeet-tdt-0.6b-v3@onnx-int8", "count": 1, "hyp": "клик хаус", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "clickhouse"}
+{"asr_model": "parakeet-tdt-0.6b-v3@onnx-int8", "count": 1, "hyp": "компоуз", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "compose"}
+{"asr_model": "parakeet-tdt-0.6b-v3@onnx-int8", "count": 1, "hyp": "докер", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "docker"}
+{"asr_model": "parakeet-tdt-0.6b-v3@onnx-int8", "count": 1, "hyp": "эмбеддингс", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "embeddings"}
+{"asr_model": "parakeet-tdt-0.6b-v3@onnx-int8", "count": 1, "hyp": "файн-тюнинг", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "fine-tuning"}
+{"asr_model": "parakeet-tdt-0.6b-v3@onnx-int8", "count": 1, "hyp": "гитпул", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "git pull"}
+{"asr_model": "parakeet-tdt-0.6b-v3@onnx-int8", "count": 1, "hyp": "гитхабе", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "github"}
+{"asr_model": "parakeet-tdt-0.6b-v3@onnx-int8", "count": 1, "hyp": "графаны", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "grafana"}
+{"asr_model": "parakeet-tdt-0.6b-v3@onnx-int8", "count": 1, "hyp": "эйч сто", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "h100"}
+{"asr_model": "parakeet-tdt-0.6b-v3@onnx-int8", "count": 1, "hyp": "ишью", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "issue"}
+{"asr_model": "parakeet-tdt-0.6b-v3@onnx-int8", "count": 1, "hyp": "джакс", "in_term": true, "kind": "sub_near", "lang": "mixed", "ref": "jax"}
+{"asr_model": "parakeet-tdt-0.6b-v3@onnx-int8", "count": 1, "hyp": "кубернетес", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "kubernetes"}
+{"asr_model": "parakeet-tdt-0.6b-v3@onnx-int8", "count": 1, "hyp": "латенси", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "latency"}
+{"asr_model": "parakeet-tdt-0.6b-v3@onnx-int8", "count": 1, "hyp": "лорой", "in_term": true, "kind": "sub_near", "lang": "mixed", "ref": "laura"}
+{"asr_model": "parakeet-tdt-0.6b-v3@onnx-int8", "count": 1, "hyp": "лору", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "lora"}
+{"asr_model": "parakeet-tdt-0.6b-v3@onnx-int8", "count": 1, "hyp": "мейн", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "main"}
+{"asr_model": "parakeet-tdt-0.6b-v3@onnx-int8", "count": 1, "hyp": "опен эй ай", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "openai"}
+{"asr_model": "parakeet-tdt-0.6b-v3@onnx-int8", "count": 1, "hyp": "пи девяносто девять", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "p99"}
+{"asr_model": "parakeet-tdt-0.6b-v3@onnx-int8", "count": 1, "hyp": "постгрес", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "postgres"}
+{"asr_model": "parakeet-tdt-0.6b-v3@onnx-int8", "count": 1, "hyp": "пайторча", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "pytorch"}
+{"asr_model": "parakeet-tdt-0.6b-v3@onnx-int8", "count": 1, "hyp": "кудрант", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "qdrant"}
+{"asr_model": "parakeet-tdt-0.6b-v3@onnx-int8", "count": 1, "hyp": "квен три", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "qwen3"}
+{"asr_model": "parakeet-tdt-0.6b-v3@onnx-int8", "count": 1, "hyp": "ранг", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "rank"}
+{"asr_model": "parakeet-tdt-0.6b-v3@onnx-int8", "count": 1, "hyp": "слаке", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "slack"}
+{"asr_model": "parakeet-tdt-0.6b-v3@onnx-int8", "count": 1, "hyp": "стектрейс", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "stack trace"}
+{"asr_model": "parakeet-tdt-0.6b-v3@onnx-int8", "count": 1, "hyp": "ап", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "up"}
+{"asr_model": "parakeet-tdt-0.6b-v3@onnx-int8", "count": 1, "hyp": "миллисекунд", "in_term": false, "kind": "sub", "lang": "mixed", "ref": "мс"}
+{"asr_model": "parakeet-tdt-0.6b-v3@onnx-int8", "count": 1, "hyp": "рибейзом", "in_term": true, "kind": "sub_near", "lang": "mixed", "ref": "ребейзом"}
+{"asr_model": "parakeet-tdt-0.6b-v3@onnx-int8", "count": 1, "hyp": "ноль целых тридцати пяти", "in_term": false, "kind": "number", "lang": "ru", "ref": "0,35"}
+{"asr_model": "parakeet-tdt-0.6b-v3@onnx-int8", "count": 1, "hyp": "десять тридцать", "in_term": false, "kind": "number", "lang": "ru", "ref": "10:30"}
+{"asr_model": "parakeet-tdt-0.6b-v3@onnx-int8", "count": 1, "hyp": "двенадцать", "in_term": false, "kind": "number", "lang": "ru", "ref": "12"}
+{"asr_model": "parakeet-tdt-0.6b-v3@onnx-int8", "count": 1, "hyp": "сто двадцать восемь", "in_term": false, "kind": "number", "lang": "ru", "ref": "128"}
+{"asr_model": "parakeet-tdt-0.6b-v3@onnx-int8", "count": 1, "hyp": "восемнадцати ноль ноль", "in_term": false, "kind": "number", "lang": "ru", "ref": "18:00"}
+{"asr_model": "parakeet-tdt-0.6b-v3@onnx-int8", "count": 1, "hyp": "два", "in_term": false, "kind": "number", "lang": "ru", "ref": "2"}
+{"asr_model": "parakeet-tdt-0.6b-v3@onnx-int8", "count": 1, "hyp": "пятьсот два", "in_term": false, "kind": "number", "lang": "ru", "ref": "502"}
+{"asr_model": "parakeet-tdt-0.6b-v3@onnx-int8", "count": 1, "hyp": "легасий код", "in_term": true, "kind": "sub_near", "lang": "ru", "ref": "легаси-код"}
+{"asr_model": "parakeet-tdt-0.6b-v3@onnx-int8", "count": 1, "hyp": "промт", "in_term": true, "kind": "sub_near", "lang": "ru", "ref": "промпт"}
+{"asr_model": "parakeet-tdt-0.6b-v3@onnx-int8", "count": 1, "hyp": "пулреквесту", "in_term": true, "kind": "sub_near", "lang": "ru", "ref": "пулл-реквесту"}
+{"asr_model": "parakeet-tdt-0.6b-v3@onnx-int8", "count": 1, "hyp": "юнит тестами", "in_term": true, "kind": "punct", "lang": "ru", "ref": "юнит-тестами"}
+{"asr_model": "qwen3-asr-0.6b@onnx-int8", "count": 1, "hyp": "am", "in_term": false, "kind": "punct", "lang": "en", "ref": "a.m"}
+{"asr_model": "qwen3-asr-0.6b@onnx-int8", "count": 1, "hyp": "crown", "in_term": true, "kind": "sub_near", "lang": "en", "ref": "cron"}
+{"asr_model": "qwen3-asr-0.6b@onnx-int8", "count": 1, "hyp": "nodejs", "in_term": true, "kind": "punct", "lang": "en", "ref": "node.js"}
+{"asr_model": "qwen3-asr-0.6b@onnx-int8", "count": 1, "hyp": "три", "in_term": false, "kind": "number", "lang": "mixed", "ref": "3"}
+{"asr_model": "qwen3-asr-0.6b@onnx-int8", "count": 1, "hyp": "стек", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "stack"}
+{"asr_model": "qwen3-asr-0.6b@onnx-int8", "count": 1, "hyp": "ребейсом", "in_term": true, "kind": "sub_near", "lang": "mixed", "ref": "ребейзом"}
+{"asr_model": "qwen3-asr-0.6b@onnx-int8", "count": 1, "hyp": "0.35", "in_term": false, "kind": "number", "lang": "ru", "ref": "0,35"}
+{"asr_model": "qwen3-asr-0.6b@onnx-int8", "count": 1, "hyp": "бекенд", "in_term": true, "kind": "sub_near", "lang": "ru", "ref": "бэкенд"}
+{"asr_model": "qwen3-asr-0.6b@onnx-int8", "count": 1, "hyp": "валидацию", "in_term": true, "kind": "sub_near", "lang": "ru", "ref": "валидации"}
+{"asr_model": "qwen3-asr-0.6b@onnx-int8", "count": 1, "hyp": "за деплоим", "in_term": true, "kind": "punct", "lang": "ru", "ref": "задеплоим"}
+{"asr_model": "qwen3-asr-0.6b@onnx-int8", "count": 1, "hyp": "инфренс", "in_term": true, "kind": "sub_near", "lang": "ru", "ref": "инференс"}
+{"asr_model": "qwen3-asr-0.6b@onnx-int8", "count": 1, "hyp": "легаси код", "in_term": true, "kind": "punct", "lang": "ru", "ref": "легаси-код"}
+{"asr_model": "qwen3-asr-0.6b@onnx-int8", "count": 1, "hyp": "лоз", "in_term": true, "kind": "sub_near", "lang": "ru", "ref": "лосс"}
+{"asr_model": "qwen3-asr-0.6b@onnx-int8", "count": 1, "hyp": "от рефакторить", "in_term": true, "kind": "punct", "lang": "ru", "ref": "отрефакторить"}
+{"asr_model": "qwen3-asr-0.6b@onnx-int8", "count": 1, "hyp": "переполнена", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "переполнено"}
+{"asr_model": "qwen3-asr-0.6b@onnx-int8", "count": 1, "hyp": "продо", "in_term": true, "kind": "sub_near", "lang": "ru", "ref": "прода"}
+{"asr_model": "qwen3-asr-0.6b@onnx-int8", "count": 1, "hyp": "пулреквесту", "in_term": true, "kind": "sub_near", "lang": "ru", "ref": "пулл-реквесту"}
+{"asr_model": "qwen3-asr-0.6b@onnx-int8", "count": 1, "hyp": "ревьюр", "in_term": true, "kind": "sub_near", "lang": "ru", "ref": "ревьюер"}
+{"asr_model": "qwen3-asr-0.6b@onnx-int8", "count": 1, "hyp": "смержем", "in_term": true, "kind": "sub_near", "lang": "ru", "ref": "смержим"}
+{"asr_model": "qwen3-asr-0.6b@onnx-int8", "count": 1, "hyp": "эмбединги", "in_term": true, "kind": "sub_near", "lang": "ru", "ref": "эмбеддинги"}
+{"asr_model": "qwen3-asr-0.6b@onnx-int8", "count": 1, "hyp": "юнит тестами", "in_term": true, "kind": "punct", "lang": "ru", "ref": "юнит-тестами"}
+{"asr_model": "t-one@onnx", "count": 1, "hyp": "десять тридцать", "in_term": false, "kind": "number", "lang": "mixed", "ref": "10:30"}
+{"asr_model": "t-one@onnx", "count": 1, "hyp": "шестнадцать", "in_term": false, "kind": "number", "lang": "mixed", "ref": "16"}
+{"asr_model": "t-one@onnx", "count": 1, "hyp": "три", "in_term": false, "kind": "number", "lang": "mixed", "ref": "3"}
+{"asr_model": "t-one@onnx", "count": 1, "hyp": "восемьсот", "in_term": false, "kind": "number", "lang": "mixed", "ref": "800"}
+{"asr_model": "t-one@onnx", "count": 1, "hyp": "апи", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "api"}
+{"asr_model": "t-one@onnx", "count": 1, "hyp": "сиай сиди", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "ci/cd"}
+{"asr_model": "t-one@onnx", "count": 1, "hyp": "клик хаус", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "clickhouse"}
+{"asr_model": "t-one@onnx", "count": 1, "hyp": "компоуз", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "compose"}
+{"asr_model": "t-one@onnx", "count": 1, "hyp": "докер", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "docker"}
+{"asr_model": "t-one@onnx", "count": 1, "hyp": "эмбеддингс", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "embeddings"}
+{"asr_model": "t-one@onnx", "count": 1, "hyp": "файн тюнинг", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "fine-tuning"}
+{"asr_model": "t-one@onnx", "count": 1, "hyp": "гит", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "git"}
+{"asr_model": "t-one@onnx", "count": 1, "hyp": "гитхаб", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "github"}
+{"asr_model": "t-one@onnx", "count": 1, "hyp": "графаны", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "grafana"}
+{"asr_model": "t-one@onnx", "count": 1, "hyp": "аш сто", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "h100"}
+{"asr_model": "t-one@onnx", "count": 1, "hyp": "ишью", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "issue"}
+{"asr_model": "t-one@onnx", "count": 1, "hyp": "джакс", "in_term": true, "kind": "sub_near", "lang": "mixed", "ref": "jax"}
+{"asr_model": "t-one@onnx", "count": 1, "hyp": "кубернетис", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "kubernetes"}
+{"asr_model": "t-one@onnx", "count": 1, "hyp": "латенси", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "latency"}
+{"asr_model": "t-one@onnx", "count": 1, "hyp": "лаурой", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "laura"}
+{"asr_model": "t-one@onnx", "count": 1, "hyp": "лору", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "lora"}
+{"asr_model": "t-one@onnx", "count": 1, "hyp": "мейн", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "main"}
+{"asr_model": "t-one@onnx", "count": 1, "hyp": "опен эй ай", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "openai"}
+{"asr_model": "t-one@onnx", "count": 1, "hyp": "пи девяносто девять", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "p99"}
+{"asr_model": "t-one@onnx", "count": 1, "hyp": "постгрес", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "postgres"}
+{"asr_model": "t-one@onnx", "count": 1, "hyp": "пул", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "pull"}
+{"asr_model": "t-one@onnx", "count": 1, "hyp": "пайторч", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "pytorch"}
+{"asr_model": "t-one@onnx", "count": 1, "hyp": "кудрант", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "qdrant"}
+{"asr_model": "t-one@onnx", "count": 1, "hyp": "квен три", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "qwen3"}
+{"asr_model": "t-one@onnx", "count": 1, "hyp": "ранк", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "rank"}
+{"asr_model": "t-one@onnx", "count": 1, "hyp": "слак", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "slack"}
+{"asr_model": "t-one@onnx", "count": 1, "hyp": "стэк", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "stack"}
+{"asr_model": "t-one@onnx", "count": 1, "hyp": "трейс", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "trace"}
+{"asr_model": "t-one@onnx", "count": 1, "hyp": "ап", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "up"}
+{"asr_model": "t-one@onnx", "count": 1, "hyp": "миллисекунд", "in_term": false, "kind": "sub", "lang": "mixed", "ref": "мс"}
+{"asr_model": "t-one@onnx", "count": 1, "hyp": "ноль тридцать пять", "in_term": false, "kind": "number", "lang": "ru", "ref": "0,35"}
+{"asr_model": "t-one@onnx", "count": 1, "hyp": "десять тридцать", "in_term": false, "kind": "number", "lang": "ru", "ref": "10:30"}
+{"asr_model": "t-one@onnx", "count": 1, "hyp": "двенадцать", "in_term": false, "kind": "number", "lang": "ru", "ref": "12"}
+{"asr_model": "t-one@onnx", "count": 1, "hyp": "сто двадцать восемь", "in_term": false, "kind": "number", "lang": "ru", "ref": "128"}
+{"asr_model": "t-one@onnx", "count": 1, "hyp": "восемнадцати", "in_term": false, "kind": "number", "lang": "ru", "ref": "18:00"}
+{"asr_model": "t-one@onnx", "count": 1, "hyp": "два", "in_term": false, "kind": "number", "lang": "ru", "ref": "2"}
+{"asr_model": "t-one@onnx", "count": 1, "hyp": "пятьсот два", "in_term": false, "kind": "number", "lang": "ru", "ref": "502"}
+{"asr_model": "t-one@onnx", "count": 1, "hyp": "легаси код", "in_term": true, "kind": "punct", "lang": "ru", "ref": "легаси-код"}
+{"asr_model": "t-one@onnx", "count": 1, "hyp": "лос", "in_term": true, "kind": "sub_near", "lang": "ru", "ref": "лосс"}
+{"asr_model": "t-one@onnx", "count": 1, "hyp": "промт", "in_term": true, "kind": "sub_near", "lang": "ru", "ref": "промпт"}
+{"asr_model": "t-one@onnx", "count": 1, "hyp": "пул реквесту", "in_term": true, "kind": "sub_near", "lang": "ru", "ref": "пулл-реквесту"}
+{"asr_model": "t-one@onnx", "count": 1, "hyp": "эмбединге", "in_term": true, "kind": "sub_near", "lang": "ru", "ref": "эмбеддинги"}
+{"asr_model": "t-one@onnx", "count": 1, "hyp": "юнит тестами", "in_term": true, "kind": "punct", "lang": "ru", "ref": "юнит-тестами"}
+{"asr_model": "whisper-large-v3-turbo@onnx-int8", "count": 1, "hyp": "4.15", "in_term": false, "kind": "number", "lang": "en", "ref": "4:15"}
+{"asr_model": "whisper-large-v3-turbo@onnx-int8", "count": 1, "hyp": "dmitry", "in_term": true, "kind": "sub_near", "lang": "en", "ref": "dmitri"}
+{"asr_model": "whisper-large-v3-turbo@onnx-int8", "count": 1, "hyp": "p.m", "in_term": false, "kind": "punct", "lang": "en", "ref": "pm"}
+{"asr_model": "whisper-large-v3-turbo@onnx-int8", "count": 1, "hyp": "10.30", "in_term": false, "kind": "number", "lang": "mixed", "ref": "10:30"}
+{"asr_model": "whisper-large-v3-turbo@onnx-int8", "count": 1, "hyp": "ci-cd", "in_term": true, "kind": "punct", "lang": "mixed", "ref": "ci/cd"}
+{"asr_model": "whisper-large-v3-turbo@onnx-int8", "count": 1, "hyp": "лаурой", "in_term": true, "kind": "translit", "lang": "mixed", "ref": "laura"}
+{"asr_model": "whisper-large-v3-turbo@onnx-int8", "count": 1, "hyp": "10.30", "in_term": false, "kind": "number", "lang": "ru", "ref": "10:30"}
+{"asr_model": "whisper-large-v3-turbo@onnx-int8", "count": 1, "hyp": "18.00", "in_term": false, "kind": "number", "lang": "ru", "ref": "18:00"}
+{"asr_model": "whisper-large-v3-turbo@onnx-int8", "count": 1, "hyp": "два", "in_term": false, "kind": "number", "lang": "ru", "ref": "2"}
+{"asr_model": "whisper-large-v3-turbo@onnx-int8", "count": 1, "hyp": "бэкэнд", "in_term": true, "kind": "sub_near", "lang": "ru", "ref": "бэкенд"}
+{"asr_model": "whisper-large-v3-turbo@onnx-int8", "count": 1, "hyp": "легаси код", "in_term": true, "kind": "punct", "lang": "ru", "ref": "легаси-код"}
+{"asr_model": "whisper-large-v3-turbo@onnx-int8", "count": 1, "hyp": "пул-реквесту", "in_term": true, "kind": "sub_near", "lang": "ru", "ref": "пулл-реквесту"}
+{"asr_model": "whisper-large-v3-turbo@onnx-int8", "count": 1, "hyp": "смерджим", "in_term": true, "kind": "sub_near", "lang": "ru", "ref": "смержим"}

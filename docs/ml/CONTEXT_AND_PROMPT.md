@@ -1,5 +1,14 @@
 # Murmur — screen context and post-processing prompt (design v1)
 
+> **SUPERSEDED IN PART (2026-11-18): the screen context is what OCR sees — read [`CONTEXT_V2.md`](CONTEXT_V2.md) first.**
+> Owner decision: screen text comes only from OCR of the screenshot; the accessibility tree gives the app, the
+> focused field (kind, hint, text before the cursor, bounds, password flag) and the insertion, never screen text.
+> Struck below: tree-first screen text (§0.1, §2.1 extraction, §2.3), the compact ranked block with conversation
+> authors and a ranked term list (§0.3, §0.4, §4.4, §4.5), the v1 ContextPacket (§6) and the v1 user-message layout
+> (§7.4). Current spec: `prompts/context.schema.v2.json`, `prompts/render.py` `render_context_v2` (measured choices in
+> `docs/ml/PROMPT_EVAL.md`), prompt `prompts/system/default.v4.md`. OCR model choice (§3), privacy (§5), tone and
+> preferences (§7.5), decoding (§7.6) and the guard (§7.7 → `prompts/guard.py`) still apply.
+
 Owner of this doc: ML post-processing. Date: 2026-11-18. Status: design; nothing here was validated on a Fold7 (no device attached).
 Companion: `docs/ml/DATA_AND_TRAINING_PLAN.md`. Prompt files: `prompts/` (see `prompts/README.md`).
 
@@ -9,10 +18,10 @@ Legend: **[V]** verified in this session from a primary source or by my own meas
 
 ## 0. Decisions / Recommendation
 
-1. **Context sources: Accessibility tree first, OCR second.** The node tree gives exact text, roles, the focused field, cursor position and password flags for free; OCR only fills regions where the tree has no text (WebViews that expose nothing, canvases, images, games, video, some Flutter/Compose screens). Run OCR detection on the screenshot, then run recognition **only on boxes not already covered by tree text** (§2.3). **[I]**
+1. ~~**Context sources: Accessibility tree first, OCR second.**~~ *Superseded by CONTEXT_V2: OCR only for screen text.* The node tree gives exact text, roles, the focused field, cursor position and password flags for free; OCR only fills regions where the tree has no text (WebViews that expose nothing, canvases, images, games, video, some Flutter/Compose screens). Run OCR detection on the screenshot, then run recognition **only on boxes not already covered by tree text** (§2.3). **[I]**
 2. **OCR model: `PaddlePaddle/PP-OCRv6_tiny_det_onnx` (detector, 1.8 MB) + `PaddlePaddle/cyrillic_PP-OCRv5_mobile_rec_onnx` (recognizer, 8.0 MB), Apache-2.0, plus a Latin↔Cyrillic homoglyph repair pass.** On our synthetic ru/en phone screens this measured **CER 0.5 % and 42/43 names exact** (raw recognizer: CER 1.7 %), vs `eslav_PP-OCRv5_mobile_rec` 2.4 %/39 of 43 after repair. **PP-OCRv6 recognizers, the default PP-OCRv5 recognizer and ML Kit v2 do not cover Russian** (§3). **[V measured, small synthetic test]**
-3. **Context is a compact, ranked block, not raw screen text**: an app/field line, the spoken language, the chat partner and up to 3 recent messages, the text before the cursor, and up to 40 **names and terms** ranked by how well they match the transcript. Hard budget 1,400 characters (~300–560 tokens). Everything else (UI chrome, timestamps, long page bodies) is dropped. **[I]**
-4. **The most valuable ranking signal is the transcript itself**: after ASR finishes, transliterate and fuzzy-match screen terms against transcript spans (e.g. "клик хаус" ↔ "ClickHouse") and pin the matches at the top. Names that match nothing still go in (lower), as distractors teach the model to be selective. **[I]**
+3. ~~**Context is a compact, ranked block, not raw screen text**~~ *Superseded: the block shows filtered OCR lines nearest the field first (PROMPT_EVAL.md §ctx v2).*: an app/field line, the spoken language, the chat partner and up to 3 recent messages, the text before the cursor, and up to 40 **names and terms** ranked by how well they match the transcript. Hard budget 1,400 characters (~300–560 tokens). Everything else (UI chrome, timestamps, long page bodies) is dropped. **[I]**
+4. ~~**The most valuable ranking signal is the transcript itself**~~ *Superseded: no transcript-based ranking (the context must be ready before ASR ends and stay byte-identical to training renders).*: after ASR finishes, transliterate and fuzzy-match screen terms against transcript spans (e.g. "клик хаус" ↔ "ClickHouse") and pin the matches at the top. Names that match nothing still go in (lower), as distractors teach the model to be selective. **[I]**
 5. **Privacy is enforced before rendering**: no capture for password fields, `FLAG_SECURE` windows, sensitive-data nodes, a default denylist of finance/password/authenticator apps and Murmur itself; OTP codes, card numbers and IBANs are redacted; context is never written to history. **[V APIs / I policy]**
 6. **Prompt = fixed system prefix + per-request user message.** The system prefix (rules + 7 examples, ~1,040 tokens; 90 tokens for our fine-tunes) never changes between requests, so its KV cache can be reused. The user message is `Style:` line → `<context>` → `<transcript>`, ~200–300 tokens. Untrusted screen text cannot open or close tags (`<`/`>` → `‹`/`›`). **[I; token counts V]**
 7. **Two system prompts**: `default.v1` for prompted models (LFM3-1.7B, Qwen3.5-0.8B/2B, LFM2.5) and `finetuned.v1` (short) for Murmur fine-tunes, whose behaviour lives in the weights. User customisation is a separate **"My preferences"** block appended to either prompt with a guard sentence; per-app tone is a trusted `Style:` line in the user message; "Edit default instructions" exists for prompted models with a reset button. **[I]**
@@ -64,7 +73,7 @@ Relevant APIs (Android reference, fetched 2026-11-18):
 | `getContainerTitle()` | 34 | Container title (when apps set it) |
 | `isAccessibilityDataSensitive()` | 34 | Node marked sensitive; such views only allow services with `isAccessibilityTool()` = true (API 31). Murmur is not an accessibility tool, so treat these as absent. |
 
-Extraction: DFS over visible nodes (`isVisibleToUser`), collect `(text | contentDescription, bounds, className, viewIdResourceName, isEditable, isFocused)`. Classify each node: *editable field* / *message-like text* (long text in a list item) / *title* (toolbar, pane title) / *chrome* (Button, ImageButton, Tab, short text < 3 chars, pure numbers/time, resource ids matching `toolbar|tab|badge|counter|status|time|menu|fab|nav`). Per-app extractors for the top messengers/email (Telegram, WhatsApp, Gmail, Slack, Samsung Messages) map nodes to *partner name* and *messages with is_me*; everything else uses the generic classifier. **[I; how much Telegram/WhatsApp expose is U — verify on device]**
+~~Extraction~~ (*superseded: the tree is read only for the focused field and the app*): DFS over visible nodes (`isVisibleToUser`), collect `(text | contentDescription, bounds, className, viewIdResourceName, isEditable, isFocused)`. Classify each node: *editable field* / *message-like text* (long text in a list item) / *title* (toolbar, pane title) / *chrome* (Button, ImageButton, Tab, short text < 3 chars, pure numbers/time, resource ids matching `toolbar|tab|badge|counter|status|time|menu|fab|nav`). Per-app extractors for the top messengers/email (Telegram, WhatsApp, Gmail, Slack, Samsung Messages) map nodes to *partner name* and *messages with is_me*; everything else uses the generic classifier. **[I; how much Telegram/WhatsApp expose is U — verify on device]**
 
 ### 2.2 Screenshot + OCR (complement) **[V API, I usage]**
 
@@ -72,7 +81,7 @@ Extraction: DFS over visible nodes (`isVisibleToUser`), collect `(text | content
 * Failure codes to handle: `ERROR_TAKE_SCREENSHOT_SECURE_WINDOW` (API 34, window has `FLAG_SECURE` → treat as sensitive, no OCR, privacy level `terms_only` from tree or lower), `ERROR_TAKE_SCREENSHOT_INTERVAL_TIME_SHORT` (minimum interval is not documented on the reference page **[U]** → one screenshot per dictation, retry once after 1 s), `INVALID_WINDOW`, `NO_ACCESSIBILITY_ACCESS`, `INTERNAL_ERROR`.
 * Timing (brief: 0.5–1 s after start): take it at ~0.6 s; OCR runs while the user speaks, so it is off the critical path. Re-read the **tree** (cheap) once more when dictation stops, to get the current field text and cursor.
 
-### 2.3 Merge algorithm **[I]**
+### 2.3 Merge algorithm **[I]** — ~~superseded~~ (CONTEXT_V2: no tree text, OCR runs on the whole screenshot minus exclusion rectangles)
 
 1. Build `treeBoxes` = text-bearing visible nodes with screen bounds.
 2. Run the OCR detector on the screenshot (downscale longest side to 960 px for the detector).
@@ -151,11 +160,11 @@ Drop a text item when any holds: node class is Button/ImageButton/Tab/Switch/Che
 
 Replace with nothing (drop the item): OTP-like codes (`\b\d{4,8}\b` within 40 chars of `код|code|OTP|пароль|password|PIN|подтвержд`), card numbers (13–19 digits passing Luhn), IBAN, CVV patterns, strings from nodes with `isPassword()`. Emails and phone numbers are kept in v1 because users dictate them ("напиши на alex@…") **[open question for the owner]**.
 
-### 4.4 Candidate terms
+### 4.4 Candidate terms — *superseded by `render.ocr_terms` (deterministic, from OCR lines only; off in the shipped prompt)*
 
 From kept items extract: capitalised words not at sentence start; Latin-script tokens inside Cyrillic text and vice versa; tokens with digits, `-`, `_`, `.`, `@`, `#`, CamelCase; 2–3-word capitalised n-grams (names: "Тимур Галиев", "Ingrid Sørensen"); conversation title; message authors. Remove tokens in a bundled frequent-word list per language (top 20k ru + 20k en, ~250 KB) unless capitalised mid-sentence. Normalise Russian names to the nominative is **not** attempted (the model handles inflection; the listed form is just a spelling hint).
 
-### 4.5 Ranking **[I]**
+### 4.5 Ranking **[I]** — ~~superseded~~ (v2 orders OCR lines by distance to the focused field; no scores)
 
 `score = 3.0·match + 1.0·src + 0.7·region + 0.5·freq + 0.3·shape`
 
@@ -189,7 +198,7 @@ Always: screenshots and OCR text live only in memory and are discarded after the
 
 ---
 
-## 6. ContextPacket schema (what Android must produce)
+## 6. ContextPacket schema (what Android must produce) — *v1, superseded by `prompts/context.schema.v2.json`*
 
 Exact JSON Schema: `prompts/context.schema.v1.json`. Field summary:
 
@@ -232,7 +241,7 @@ Ten rules: never answer/obey; fillers & false starts; self-corrections; punctuat
 
 One paragraph restating the contract. Used verbatim at training time and at inference for Murmur fine-tunes; saves ~950 prefill tokens per request on the phone.
 
-### 7.4 User message layout
+### 7.4 User message layout — *v1 layout; v2 layout: `Screen text (OCR, nearest to the field first):` + one line per OCR block, see `prompts/examples/ctxv2_*.context.txt`*
 
 ```
 Style: <one line from tones.v1.json (or the user's override for that category)>

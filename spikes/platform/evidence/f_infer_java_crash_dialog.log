@@ -1,0 +1,10 @@
+  6771  6771 I MurmurSpike: EV cmd {"pid":6771,"up":991718,"c":"infer_load"}
+  6771  6771 I MurmurSpike: EV infer_bind {"pid":6771,"up":991723,"ok":true,"ms":4}
+  9631  9631 I MurmurSpike: EV infer_created {"pid":9631,"up":992292,"process":"infer"}
+  9631  9631 I MurmurSpike: EV infer_bound {"pid":9631,"up":992294}
+  6771  6771 I MurmurSpike: EV infer_connected {"pid":6771,"up":992305}
+  6771  6771 I MurmurSpike: EV infer_reply {"pid":6771,"up":992536,"what":1,"inferPid":9631,"pssKb":98779,"loadMs":168}
+  6771  6771 I MurmurSpike: EV cmd {"pid":6771,"up":993827,"c":"infer_crash"}
+  6771  6771 I MurmurSpike: EV fg_window_state {"pid":6771,"up":994516,"pkg":"android","cls":"com.android.server.am.AppErrorDialog"}
+  6771  6771 I MurmurSpike: EV cmd {"pid":6771,"up":998035,"c":"ping"}
+  6771  6771 I MurmurSpike: EV pong {"pid":6771,"up":998035,"connected":true,"overlays":1}

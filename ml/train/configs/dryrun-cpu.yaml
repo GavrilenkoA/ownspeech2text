@@ -1,0 +1,29 @@
+# CPU plumbing test on the 24 smoke cases (converted to the contract). Not a quality run.
+# Real Qwen3.5-0.8B weights; a few optimizer steps; no dev eval (the eval-loss path is covered by
+# ml/train/tiny_chain.py); for method=full pass --set train.save_steps=1000 (a full-FT checkpoint
+# with optimizer state is ~9 GB).
+extends: base.yaml
+run_name: dryrun
+output_dir: ${MURMUR_RUNS:-.cache/ml/train/runs}/dryrun-${MURMUR_METHOD:-lora}
+base_model: ${MURMUR_BASE:-.cache/ml/train/models/Qwen3.5-0.8B}
+method: ${MURMUR_METHOD:-lora}
+data:
+  train:
+    - {path: ".cache/ml/train/data/smoke.train.jsonl", weight: 1.0}
+  dev: []
+prompt: {default_share: 0.1, preferences_share: 0.25}
+train:
+  max_len: 1536
+  epochs: 1
+  max_steps: 3
+  batch_size: 1
+  grad_accum: 2
+  lr: 1.0e-4
+  warmup: 0
+  optim: adamw_torch
+  gradient_checkpointing: true
+  logging_steps: 1
+  save_steps: 3
+  save_total_limit: 1
+  workers: 0
+  threads: 6

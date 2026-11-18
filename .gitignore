@@ -33,3 +33,9 @@ secrets.properties
 # Emulator / test output
 /screenshots-local/
 *.hprof
+
+# Python / Node
+__pycache__/
+*.pyc
+.pytest_cache/
+node_modules/

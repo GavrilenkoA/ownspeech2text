@@ -1,0 +1,230 @@
+{
+ "gigaam-v2@enrich-dataset": {
+  "all_lower_rate": {
+   "gap": 0.0108,
+   "ok": true,
+   "real": 0.0069,
+   "sim": 0.0177,
+   "support": 2322,
+   "tol": 0.08
+  },
+  "cer": {
+   "gap": -0.0009,
+   "ok": true,
+   "real": 0.0086,
+   "sim": 0.0077,
+   "support": 27244,
+   "tol": 0.05
+  },
+  "digits_kept_rate": {
+   "gap": null,
+   "ok": null,
+   "real": null,
+   "sim": null,
+   "support": 0,
+   "tol": 0.1
+  },
+  "empty_rate": {
+   "gap": 0.0002,
+   "ok": true,
+   "real": 0.0,
+   "sim": 0.0002,
+   "support": 2500,
+   "tol": 0.05
+  },
+  "first_upper_rate": {
+   "gap": -0.0049,
+   "ok": true,
+   "real": 0.9832,
+   "sim": 0.9783,
+   "support": 2322,
+   "tol": 0.08
+  },
+  "latin_kept_rate": {
+   "gap": null,
+   "ok": null,
+   "real": null,
+   "sim": null,
+   "support": 0,
+   "tol": 0.1
+  },
+  "punct_any_rate": {
+   "gap": -0.0459,
+   "ok": true,
+   "real": 0.9914,
+   "sim": 0.9455,
+   "support": 2322,
+   "tol": 0.08
+  },
+  "tail_rate": {
+   "gap": -0.0004,
+   "ok": true,
+   "real": 0.0008,
+   "sim": 0.0004,
+   "support": 2500,
+   "tol": 0.05
+  },
+  "term_error_rate": {
+   "gap": null,
+   "ok": null,
+   "real": null,
+   "sim": null,
+   "support": 0,
+   "tol": 0.08
+  },
+  "term_exact_rate": {
+   "gap": null,
+   "ok": null,
+   "real": null,
+   "sim": null,
+   "support": 0,
+   "tol": 0.08
+  },
+  "terminal_kept_rate": {
+   "gap": -0.0037,
+   "ok": true,
+   "real": 0.9797,
+   "sim": 0.976,
+   "support": 2322,
+   "tol": 0.1
+  },
+  "wer": {
+   "gap": -0.001,
+   "ok": true,
+   "real": 0.0259,
+   "sim": 0.0249,
+   "support": 27244,
+   "tol": 0.05
+  },
+  "wer_style_aware": {
+   "gap": 0.0023,
+   "ok": true,
+   "real": 0.0218,
+   "sim": 0.0241,
+   "support": 27244,
+   "tol": 0.03
+  },
+  "words_to_digits_rate": {
+   "gap": 0.0,
+   "ok": true,
+   "real": 0.5,
+   "sim": 0.5,
+   "support": 20,
+   "tol": 0.1
+  }
+ },
+ "nemotron-3.5-transcribe@enrich-dataset": {
+  "all_lower_rate": {
+   "gap": 0.0018,
+   "ok": true,
+   "real": 0.0017,
+   "sim": 0.0035,
+   "support": 2294,
+   "tol": 0.08
+  },
+  "cer": {
+   "gap": -0.0013,
+   "ok": true,
+   "real": 0.0276,
+   "sim": 0.0263,
+   "support": 27244,
+   "tol": 0.05
+  },
+  "digits_kept_rate": {
+   "gap": null,
+   "ok": null,
+   "real": null,
+   "sim": null,
+   "support": 0,
+   "tol": 0.1
+  },
+  "empty_rate": {
+   "gap": 0.0006,
+   "ok": true,
+   "real": 0.012,
+   "sim": 0.0126,
+   "support": 2500,
+   "tol": 0.05
+  },
+  "first_upper_rate": {
+   "gap": -0.0033,
+   "ok": true,
+   "real": 0.9974,
+   "sim": 0.9941,
+   "support": 2294,
+   "tol": 0.08
+  },
+  "latin_kept_rate": {
+   "gap": null,
+   "ok": null,
+   "real": null,
+   "sim": null,
+   "support": 0,
+   "tol": 0.1
+  },
+  "punct_any_rate": {
+   "gap": -0.0576,
+   "ok": true,
+   "real": 0.9974,
+   "sim": 0.9398,
+   "support": 2322,
+   "tol": 0.08
+  },
+  "tail_rate": {
+   "gap": 0.0,
+   "ok": true,
+   "real": 0.0,
+   "sim": 0.0,
+   "support": 2500,
+   "tol": 0.05
+  },
+  "term_error_rate": {
+   "gap": null,
+   "ok": null,
+   "real": null,
+   "sim": null,
+   "support": 0,
+   "tol": 0.08
+  },
+  "term_exact_rate": {
+   "gap": null,
+   "ok": null,
+   "real": null,
+   "sim": null,
+   "support": 0,
+   "tol": 0.08
+  },
+  "terminal_kept_rate": {
+   "gap": -0.0152,
+   "ok": true,
+   "real": 0.9822,
+   "sim": 0.967,
+   "support": 2322,
+   "tol": 0.1
+  },
+  "wer": {
+   "gap": -0.0066,
+   "ok": true,
+   "real": 0.0592,
+   "sim": 0.0526,
+   "support": 27244,
+   "tol": 0.05
+  },
+  "wer_style_aware": {
+   "gap": -0.0008,
+   "ok": true,
+   "real": 0.0532,
+   "sim": 0.0524,
+   "support": 27244,
+   "tol": 0.03
+  },
+  "words_to_digits_rate": {
+   "gap": 0.0,
+   "ok": true,
+   "real": 0.0476,
+   "sim": 0.0476,
+   "support": 21,
+   "tol": 0.1
+  }
+ }
+}

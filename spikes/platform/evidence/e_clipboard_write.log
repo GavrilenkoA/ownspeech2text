@@ -1,0 +1,5 @@
+  6771  6771 I MurmurSpike: EV cmd {"pid":6771,"up":964679,"c":"clip"}
+  6771  6771 I MurmurSpike: EV clip {"pid":6771,"up":964685,"writeOk":true,"readBackFromService":null}
+  6771  6771 I MurmurSpike: EV fg_window_state {"pid":6771,"up":965020,"pkg":"com.android.systemui","cls":"android.widget.FrameLayout"}
+  9397  9397 I MurmurTarget: TGT {"field":"plain","text":"clip_from_service_42"}
+11-18 20:05:30.868   677   691 E ClipboardService: Denying clipboard access to app.murmur.spike, application is not in focus nor is it a system service for user 0

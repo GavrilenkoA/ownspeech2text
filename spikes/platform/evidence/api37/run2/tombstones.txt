@@ -1,0 +1,74 @@
+# API37 ATD (sdk_slim_x86_64 17/CE2A.260420.051.A3), -gpu guest: system_server/screencap SIGABRT in mapper.ranchu GoldfishMapper::readFromHost ('Assertion failed: !rcEnc->featureInfo()->hasReadColorBufferDma'). Emulator gralloc readback bug: screenshot behaviour on API37 is NOT testable on this image.
+total 18840
+-rw-rw-r-- 1 tombstoned system 2022432 2026-11-18 21:35 tombstone_00
+-rw-rw-r-- 1 tombstoned system  341789 2026-11-18 21:35 tombstone_01
+-rw-rw-r-- 1 tombstoned system  341224 2026-11-18 21:35 tombstone_02
+-rw-rw-r-- 1 tombstoned system  574253 2026-11-18 21:37 tombstone_03
+-rw-rw-r-- 1 tombstoned system  341111 2026-11-18 21:38 tombstone_04
+-rw-rw-r-- 1 tombstoned system 2277084 2026-11-18 21:38 tombstone_05
+-rw-rw-r-- 1 tombstoned system  341927 2026-11-18 21:38 tombstone_06
+-rw-rw-r-- 1 tombstoned system 2261842 2026-11-18 22:14 tombstone_07
+-rw-rw-r-- 1 tombstoned system  340546 2026-11-18 22:14 tombstone_08
+-rw-rw-r-- 1 tombstoned system  341224 2026-11-18 22:14 tombstone_09
+-rw-rw-r-- 1 tombstoned system  570194 2026-11-18 22:16 tombstone_10
+-rw-rw-r-- 1 tombstoned system 1990654 2026-11-18 22:16 tombstone_11
+== tombstone_00
+Cmdline: system_server
+signal 6 (SIGABRT), code -1 (SI_QUEUE), fault addr --------
+Abort message: 'Assertion failed: !rcEnc->featureInfo()->hasReadColorBufferDma'
+      #04 pc 0000000000005adf  /vendor/lib64/hw/mapper.ranchu.so ((anonymous namespace)::GoldfishMapper::readFromHost(cb_handle_t const&) const+543) (BuildId: 7b353e53a651ae1223cbe45b0946e22b)
+== tombstone_01
+Cmdline: screencap -p
+signal 6 (SIGABRT), code -1 (SI_QUEUE), fault addr --------
+Abort message: 'Assertion failed: !rcEnc->featureInfo()->hasReadColorBufferDma'
+      #04 pc 00000000000055b0  /vendor/lib64/hw/mapper.ranchu.so ((anonymous namespace)::GoldfishMapper::GoldfishMapper()::'lambda'(native_handle const*, unsigned long, ARect, int, void**)::__invoke(n
+== tombstone_02
+Cmdline: screencap -p
+signal 6 (SIGABRT), code -1 (SI_QUEUE), fault addr --------
+Abort message: 'Assertion failed: !rcEnc->featureInfo()->hasReadColorBufferDma'
+      #04 pc 00000000000055b0  /vendor/lib64/hw/mapper.ranchu.so ((anonymous namespace)::GoldfishMapper::GoldfishMapper()::'lambda'(native_handle const*, unsigned long, ARect, int, void**)::__invoke(n
+== tombstone_03
+Cmdline: app.murmur.spike:infer
+signal 11 (SIGSEGV), code 0 (SI_USER), fault addr --------
+      #04 pc 000000000061c02c  /apex/com.android.art/lib64/libart.so (bool art::interpreter::DoCall<false>(art::ArtMethod*, art::Thread*, art::ShadowFrame&, art::Instruction const*, unsigned short, bo
+Cmdline: app.murmur.spike:infer
+== tombstone_04
+Cmdline: screencap -p
+signal 6 (SIGABRT), code -1 (SI_QUEUE), fault addr --------
+Abort message: 'Assertion failed: !rcEnc->featureInfo()->hasReadColorBufferDma'
+      #04 pc 00000000000055b0  /vendor/lib64/hw/mapper.ranchu.so ((anonymous namespace)::GoldfishMapper::GoldfishMapper()::'lambda'(native_handle const*, unsigned long, ARect, int, void**)::__invoke(n
+== tombstone_05
+Cmdline: system_server
+signal 6 (SIGABRT), code -1 (SI_QUEUE), fault addr --------
+Abort message: 'Assertion failed: !rcEnc->featureInfo()->hasReadColorBufferDma'
+      #04 pc 0000000000005adf  /vendor/lib64/hw/mapper.ranchu.so ((anonymous namespace)::GoldfishMapper::readFromHost(cb_handle_t const&) const+543) (BuildId: 7b353e53a651ae1223cbe45b0946e22b)
+== tombstone_06
+Cmdline: screencap -p
+signal 6 (SIGABRT), code -1 (SI_QUEUE), fault addr --------
+Abort message: 'Assertion failed: !rcEnc->featureInfo()->hasReadColorBufferDma'
+      #04 pc 00000000000055b0  /vendor/lib64/hw/mapper.ranchu.so ((anonymous namespace)::GoldfishMapper::GoldfishMapper()::'lambda'(native_handle const*, unsigned long, ARect, int, void**)::__invoke(n
+== tombstone_07
+Cmdline: system_server
+signal 6 (SIGABRT), code -1 (SI_QUEUE), fault addr --------
+Abort message: 'Assertion failed: !rcEnc->featureInfo()->hasReadColorBufferDma'
+      #04 pc 0000000000005adf  /vendor/lib64/hw/mapper.ranchu.so ((anonymous namespace)::GoldfishMapper::readFromHost(cb_handle_t const&) const+543) (BuildId: 7b353e53a651ae1223cbe45b0946e22b)
+== tombstone_08
+Cmdline: screencap -p
+signal 6 (SIGABRT), code -1 (SI_QUEUE), fault addr --------
+Abort message: 'Assertion failed: !rcEnc->featureInfo()->hasReadColorBufferDma'
+      #04 pc 00000000000055b0  /vendor/lib64/hw/mapper.ranchu.so ((anonymous namespace)::GoldfishMapper::GoldfishMapper()::'lambda'(native_handle const*, unsigned long, ARect, int, void**)::__invoke(n
+== tombstone_09
+Cmdline: screencap -p
+signal 6 (SIGABRT), code -1 (SI_QUEUE), fault addr --------
+Abort message: 'Assertion failed: !rcEnc->featureInfo()->hasReadColorBufferDma'
+      #04 pc 00000000000055b0  /vendor/lib64/hw/mapper.ranchu.so ((anonymous namespace)::GoldfishMapper::GoldfishMapper()::'lambda'(native_handle const*, unsigned long, ARect, int, void**)::__invoke(n
+== tombstone_10
+Cmdline: app.murmur.spike:infer
+signal 11 (SIGSEGV), code 0 (SI_USER), fault addr --------
+      #04 pc 000000000061c02c  /apex/com.android.art/lib64/libart.so (bool art::interpreter::DoCall<false>(art::ArtMethod*, art::Thread*, art::ShadowFrame&, art::Instruction const*, unsigned short, bo
+Cmdline: app.murmur.spike:infer
+== tombstone_11
+Cmdline: system_server
+signal 6 (SIGABRT), code -1 (SI_QUEUE), fault addr --------
+Abort message: 'Assertion failed: !rcEnc->featureInfo()->hasReadColorBufferDma'
+      #04 pc 0000000000005adf  /vendor/lib64/hw/mapper.ranchu.so ((anonymous namespace)::GoldfishMapper::readFromHost(cb_handle_t const&) const+543) (BuildId: 7b353e53a651ae1223cbe45b0946e22b)

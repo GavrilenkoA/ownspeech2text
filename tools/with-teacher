@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+# Run a command with the teacher-LLM (and Hugging Face) credentials in its environment.
+# Values come from the Hermes env file on this server and are never printed or written anywhere.
+#   tools/with-teacher python ml/data/generate.py ...
+set -euo pipefail
+
+env_file="${MURMUR_HERMES_ENV:-$HOME/.hermes/.env}"
+[ -r "$env_file" ] || { echo "with-teacher: cannot read $env_file" >&2; exit 1; }
+
+read_var() {
+  local line
+  line="$(grep -E "^(export[[:space:]]+)?$1=" "$env_file" | tail -n 1 || true)"
+  line="${line#export }"; line="${line#*=}"
+  line="${line%\"}"; line="${line#\"}"; line="${line%\'}"; line="${line#\'}"
+  printf '%s' "$line"
+}
+
+key="$(read_var LOCAL_CODEX_API_KEY)"
+[ -n "$key" ] || { echo "with-teacher: LOCAL_CODEX_API_KEY not found in $env_file" >&2; exit 1; }
+
+export MURMUR_TEACHER_BASE_URL="${MURMUR_TEACHER_BASE_URL:-http://127.0.0.1:18899/v1}"
+export MURMUR_TEACHER_MODEL="${MURMUR_TEACHER_MODEL:-gpt-6.2-sol}"
+export MURMUR_TEACHER_API="${MURMUR_TEACHER_API:-responses}"
+export MURMUR_TEACHER_API_KEY="$key"
+
+hf="$(read_var HF_TOKEN)"
+[ -n "$hf" ] && export HF_TOKEN="$hf"
+
+exec "$@"

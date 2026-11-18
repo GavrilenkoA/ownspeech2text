@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Murmur spike</string>
+    <string name="a11y_label">Murmur spike dictation</string>
+    <string name="a11y_summary">Floating dictation bubble (platform spike)</string>
+    <string name="a11y_description">Platform spike: shows a floating bubble, records audio on tap, reads the focused field and inserts text.</string>
+</resources>

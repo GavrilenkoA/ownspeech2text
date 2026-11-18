@@ -1,0 +1,7 @@
+extends: base.yaml
+run_name: lfm3-r16-lr5e-4
+output_dir: ${MURMUR_RUNS:-.cache/ml/train/runs}/lfm3-r16-lr5e-4
+base_model: LiquidAI/LFM3-1.7B
+method: lora
+lora: {r: 16, alpha: 32}
+train: {lr: 5.0e-4, epochs: 3}

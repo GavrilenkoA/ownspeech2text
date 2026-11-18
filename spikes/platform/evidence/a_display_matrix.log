@@ -1,0 +1,57 @@
+### rot0 (wm size: Physical size: 1080x2520, density: Physical density: 420)
+  1867  1867 I MurmurSpike: EV bubble_where {"pid":1867,"up":329951,"display":0,"x":84,"y":684,"lpx":0,"lpy":600}
+  1867  1867 I MurmurSpike: EV pong {"pid":1867,"up":330128,"connected":true,"overlays":1}
+### rot1 (wm size: Physical size: 1080x2520, density: Physical density: 420)
+  1867  1867 I MurmurSpike: EV config_changed {"pid":1867,"up":337251,"orientation":2,"sw":411,"w":960,"h":411,"densityDpi":420}
+  1867  1867 I MurmurSpike: EV bubble_reclamped {"pid":1867,"up":337252,"reason":"config","bounds":"[0,0][1080,2520]","x":0,"y":600,"rotation":1,"attached":true}
+  1867  1867 I MurmurSpike: EV bubble_reclamped {"pid":1867,"up":337293,"reason":"display_listener","bounds":"[0,0][2520,1080]","x":0,"y":233,"rotation":1,"attached":true}
+  1867  1867 I MurmurSpike: EV bubble_reclamped {"pid":1867,"up":337846,"reason":"display_listener","bounds":"[0,0][2520,1080]","x":0,"y":233,"rotation":1,"attached":true}
+  1867  1867 I MurmurSpike: EV bubble_where {"pid":1867,"up":337962,"display":0,"x":84,"y":317,"lpx":0,"lpy":233}
+  1867  1867 I MurmurSpike: EV pong {"pid":1867,"up":338261,"connected":true,"overlays":1}
+### rot2 (wm size: Physical size: 1080x2520, density: Physical density: 420)
+  1867  1867 I MurmurSpike: EV bubble_reclamped {"pid":1867,"up":342174,"reason":"display_listener","bounds":"[0,0][2520,1080]","x":0,"y":233,"rotation":1,"attached":true}
+  1867  1867 I MurmurSpike: EV config_changed {"pid":1867,"up":342192,"orientation":1,"sw":411,"w":411,"h":960,"densityDpi":420}
+  1867  1867 I MurmurSpike: EV bubble_reclamped {"pid":1867,"up":342193,"reason":"config","bounds":"[0,0][2520,1080]","x":0,"y":233,"rotation":2,"attached":true}
+  1867  1867 I MurmurSpike: EV bubble_reclamped {"pid":1867,"up":342576,"reason":"display_listener","bounds":"[0,0][1080,2520]","x":0,"y":601,"rotation":2,"attached":true}
+  1867  1867 I MurmurSpike: EV bubble_where {"pid":1867,"up":344381,"display":0,"x":84,"y":685,"lpx":0,"lpy":601}
+  1867  1867 I MurmurSpike: EV pong {"pid":1867,"up":344465,"connected":true,"overlays":1}
+### rot3 (wm size: Physical size: 1080x2520, density: Physical density: 420)
+  1867  1867 I MurmurSpike: EV config_changed {"pid":1867,"up":347594,"orientation":2,"sw":411,"w":960,"h":411,"densityDpi":420}
+  1867  1867 I MurmurSpike: EV bubble_reclamped {"pid":1867,"up":347595,"reason":"config","bounds":"[0,0][1080,2520]","x":0,"y":601,"rotation":3,"attached":true}
+  1867  1867 I MurmurSpike: EV bubble_reclamped {"pid":1867,"up":347961,"reason":"display_listener","bounds":"[0,0][2520,1080]","x":0,"y":233,"rotation":3,"attached":true}
+  1867  1867 I MurmurSpike: EV bubble_where {"pid":1867,"up":350320,"display":0,"x":84,"y":317,"lpx":0,"lpy":233}
+  1867  1867 I MurmurSpike: EV pong {"pid":1867,"up":350610,"connected":true,"overlays":1}
+### rot0 (wm size: Physical size: 1080x2520, density: Physical density: 420)
+  1867  1867 I MurmurSpike: EV config_changed {"pid":1867,"up":354214,"orientation":1,"sw":411,"w":411,"h":960,"densityDpi":420}
+  1867  1867 I MurmurSpike: EV bubble_reclamped {"pid":1867,"up":354214,"reason":"config","bounds":"[0,0][2520,1080]","x":0,"y":233,"rotation":0,"attached":true}
+  1867  1867 I MurmurSpike: EV bubble_reclamped {"pid":1867,"up":354434,"reason":"display_listener","bounds":"[0,0][1080,2520]","x":0,"y":601,"rotation":0,"attached":true}
+  1867  1867 I MurmurSpike: EV bubble_reclamped {"pid":1867,"up":354435,"reason":"display_listener","bounds":"[0,0][1080,2520]","x":0,"y":601,"rotation":0,"attached":true}
+  1867  1867 I MurmurSpike: EV bubble_where {"pid":1867,"up":356678,"display":0,"x":84,"y":685,"lpx":0,"lpy":601}
+  1867  1867 I MurmurSpike: EV pong {"pid":1867,"up":356850,"connected":true,"overlays":1}
+### inner_1968x2184_d420 (wm size: Override size: 1968x2184, density: Physical density: 420)
+  1867  1867 I MurmurSpike: EV bubble_reclamped {"pid":1867,"up":360369,"reason":"display_listener","bounds":"[0,0][1080,2520]","x":0,"y":601,"rotation":0,"attached":true}
+  1867  1867 I MurmurSpike: EV config_changed {"pid":1867,"up":360441,"orientation":1,"sw":750,"w":750,"h":832,"densityDpi":420}
+  1867  1867 I MurmurSpike: EV bubble_reclamped {"pid":1867,"up":360451,"reason":"config","bounds":"[0,0][1080,2520]","x":0,"y":601,"rotation":0,"attached":true}
+  1867  1867 I MurmurSpike: EV bubble_reclamped {"pid":1867,"up":361001,"reason":"display_listener","bounds":"[0,0][1968,2184]","x":0,"y":515,"rotation":0,"attached":true}
+  1867  1867 I MurmurSpike: EV bubble_where {"pid":1867,"up":363603,"display":0,"x":84,"y":599,"lpx":0,"lpy":515}
+  1867  1867 I MurmurSpike: EV pong {"pid":1867,"up":363988,"connected":true,"overlays":1}
+### inner_1968x2184_d374 (wm size: Override size: 1968x2184, density: Override density: 374)
+  1867  1867 I MurmurSpike: EV bubble_reclamped {"pid":1867,"up":367564,"reason":"display_listener","bounds":"[0,0][1968,2184]","x":0,"y":515,"rotation":0,"attached":true}
+  1867  1867 I MurmurSpike: EV config_changed {"pid":1867,"up":367565,"orientation":1,"sw":842,"w":842,"h":934,"densityDpi":374}
+  1867  1867 I MurmurSpike: EV bubble_reclamped {"pid":1867,"up":367565,"reason":"config","bounds":"[0,0][1968,2184]","x":0,"y":515,"rotation":0,"attached":true}
+  1867  1867 I MurmurSpike: EV bubble_where {"pid":1867,"up":370354,"display":0,"x":84,"y":599,"lpx":0,"lpy":515}
+  1867  1867 I MurmurSpike: EV pong {"pid":1867,"up":370672,"connected":true,"overlays":1}
+### cover_reset (wm size: Physical size: 1080x2520, density: Physical density: 420)
+  1867  1867 I MurmurSpike: EV bubble_reclamped {"pid":1867,"up":375256,"reason":"display_listener","bounds":"[0,0][1968,2184]","x":0,"y":515,"rotation":0,"attached":true}
+  1867  1867 I MurmurSpike: EV config_changed {"pid":1867,"up":375480,"orientation":1,"sw":462,"w":462,"h":1078,"densityDpi":374}
+  1867  1867 I MurmurSpike: EV bubble_reclamped {"pid":1867,"up":375481,"reason":"config","bounds":"[0,0][1968,2184]","x":0,"y":515,"rotation":0,"attached":true}
+  1867  1867 I MurmurSpike: EV bubble_reclamped {"pid":1867,"up":376044,"reason":"display_listener","bounds":"[0,0][1080,2520]","x":0,"y":601,"rotation":0,"attached":true}
+  1867  1867 I MurmurSpike: EV config_changed {"pid":1867,"up":376417,"orientation":1,"sw":411,"w":411,"h":960,"densityDpi":420}
+  1867  1867 I MurmurSpike: EV bubble_reclamped {"pid":1867,"up":376417,"reason":"config","bounds":"[0,0][1080,2520]","x":0,"y":601,"rotation":0,"attached":true}
+  1867  1867 I MurmurSpike: EV bubble_reclamped {"pid":1867,"up":376635,"reason":"display_listener","bounds":"[0,0][1080,2520]","x":0,"y":601,"rotation":0,"attached":true}
+  1867  1867 I MurmurSpike: EV bubble_where {"pid":1867,"up":379179,"display":0,"x":84,"y":685,"lpx":0,"lpy":601}
+  1867  1867 I MurmurSpike: EV pong {"pid":1867,"up":379433,"connected":true,"overlays":1}
+### rot0 -> rot2 -> rot0 (180 degree flips)
+  1867  1867 I MurmurSpike: EV bubble_reclamped {"pid":1867,"up":394120,"reason":"display_listener","bounds":"[0,0][1080,2520]","x":0,"y":601,"rotation":2,"attached":true}
+  1867  1867 I MurmurSpike: EV bubble_where {"pid":1867,"up":396245,"display":0,"x":84,"y":685,"lpx":0,"lpy":601}
+  1867  1867 I MurmurSpike: EV bubble_reclamped {"pid":1867,"up":398286,"reason":"display_listener","bounds":"[0,0][1080,2520]","x":0,"y":601,"rotation":0,"attached":true}

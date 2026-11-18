@@ -1,0 +1,7 @@
+# ml/ocr + ml/screens reference pipeline (CPU). Install: uv venv .cache/ml/ocr/venv -p 3.13 && uv pip install -p .cache/ml/ocr/venv -r ml/ocr/requirements.txt
+onnxruntime==1.32.0
+numpy==2.5.5
+opencv-python-headless==5.1.0.95
+pillow==13.0.0
+pyyaml==6.0.3
+pytest==9.0.1

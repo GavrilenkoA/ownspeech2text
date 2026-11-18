@@ -1,0 +1,17 @@
+# The ONE full fine-tuning experiment (PLAN_V2: only if LoRA misses the gates). Default target LFM3-1.7B;
+# for Qwen3.5-0.8B: --set base_model=Qwen/Qwen3.5-0.8B train.lr=2.0e-5 output_dir=$MURMUR_RUNS/q08-full
+# Memory on 32 GB (assumed, not measured): fp32 master weights + grads + AdamW = 16 B/param.
+# LFM3 has 1.7B params of which the tied 128K x 2048 embedding is 0.26B; freezing it gives
+# ~1.45B x 16 B = 23 GB + activations (batch 8, checkpointing) -> fits; unfrozen (27 GB) would not.
+extends: base.yaml
+run_name: full-fallback
+output_dir: ${MURMUR_RUNS:-.cache/ml/train/runs}/full-fallback
+base_model: LiquidAI/LFM3-1.7B
+method: full
+train:
+  lr: 1.0e-5
+  epochs: 3
+  batch_size: 8
+  grad_accum: 2
+  freeze_embeddings: true
+  save_steps: 100000      # a full-FT checkpoint with optimizer state is ~25 GB: no mid-run checkpoints

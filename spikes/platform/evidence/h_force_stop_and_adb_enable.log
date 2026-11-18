@@ -1,0 +1,11 @@
+### before
+app.murmur.spike/app.murmur.spike.SpikeA11yService
+### after am force-stop
+null
+     Bound services:{}
+     Enabled services:{}
+### appops ACCESS_RESTRICTED_SETTINGS=ignore, then adb settings put
+ACCESS_RESTRICTED_SETTINGS: ignore; time=+1h13m36s844ms ago; rejectTime=+1h17m22s869ms ago
+  8359  8359 I MurmurSpike: EV service_connected {"pid":8359,"up":1153180,"sdk":36,"flags":32848,"caps":129,"isAccessibilityTool":false,"inputMethod":true}
+  8359  8359 I MurmurSpike: EV bubble_attached {"pid":8359,"up":1153865,"display":0,"ok":true,"type":2032,"bounds":"[0,0][1080,2520]"}
+     Bound services:{Service[label=Murmur spike dictation, feedbackType[FEEDBACK_GENERIC], capabilities=129, eventTypes=

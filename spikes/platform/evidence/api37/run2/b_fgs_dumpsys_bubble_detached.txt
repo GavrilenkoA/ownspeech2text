@@ -1,0 +1,6 @@
+ServiceRecord{a2fdb35 u0 app.murmur.spike/.SpikeA11yService
+code:PROC_STATE_PERSISTENT
+allowWiu:10
+ServiceRecord{74fa397 u0 app.murmur.spike/.RecordingFgs
+code:ACTIVITY_STARTER
+allowWiu:52

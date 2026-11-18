@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application android:label="@string/app_name" android:theme="@style/Theme.Spike">
+        <!-- Each activity puts focus in one kind of field and logs every text change (independent read-back). -->
+        <activity android:name=".PlainActivity" android:exported="true" android:windowSoftInputMode="stateAlwaysVisible|adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <activity android:name=".ComposeActivity" android:exported="true" android:windowSoftInputMode="stateAlwaysVisible|adjustResize" />
+        <activity android:name=".WebActivity" android:exported="true" android:windowSoftInputMode="stateAlwaysVisible|adjustResize" />
+        <activity android:name=".SecureActivity" android:exported="true" android:windowSoftInputMode="stateAlwaysVisible|adjustResize" />
+    </application>
+</manifest>

@@ -1,0 +1,8 @@
+  3737  3737 I MurmurSpike: EV cmd {"pid":3737,"up":239044,"c":"rec_probe_hidden"}
+  3737  3737 I MurmurSpike: EV bubble_detached {"pid":3737,"up":239054,"display":0}
+  3737  3737 I MurmurSpike: EV rec_started {"pid":3737,"up":240569,"label":"a11y-hidden-nofgs","recordingState":3,"session":121}
+  3737  4353 I MurmurSpike: EV rec_config {"pid":3737,"up":240572,"label":"a11y-hidden-nofgs","silenced":false,"source":6,"device":"sdk_gphone64_x86_64"}
+  3737  3737 I MurmurSpike: EV rec_first_buffer {"pid":3737,"up":241570,"label":"a11y-hidden-nofgs","ms":73,"silenced":false}
+  3737  3737 I MurmurSpike: EV dictation_stop {"pid":3737,"up":242594,"rec":{"label":"a11y-hidden-nofgs","samples":31680,"seconds":1.98,"nonZero":28069,"peak":8,"firstBufferMs":73,"silencedAtStop":false,"silencedCallback":false}}
+  3737  3737 I MurmurSpike: EV bubble_attached {"pid":3737,"up":243080,"display":0,"ok":true,"type":2032,"bounds":"[0,0][1080,2520]"}
+  3737  3737 I MurmurSpike: EV fg_window_state {"pid":3737,"up":243315,"pkg":"app.murmur.spike","cls":"androidx.compose.ui.platform.ComposeView"}

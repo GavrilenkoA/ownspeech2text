@@ -1,0 +1,10 @@
+ml/screens ready (interface of docs/ml/CONTEXT_V2.md), 2026-11-18.
+  from ml.screens import render; render(spec) -> {"png", "size", "visible", "exclude_rects", "exclude_kinds", "spec"}
+  python -m ml.screens.render SPEC.json OUT.png   (and --batch SPECS.jsonl OUTDIR)
+  from ml.screens.build_ctx import build_ctx; build_ctx(spec) -> ctx v2
+  python -m ml.screens.build_ctx --batch SPECS.jsonl OUT.jsonl --workers 4 --threads 2   (run via tools/heavy)
+  from ml.screens.specs import from_teacher; from_teacher(screen, app, field_kind, lang, seed) -> spec
+17 templates (see ml/screens/README.md for what each does with title/messages/snippets/field).
+Venv: .cache/ml/ocr/venv (ml/ocr/requirements.txt); Node deps: .cache/ml/screens/node_modules; fonts: ml/ocr/fetch_assets.sh.
+Tests: .cache/ml/ocr/venv/bin/python -m pytest -q ml/screens/tests
+OCR constants may still be tuned (meta.ocr carries the pipeline version); the interfaces will not change.

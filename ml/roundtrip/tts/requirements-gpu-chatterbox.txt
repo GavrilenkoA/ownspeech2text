@@ -1,0 +1,5 @@
+# Pod venv for the chatterbox-mtl driver (CUDA). chatterbox-tts pins transformers==5.2.0 and torch;
+# it cannot share a venv with qwen-tts.
+chatterbox-tts==0.1.7
+soundfile
+scipy

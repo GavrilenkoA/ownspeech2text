@@ -1,0 +1,6 @@
+  5588  5588 I MurmurSpike: EV service_connected {"pid":5588,"up":373342,"sdk":37,"flags":32848,"caps":129,"isAccessibilityTool":false,"inputMethod":true}
+  5588  5588 I MurmurSpike: EV bubble_attached {"pid":5588,"up":373918,"display":0,"ok":true,"type":2032,"bounds":"[0,0][1080,2520]"}
+  5588  5588 I MurmurSpike: EV ime_start_input {"pid":5588,"up":373987,"pkg":"com.android.fakesystemapp","inputType":0,"hint":null,"fieldId":0,"restarting":false}
+  5588  5588 I MurmurSpike: EV config_changed {"pid":5588,"up":377498,"orientation":1,"sw":411,"w":411,"h":960,"densityDpi":420}
+  5588  5588 I MurmurSpike: EV bubble_reclamped {"pid":5588,"up":377499,"reason":"config","bounds":"[0,0][1080,2520]","x":0,"y":600,"rotation":0,"attached":true}
+  5588  5588 I MurmurSpike: EV fg_window_state {"pid":5588,"up":377500,"pkg":"app.murmur.spike","cls":"androidx.compose.ui.platform.ComposeView"}

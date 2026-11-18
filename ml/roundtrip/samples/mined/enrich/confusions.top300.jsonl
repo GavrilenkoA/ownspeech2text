@@ -1,0 +1,300 @@
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 13, "hyp": "что", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 8, "hyp": "нее", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "ней"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 6, "hyp": "и", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 6, "hyp": "как", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 6, "hyp": "ну", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "но"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 5, "hyp": "чтобы", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "чтоб"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 4, "hyp": "батюшка", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "бачка"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 4, "hyp": "хмм", "in_term": false, "kind": "sub", "lang": "ru", "ref": "гм"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 4, "hyp": "это", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "эта"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 3, "hyp": "а", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 3, "hyp": "не", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 3, "hyp": "то", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 3, "hyp": "чт", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 3, "hyp": "ж", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "же"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 3, "hyp": "китти", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "кити"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 3, "hyp": "марфеньки", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "марфиньки"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 3, "hyp": "мной", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "мною"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 3, "hyp": "также", "in_term": false, "kind": "punct", "lang": "ru", "ref": "так же"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 3, "hyp": "федорович", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "федорыч"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 3, "hyp": "чтоб", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "чтобы"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 2, "hyp": "в", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 2, "hyp": "где", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 2, "hyp": "к", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 2, "hyp": "кото", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 2, "hyp": "но", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 2, "hyp": "сказал", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 2, "hyp": "я", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 2, "hyp": "арены", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "арины"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 2, "hyp": "быть", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "быть-с"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 2, "hyp": "всеобщий", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "всеобщее"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 2, "hyp": "грешно", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "грех"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 2, "hyp": "дженна", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "джемма"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 2, "hyp": "затем", "in_term": false, "kind": "punct", "lang": "ru", "ref": "за тем"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 2, "hyp": "", "in_term": false, "kind": "del", "lang": "ru", "ref": "и"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 2, "hyp": "коль", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "коли"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 2, "hyp": "которая", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "которое"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 2, "hyp": "кузьмич", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "кузмич"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 2, "hyp": "наверное", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "наверно"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 2, "hyp": "ненадолго", "in_term": false, "kind": "punct", "lang": "ru", "ref": "не надолго"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 2, "hyp": "нет", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "нет-с"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 2, "hyp": "очуявшись", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "очутившись"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 2, "hyp": "полковник", "in_term": false, "kind": "sub", "lang": "ru", "ref": "полк"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 2, "hyp": "по-прежнему", "in_term": false, "kind": "punct", "lang": "ru", "ref": "попрежнему"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 2, "hyp": "со", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "с"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 2, "hyp": "то", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "т"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 2, "hyp": "то", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "та"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 2, "hyp": "удаляясь", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "удалясь"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 2, "hyp": "уже", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "уж"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 2, "hyp": "шеннона", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "шэннона"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 2, "hyp": "эдме", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "эдмэ"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "ах", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "богов", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "бы", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "валите", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "вкраплял", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "вс", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "высл", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "ге", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "да", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "е-с-сли", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "есть", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "же", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "за", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "зна", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "из", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "кот", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "люб", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "наш", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "нет", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "о", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "оп", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "ска", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "сказала", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "так", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "тому", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "ты", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "чем", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "чтобы", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "это", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "а-а", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "а"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "атреоке", "in_term": false, "kind": "sub", "lang": "ru", "ref": "адриатико-ионической"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "алешka", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "алешка"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "андреевич", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "андреич"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "андреевича", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "андреича"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "андреевичу", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "андреичу"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "аркадьевич", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "аркадьич"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "аркашу", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "аркаши"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "антисемитизм", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "асемитизм"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "остапьевича", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "астафьича"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "ахэна", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "ахена"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "", "in_term": false, "kind": "del", "lang": "ru", "ref": "ба"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "вам", "in_term": false, "kind": "sub", "lang": "ru", "ref": "ба"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "барышня", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "барынька"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "барышни", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "барышне"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "батюшка", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "батька"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "бедная", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "бедное"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "без-застенчиво", "in_term": false, "kind": "punct", "lang": "ru", "ref": "беззастенчиво"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "без семенова", "in_term": false, "kind": "punct", "lang": "ru", "ref": "безсеменова"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "безукоризненное", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "безукоризненно"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "белоблочные", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "беловолосые"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "бешенства", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "бешенство"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "брал", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "бирал"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "благороднее", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "благородней"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "далеко", "in_term": false, "kind": "sub", "lang": "ru", "ref": "близко"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "блистание", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "блистанье"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "блошиной", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "блохой"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "богородице", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "богородица"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "божьею", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "божиею"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "большою", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "большею"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "ботинка", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "ботинки"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "берегам", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "брегам"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "центральноевропейские", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "в центральноевропейской"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "вайблингер", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "вайблинген"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "васильевичу", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "васильичу"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "вдохновение", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "вдохновения"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "всегда", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "везде"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "vr", "in_term": false, "kind": "sub", "lang": "ru", "ref": "вер"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "верите", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "верьте"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "взаимно отталкивающей", "in_term": false, "kind": "punct", "lang": "ru", "ref": "взаимно-отталкивающей"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "виду", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "вида"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "видел", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "видал"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "видимо", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "видно"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "вижу", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "вижю"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "вкривь", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "вкрив"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "влияние", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "влияния"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "внимание", "in_term": false, "kind": "sub", "lang": "ru", "ref": "внимательность"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "водяниц", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "водяных"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "возлагает", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "возлагать"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "волей", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "волею"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "волосы", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "волоса"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "воплем", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "воплям"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "воротишься", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "воротись"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "18", "in_term": false, "kind": "number", "lang": "ru", "ref": "восемнадцать"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "воск", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "воске"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "восстанавливается", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "восстановляется"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "всем в", "in_term": false, "kind": "punct", "lang": "ru", "ref": "всем--в"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "всемирной", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "всемерной"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "в-третьих", "in_term": false, "kind": "punct", "lang": "ru", "ref": "втретьих"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "вчерашнее", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "вчерашние"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "", "in_term": false, "kind": "del", "lang": "ru", "ref": "вы"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "творить", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "гворить"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "глубоко серьезным", "in_term": false, "kind": "punct", "lang": "ru", "ref": "глубоко-серьезным"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "хм", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "гм"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "говорит", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "говорю"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "говорите", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "говорят"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "головной", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "головною"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "головой", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "головою"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "гоним", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "гонимый"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "горячки", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "горячку"}
+{"asr_model": "gigaam-v2@enrich-dataset", "count": 1, "hyp": "грипп", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "гриб"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 24, "hyp": "", "in_term": false, "kind": "del", "lang": "ru", "ref": "и"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 12, "hyp": "чтобы", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "чтоб"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 10, "hyp": "что", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 10, "hyp": "", "in_term": false, "kind": "del", "lang": "ru", "ref": "в"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 10, "hyp": "", "in_term": false, "kind": "del", "lang": "ru", "ref": "что"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 9, "hyp": "и", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 7, "hyp": "ну", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "но"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 6, "hyp": "", "in_term": false, "kind": "del", "lang": "ru", "ref": "а"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 5, "hyp": "в", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 4, "hyp": "как", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 4, "hyp": "не", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 4, "hyp": "до", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "да"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 3, "hyp": "а", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 3, "hyp": "который", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 3, "hyp": "бы", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "б"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 3, "hyp": "хм", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "гм"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 3, "hyp": "ни", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "не"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 3, "hyp": "нее", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "ней"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 3, "hyp": "не", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "ни"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 3, "hyp": "также", "in_term": false, "kind": "punct", "lang": "ru", "ref": "так же"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 3, "hyp": "", "in_term": false, "kind": "del", "lang": "ru", "ref": "у"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 3, "hyp": "уже", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "уж"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 3, "hyp": "это", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "эта"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 3, "hyp": "", "in_term": false, "kind": "del", "lang": "ru", "ref": "я"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 2, "hyp": "где", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 2, "hyp": "к", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 2, "hyp": "владыка", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "владыко"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 2, "hyp": "воспоминания", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "воспоминание"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 2, "hyp": "же", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "ж"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 2, "hyp": "затем", "in_term": false, "kind": "punct", "lang": "ru", "ref": "за тем"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 2, "hyp": "ис", "in_term": false, "kind": "punct", "lang": "ru", "ref": "и с"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 2, "hyp": "как-нибудь", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "как не быть-с"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 2, "hyp": "красавицы", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "красавица"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 2, "hyp": "много", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "многое"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 2, "hyp": "наверное", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "наверно"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 2, "hyp": "нашему", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "нашим"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 2, "hyp": "ненадолго", "in_term": false, "kind": "punct", "lang": "ru", "ref": "не надолго"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 2, "hyp": "нет", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "нет-с"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 2, "hyp": "но", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "ну"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 2, "hyp": "обществу", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "обществам"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 2, "hyp": "", "in_term": false, "kind": "del", "lang": "ru", "ref": "он"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 2, "hyp": "отношение", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "отношения"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 2, "hyp": "от того", "in_term": false, "kind": "punct", "lang": "ru", "ref": "оттого"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 2, "hyp": "чего", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "отчего"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 2, "hyp": "полковник", "in_term": false, "kind": "sub", "lang": "ru", "ref": "полк"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 2, "hyp": "по-прежнему", "in_term": false, "kind": "punct", "lang": "ru", "ref": "попрежнему"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 2, "hyp": "рукой", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "рукою"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 2, "hyp": "", "in_term": false, "kind": "del", "lang": "ru", "ref": "с"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 2, "hyp": "то", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "т"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 2, "hyp": "прозрачным", "in_term": false, "kind": "sub", "lang": "ru", "ref": "транспарентным"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 2, "hyp": "удаляясь", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "удалясь"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 2, "hyp": "у", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "уж"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 2, "hyp": "уже ли", "in_term": false, "kind": "punct", "lang": "ru", "ref": "ужели"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 2, "hyp": "чтоб", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "чтобы"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 2, "hyp": "", "in_term": false, "kind": "del", "lang": "ru", "ref": "это"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 2, "hyp": "язычества", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "язычество"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "de", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "escorço", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "habitait", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "à", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "бы", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "выскочить", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "ему", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "есть", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "за", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "когда", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "людство", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "наш", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "ни", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "но", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "новых", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "оно", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "разведывательной", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "сидел", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "синьор", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "так", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "тому", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "ты", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "чтобы", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "я", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "они", "in_term": false, "kind": "sub", "lang": "ru", "ref": "а"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "побырин", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "а барин"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "ав", "in_term": false, "kind": "punct", "lang": "ru", "ref": "а в"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "аллочка", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "а ловко"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "они", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "а не"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "осины", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "а силы"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "ау", "in_term": false, "kind": "punct", "lang": "ru", "ref": "а у"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "ая", "in_term": false, "kind": "punct", "lang": "ru", "ref": "а я"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "отряде янических", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "адриатико-ионической"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "конюрам", "in_term": false, "kind": "sub", "lang": "ru", "ref": "амбарам"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "андреевича", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "андреича"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "осея в", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "асеев"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "антисемитизм", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "асемитизм"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "ой", "in_term": false, "kind": "sub", "lang": "ru", "ref": "ах"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "ахмед", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "ахмет"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "вам", "in_term": false, "kind": "sub", "lang": "ru", "ref": "ба"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "бабка-молочница", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "бабка молочнице"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "булавник", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "баловник"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "банки", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "банк"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "варень", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "барин"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "баронией", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "барыней"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "вары не", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "барыни"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "барышня", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "барышне"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "батюшка", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "батька"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "бач", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "бачка"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "бачок", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "бачка"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "бедная", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "бедное"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "без воли", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "безволия"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "безлюдные", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "безлюдной"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "бессеменова", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "безсеменова"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "безукоризненное", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "безукоризненно"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "без идейно", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "безыдейно"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "бежерке", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "бержерке"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "бесплодные", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "бесплодны"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "бизнес-процессов", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "бизнес-процесса"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "брали", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "бирал я"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "блестание", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "блистанье"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "блахой", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "блохой"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "бог", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "бо"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "бадлер", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "бодлер"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "божией", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "божиею"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "большим", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "большем"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "большей", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "большею"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "босика", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "босяка"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "бы изливо", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "боязливо"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "берегам", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "брегам"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "борику", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "брюху"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "бутин", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "будь он"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "быть", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "бы"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "было", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "был"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "был и", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "было"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "былый", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "было"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "дикому", "in_term": false, "kind": "sub", "lang": "ru", "ref": "в"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "о", "in_term": false, "kind": "sub", "lang": "ru", "ref": "в"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "иван", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "в ивана"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "въезде", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "в уезде"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "частную", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "в частной"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "волн", "in_term": false, "kind": "sub", "lang": "ru", "ref": "валов"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "варенья", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "вареньица"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "васильевичу", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "васильичу"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "ваша", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "вашу"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "вдохновенья", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "вдохновенье"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "вы", "in_term": false, "kind": "sub", "lang": "ru", "ref": "ведь"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "видя", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "ведь и"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "la", "in_term": false, "kind": "sub", "lang": "ru", "ref": "везде"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "верите к", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "велите-ка"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "випонизацией", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "вепонизацией"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "них", "in_term": false, "kind": "sub", "lang": "ru", "ref": "вернись"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "уверно", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "верно"}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "взаимно отталкивающей", "in_term": false, "kind": "punct", "lang": "ru", "ref": "взаимно-отталкивающей"}

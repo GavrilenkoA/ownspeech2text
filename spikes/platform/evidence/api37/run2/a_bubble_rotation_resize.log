@@ -1,0 +1,24 @@
+  3141  3141 I MurmurSpike: EV service_connected {"pid":3141,"up":84720,"sdk":37,"flags":32848,"caps":129,"isAccessibilityTool":false,"inputMethod":true}
+  3141  3141 I MurmurSpike: EV bubble_attached {"pid":3141,"up":84952,"display":0,"ok":true,"type":2032,"bounds":"[0,0][1968,2184]"}
+  3141  3141 I MurmurSpike: EV ime_start_input {"pid":3141,"up":84966,"pkg":"com.android.fakesystemapp","inputType":0,"hint":null,"fieldId":0,"restarting":false}
+  3141  3141 I MurmurSpike: EV cmd {"pid":3141,"up":85775,"c":"where"}
+  3141  3141 I MurmurSpike: EV bubble_where {"pid":3141,"up":85775,"display":0,"x":84,"y":684,"lpx":0,"lpy":600}
+  3141  3141 I MurmurSpike: EV cmd {"pid":3141,"up":85880,"c":"ping"}
+  3141  3141 I MurmurSpike: EV pong {"pid":3141,"up":85880,"connected":true,"overlays":1}
+  3141  3141 I MurmurSpike: EV fg_window_state {"pid":3141,"up":85894,"pkg":"app.murmur.spike","cls":"androidx.compose.ui.platform.ComposeView"}
+  3141  3141 I MurmurSpike: EV config_changed {"pid":3141,"up":86271,"orientation":1,"sw":750,"w":750,"h":832,"densityDpi":420}
+  3141  3141 I MurmurSpike: EV bubble_reclamped {"pid":3141,"up":86276,"reason":"config","bounds":"[0,0][1968,2184]","x":0,"y":600,"rotation":0,"attached":true}
+  3141  3141 I MurmurSpike: EV bubble_reclamped {"pid":3141,"up":87686,"reason":"display_listener","bounds":"[0,0][1968,2184]","x":0,"y":600,"rotation":0,"attached":true}
+  3141  3141 I MurmurSpike: EV config_changed {"pid":3141,"up":87746,"orientation":1,"sw":411,"w":411,"h":960,"densityDpi":420}
+  3141  3141 I MurmurSpike: EV bubble_reclamped {"pid":3141,"up":87747,"reason":"config","bounds":"[0,0][1968,2184]","x":0,"y":600,"rotation":0,"attached":true}
+  3141  3141 I MurmurSpike: EV bubble_reclamped {"pid":3141,"up":87759,"reason":"display_listener","bounds":"[0,0][1080,2520]","x":0,"y":700,"rotation":0,"attached":true}
+  3141  3141 I MurmurSpike: EV ime_finish_input {"pid":3141,"up":87886}
+  3141  3141 I MurmurSpike: EV fg_window_state {"pid":3141,"up":87982,"pkg":"com.android.fakesystemapp","cls":"com.android.fakesystemapp.launcher.EmptyHomeActivity"}
+  Window #0 Window{484161b u0 MurmurBubble}:
+    mDisplayId=0 mSession=Session{6cc3172 3141:u0a10106} mClient=android.os.BinderProxy@862282a
+    mOwnerUid=10106 showForAllUsers=false package=app.murmur.spike appop=CREATE_ACCESSIBILITY_OVERLAY
+    mAttrs={(0,700)(168x168) gr=TOP START CENTER sim={adjust=pan} ty=ACCESSIBILITY_OVERLAY fmt=TRANSLUCENT
+--
+    WindowStateAnimator{7636521 MurmurBubble}:
+      mSurface=Surface(name=VRI-MurmurBubble#123)/@0x51b08dc
+      Surface: shown=true      mDrawState=HAS_DRAWN       mLastHidden=false

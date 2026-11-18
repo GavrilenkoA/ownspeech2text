@@ -1,0 +1,5 @@
+ 10369 10369 I MurmurSpike: EV cmd {"pid":10369,"up":1341313,"c":"uidt_bg"}
+ 10369 10369 I MurmurSpike: EV uidt_schedule {"pid":10369,"up":1341317,"from":"a11y_service_background","result":"RESULT_SUCCESS"}
+ 10369 10369 I MurmurSpike: EV uidt_start {"pid":10369,"up":1341322,"userInitiated":true,"name":"bg-test.bin","partBytes":13422811}
+ 10369 10463 I MurmurSpike: EV uidt_http {"pid":10369,"up":1342107,"code":206,"rangeFrom":13422811,"contentRange":"bytes 13422811-151061671\/151061672","finalHost":"us.aws.cdn.hf.co","len":137638861}
+ 10369 10369 I MurmurSpike: EV uidt_stopped {"pid":10369,"up":1343481,"stopReason":13,"partBytes":20386114}

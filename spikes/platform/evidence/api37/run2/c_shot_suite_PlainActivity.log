@@ -1,0 +1,8 @@
+  3141  3141 I MurmurSpike: EV cmd {"pid":3141,"up":150625,"c":"shot_suite"}
+  3141  3141 I MurmurSpike: EV shot_suite {"pid":3141,"up":151319,"step":"window#1","r":{"kind":"window","id":11,"ok":true,"ms":20,"w":2520,"h":1080,"centreLuma":0,"file":"window_150923.png"}}
+  3141  3141 I MurmurSpike: EV shot_suite {"pid":3141,"up":152037,"step":"window#2_immediate","r":{"kind":"window","id":11,"ok":true,"ms":64,"w":2520,"h":1080,"centreLuma":0,"file":"window_151543.png"}}
+  3141  3141 I MurmurSpike: EV shot_suite {"pid":3141,"up":152679,"step":"display#1_immediate","r":{"kind":"display","id":0,"ok":true,"ms":24,"w":2520,"h":1080,"centreLuma":0,"file":"display_152232.png"}}
+  3141  3141 I MurmurSpike: EV shot_suite {"pid":3141,"up":153154,"step":"display#2_immediate","r":{"kind":"display","id":0,"ok":true,"ms":21,"w":2520,"h":1080,"centreLuma":0,"file":"display_152843.png"}}
+  3141  3141 I MurmurSpike: EV shot_suite {"pid":3141,"up":153879,"step":"display#3_after350","r":{"kind":"display","id":0,"ok":true,"ms":23,"w":2520,"h":1080,"centreLuma":0,"file":"display_153645.png"}}
+  3141  3141 I MurmurSpike: EV shot_suite {"pid":3141,"up":154218,"step":"window#3_after350","r":{"kind":"window","id":11,"ok":true,"ms":6,"w":2520,"h":1080,"centreLuma":0,"file":"window_153966.png"}}
+  3141  3141 I MurmurSpike: EV shot_suite {"pid":3141,"up":154220,"step":"invalid_window","r":{"kind":"window","id":987654,"ok":false,"error":5,"ms":1}}

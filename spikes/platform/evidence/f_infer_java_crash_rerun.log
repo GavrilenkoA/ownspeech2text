@@ -1,0 +1,33 @@
+### java crash in :infer (QUIET_CRASH handler) - system log excerpt
+11-18 21:27:38.508   708  1034 I ActivityManager: Broadcasting: Intent { act=app.murmur.spike.CMD flg=0x400000 (has extras) }
+11-18 21:27:38.508   708  1034 I ActivityManager: Enqueued broadcast Intent { act=app.murmur.spike.CMD flg=0x400000 (has extras) }: 0
+11-18 21:27:38.579  1867  1867 I MurmurSpike: EV cmd {"pid":1867,"up":880687,"c":"infer_load"}
+11-18 21:27:38.911  1867  1867 I MurmurSpike: EV infer_bind {"pid":1867,"up":881073,"ok":true,"ms":333}
+11-18 21:27:38.950   708   750 I ActivityManager: Start proc 7059:app.murmur.spike:infer/u0a218 for service {app.murmur.spike/app.murmur.spike.InferService}
+11-18 21:27:39.437   708   708 W AccessibilityManagerService:  wait for adding window timeout: 29
+11-18 21:27:39.551  1867  1867 I MurmurSpike: EV fg_window_state {"pid":1867,"up":881700,"pkg":"com.google.android.apps.nexuslauncher","cls":"com.google.android.apps.nexuslauncher.NexusLauncherActivity"}
+11-18 21:27:39.983  1867  1867 V A11yInputMethod: startInput(): editor=android.view.inputmethod.EditorInfo@7094584
+11-18 21:27:39.983  1867  1867 V A11yInputMethod: CALL: onStartInput
+11-18 21:27:39.983  1867  1867 I MurmurSpike: EV ime_start_input {"pid":1867,"up":882145,"pkg":"com.google.android.apps.nexuslauncher","inputType":0,"hint":null,"fieldId":0,"restarting":false}
+11-18 21:27:40.415  3352  3352 I cr_A11yState: Enabled accessibility services list updated. [app.murmur.spike/.SpikeA11yService]
+11-18 21:27:40.426  3352  3352 I cr_A11yState: Informing listeners of changes.
+11-18 21:27:40.426  3352  3352 I cr_A11yState: New AccessibilityState: State{isScreenReaderEnabled=false, isTouchExplorationEnabled=false, isPerformGesturesEnabled=false, isAnyAccessibilityServiceEnabled=true, isAccessibilityToolPresent=false, isSpokenFeedback
+11-18 21:27:41.059  7059  7059 I MurmurSpike: EV infer_created {"pid":7059,"up":883221,"process":"infer"}
+11-18 21:27:41.060  7059  7059 I MurmurSpike: EV infer_bound {"pid":7059,"up":883221}
+11-18 21:27:41.061  1867  1867 I MurmurSpike: EV infer_connected {"pid":1867,"up":883222}
+11-18 21:27:41.420  1867  1867 I MurmurSpike: EV infer_reply {"pid":1867,"up":883581,"what":1,"inferPid":7059,"pssKb":98982,"loadMs":264}
+11-18 21:27:41.990   708  4744 I ActivityManager: Broadcasting: Intent { act=app.murmur.spike.CMD flg=0x400000 (has extras) }
+11-18 21:27:41.991   708  4744 I ActivityManager: Enqueued broadcast Intent { act=app.murmur.spike.CMD flg=0x400000 (has extras) }: 0
+11-18 21:27:41.992  1867  1867 I MurmurSpike: EV cmd {"pid":1867,"up":884153,"c":"infer_crash"}
+11-18 21:27:41.996  7059  7059 I MurmurSpike: EV infer_uncaught {"pid":7059,"up":884157,"err":"java.lang.IllegalStateException: spike: simulated runtime crash in :infer"}
+11-18 21:27:42.031  1867  1867 I MurmurSpike: EV infer_disconnected {"pid":1867,"up":884192}
+11-18 21:27:42.031   708  1554 I ActivityManager: Process app.murmur.spike:infer (pid 7059) has died: vis BFGS
+11-18 21:27:42.031   708  1554 W ActivityManager: Scheduling restart of crashed service app.murmur.spike/.InferService in 1000ms for connection
+11-18 21:27:43.052   708   750 I ActivityManager: Start proc 7081:app.murmur.spike:infer/u0a218 for service {app.murmur.spike/app.murmur.spike.InferService}
+11-18 21:27:44.938  7081  7081 I MurmurSpike: EV infer_created {"pid":7081,"up":887100,"process":"infer"}
+11-18 21:27:44.948  7081  7081 I MurmurSpike: EV infer_bound {"pid":7081,"up":887109}
+11-18 21:27:44.950  1867  1867 I MurmurSpike: EV infer_connected {"pid":1867,"up":887111}
+11-18 21:27:47.113   708  4914 I ActivityManager: Broadcasting: Intent { act=app.murmur.spike.CMD flg=0x400000 (has extras) }
+11-18 21:27:47.113   708  4914 I ActivityManager: Enqueued broadcast Intent { act=app.murmur.spike.CMD flg=0x400000 (has extras) }: 0
+11-18 21:27:47.117  1867  1867 I MurmurSpike: EV cmd {"pid":1867,"up":889278,"c":"ping"}
+11-18 21:27:47.117  1867  1867 I MurmurSpike: EV pong {"pid":1867,"up":889278,"connected":true,"overlays":1}

@@ -7,20 +7,24 @@
     "ramGB": 12
   },
   "defaults": {
-    "ru+en": "nemotron-3.5-asr-streaming-0.6b@qnn-sm8750-560ms",
-    "ru+en_batchAlternative": "parakeet-tdt-0.6b-v3@qnn-sm8750-20s",
+    "ru+en": "parakeet-tdt-0.6b-v3@qnn-sm8750-20s",
     "en": "parakeet-tdt-0.6b-v3@qnn-sm8750-20s",
     "ru_only_quality": "gigaam-v3-e2e-rnnt@onnx-int8",
+    "livePreview_optional": "nemotron-3.5-asr-streaming-0.6b@qnn-sm8750-560ms",
     "cpuFallback": {
-      "nemotron-3.5-asr-streaming-0.6b@qnn-sm8750-560ms": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms",
-      "parakeet-tdt-0.6b-v3@qnn-sm8750-20s": "parakeet-tdt-0.6b-v3@onnx-int8"
-    }
+      "parakeet-tdt-0.6b-v3@qnn-sm8750-20s": "parakeet-tdt-0.6b-v3@onnx-int8",
+      "nemotron-3.5-asr-streaming-0.6b@qnn-sm8750-560ms": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms"
+    },
+    "vad": "silero-vad@onnx-v5",
+    "qnnRuntime": "com.qualcomm.qti:qnn-runtime:2.52.0 (one QNN stack per APK)"
   },
   "fieldNotes": {
     "files[].sha256": "Present only when the HF API (LFS) or GitHub release API exposed it. Small non-LFS files have no sha256 in the API; verify by size + pinned revision.",
     "files[].revision": "HF commit sha the file list was read at; download with /resolve/<revision>/ to pin.",
     "files[].archive": "Download is a tarball/zip that must be extracted; the runtime paths inside are listed in asr-models.md.",
-    "publishedWer": "Vendor/third-party numbers with different text normalization; not comparable across sources. Benchmark on device."
+    "publishedWer": "Vendor/third-party numbers with different text normalization; not comparable across sources. Benchmark on device.",
+    "hostEval": "Measured by the asr-ocr spike on the x86_64 dev host, sherpa-onnx 2.0.1 Python (same C++ core as the Android JNI), ONNX Runtime CPU, 4 threads, shared server with load average 20-60 from other tenants: RTF is pessimistic and NOT a phone figure. Set: 12 FLEURS-dev + 1 pack clip per language. WER/CER after lowercasing and punctuation removal.",
+    "qnnBinary": "qairt = QAIRT/QNN SDK that compiled the context binaries (read from the binaries). A QNN runtime >= that version loads them; an older one does not."
   },
   "models": [
     {
@@ -28,7 +32,7 @@
       "family": "nvidia-nemotron-asr",
       "displayName": "Nemotron 3.5 ASR Streaming 0.6B (NPU, 560 ms)",
       "baseModel": "nvidia/nemotron-3.5-asr-streaming-0.6b",
-      "params": 600000000,
+      "params": 637997088,
       "paramsLabel": "0.6B",
       "languages": {
         "count": 40,
@@ -111,7 +115,7 @@
       "punctuation": true,
       "casing": true,
       "maxAudio": "unbounded (cache-aware streaming)",
-      "runtime": "sherpa-onnx OnlineRecognizer, provider=qnn, QNN context binary (model.bin)",
+      "runtime": "sherpa-onnx OnlineRecognizer, provider=qnn, model_type=nemo_transducer, 3 QNN context binaries (encoder.bin, decoder.bin, joiner.bin); needs a sherpa-onnx build with SHERPA_ONNX_ENABLE_QNN=ON (native/sherpa/build-android.sh); the official sherpa-onnx-2.0.1.aar has no QNN code",
       "format": "qnn-context-binary",
       "accelerator": "npu",
       "socs": [
@@ -158,18 +162,54 @@
         },
         "source": "https://huggingface.co/nvidia/nemotron-3.5-asr-streaming-0.6b"
       },
-      "tier": "recommended",
-      "defaultFor": [
-        "ru+en"
-      ],
-      "notes": "Only true-streaming model with ru+en and punctuation. Hosted on GitHub releases, not HF: mirror to an owner HF repo or allow GitHub as a download source. QNN SDK version used to build model.bin is not documented: must match the QNN runtime libs bundled in the APK (validate on device). Code-switching inside one utterance with a fixed ru-RU prompt is UNVERIFIED."
+      "tier": "optional",
+      "defaultFor": [],
+      "notes": "Streaming works, but host CPU accuracy of the same weights is clearly below Parakeet v3 (FLEURS ru 13.9 / en 12.8 % WER vs 7.4 / 7.6) and auto language ID misfired (Russian clip -> Polish); inside one stream it does not follow ru<->en switches (mixed clip 33 % WER, Parakeet with VAD segments 4.5 %). Use as optional live preview, not as the text of record. GitHub-hosted.",
+      "qnnBinary": {
+        "qairt": "2.40.0.251030",
+        "buildId": "v2.40.0.251030114326_189385",
+        "loadsWithRuntime": [
+          "2.40.0.251030",
+          "2.52.0.261104 (newer runtime, backward compatible)"
+        ],
+        "evidence": "QnnSystemContext_getBinaryInfo + QnnContext_createFromBinary on the x86 HTP simulator; on-device UNVERIFIED",
+        "inputs": {
+          "encoder": "x_65_56 uq16 [1,65,128] per 560 ms chunk + caches [1,56,1024,24],[1,1024,8,24], prompt_index i32",
+          "joiner": "logits [1,1,1,13088]"
+        },
+        "sizes": {
+          "encoder.bin": 609431552,
+          "decoder.bin": 29978624,
+          "joiner.bin": 9732096
+        }
+      },
+      "hostEval": {
+        "engine": "sherpa-onnx 2.0.1 (Python), ONNX Runtime CPU, x86_64 host",
+        "threads": 4,
+        "languageMode": "auto",
+        "ru": {
+          "WER%": 13.89,
+          "CER%": 5.5,
+          "RTF": 0.3899,
+          "n": 13
+        },
+        "en": {
+          "WER%": 12.8,
+          "CER%": 8.7,
+          "RTF": 0.612,
+          "n": 13
+        },
+        "loadS": 1.56,
+        "peakRssMB": 977,
+        "evidence": "docs/research/verify/asr-ocr.md"
+      }
     },
     {
       "id": "parakeet-tdt-0.6b-v3@qnn-sm8750-20s",
       "family": "nvidia-parakeet",
       "displayName": "Parakeet TDT 0.6B v3 (NPU)",
       "baseModel": "nvidia/parakeet-tdt-0.6b-v3",
-      "params": 627000000,
+      "params": 627057286,
       "paramsLabel": "0.6B",
       "languages": {
         "count": 25,
@@ -209,8 +249,8 @@
       "streaming": false,
       "punctuation": true,
       "casing": true,
-      "maxAudio": "20 s per call (fixed QNN input; longer input is truncated) -> must be fed VAD segments <= 19.5 s",
-      "runtime": "sherpa-onnx OfflineRecognizer, provider=qnn, QNN context binary",
+      "maxAudio": "20.00 s per call: encoder input fixed [1,2000,128]; shorter input is zero-padded to 20 s (same NPU cost), longer is truncated with a warning (sherpa source) -> feed VAD segments <= 19.5 s",
+      "runtime": "sherpa-onnx OfflineRecognizer, provider=qnn, model_type=nemo_transducer, 3 QNN context binaries; needs a sherpa-onnx build with SHERPA_ONNX_ENABLE_QNN=ON (native/sherpa/build-android.sh); the official sherpa-onnx-2.0.1.aar has no QNN code",
       "format": "qnn-context-binary",
       "accelerator": "npu",
       "socs": [
@@ -267,17 +307,36 @@
       },
       "tier": "recommended",
       "defaultFor": [
-        "en",
-        "ru+en (batch alternative)"
+        "ru+en",
+        "en"
       ],
-      "notes": "Best accuracy/speed for ru+en among NPU-ready models. Not streaming: use VAD-segmented incremental mode. GitHub-hosted (see nemotron note)."
+      "notes": "Default engine. Best ru+en balance measured on host (same weights, CPU): FLEURS ru 7.4 / en 7.6 % WER; with VAD segmentation it handles ru<->en switches between phrases (mixed 60 s clip 4.5 % WER). NPU latency and accuracy of the w8a16-style binary UNVERIFIED-ON-DEVICE: run tools/device/asr_npu_smoke.sh. Other windows: 3..30 s variants in the same release (each ~446 MB).",
+      "qnnBinary": {
+        "qairt": "2.40.0.251030",
+        "buildId": "v2.40.0.251030114326_189385",
+        "loadsWithRuntime": [
+          "2.40.0.251030",
+          "2.52.0.261104 (newer runtime, backward compatible)"
+        ],
+        "evidence": "QnnSystemContext_getBinaryInfo + QnnContext_createFromBinary on the x86 HTP simulator; on-device UNVERIFIED",
+        "inputs": {
+          "encoder": "x uq16 [1,2000,128] -> encoder_out [1,250,1024]",
+          "decoder": "y i32 [1,1], h/c f16 [2,640,1]",
+          "joiner": "log_probs [1,1,1,8198]"
+        },
+        "sizes": {
+          "encoder.bin": 622759936,
+          "decoder.bin": 23715840,
+          "joiner.bin": 6537216
+        }
+      }
     },
     {
       "id": "nemotron-speech-streaming-en-0.6b@qnn-sm8750-560ms",
       "family": "nvidia-nemotron-asr",
       "displayName": "Nemotron Speech Streaming EN 0.6B (NPU, 560 ms)",
       "baseModel": "nvidia/nemotron-speech-streaming-en-0.6b",
-      "params": 600000000,
+      "params": 618084865,
       "paramsLabel": "0.6B",
       "languages": {
         "count": 1,
@@ -325,7 +384,7 @@
       "family": "openai-whisper",
       "displayName": "Whisper Small (NPU)",
       "baseModel": "openai/whisper-small",
-      "params": 244000000,
+      "params": 241734912,
       "paramsLabel": "244M",
       "languages": {
         "count": 99,
@@ -438,7 +497,7 @@
       "punctuation": true,
       "casing": true,
       "maxAudio": "30 s window per call; longer audio = VAD segments / sequential windows",
-      "runtime": "sherpa-onnx OfflineRecognizer (whisper), provider=qnn",
+      "runtime": "sherpa-onnx OfflineRecognizer (whisper), provider=qnn, 2 context binaries (encoder.bin, decoder.bin); needs a sherpa-onnx build with SHERPA_ONNX_ENABLE_QNN=ON (native/sherpa/build-android.sh); the official sherpa-onnx-2.0.1.aar has no QNN code",
       "format": "qnn-context-binary",
       "accelerator": "npu",
       "socs": [
@@ -466,14 +525,50 @@
         "source": "https://huggingface.co/qualcomm/Whisper-Small-Quantized"
       },
       "tier": "optional",
-      "notes": "Speeds are Qualcomm AI Hub builds, not the sherpa-onnx binaries; same SoC, different export. Hallucination on silence is a known Whisper failure mode: gate with VAD."
+      "notes": "Speeds are Qualcomm AI Hub builds, not the sherpa-onnx binaries; same SoC, different export. Hallucination on silence is a known Whisper failure mode: gate with VAD.",
+      "qnnBinary": {
+        "qairt": "2.40.0.251030",
+        "buildId": "v2.40.0.251030114326_189385",
+        "loadsWithRuntime": [
+          "2.40.0.251030",
+          "2.52.0.261104 (newer runtime, backward compatible)"
+        ],
+        "evidence": "QnnSystemContext_getBinaryInfo + QnnContext_createFromBinary on the x86 HTP simulator; on-device UNVERIFIED",
+        "inputs": {
+          "encoder": "small_mel f32 [1,3000,80] (30 s)",
+          "decoder": "self-attn KV f32 [1,768,448] x12 layers (448 tokens)"
+        },
+        "sizes": {
+          "encoder.bin": 215478272
+        }
+      },
+      "hostEval": {
+        "engine": "sherpa-onnx 2.0.1 (Python), ONNX Runtime CPU, x86_64 host",
+        "threads": 4,
+        "languageMode": "auto",
+        "ru": {
+          "WER%": 12.5,
+          "CER%": 5.03,
+          "RTF": 0.5826,
+          "n": 13
+        },
+        "en": {
+          "WER%": 4.84,
+          "CER%": 3.37,
+          "RTF": 0.4319,
+          "n": 13
+        },
+        "loadS": 1.69,
+        "peakRssMB": 1202,
+        "evidence": "docs/research/verify/asr-ocr.md"
+      }
     },
     {
       "id": "whisper-medium@qnn-sm8750",
       "family": "openai-whisper",
       "displayName": "Whisper Medium (NPU)",
       "baseModel": "openai/whisper-medium",
-      "params": 769000000,
+      "params": 763857920,
       "paramsLabel": "769M",
       "languages": {
         "count": 99,
@@ -621,7 +716,7 @@
       "family": "openai-whisper",
       "displayName": "Whisper Large v3 Turbo (NPU, Qualcomm AI Hub)",
       "baseModel": "openai/whisper-large-v3-turbo",
-      "params": 809000000,
+      "params": 808878080,
       "paramsLabel": "809M",
       "languages": {
         "count": 99,
@@ -765,14 +860,22 @@
         }
       },
       "tier": "experimental",
-      "notes": "Not on HF and not a sherpa-onnx package: requires a custom QNN runner. Offer only after the sherpa path works."
+      "notes": "Not on HF and not a sherpa-onnx package: requires a custom QNN runner. Offer only after the sherpa path works.",
+      "qnnBinary": {
+        "qairt": "2.50.0.260828221209",
+        "evidence": "metadata.json inside the zip (tool_versions.qairt), read with HTTP range requests",
+        "inputs": {
+          "encoder": "input_features uint16 [1,128,3000]",
+          "decoder": "input_ids i32 [1,1], cross KV uint8 [20,1,64,1500]"
+        }
+      }
     },
     {
       "id": "parakeet-tdt-0.6b-v3@onnx-int8",
       "family": "nvidia-parakeet",
       "displayName": "Parakeet TDT 0.6B v3 (CPU int8)",
       "baseModel": "nvidia/parakeet-tdt-0.6b-v3",
-      "params": 627000000,
+      "params": 627057286,
       "paramsLabel": "0.6B",
       "languages": {
         "count": 25,
@@ -858,7 +961,27 @@
         "source": "https://huggingface.co/litert-community/parakeet-tdt-0.6b-v3"
       },
       "tier": "fallback",
-      "notes": "CPU fallback for the NPU entry; same weights family."
+      "notes": "CPU fallback for the NPU entry; same weights family.",
+      "hostEval": {
+        "engine": "sherpa-onnx 2.0.1 (Python), ONNX Runtime CPU, x86_64 host",
+        "threads": 4,
+        "languageMode": "auto",
+        "ru": {
+          "WER%": 7.41,
+          "CER%": 1.97,
+          "RTF": 0.0865,
+          "n": 13
+        },
+        "en": {
+          "WER%": 7.61,
+          "CER%": 5.25,
+          "RTF": 0.0905,
+          "n": 13
+        },
+        "loadS": 3.1,
+        "peakRssMB": 1302,
+        "evidence": "docs/research/verify/asr-ocr.md"
+      }
     },
     {
       "id": "parakeet-ultra-0.6b@onnx-int8",
@@ -965,7 +1088,7 @@
       "family": "nvidia-nemotron-asr",
       "displayName": "Nemotron 3.5 ASR Streaming 0.6B (CPU int8, 560 ms)",
       "baseModel": "nvidia/nemotron-3.5-asr-streaming-0.6b",
-      "params": 600000000,
+      "params": 637997088,
       "paramsLabel": "0.6B",
       "languages": {
         "count": 40,
@@ -1055,15 +1178,35 @@
         }
       ],
       "tier": "fallback",
-      "notes": "CPU fallback of the default model. Other chunk sizes: csukuangfj2/sherpa-onnx-nemotron-3.5-asr-streaming-0.6b-{80,160,320,1120}ms-int8-2026-06-11."
+      "notes": "CPU fallback of the default model. Other chunk sizes: csukuangfj2/sherpa-onnx-nemotron-3.5-asr-streaming-0.6b-{80,160,320,1120}ms-int8-2026-06-11.",
+      "hostEval": {
+        "engine": "sherpa-onnx 2.0.1 (Python), ONNX Runtime CPU, x86_64 host",
+        "threads": 4,
+        "languageMode": "auto",
+        "ru": {
+          "WER%": 13.89,
+          "CER%": 5.5,
+          "RTF": 0.3899,
+          "n": 13
+        },
+        "en": {
+          "WER%": 12.8,
+          "CER%": 8.7,
+          "RTF": 0.612,
+          "n": 13
+        },
+        "loadS": 1.56,
+        "peakRssMB": 977,
+        "evidence": "docs/research/verify/asr-ocr.md"
+      }
     },
     {
       "id": "gigaam-v3-e2e-rnnt@onnx-int8",
       "family": "sber-gigaam",
       "displayName": "GigaAM v3 E2E RNN-T (Russian, punctuated)",
       "baseModel": "ai-sage/GigaAM-v3 (revision e2e_rnnt)",
-      "params": null,
-      "paramsLabel": "220-240M (card gives a range)",
+      "params": 222500000,
+      "paramsLabel": "~222M (counted from ONNX initializers: encoder 220.7M + decoder 1.1M + joiner 0.7M)",
       "languages": {
         "count": 1,
         "all": [
@@ -1133,15 +1276,35 @@
       "defaultFor": [
         "ru-only (quality)"
       ],
-      "notes": "Best Russian quality with punctuation + normalization (numerals as digits). No NPU build published: needs own QNN export (Conformer, static 25 s shape) - see doc."
+      "notes": "Best Russian measured (FLEURS ru 4.2 % WER, CER 0.6 %), punctuation + casing, fastest (RTF 0.03 host). English is unusable (71 % WER): Russian-only option. No published NPU build; the e2e CTC sibling compiled 100 % onto HTP with ORT QNN EP (see gigaam-v3-e2e-ctc notes), RNN-T not tried.",
+      "hostEval": {
+        "engine": "sherpa-onnx 2.0.1 (Python), ONNX Runtime CPU, x86_64 host",
+        "threads": 4,
+        "languageMode": "auto",
+        "ru": {
+          "WER%": 4.17,
+          "CER%": 0.63,
+          "RTF": 0.0324,
+          "n": 13
+        },
+        "en": {
+          "WER%": 71.28,
+          "CER%": 36.06,
+          "RTF": 0.0304,
+          "n": 13
+        },
+        "loadS": 0.8,
+        "peakRssMB": 414,
+        "evidence": "docs/research/verify/asr-ocr.md"
+      }
     },
     {
       "id": "gigaam-v3-e2e-ctc@onnx-int8",
       "family": "sber-gigaam",
       "displayName": "GigaAM v3 E2E CTC (Russian, punctuated, fastest)",
       "baseModel": "ai-sage/GigaAM-v3 (revision e2e_ctc)",
-      "params": null,
-      "paramsLabel": "220-240M",
+      "params": 220900000,
+      "paramsLabel": "~221M (ONNX initializers)",
       "languages": {
         "count": 1,
         "all": [
@@ -1183,14 +1346,34 @@
         "source": "https://github.com/salute-developers/GigaAM/blob/main/evaluation.md"
       },
       "tier": "optional",
-      "notes": "CTC = single encoder pass, no autoregressive loop: cheapest to port to NPU later."
+      "notes": "NPU feasibility VERIFIED at compile level: fp32 istupakov/gigaam-v3-onnx v3_e2e_ctc.onnx with fixed [1,64,2000] (20 s) compiles 100 % onto HTP (CPU fallback disabled) with ORT QNN EP 2.8.0 / QAIRT 2.52 for SM8750: 1 EPContext node, 466 MB fp16 context. Needs app-side features (64 mel, GigaAM front end) + ORT QNN EP; accuracy/latency on device UNVERIFIED.",
+      "hostEval": {
+        "engine": "sherpa-onnx 2.0.1 (Python), ONNX Runtime CPU, x86_64 host",
+        "threads": 4,
+        "languageMode": "auto",
+        "ru": {
+          "WER%": 5.09,
+          "CER%": 1.65,
+          "RTF": 0.0509,
+          "n": 13
+        },
+        "en": {
+          "WER%": 70.93,
+          "CER%": 31.03,
+          "RTF": 0.0563,
+          "n": 13
+        },
+        "loadS": 1.24,
+        "peakRssMB": 401,
+        "evidence": "docs/research/verify/asr-ocr.md"
+      }
     },
     {
       "id": "t-one@onnx",
       "family": "tbank-t-one",
       "displayName": "T-one 71M (Russian, streaming)",
       "baseModel": "t-tech/T-one",
-      "params": 71000000,
+      "params": 71697827,
       "paramsLabel": "71M",
       "languages": {
         "count": 1,
@@ -1235,15 +1418,35 @@
         "source": "https://huggingface.co/t-tech/T-one"
       },
       "tier": "optional",
-      "notes": "Telephony-tuned, tiny, fast. Lowercase text without punctuation: the LLM must restore everything. Upstream KenLM (kenlm.bin, 5.46 GB) is not offered."
+      "notes": "Russian only (English 100 % WER), lowercase without punctuation, 8 kHz model (sherpa resamples). FLEURS ru 13.4 % WER. NPU: ORT QNN EP splits it into 19 HTP partitions + CPU BatchNormalization (not worth it for a 71M model).",
+      "hostEval": {
+        "engine": "sherpa-onnx 2.0.1 (Python), ONNX Runtime CPU, x86_64 host",
+        "threads": 4,
+        "languageMode": "auto",
+        "ru": {
+          "WER%": 13.43,
+          "CER%": 2.52,
+          "RTF": 0.0652,
+          "n": 13
+        },
+        "en": {
+          "WER%": 100.0,
+          "CER%": 100.0,
+          "RTF": 0.0557,
+          "n": 13
+        },
+        "loadS": 1.85,
+        "peakRssMB": 558,
+        "evidence": "docs/research/verify/asr-ocr.md"
+      }
     },
     {
       "id": "qwen3-asr-0.6b@onnx-int8",
       "family": "qwen3-asr",
       "displayName": "Qwen3-ASR 0.6B (CPU int8)",
       "baseModel": "Qwen/Qwen3-ASR-0.6B",
-      "params": null,
-      "paramsLabel": "0.6B (repo name); model.safetensors 1.88 GB bf16",
+      "params": 938008576,
+      "paramsLabel": "0.94B total (BF16 safetensors; \"0.6B\" is the LM part)",
       "languages": {
         "count": 30,
         "all": [
@@ -1359,7 +1562,27 @@
         "source": "https://huggingface.co/Qwen/Qwen3-ASR-0.6B ; arXiv 2601.21337 Table A.2"
       },
       "tier": "optional",
-      "notes": "Weaker on Russian than Parakeet/GigaAM per published numbers. Autoregressive decoder: latency grows with transcript length."
+      "notes": "Measured weakest on Russian (FLEURS ru 19.9 % WER) and slowest to load (13.7 s, 2.4 GB peak RSS on host). Autoregressive: latency grows with transcript length. Not recommended.",
+      "hostEval": {
+        "engine": "sherpa-onnx 2.0.1 (Python), ONNX Runtime CPU, x86_64 host",
+        "threads": 4,
+        "languageMode": "auto",
+        "ru": {
+          "WER%": 19.91,
+          "CER%": 6.92,
+          "RTF": 0.807,
+          "n": 13
+        },
+        "en": {
+          "WER%": 6.92,
+          "CER%": 4.95,
+          "RTF": 0.4893,
+          "n": 13
+        },
+        "loadS": 13.73,
+        "peakRssMB": 2390,
+        "evidence": "docs/research/verify/asr-ocr.md"
+      }
     },
     {
       "id": "qwen3-asr-0.6b@litert-npu-sm8750",
@@ -1545,7 +1768,7 @@
       "family": "openai-whisper",
       "displayName": "Whisper Large v3 Turbo (CPU int8)",
       "baseModel": "openai/whisper-large-v3-turbo",
-      "params": 809000000,
+      "params": 808878080,
       "paramsLabel": "809M",
       "languages": {
         "count": 99,
@@ -1690,7 +1913,27 @@
         }
       ],
       "tier": "optional",
-      "notes": "Most languages (99). Slow on CPU because the encoder always processes a padded 30 s window."
+      "notes": "Accurate (FLEURS ru 6.0 / en 5.9 % WER) but slowest on CPU (host RTF 1.2) and 2.1 GB peak RSS; sherpa whisper processes only the first 30 s of a call (warning, rest discarded): must be VAD-segmented.",
+      "hostEval": {
+        "engine": "sherpa-onnx 2.0.1 (Python), ONNX Runtime CPU, x86_64 host",
+        "threads": 4,
+        "languageMode": "auto",
+        "ru": {
+          "WER%": 6.02,
+          "CER%": 3.14,
+          "RTF": 1.1924,
+          "n": 13
+        },
+        "en": {
+          "WER%": 5.88,
+          "CER%": 3.3,
+          "RTF": 0.7754,
+          "n": 13
+        },
+        "loadS": 5.86,
+        "peakRssMB": 2067,
+        "evidence": "docs/research/verify/asr-ocr.md"
+      }
     },
     {
       "id": "distil-large-v3.5@onnx-int8",
@@ -1752,6 +1995,179 @@
       },
       "tier": "optional",
       "notes": "English only; Parakeet v3 is both more accurate and NPU-ready, so this is low priority."
+    },
+    {
+      "id": "whisper-small@onnx-int8",
+      "family": "openai-whisper",
+      "displayName": "Whisper Small (CPU int8)",
+      "baseModel": "openai/whisper-small",
+      "params": 241734912,
+      "paramsLabel": "242M",
+      "languages": {
+        "count": 99,
+        "all": [
+          "en",
+          "zh",
+          "de",
+          "es",
+          "ru",
+          "ko",
+          "fr",
+          "ja",
+          "pt",
+          "tr",
+          "pl",
+          "ca",
+          "nl",
+          "ar",
+          "sv",
+          "it",
+          "id",
+          "hi",
+          "fi",
+          "vi",
+          "he",
+          "uk",
+          "el",
+          "ms",
+          "cs",
+          "ro",
+          "da",
+          "hu",
+          "ta",
+          "no",
+          "th",
+          "ur",
+          "hr",
+          "bg",
+          "lt",
+          "la",
+          "mi",
+          "ml",
+          "cy",
+          "sk",
+          "te",
+          "fa",
+          "lv",
+          "bn",
+          "sr",
+          "az",
+          "sl",
+          "kn",
+          "et",
+          "mk",
+          "br",
+          "eu",
+          "is",
+          "hy",
+          "ne",
+          "mn",
+          "bs",
+          "kk",
+          "sq",
+          "sw",
+          "gl",
+          "mr",
+          "pa",
+          "si",
+          "km",
+          "sn",
+          "yo",
+          "so",
+          "af",
+          "oc",
+          "ka",
+          "be",
+          "tg",
+          "sd",
+          "gu",
+          "am",
+          "yi",
+          "lo",
+          "uz",
+          "fo",
+          "ht",
+          "ps",
+          "tk",
+          "nn",
+          "mt",
+          "sa",
+          "lb",
+          "my",
+          "bo",
+          "tl",
+          "mg",
+          "as",
+          "tt",
+          "haw",
+          "ln",
+          "ha",
+          "ba",
+          "jw",
+          "su"
+        ],
+        "auto": true
+      },
+      "license": "Apache-2.0 (HF repo metadata); OpenAI code MIT",
+      "architecture": "encoder-decoder transformer",
+      "streaming": false,
+      "punctuation": true,
+      "casing": true,
+      "maxAudio": "30 s per call (rest discarded)",
+      "runtime": "sherpa-onnx OfflineRecognizer (whisper), CPU",
+      "format": "sherpa-onnx",
+      "accelerator": "cpu",
+      "files": [
+        {
+          "source": "huggingface",
+          "repo": "csukuangfj/sherpa-onnx-whisper-small",
+          "revision": "8f3c18b358db4d1f2fc1eae49d75cd20989e4309",
+          "path": "small-encoder.int8.onnx",
+          "bytes": 112442483,
+          "sha256": "4cbe7b22fa9026b843b60a68640c747de05bafb1a11b57edc0e66c232d9f33a9",
+          "url": "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-small/resolve/8f3c18b358db4d1f2fc1eae49d75cd20989e4309/small-encoder.int8.onnx"
+        },
+        {
+          "source": "huggingface",
+          "repo": "csukuangfj/sherpa-onnx-whisper-small",
+          "revision": "8f3c18b358db4d1f2fc1eae49d75cd20989e4309",
+          "path": "small-decoder.int8.onnx",
+          "bytes": 262226114,
+          "sha256": "acad50b5c782696e91b55914cc5ab4f756f1532f76e22aa6fc615f39fb69a8ee",
+          "url": "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-small/resolve/8f3c18b358db4d1f2fc1eae49d75cd20989e4309/small-decoder.int8.onnx"
+        },
+        {
+          "source": "huggingface",
+          "repo": "csukuangfj/sherpa-onnx-whisper-small",
+          "revision": "8f3c18b358db4d1f2fc1eae49d75cd20989e4309",
+          "path": "small-tokens.txt",
+          "bytes": 816730,
+          "sha256": "b34b360dbb493e781e479794586d661700670d65564001f23024971d1f2fa126",
+          "url": "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-small/resolve/8f3c18b358db4d1f2fc1eae49d75cd20989e4309/small-tokens.txt"
+        }
+      ],
+      "tier": "optional",
+      "hostEval": {
+        "engine": "sherpa-onnx 2.0.1 (Python), ONNX Runtime CPU, x86_64 host",
+        "threads": 4,
+        "languageMode": "auto",
+        "ru": {
+          "WER%": 12.5,
+          "CER%": 5.03,
+          "RTF": 0.5826,
+          "n": 13
+        },
+        "en": {
+          "WER%": 4.84,
+          "CER%": 3.37,
+          "RTF": 0.4319,
+          "n": 13
+        },
+        "loadS": 1.69,
+        "peakRssMB": 1202,
+        "evidence": "docs/research/verify/asr-ocr.md"
+      },
+      "notes": "Host: FLEURS ru 12.5 / en 4.8 % WER, RTF 0.43-0.58. CPU fallback of whisper-small@qnn-sm8750. Added by the asr-ocr spike (the host eval used these files)."
     }
   ],
   "auxiliary": [
@@ -1771,7 +2187,8 @@
           "sha256": "9e2449e1087496d8d4caba907f23e0bd3f78d91fa552479bb9c23ac09cbb1fd6"
         }
       ],
-      "notes": "Used by sherpa-onnx Vad API: 512-sample (32 ms) frames at 16 kHz. Ships inside the APK (2 MB) rather than via the hub. Upstream latest is snakers4/silero-vad v6.2.3; which version this sherpa asset is was not verified."
+      "notes": "This asset is Silero VAD v4 (ONNX metadata: \"silero-vad v4 exported to onnx by k2-fsa\", inputs x/h/c). sherpa-onnx Vad accepts v4 and v5. Prefer silero-vad@onnx-v5.",
+      "tier": "superseded"
     },
     {
       "id": "silero-vad@onnx-hf",
@@ -1789,7 +2206,26 @@
           "sha256": "a4a068cd6cf1ea8355b84327595838ca748ec29a25bc91fc82e6c299ccdc5808"
         }
       ],
-      "notes": "HF-hosted alternative; compatibility with sherpa-onnx Vad input/state layout UNVERIFIED."
+      "notes": "Silero v5 layout (input/state/sr). Used by the asr-ocr segmentation prototype (VAD run with ONNX Runtime, 512-sample frames, thr 0.5 / neg 0.35). Same model family as silero-vad@onnx-v5, HF-hosted. VERIFIED with sherpa-onnx 2.0.1 VoiceActivityDetector on a 60 s clip (thr 0.5, min silence 0.5 s): silero_vad_v5.onnx and onnx-community/silero-vad give identical segments; the v4 asset gives the same 6 segments with boundaries within 0.2 s."
+    },
+    {
+      "id": "silero-vad@onnx-v5",
+      "role": "vad",
+      "displayName": "Silero VAD v5 (sherpa-onnx release asset)",
+      "license": "MIT",
+      "files": [
+        {
+          "source": "github-release",
+          "repo": "k2-fsa/sherpa-onnx",
+          "release": "asr-models",
+          "path": "silero_vad_v5.onnx",
+          "bytes": 2313101,
+          "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad_v5.onnx",
+          "sha256": "6b99cbfd39246b6706f98ec13c7c50c6b299181f2474fa05cbc8046acc274396"
+        }
+      ],
+      "notes": "v5 layout (inputs input/state[2,1,128]/sr, read with onnx), 512-sample frames at 16 kHz; sha256 checked against the downloaded file. The segmentation prototype ran the same v5 graph from onnx-community/silero-vad (silero-vad@onnx-hf) through ONNX Runtime directly. VERIFIED with sherpa-onnx 2.0.1 VoiceActivityDetector on a 60 s clip (thr 0.5, min silence 0.5 s): silero_vad_v5.onnx and onnx-community/silero-vad give identical segments; the v4 asset gives the same 6 segments with boundaries within 0.2 s."
     }
-  ]
+  ],
+  "verifiedBy": "docs/research/verify/asr-ocr.md"
 }

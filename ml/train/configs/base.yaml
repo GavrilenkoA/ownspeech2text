@@ -1,0 +1,51 @@
+# Defaults shared by every run, sized for PLAN_V2: 1-5K synthetic examples (start ~3K), one RTX 5090
+# (32 GB). Paths use ${ENV:-default}; the pod sets MURMUR_DATA / MURMUR_RUNS. Any key can be overridden
+# per run with `--set a.b=c` (ml/train/config.py).
+run_name: base
+output_dir: ${MURMUR_RUNS:-.cache/ml/train/runs}/${MURMUR_RUN_PREFIX:-}base
+base_model: LiquidAI/LFM3-1.7B
+template: null            # auto from model_type (qwen3.5 | lfm3)
+method: lora              # lora | dora | full
+lora:
+  r: 16
+  alpha: 32               # alpha = 2r throughout the matrix
+  dropout: 0.05           # small data: a little dropout
+  target_modules: all-linear   # every nn.Linear except lm_head (attention, gate, short-conv / DeltaNet projections, MLP)
+  rslora: false
+data:
+  train:
+    - {path: "${MURMUR_DATA:-data}/train.jsonl", weight: 1.0}
+  dev:
+    - {path: "${MURMUR_DATA:-data}/dev.jsonl"}
+  upsample: {}            # e.g. {noop: 1.5}; only if the dev eval shows a category under-trained
+prompt:
+  system: finetuned       # prompts/system/finetuned.v1.md (short, ~90 tokens): what the app sends to fine-tunes
+  default_system: default # prompts/system/default.v1.md: the long prompted-model prompt
+  default_share: 0.15     # rendered with default_system instead (robust to the user picking the long prompt)
+  preferences_share: 0.15 # random target-neutral "My preferences" block (meta.preferences always wins)
+  preferences_pool: ml/train/preferences_pool.v1.txt
+  seed: 1234
+train:
+  max_len: auto           # longest rendered train example rounded up to 64, cap 4096 ("auto:3072" sets the cap,
+                          # an int fixes it); longer ones are dropped, never truncated; data_stats.json has the
+                          # resolved value and the rendered-length percentiles (OCR ctx v2 is longer than v1)
+  epochs: 3
+  max_steps: -1
+  batch_size: 16          # per device; 3K examples -> ~190 optimizer steps per epoch
+  grad_accum: 1
+  lr: 2.0e-4
+  scheduler: cosine
+  warmup: 0.05            # float < 1 = fraction of total steps
+  weight_decay: 0.0
+  adam_beta2: 0.95
+  max_grad_norm: 1.0
+  optim: adamw_torch_fused
+  precision: auto         # lora/dora -> bf16 base weights + bf16 autocast; full -> fp32 master + bf16 autocast; CPU -> fp32
+  gradient_checkpointing: true
+  logging_steps: 10
+  save_steps: 100         # LoRA checkpoints are small; resume after a pod stop loses < 100 steps
+  eval_steps: 100         # dev loss (the gate metrics come from ml/pod/run_one.sh's GGUF eval)
+  save_total_limit: 1
+  resume: true
+  seed: 42
+  workers: 2

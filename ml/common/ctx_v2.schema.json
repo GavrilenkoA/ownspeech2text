@@ -1,0 +1,29 @@
+{
+  "$comment": "Fallback copy of the ctx v2 shape in docs/ml/CONTEXT_V2.md. ml/common/schema.py prefers prompts/context.schema.v2.json (owned by the prompt engineer) when it exists.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["v", "app", "language", "privacy"],
+  "properties": {
+    "v": {"const": 2},
+    "app": {"type": "object", "required": ["package", "label", "category"],
+            "properties": {"package": {"type": "string", "maxLength": 200}, "label": {"type": "string", "maxLength": 100},
+                           "category": {"type": "string", "maxLength": 40}}},
+    "field": {"type": "object", "additionalProperties": false,
+              "properties": {"kind": {"type": "string", "maxLength": 40}, "hint": {"type": "string", "maxLength": 200},
+                             "before_cursor": {"type": "string", "maxLength": 5000},
+                             "input_type_variation": {"type": "string", "maxLength": 80},
+                             "password": {"type": "boolean"},
+                             "box": {"type": "array", "minItems": 4, "maxItems": 4, "items": {"type": "number"}}}},
+    "screen": {"type": "object", "required": ["size", "lines"],
+               "properties": {"size": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "integer", "minimum": 1}},
+                              "lines": {"type": "array", "maxItems": 400, "items": {
+                                "type": "object", "required": ["text", "conf", "box"],
+                                "properties": {"text": {"type": "string", "maxLength": 2000},
+                                               "conf": {"type": "number", "minimum": 0, "maximum": 1},
+                                               "box": {"type": "array", "minItems": 4, "maxItems": 4,
+                                                       "items": {"type": "number"}}}}}}},
+    "language": {"type": "object", "properties": {"asr": {"type": "string", "maxLength": 10}}},
+    "privacy": {"type": "object", "properties": {"level": {"type": "string", "maxLength": 20},
+                                                 "reason": {"type": ["string", "null"], "maxLength": 40}}}
+  }
+}

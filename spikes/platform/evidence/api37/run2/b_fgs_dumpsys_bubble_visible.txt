@@ -1,0 +1,7 @@
+ServiceRecord{a2fdb35 u0 app.murmur.spike/.SpikeA11yService
+code:PROC_STATE_PERSISTENT
+allowWiu:10
+ServiceRecord{1045a50 u0 app.murmur.spike/.RecordingFgs
+code:UID_VISIBLE
+allowWiu:50
+11-18 22:14:44:920 rec start riid:623 uid:10106 session:609 src:VOICE_RECOGNITION not silenced pack:app.murmur.spike

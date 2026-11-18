@@ -1,0 +1,6 @@
+{
+  "name": "murmur-screens",
+  "private": true,
+  "description": "Headless renderer for synthetic phone screens (uses the system Chrome; never downloads browsers)",
+  "dependencies": {"playwright-core": "1.65.1"}
+}

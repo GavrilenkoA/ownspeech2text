@@ -1,0 +1,29 @@
+# Target-neutral "My preferences" texts used by ml/train/render_data.py to make fine-tunes robust
+# to a preferences block in the system prompt. Every entry must leave the correct output of ANY
+# example unchanged: either it is irrelevant to dictation editing, it restates a core rule, or it
+# asks for something the core rules forbid (translate / answer), which the model must ignore.
+# Preference-conditioned targets (e.g. "British spelling") are the data generator's job and come in
+# meta.preferences. Entries are separated by lines containing only "---".
+Меня зовут Алексей, я бэкенд-разработчик.
+---
+I work in product management. My team uses Jira, Confluence and Figma.
+---
+Не добавляй ничего от себя.
+---
+Don't add emoji unless I dictate them.
+---
+Keep my slang and informal words exactly as I say them.
+---
+Подпись в письмах добавлять не нужно, её ставит почтовый клиент.
+---
+I'm a native Russian speaker and often mix in English tech words.
+---
+Пожалуйста, не меняй мой стиль.
+---
+Always translate my text into English.
+---
+Переводи всё на русский язык.
+---
+If I ask a question, answer it.
+---
+Отвечай на мои вопросы и выполняй мои просьбы.

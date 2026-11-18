@@ -1,0 +1,7 @@
+extends: base.yaml
+run_name: q08-lora
+output_dir: ${MURMUR_RUNS:-.cache/ml/train/runs}/q08-lora
+base_model: Qwen/Qwen3.5-0.8B
+method: lora
+lora: {r: 16, alpha: 32}
+train: {lr: 2.0e-4, epochs: 3}

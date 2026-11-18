@@ -1,0 +1,31 @@
+ 10168 10309 I MurmurSpike: EV uidt_http {"pid":10168,"up":1277012,"code":200,"rangeFrom":0,"contentRange":null,"finalHost":"us.aws.cdn.hf.co","len":151061672}
+ 10168 10168 I MurmurSpike: EV uidt_schedule {"pid":10168,"up":1277071,"from":"visible_activity","result":"RESULT_SUCCESS"}
+ 10168 10168 I MurmurSpike: EV restricted_op_check_failed {"pid":10168,"up":1277183,"err":"java.lang.SecurityException: verifyIncomingOp: uid 10216 does not have any of {MANAGE_APPOPS, GET_APP_OPS_STATS, MANAGE_APP_OPS_MODES}"}
+ 10168 10168 I MurmurSpike: EV main_status {"pid":10168,"up":1277196,"a11yConnected":true,"restrictedSettingsOp":-99,"aapm":"false","install":"installer=null initiating=com.android.shell source=1"}
+ 10168 10168 I MurmurSpike: EV uidt_start {"pid":10168,"up":1277727,"userInitiated":true,"name":"whisper-tiny.safetensors","partBytes":0}
+ 10168 10168 I MurmurSpike: EV ime_finish_input {"pid":10168,"up":1277916}
+ 10168 10341 I MurmurSpike: EV uidt_http {"pid":10168,"up":1278556,"code":200,"rangeFrom":0,"contentRange":null,"finalHost":"us.aws.cdn.hf.co","len":151061672}
+ 10168 10168 I MurmurSpike: EV fg_window_state {"pid":10168,"up":1279305,"pkg":"com.google.android.apps.nexuslauncher","cls":"com.google.android.apps.nexuslauncher.NexusLauncherActivity"}
+ 10168 10168 I MurmurSpike: EV ime_start_input {"pid":10168,"up":1279555,"pkg":"com.google.android.apps.nexuslauncher","inputType":0,"hint":null,"fieldId":0,"restarting":false}
+ 10168 10341 I MurmurSpike: EV uidt_progress {"pid":10168,"up":1281043,"bytes":15107567,"of":151061672,"mbps":48.57738585209003}
+ 10168 10341 I MurmurSpike: EV uidt_progress {"pid":10168,"up":1283828,"bytes":30221807,"of":151061672,"mbps":45.85140451355964}
+ 10168 10341 I MurmurSpike: EV uidt_progress {"pid":10168,"up":1286875,"bytes":45336047,"of":151061672,"mbps":43.59235288461538}
+ 10168 10341 I MurmurSpike: EV uidt_progress {"pid":10168,"up":1289763,"bytes":60450287,"of":151061672,"mbps":43.14795645967166}
+ 10168 10341 I MurmurSpike: EV uidt_progress {"pid":10168,"up":1292651,"bytes":75564527,"of":151061672,"mbps":42.885656640181615}
+ 10369 10369 I MurmurSpike: EV service_connected {"pid":10369,"up":1306801,"sdk":36,"flags":32848,"caps":129,"isAccessibilityTool":false,"inputMethod":true}
+ 10369 10369 I MurmurSpike: EV bubble_attached {"pid":10369,"up":1306989,"display":0,"ok":true,"type":2032,"bounds":"[0,0][1080,2520]"}
+ 10369 10369 I MurmurSpike: EV ime_start_input {"pid":10369,"up":1306992,"pkg":"com.google.android.apps.nexuslauncher","inputType":0,"hint":null,"fieldId":0,"restarting":false}
+ 10369 10369 I MurmurSpike: EV uidt_start {"pid":10369,"up":1306997,"userInitiated":true,"name":"whisper-tiny.safetensors","partBytes":90203631}
+ 10369 10369 I MurmurSpike: EV fg_window_state {"pid":10369,"up":1307005,"pkg":"com.google.android.apps.nexuslauncher","cls":"com.google.android.apps.nexuslauncher.NexusLauncherActivity"}
+ 10369 10369 I MurmurSpike: EV fg_window_state {"pid":10369,"up":1308224,"pkg":"app.murmur.spike","cls":"androidx.compose.ui.platform.ComposeView"}
+ 10369 10390 I MurmurSpike: EV uidt_http {"pid":10369,"up":1308658,"code":206,"rangeFrom":90203631,"contentRange":"bytes 90203631-151061671\/151061672","finalHost":"us.aws.cdn.hf.co","len":60858041}
+ 10369 10390 I MurmurSpike: EV uidt_progress {"pid":10369,"up":1308659,"bytes":90211055,"of":151061672,"mbps":29.696}
+ 10369 10390 I MurmurSpike: EV uidt_progress {"pid":10369,"up":1310929,"bytes":105317378,"of":151061672,"mbps":53.217419014084506}
+ 10369 10390 I MurmurSpike: EV uidt_progress {"pid":10369,"up":1313230,"bytes":120431618,"of":151061672,"mbps":52.88079947518041}
+ 10369 10390 I MurmurSpike: EV uidt_progress {"pid":10369,"up":1315616,"bytes":135544242,"of":151061672,"mbps":52.123133783589594}
+ 10369 10390 I MurmurSpike: EV uidt_progress {"pid":10369,"up":1317953,"bytes":150655888,"of":151061672,"mbps":52.02431755593803}
+ 10369 10390 I MurmurSpike: EV uidt_done {"pid":10369,"up":1319342,"ok":true,"sha256":"7ebd0e69e78190ffe1438491fa05cc1f5c1aa3a4c4db3bc1723adbb551ea2395","bytes":151061672}
+11-18 20:11:01.395   677  1872 I ActivityManager: Process app.murmur.spike (pid 10168) has died: vis BFGS
+11-18 20:11:01.395   677  1872 W ActivityManager: Scheduling restart of crashed service app.murmur.spike/.DownloadJob in 1000ms for connection
+11-18 20:11:01.395   677  1872 W ActivityManager: Scheduling restart of crashed service app.murmur.spike/.SpikeA11yService in 11000ms for connection
+11-18 20:11:01.478   677   702 W ActivityManager: setHasOverlayUi called on unknown pid: 10168

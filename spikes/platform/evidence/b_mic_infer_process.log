@@ -1,0 +1,9 @@
+  3737  3737 I MurmurSpike: EV cmd {"pid":3737,"up":259717,"c":"infer_probe"}
+  3737  3737 I MurmurSpike: EV infer_bind {"pid":3737,"up":259720,"ok":true,"ms":3}
+  4401  4401 I MurmurSpike: EV infer_created {"pid":4401,"up":259994,"process":"infer"}
+  4401  4401 I MurmurSpike: EV infer_bound {"pid":4401,"up":259995}
+  3737  3737 I MurmurSpike: EV infer_connected {"pid":3737,"up":259997}
+  4401  4401 I MurmurSpike: EV rec_started {"pid":4401,"up":260038,"label":"infer-process","recordingState":3,"session":137}
+  4401  4420 I MurmurSpike: EV rec_config {"pid":4401,"up":260051,"label":"infer-process","silenced":false,"source":6,"device":"sdk_gphone64_x86_64"}
+  3737  3737 I MurmurSpike: EV infer_reply {"pid":3737,"up":260073,"what":2,"inferPid":4401,"pssKb":34512,"loadMs":0}
+  4401  4401 I MurmurSpike: EV infer_record_probe {"pid":4401,"up":261594,"started":true,"result":"{label=infer-process, samples=23360, seconds=1.46, nonZero=3606, peak=8, firstBufferMs=100, silencedAtStop=false, silencedCallback=false}"}

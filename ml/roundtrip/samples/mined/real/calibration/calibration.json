@@ -1,0 +1,1256 @@
+{
+ "distil-large-v3.5@onnx-int8": {
+  "all_lower_rate": {
+   "gap": 0.0,
+   "ok": true,
+   "real": 0.0222,
+   "sim": 0.0222,
+   "support": 45,
+   "tol": 0.08
+  },
+  "cer": {
+   "gap": 0.0042,
+   "ok": true,
+   "real": 0.0312,
+   "sim": 0.0354,
+   "support": 642,
+   "tol": 0.05
+  },
+  "digits_kept_rate": {
+   "gap": null,
+   "ok": null,
+   "real": null,
+   "sim": null,
+   "support": 0,
+   "tol": 0.1
+  },
+  "empty_rate": {
+   "gap": 0.0,
+   "ok": true,
+   "real": 0.0,
+   "sim": 0.0,
+   "support": 45,
+   "tol": 0.05
+  },
+  "first_upper_rate": {
+   "gap": -0.0222,
+   "ok": true,
+   "real": 0.9778,
+   "sim": 0.9556,
+   "support": 45,
+   "tol": 0.08
+  },
+  "latin_kept_rate": {
+   "gap": 0.0,
+   "ok": true,
+   "real": 0.9951,
+   "sim": 0.9951,
+   "support": 642,
+   "tol": 0.1
+  },
+  "punct_any_rate": {
+   "gap": -0.0056,
+   "ok": true,
+   "real": 0.9778,
+   "sim": 0.9722,
+   "support": 45,
+   "tol": 0.08
+  },
+  "tail_rate": {
+   "gap": 0.0,
+   "ok": true,
+   "real": 0.0,
+   "sim": 0.0,
+   "support": 45,
+   "tol": 0.05
+  },
+  "term_error_rate": {
+   "gap": 0.0172,
+   "ok": true,
+   "real": 0.1954,
+   "sim": 0.2126,
+   "support": 87,
+   "tol": 0.08
+  },
+  "term_exact_rate": {
+   "gap": -0.0316,
+   "ok": true,
+   "real": 0.6207,
+   "sim": 0.5891,
+   "support": 87,
+   "tol": 0.08
+  },
+  "terminal_kept_rate": {
+   "gap": -0.0111,
+   "ok": true,
+   "real": 0.9778,
+   "sim": 0.9667,
+   "support": 45,
+   "tol": 0.1
+  },
+  "wer": {
+   "gap": -0.0047,
+   "ok": true,
+   "real": 0.0826,
+   "sim": 0.0779,
+   "support": 642,
+   "tol": 0.05
+  },
+  "wer_style_aware": {
+   "gap": 0.0031,
+   "ok": true,
+   "real": 0.0561,
+   "sim": 0.0592,
+   "support": 642,
+   "tol": 0.03
+  },
+  "words_to_digits_rate": {
+   "gap": 0.0,
+   "ok": null,
+   "real": 1.0,
+   "sim": 1.0,
+   "support": 3,
+   "tol": 0.1
+  }
+ },
+ "gigaam-v3-e2e-ctc@onnx-int8": {
+  "all_lower_rate": {
+   "gap": 0.0,
+   "ok": true,
+   "real": 0.0,
+   "sim": 0.0,
+   "support": 60,
+   "tol": 0.08
+  },
+  "cer": {
+   "gap": 0.0047,
+   "ok": true,
+   "real": 0.1306,
+   "sim": 0.1353,
+   "support": 710,
+   "tol": 0.05
+  },
+  "digits_kept_rate": {
+   "gap": 0.0,
+   "ok": null,
+   "real": 1.0,
+   "sim": 1.0,
+   "support": 2,
+   "tol": 0.1
+  },
+  "empty_rate": {
+   "gap": 0.0,
+   "ok": true,
+   "real": 0.0,
+   "sim": 0.0,
+   "support": 60,
+   "tol": 0.05
+  },
+  "first_upper_rate": {
+   "gap": 0.0,
+   "ok": true,
+   "real": 1.0,
+   "sim": 1.0,
+   "support": 60,
+   "tol": 0.08
+  },
+  "latin_kept_rate": {
+   "gap": 0.0115,
+   "ok": true,
+   "real": 0.2,
+   "sim": 0.2115,
+   "support": 64,
+   "tol": 0.1
+  },
+  "punct_any_rate": {
+   "gap": -0.0542,
+   "ok": true,
+   "real": 0.9667,
+   "sim": 0.9125,
+   "support": 60,
+   "tol": 0.08
+  },
+  "tail_rate": {
+   "gap": 0.0,
+   "ok": true,
+   "real": 0.0,
+   "sim": 0.0,
+   "support": 60,
+   "tol": 0.05
+  },
+  "term_error_rate": {
+   "gap": -0.0147,
+   "ok": true,
+   "real": 0.6176,
+   "sim": 0.6029,
+   "support": 136,
+   "tol": 0.08
+  },
+  "term_exact_rate": {
+   "gap": 0.011,
+   "ok": true,
+   "real": 0.2206,
+   "sim": 0.2316,
+   "support": 136,
+   "tol": 0.08
+  },
+  "terminal_kept_rate": {
+   "gap": 0.15,
+   "ok": false,
+   "real": 0.3333,
+   "sim": 0.4833,
+   "support": 60,
+   "tol": 0.1
+  },
+  "wer": {
+   "gap": -0.0007,
+   "ok": true,
+   "real": 0.2296,
+   "sim": 0.2289,
+   "support": 710,
+   "tol": 0.05
+  },
+  "wer_style_aware": {
+   "gap": -0.0056,
+   "ok": true,
+   "real": 0.1901,
+   "sim": 0.1845,
+   "support": 710,
+   "tol": 0.03
+  },
+  "words_to_digits_rate": {
+   "gap": 0.1474,
+   "ok": null,
+   "real": 0.5714,
+   "sim": 0.7188,
+   "support": 7,
+   "tol": 0.1
+  }
+ },
+ "gigaam-v3-e2e-rnnt@onnx-int8": {
+  "all_lower_rate": {
+   "gap": 0.0,
+   "ok": true,
+   "real": 0.0,
+   "sim": 0.0,
+   "support": 60,
+   "tol": 0.08
+  },
+  "cer": {
+   "gap": 0.0089,
+   "ok": true,
+   "real": 0.129,
+   "sim": 0.1379,
+   "support": 710,
+   "tol": 0.05
+  },
+  "digits_kept_rate": {
+   "gap": 0.0,
+   "ok": null,
+   "real": 1.0,
+   "sim": 1.0,
+   "support": 2,
+   "tol": 0.1
+  },
+  "empty_rate": {
+   "gap": 0.0,
+   "ok": true,
+   "real": 0.0,
+   "sim": 0.0,
+   "support": 60,
+   "tol": 0.05
+  },
+  "first_upper_rate": {
+   "gap": 0.0,
+   "ok": true,
+   "real": 1.0,
+   "sim": 1.0,
+   "support": 60,
+   "tol": 0.08
+  },
+  "latin_kept_rate": {
+   "gap": -0.0039,
+   "ok": true,
+   "real": 0.2,
+   "sim": 0.1961,
+   "support": 64,
+   "tol": 0.1
+  },
+  "punct_any_rate": {
+   "gap": 0.0,
+   "ok": true,
+   "real": 1.0,
+   "sim": 1.0,
+   "support": 60,
+   "tol": 0.08
+  },
+  "tail_rate": {
+   "gap": 0.0,
+   "ok": true,
+   "real": 0.0,
+   "sim": 0.0,
+   "support": 60,
+   "tol": 0.05
+  },
+  "term_error_rate": {
+   "gap": -0.0074,
+   "ok": true,
+   "real": 0.5515,
+   "sim": 0.5441,
+   "support": 136,
+   "tol": 0.08
+  },
+  "term_exact_rate": {
+   "gap": 0.0018,
+   "ok": true,
+   "real": 0.2794,
+   "sim": 0.2812,
+   "support": 136,
+   "tol": 0.08
+  },
+  "terminal_kept_rate": {
+   "gap": 0.0042,
+   "ok": true,
+   "real": 0.9833,
+   "sim": 0.9875,
+   "support": 60,
+   "tol": 0.1
+  },
+  "wer": {
+   "gap": 0.0046,
+   "ok": true,
+   "real": 0.2155,
+   "sim": 0.2201,
+   "support": 710,
+   "tol": 0.05
+  },
+  "wer_style_aware": {
+   "gap": 0.0084,
+   "ok": true,
+   "real": 0.1761,
+   "sim": 0.1845,
+   "support": 710,
+   "tol": 0.03
+  },
+  "words_to_digits_rate": {
+   "gap": 0.0,
+   "ok": null,
+   "real": 0.5,
+   "sim": 0.5,
+   "support": 8,
+   "tol": 0.1
+  }
+ },
+ "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms": {
+  "all_lower_rate": {
+   "gap": 0.0143,
+   "ok": true,
+   "real": 0.0286,
+   "sim": 0.0429,
+   "support": 105,
+   "tol": 0.08
+  },
+  "cer": {
+   "gap": 0.0143,
+   "ok": true,
+   "real": 0.1254,
+   "sim": 0.1397,
+   "support": 1352,
+   "tol": 0.05
+  },
+  "digits_kept_rate": {
+   "gap": 0.25,
+   "ok": null,
+   "real": 0.5,
+   "sim": 0.75,
+   "support": 2,
+   "tol": 0.1
+  },
+  "empty_rate": {
+   "gap": 0.0,
+   "ok": true,
+   "real": 0.0,
+   "sim": 0.0,
+   "support": 105,
+   "tol": 0.05
+  },
+  "first_upper_rate": {
+   "gap": -0.0285,
+   "ok": true,
+   "real": 0.9714,
+   "sim": 0.9429,
+   "support": 105,
+   "tol": 0.08
+  },
+  "latin_kept_rate": {
+   "gap": -0.0002,
+   "ok": true,
+   "real": 0.9498,
+   "sim": 0.9496,
+   "support": 706,
+   "tol": 0.1
+  },
+  "punct_any_rate": {
+   "gap": -0.0548,
+   "ok": true,
+   "real": 0.7905,
+   "sim": 0.7357,
+   "support": 105,
+   "tol": 0.08
+  },
+  "tail_rate": {
+   "gap": 0.0,
+   "ok": true,
+   "real": 0.0,
+   "sim": 0.0,
+   "support": 105,
+   "tol": 0.05
+  },
+  "term_error_rate": {
+   "gap": 0.0224,
+   "ok": true,
+   "real": 0.4798,
+   "sim": 0.5022,
+   "support": 223,
+   "tol": 0.08
+  },
+  "term_exact_rate": {
+   "gap": -0.0246,
+   "ok": true,
+   "real": 0.2735,
+   "sim": 0.2489,
+   "support": 223,
+   "tol": 0.08
+  },
+  "terminal_kept_rate": {
+   "gap": 0.0905,
+   "ok": true,
+   "real": 0.1524,
+   "sim": 0.2429,
+   "support": 105,
+   "tol": 0.1
+  },
+  "wer": {
+   "gap": 0.0124,
+   "ok": true,
+   "real": 0.2441,
+   "sim": 0.2565,
+   "support": 1352,
+   "tol": 0.05
+  },
+  "wer_style_aware": {
+   "gap": 0.0191,
+   "ok": true,
+   "real": 0.1886,
+   "sim": 0.2077,
+   "support": 1352,
+   "tol": 0.03
+  },
+  "words_to_digits_rate": {
+   "gap": 0.0,
+   "ok": true,
+   "real": 0.0,
+   "sim": 0.0,
+   "support": 11,
+   "tol": 0.1
+  }
+ },
+ "parakeet-tdt-0.6b-v3@onnx-int8": {
+  "all_lower_rate": {
+   "gap": 0.0,
+   "ok": true,
+   "real": 0.0,
+   "sim": 0.0,
+   "support": 105,
+   "tol": 0.08
+  },
+  "cer": {
+   "gap": 0.0096,
+   "ok": true,
+   "real": 0.0873,
+   "sim": 0.0969,
+   "support": 1352,
+   "tol": 0.05
+  },
+  "digits_kept_rate": {
+   "gap": 0.0,
+   "ok": null,
+   "real": 1.0,
+   "sim": 1.0,
+   "support": 2,
+   "tol": 0.1
+  },
+  "empty_rate": {
+   "gap": 0.0,
+   "ok": true,
+   "real": 0.0,
+   "sim": 0.0,
+   "support": 105,
+   "tol": 0.05
+  },
+  "first_upper_rate": {
+   "gap": -0.0024,
+   "ok": true,
+   "real": 1.0,
+   "sim": 0.9976,
+   "support": 105,
+   "tol": 0.08
+  },
+  "latin_kept_rate": {
+   "gap": -0.0001,
+   "ok": true,
+   "real": 0.969,
+   "sim": 0.9689,
+   "support": 706,
+   "tol": 0.1
+  },
+  "punct_any_rate": {
+   "gap": 0.0,
+   "ok": true,
+   "real": 1.0,
+   "sim": 1.0,
+   "support": 105,
+   "tol": 0.08
+  },
+  "tail_rate": {
+   "gap": 0.0,
+   "ok": true,
+   "real": 0.0,
+   "sim": 0.0,
+   "support": 105,
+   "tol": 0.05
+  },
+  "term_error_rate": {
+   "gap": 0.0022,
+   "ok": true,
+   "real": 0.3722,
+   "sim": 0.3744,
+   "support": 223,
+   "tol": 0.08
+  },
+  "term_exact_rate": {
+   "gap": 0.0,
+   "ok": true,
+   "real": 0.4664,
+   "sim": 0.4664,
+   "support": 223,
+   "tol": 0.08
+  },
+  "terminal_kept_rate": {
+   "gap": -0.0024,
+   "ok": true,
+   "real": 1.0,
+   "sim": 0.9976,
+   "support": 105,
+   "tol": 0.1
+  },
+  "wer": {
+   "gap": 0.0015,
+   "ok": true,
+   "real": 0.1731,
+   "sim": 0.1746,
+   "support": 1352,
+   "tol": 0.05
+  },
+  "wer_style_aware": {
+   "gap": 0.0035,
+   "ok": true,
+   "real": 0.1354,
+   "sim": 0.1389,
+   "support": 1352,
+   "tol": 0.03
+  },
+  "words_to_digits_rate": {
+   "gap": 0.076,
+   "ok": null,
+   "real": 0.5556,
+   "sim": 0.6316,
+   "support": 9,
+   "tol": 0.1
+  }
+ },
+ "parakeet-ultra-0.6b@onnx-int8": {
+  "all_lower_rate": {
+   "gap": 0.0,
+   "ok": true,
+   "real": 0.0,
+   "sim": 0.0,
+   "support": 105,
+   "tol": 0.08
+  },
+  "cer": {
+   "gap": 0.0138,
+   "ok": true,
+   "real": 0.0794,
+   "sim": 0.0932,
+   "support": 1352,
+   "tol": 0.05
+  },
+  "digits_kept_rate": {
+   "gap": 0.0,
+   "ok": null,
+   "real": 1.0,
+   "sim": 1.0,
+   "support": 2,
+   "tol": 0.1
+  },
+  "empty_rate": {
+   "gap": 0.0,
+   "ok": true,
+   "real": 0.0,
+   "sim": 0.0,
+   "support": 105,
+   "tol": 0.05
+  },
+  "first_upper_rate": {
+   "gap": 0.0,
+   "ok": true,
+   "real": 1.0,
+   "sim": 1.0,
+   "support": 105,
+   "tol": 0.08
+  },
+  "latin_kept_rate": {
+   "gap": 0.001,
+   "ok": true,
+   "real": 0.9706,
+   "sim": 0.9716,
+   "support": 706,
+   "tol": 0.1
+  },
+  "punct_any_rate": {
+   "gap": 0.0,
+   "ok": true,
+   "real": 1.0,
+   "sim": 1.0,
+   "support": 105,
+   "tol": 0.08
+  },
+  "tail_rate": {
+   "gap": 0.0,
+   "ok": true,
+   "real": 0.0,
+   "sim": 0.0,
+   "support": 105,
+   "tol": 0.05
+  },
+  "term_error_rate": {
+   "gap": 0.0011,
+   "ok": true,
+   "real": 0.3543,
+   "sim": 0.3554,
+   "support": 223,
+   "tol": 0.08
+  },
+  "term_exact_rate": {
+   "gap": 0.0067,
+   "ok": true,
+   "real": 0.4888,
+   "sim": 0.4955,
+   "support": 223,
+   "tol": 0.08
+  },
+  "terminal_kept_rate": {
+   "gap": -0.0048,
+   "ok": true,
+   "real": 1.0,
+   "sim": 0.9952,
+   "support": 105,
+   "tol": 0.1
+  },
+  "wer": {
+   "gap": 0.0094,
+   "ok": true,
+   "real": 0.1531,
+   "sim": 0.1625,
+   "support": 1352,
+   "tol": 0.05
+  },
+  "wer_style_aware": {
+   "gap": 0.0103,
+   "ok": true,
+   "real": 0.1206,
+   "sim": 0.1309,
+   "support": 1352,
+   "tol": 0.03
+  },
+  "words_to_digits_rate": {
+   "gap": 0.0083,
+   "ok": null,
+   "real": 0.6667,
+   "sim": 0.675,
+   "support": 9,
+   "tol": 0.1
+  }
+ },
+ "qwen3-asr-0.6b@onnx-int8": {
+  "all_lower_rate": {
+   "gap": 0.0,
+   "ok": true,
+   "real": 0.0,
+   "sim": 0.0,
+   "support": 105,
+   "tol": 0.08
+  },
+  "cer": {
+   "gap": 0.0105,
+   "ok": true,
+   "real": 0.1232,
+   "sim": 0.1337,
+   "support": 1352,
+   "tol": 0.05
+  },
+  "digits_kept_rate": {
+   "gap": 0.0,
+   "ok": null,
+   "real": 0.0,
+   "sim": 0.0,
+   "support": 2,
+   "tol": 0.1
+  },
+  "empty_rate": {
+   "gap": 0.0,
+   "ok": true,
+   "real": 0.0,
+   "sim": 0.0,
+   "support": 105,
+   "tol": 0.05
+  },
+  "first_upper_rate": {
+   "gap": 0.0,
+   "ok": true,
+   "real": 1.0,
+   "sim": 1.0,
+   "support": 105,
+   "tol": 0.08
+  },
+  "latin_kept_rate": {
+   "gap": -0.0026,
+   "ok": true,
+   "real": 0.9608,
+   "sim": 0.9582,
+   "support": 706,
+   "tol": 0.1
+  },
+  "punct_any_rate": {
+   "gap": 0.0,
+   "ok": true,
+   "real": 1.0,
+   "sim": 1.0,
+   "support": 105,
+   "tol": 0.08
+  },
+  "tail_rate": {
+   "gap": 0.0,
+   "ok": true,
+   "real": 0.0,
+   "sim": 0.0,
+   "support": 105,
+   "tol": 0.05
+  },
+  "term_error_rate": {
+   "gap": 0.0146,
+   "ok": true,
+   "real": 0.4753,
+   "sim": 0.4899,
+   "support": 223,
+   "tol": 0.08
+  },
+  "term_exact_rate": {
+   "gap": 0.0022,
+   "ok": true,
+   "real": 0.3139,
+   "sim": 0.3161,
+   "support": 223,
+   "tol": 0.08
+  },
+  "terminal_kept_rate": {
+   "gap": -0.0048,
+   "ok": true,
+   "real": 1.0,
+   "sim": 0.9952,
+   "support": 105,
+   "tol": 0.1
+  },
+  "wer": {
+   "gap": -0.0075,
+   "ok": true,
+   "real": 0.2507,
+   "sim": 0.2432,
+   "support": 1352,
+   "tol": 0.05
+  },
+  "wer_style_aware": {
+   "gap": -0.0009,
+   "ok": true,
+   "real": 0.1967,
+   "sim": 0.1958,
+   "support": 1352,
+   "tol": 0.03
+  },
+  "words_to_digits_rate": {
+   "gap": 0.0,
+   "ok": true,
+   "real": 0.0,
+   "sim": 0.0,
+   "support": 11,
+   "tol": 0.1
+  }
+ },
+ "t-one@onnx": {
+  "all_lower_rate": {
+   "gap": 0.0,
+   "ok": true,
+   "real": 1.0,
+   "sim": 1.0,
+   "support": 60,
+   "tol": 0.08
+  },
+  "cer": {
+   "gap": 0.0138,
+   "ok": true,
+   "real": 0.1761,
+   "sim": 0.1899,
+   "support": 710,
+   "tol": 0.05
+  },
+  "digits_kept_rate": {
+   "gap": 0.0,
+   "ok": null,
+   "real": 0.0,
+   "sim": 0.0,
+   "support": 2,
+   "tol": 0.1
+  },
+  "empty_rate": {
+   "gap": 0.0,
+   "ok": true,
+   "real": 0.0,
+   "sim": 0.0,
+   "support": 60,
+   "tol": 0.05
+  },
+  "first_upper_rate": {
+   "gap": 0.0,
+   "ok": true,
+   "real": 0.0,
+   "sim": 0.0,
+   "support": 60,
+   "tol": 0.08
+  },
+  "latin_kept_rate": {
+   "gap": 0.0,
+   "ok": true,
+   "real": 0.0,
+   "sim": 0.0,
+   "support": 64,
+   "tol": 0.1
+  },
+  "punct_any_rate": {
+   "gap": 0.0,
+   "ok": true,
+   "real": 0.0,
+   "sim": 0.0,
+   "support": 60,
+   "tol": 0.08
+  },
+  "tail_rate": {
+   "gap": 0.0,
+   "ok": true,
+   "real": 0.0,
+   "sim": 0.0,
+   "support": 60,
+   "tol": 0.05
+  },
+  "term_error_rate": {
+   "gap": 0.0276,
+   "ok": true,
+   "real": 0.5882,
+   "sim": 0.6158,
+   "support": 136,
+   "tol": 0.08
+  },
+  "term_exact_rate": {
+   "gap": -0.0165,
+   "ok": true,
+   "real": 0.2132,
+   "sim": 0.1967,
+   "support": 136,
+   "tol": 0.08
+  },
+  "terminal_kept_rate": {
+   "gap": 0.0,
+   "ok": true,
+   "real": 0.0,
+   "sim": 0.0,
+   "support": 60,
+   "tol": 0.1
+  },
+  "wer": {
+   "gap": -0.0162,
+   "ok": true,
+   "real": 0.3338,
+   "sim": 0.3176,
+   "support": 710,
+   "tol": 0.05
+  },
+  "wer_style_aware": {
+   "gap": 0.0036,
+   "ok": true,
+   "real": 0.2549,
+   "sim": 0.2585,
+   "support": 710,
+   "tol": 0.03
+  },
+  "words_to_digits_rate": {
+   "gap": 0.0,
+   "ok": null,
+   "real": 0.0,
+   "sim": 0.0,
+   "support": 8,
+   "tol": 0.1
+  }
+ },
+ "whisper-large-v3-turbo@onnx-int8": {
+  "all_lower_rate": {
+   "gap": -0.0035,
+   "ok": true,
+   "real": 0.0139,
+   "sim": 0.0104,
+   "support": 72,
+   "tol": 0.08
+  },
+  "cer": {
+   "gap": 0.0015,
+   "ok": true,
+   "real": 0.0807,
+   "sim": 0.0822,
+   "support": 924,
+   "tol": 0.05
+  },
+  "digits_kept_rate": {
+   "gap": 0.0,
+   "ok": null,
+   "real": 1.0,
+   "sim": 1.0,
+   "support": 2,
+   "tol": 0.1
+  },
+  "empty_rate": {
+   "gap": 0.0,
+   "ok": true,
+   "real": 0.0,
+   "sim": 0.0,
+   "support": 72,
+   "tol": 0.05
+  },
+  "first_upper_rate": {
+   "gap": -0.0104,
+   "ok": true,
+   "real": 0.9722,
+   "sim": 0.9618,
+   "support": 72,
+   "tol": 0.08
+  },
+  "latin_kept_rate": {
+   "gap": -0.0018,
+   "ok": true,
+   "real": 0.977,
+   "sim": 0.9752,
+   "support": 464,
+   "tol": 0.1
+  },
+  "punct_any_rate": {
+   "gap": -0.0139,
+   "ok": true,
+   "real": 0.9722,
+   "sim": 0.9583,
+   "support": 72,
+   "tol": 0.08
+  },
+  "tail_rate": {
+   "gap": 0.0,
+   "ok": true,
+   "real": 0.0,
+   "sim": 0.0,
+   "support": 72,
+   "tol": 0.05
+  },
+  "term_error_rate": {
+   "gap": -0.0103,
+   "ok": true,
+   "real": 0.284,
+   "sim": 0.2737,
+   "support": 169,
+   "tol": 0.08
+  },
+  "term_exact_rate": {
+   "gap": -0.0059,
+   "ok": true,
+   "real": 0.568,
+   "sim": 0.5621,
+   "support": 169,
+   "tol": 0.08
+  },
+  "terminal_kept_rate": {
+   "gap": -0.0104,
+   "ok": true,
+   "real": 0.8333,
+   "sim": 0.8229,
+   "support": 72,
+   "tol": 0.1
+  },
+  "wer": {
+   "gap": 0.004,
+   "ok": true,
+   "real": 0.1429,
+   "sim": 0.1469,
+   "support": 924,
+   "tol": 0.05
+  },
+  "wer_style_aware": {
+   "gap": -0.0016,
+   "ok": true,
+   "real": 0.1147,
+   "sim": 0.1131,
+   "support": 924,
+   "tol": 0.03
+  },
+  "words_to_digits_rate": {
+   "gap": 0.0,
+   "ok": null,
+   "real": 1.0,
+   "sim": 1.0,
+   "support": 4,
+   "tol": 0.1
+  }
+ },
+ "whisper-medium@onnx-int8": {
+  "all_lower_rate": {
+   "gap": 0.0417,
+   "ok": true,
+   "real": 0.0,
+   "sim": 0.0417,
+   "support": 24,
+   "tol": 0.08
+  },
+  "cer": {
+   "gap": 0.0021,
+   "ok": true,
+   "real": 0.101,
+   "sim": 0.1031,
+   "support": 343,
+   "tol": 0.05
+  },
+  "digits_kept_rate": {
+   "gap": 0.0,
+   "ok": null,
+   "real": 1.0,
+   "sim": 1.0,
+   "support": 2,
+   "tol": 0.1
+  },
+  "empty_rate": {
+   "gap": 0.0,
+   "ok": true,
+   "real": 0.0,
+   "sim": 0.0,
+   "support": 24,
+   "tol": 0.05
+  },
+  "first_upper_rate": {
+   "gap": -0.0521,
+   "ok": true,
+   "real": 0.9583,
+   "sim": 0.9062,
+   "support": 24,
+   "tol": 0.08
+  },
+  "latin_kept_rate": {
+   "gap": -0.002,
+   "ok": true,
+   "real": 0.9664,
+   "sim": 0.9644,
+   "support": 169,
+   "tol": 0.1
+  },
+  "punct_any_rate": {
+   "gap": 0.0,
+   "ok": true,
+   "real": 1.0,
+   "sim": 1.0,
+   "support": 24,
+   "tol": 0.08
+  },
+  "tail_rate": {
+   "gap": 0.0,
+   "ok": true,
+   "real": 0.0,
+   "sim": 0.0,
+   "support": 24,
+   "tol": 0.05
+  },
+  "term_error_rate": {
+   "gap": 0.0118,
+   "ok": true,
+   "real": 0.4062,
+   "sim": 0.418,
+   "support": 64,
+   "tol": 0.08
+  },
+  "term_exact_rate": {
+   "gap": -0.0156,
+   "ok": true,
+   "real": 0.5156,
+   "sim": 0.5,
+   "support": 64,
+   "tol": 0.08
+  },
+  "terminal_kept_rate": {
+   "gap": 0.0,
+   "ok": true,
+   "real": 0.875,
+   "sim": 0.875,
+   "support": 24,
+   "tol": 0.1
+  },
+  "wer": {
+   "gap": -0.0066,
+   "ok": true,
+   "real": 0.1837,
+   "sim": 0.1771,
+   "support": 343,
+   "tol": 0.05
+  },
+  "wer_style_aware": {
+   "gap": -0.0014,
+   "ok": true,
+   "real": 0.1574,
+   "sim": 0.156,
+   "support": 343,
+   "tol": 0.03
+  },
+  "words_to_digits_rate": {
+   "gap": 0.0,
+   "ok": null,
+   "real": 1.0,
+   "sim": 1.0,
+   "support": 2,
+   "tol": 0.1
+  }
+ },
+ "whisper-small@onnx-int8": {
+  "all_lower_rate": {
+   "gap": 0.0078,
+   "ok": true,
+   "real": 0.0208,
+   "sim": 0.0286,
+   "support": 96,
+   "tol": 0.08
+  },
+  "cer": {
+   "gap": 0.0228,
+   "ok": true,
+   "real": 0.1026,
+   "sim": 0.1254,
+   "support": 1231,
+   "tol": 0.05
+  },
+  "digits_kept_rate": {
+   "gap": 0.0,
+   "ok": null,
+   "real": 1.0,
+   "sim": 1.0,
+   "support": 2,
+   "tol": 0.1
+  },
+  "empty_rate": {
+   "gap": 0.0,
+   "ok": true,
+   "real": 0.0,
+   "sim": 0.0,
+   "support": 96,
+   "tol": 0.05
+  },
+  "first_upper_rate": {
+   "gap": -0.0157,
+   "ok": true,
+   "real": 0.9688,
+   "sim": 0.9531,
+   "support": 96,
+   "tol": 0.08
+  },
+  "latin_kept_rate": {
+   "gap": -0.0079,
+   "ok": true,
+   "real": 0.9745,
+   "sim": 0.9666,
+   "support": 649,
+   "tol": 0.1
+  },
+  "punct_any_rate": {
+   "gap": -0.0261,
+   "ok": true,
+   "real": 0.9792,
+   "sim": 0.9531,
+   "support": 96,
+   "tol": 0.08
+  },
+  "tail_rate": {
+   "gap": 0.0,
+   "ok": true,
+   "real": 0.0,
+   "sim": 0.0,
+   "support": 96,
+   "tol": 0.05
+  },
+  "term_error_rate": {
+   "gap": 0.0,
+   "ok": true,
+   "real": 0.3873,
+   "sim": 0.3873,
+   "support": 204,
+   "tol": 0.08
+  },
+  "term_exact_rate": {
+   "gap": -0.0049,
+   "ok": true,
+   "real": 0.4069,
+   "sim": 0.402,
+   "support": 204,
+   "tol": 0.08
+  },
+  "terminal_kept_rate": {
+   "gap": 0.0156,
+   "ok": true,
+   "real": 0.8542,
+   "sim": 0.8698,
+   "support": 96,
+   "tol": 0.1
+  },
+  "wer": {
+   "gap": 0.0211,
+   "ok": true,
+   "real": 0.2096,
+   "sim": 0.2307,
+   "support": 1231,
+   "tol": 0.05
+  },
+  "wer_style_aware": {
+   "gap": 0.0199,
+   "ok": true,
+   "real": 0.1657,
+   "sim": 0.1856,
+   "support": 1231,
+   "tol": 0.03
+  },
+  "words_to_digits_rate": {
+   "gap": 0.0798,
+   "ok": null,
+   "real": 0.5714,
+   "sim": 0.6512,
+   "support": 7,
+   "tol": 0.1
+  }
+ }
+}

@@ -1,0 +1,8 @@
+# GPU-only extras on top of ml/train/requirements.txt (installed by ml/pod/bootstrap.sh).
+# flash-linear-attention: Triton kernels for Qwen3.5 Gated DeltaNet; without it transformers falls back
+# to a slow, memory-hungry PyTorch path (measured on CPU in the dry run: minutes per step).
+flash-linear-attention==0.6.0
+liger-kernel==0.8.5
+# causal-conv1d (CUDA kernel for the short convs) is deliberately NOT installed: it compiles with nvcc
+# for ~10 min of paid GPU time; transformers' PyTorch fallback is correct and the conv is a tiny share
+# of the FLOPs at these sizes.

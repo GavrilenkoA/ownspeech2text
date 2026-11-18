@@ -1,0 +1,10 @@
+  3737  3737 I MurmurSpike: EV cmd {"pid":3737,"up":252453,"c":"fgs_probe_hidden"}
+  3737  3737 I MurmurSpike: EV bubble_detached {"pid":3737,"up":252466,"display":0}
+  3737  3737 I MurmurSpike: EV fgs_started {"pid":3737,"up":254013,"type":"microphone","msFromTap":41}
+  3737  3737 I MurmurSpike: EV rec_started {"pid":3737,"up":254048,"label":"a11y-fgs","recordingState":3,"session":129}
+  3737  4381 I MurmurSpike: EV rec_config {"pid":3737,"up":254061,"label":"a11y-fgs","silenced":false,"source":6,"device":"sdk_gphone64_x86_64"}
+  3737  3737 I MurmurSpike: EV rec_first_buffer {"pid":3737,"up":255049,"label":"a11y-fgs","ms":129,"silenced":false}
+  3737  3737 I MurmurSpike: EV dictation_stop {"pid":3737,"up":256025,"rec":{"label":"a11y-fgs","samples":30720,"seconds":1.92,"nonZero":27191,"peak":8,"firstBufferMs":129,"silencedAtStop":false,"silencedCallback":false}}
+  3737  3737 I MurmurSpike: EV fgs_destroyed {"pid":3737,"up":256025}
+  3737  3737 I MurmurSpike: EV bubble_attached {"pid":3737,"up":256497,"display":0,"ok":true,"type":2032,"bounds":"[0,0][1080,2520]"}
+  3737  3737 I MurmurSpike: EV fg_window_state {"pid":3737,"up":258436,"pkg":"com.android.systemui","cls":"android.widget.FrameLayout"}

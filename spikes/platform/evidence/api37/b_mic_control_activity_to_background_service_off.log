@@ -1,0 +1,19 @@
+  5588  5588 I MurmurSpike: EV rec_started {"pid":5588,"up":392214,"label":"activity-then-background","recordingState":3,"session":2785}
+  5588  5588 I MurmurSpike: EV restricted_op_check_failed {"pid":5588,"up":392237,"err":"java.lang.SecurityException: verifyIncomingOp: uid 10106 does not have any of {MANAGE_APPOPS, GET_APP_OPS_STATS, MANAGE_APP_OPS_MODES}"}
+  5588  5588 I MurmurSpike: EV main_status {"pid":5588,"up":392245,"a11yConnected":false,"restrictedSettingsOp":-99,"aapm":"false","install":"installer=null initiating=com.android.shell source=1"}
+  5588  6091 I MurmurSpike: EV rec_config {"pid":5588,"up":392281,"label":"activity-then-background","silenced":false,"source":6,"device":"Android ATD built for x86_64"}
+  5588  6090 I MurmurSpike: EV rec_tick {"pid":5588,"up":393253,"label":"activity-then-background","t":1,"nonZeroFrac":"0.893","silenced":false}
+  5588  6090 I MurmurSpike: EV rec_tick {"pid":5588,"up":394248,"label":"activity-then-background","t":2,"nonZeroFrac":"0.905","silenced":false}
+  5588  6090 I MurmurSpike: EV rec_tick {"pid":5588,"up":395253,"label":"activity-then-background","t":3,"nonZeroFrac":"0.899","silenced":false}
+  5588  6090 I MurmurSpike: EV rec_tick {"pid":5588,"up":396254,"label":"activity-then-background","t":4,"nonZeroFrac":"0.781","silenced":false}
+  5588  6090 I MurmurSpike: EV rec_tick {"pid":5588,"up":397271,"label":"activity-then-background","t":5,"nonZeroFrac":"0.892","silenced":false}
+  5588  6090 I MurmurSpike: EV rec_tick {"pid":5588,"up":398283,"label":"activity-then-background","t":6,"nonZeroFrac":"0.762","silenced":false}
+  5588  6090 I MurmurSpike: EV rec_tick {"pid":5588,"up":399273,"label":"activity-then-background","t":7,"nonZeroFrac":"0.537","silenced":false}
+  5588  6090 I MurmurSpike: EV rec_tick {"pid":5588,"up":400302,"label":"activity-then-background","t":8,"nonZeroFrac":"0.886","silenced":false}
+  5588  6090 I MurmurSpike: EV rec_tick {"pid":5588,"up":401327,"label":"activity-then-background","t":9,"nonZeroFrac":"0.591","silenced":false}
+  5588  6090 I MurmurSpike: EV rec_tick {"pid":5588,"up":402337,"label":"activity-then-background","t":10,"nonZeroFrac":"0.912","silenced":false}
+  5588  6090 I MurmurSpike: EV rec_tick {"pid":5588,"up":403341,"label":"activity-then-background","t":11,"nonZeroFrac":"0.884","silenced":false}
+  5588  6090 I MurmurSpike: EV rec_tick {"pid":5588,"up":404364,"label":"activity-then-background","t":12,"nonZeroFrac":"0.885","silenced":false}
+  5588  6091 I MurmurSpike: EV rec_config {"pid":5588,"up":405104,"label":"activity-then-background","silenced":true,"source":6,"device":"Android ATD built for x86_64"}
+  5588  6090 I MurmurSpike: EV rec_tick {"pid":5588,"up":405370,"label":"activity-then-background","t":13,"nonZeroFrac":"0.665","silenced":true}
+  5588  5588 I MurmurSpike: EV rec_bg_result {"pid":5588,"up":406341,"a11yConnected":false,"rec":"{\"label\":\"activity-then-background\",\"samples\":224640,\"seconds\":14.04,\"nonZero\":169113,\"peak\":8,\"firstBufferMs\":234,\"silencedAtStop\":true,\"silencedCallback\":true}"}

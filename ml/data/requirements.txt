@@ -1,0 +1,6 @@
+# ml/data + ml/common. The synthetic generator (python -m ml.data.generate) is stdlib-only (Python >= 3.10).
+# The REAL screen path imports ml.screens / ml.ocr, whose pinned deps live in ml/ocr/requirements.txt
+# (venv .cache/ml/ocr/venv); run the generator with that interpreter for --screens real.
+# This file: the secondary venv (.cache/ml/data/venv) for public-dataset converters and tests.
+pyarrow==26.0.1
+pytest==9.2.0

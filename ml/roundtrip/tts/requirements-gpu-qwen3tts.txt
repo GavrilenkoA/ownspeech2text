@@ -1,0 +1,5 @@
+# Pod venv for the qwen3tts-1.7b driver (CUDA). qwen-tts pins transformers==4.57.3; keep it in its own venv.
+# flash-attn is optional (driver arg attn_implementation="sdpa" works without it).
+qwen-tts==0.1.1
+soundfile
+scipy

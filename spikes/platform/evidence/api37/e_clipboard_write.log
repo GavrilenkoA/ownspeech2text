@@ -1,0 +1,3 @@
+  3562  3562 I MurmurSpike: EV cmd {"pid":3562,"up":279687,"c":"clip"}
+  3562  3562 I MurmurSpike: EV clip {"pid":3562,"up":279695,"writeOk":true,"readBackFromService":null}
+  4323  4323 I MurmurTarget: TGT {"field":"plain","text":"clip_from_service_37"}

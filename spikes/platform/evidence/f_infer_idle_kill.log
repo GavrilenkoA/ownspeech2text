@@ -1,0 +1,12 @@
+  9785  9785 I MurmurSpike: EV cmd {"pid":9785,"up":1116508,"c":"infer_idle"}
+  9785  9785 I MurmurSpike: EV infer_idle_set {"pid":9785,"up":1116508,"ms":8000}
+  9785  9785 I MurmurSpike: EV cmd {"pid":9785,"up":1116592,"c":"infer_load"}
+  9785  9785 I MurmurSpike: EV infer_bind {"pid":9785,"up":1116597,"ok":true,"ms":5}
+  9853  9853 I MurmurSpike: EV infer_created {"pid":9853,"up":1117446,"process":"infer"}
+  9853  9853 I MurmurSpike: EV infer_bound {"pid":9853,"up":1117447}
+  9785  9785 I MurmurSpike: EV infer_connected {"pid":9785,"up":1117452}
+  9785  9785 I MurmurSpike: EV infer_reply {"pid":9785,"up":1119553,"what":1,"inferPid":9853,"pssKb":557815,"loadMs":2007}
+  9785  9785 I MurmurSpike: EV infer_unbind {"pid":9785,"up":1124608,"reason":"idle"}
+  9853  9853 I MurmurSpike: EV infer_unbound_exiting {"pid":9853,"up":1124611,"heldMb":512,"pssKb":557815}
+  9785  9785 I MurmurSpike: EV cmd {"pid":9785,"up":1128221,"c":"ping"}
+  9785  9785 I MurmurSpike: EV pong {"pid":9785,"up":1128221,"connected":true,"overlays":1}

@@ -1,0 +1,725 @@
+{"term": "Kubernetes", "category": "devops_infra", "written_forms": ["Kubernetes"], "ru_spoken": ["кубернетес", "кубернетис", "кубер"], "en_spoken": [], "notes": "often shortened to \"кубер\" in speech"}
+{"term": "k8s", "category": "devops_infra", "written_forms": ["k8s"], "ru_spoken": ["кубер", "кубернетес", "кейтс"], "en_spoken": ["kubernetes", "kates"], "notes": "numeronym, never read letter by letter"}
+{"term": "Docker", "category": "devops_infra", "written_forms": ["Docker"], "ru_spoken": ["докер"], "en_spoken": [], "notes": ""}
+{"term": "Docker Compose", "category": "devops_infra", "written_forms": ["Docker Compose"], "ru_spoken": ["докер компоуз", "докер композ"], "en_spoken": [], "notes": ""}
+{"term": "Helm", "category": "devops_infra", "written_forms": ["Helm"], "ru_spoken": ["хелм", "хельм"], "en_spoken": [], "notes": ""}
+{"term": "Helm chart", "category": "devops_infra", "written_forms": ["Helm chart"], "ru_spoken": ["хелм чарт", "хельм чарт"], "en_spoken": [], "notes": ""}
+{"term": "Terraform", "category": "devops_infra", "written_forms": ["Terraform"], "ru_spoken": ["терраформ"], "en_spoken": [], "notes": ""}
+{"term": "Ansible", "category": "devops_infra", "written_forms": ["Ansible"], "ru_spoken": ["ансибл", "энсибл"], "en_spoken": [], "notes": ""}
+{"term": "Nginx", "category": "devops_infra", "written_forms": ["Nginx"], "ru_spoken": ["энджинкс", "нджинкс", "нгинкс"], "en_spoken": ["engine x"], "notes": "spelled nginx, read engine-x"}
+{"term": "Prometheus", "category": "devops_infra", "written_forms": ["Prometheus"], "ru_spoken": ["прометеус", "прометей"], "en_spoken": [], "notes": ""}
+{"term": "Grafana", "category": "devops_infra", "written_forms": ["Grafana"], "ru_spoken": ["графана"], "en_spoken": [], "notes": ""}
+{"term": "Loki", "category": "devops_infra", "written_forms": ["Loki"], "ru_spoken": ["локи"], "en_spoken": [], "notes": ""}
+{"term": "Jaeger", "category": "devops_infra", "written_forms": ["Jaeger"], "ru_spoken": ["егерь", "джагер", "йегер"], "en_spoken": ["yay-ger"], "notes": ""}
+{"term": "OpenTelemetry", "category": "devops_infra", "written_forms": ["OpenTelemetry"], "ru_spoken": ["опентелеметри", "оупен телеметри"], "en_spoken": [], "notes": ""}
+{"term": "Argo CD", "category": "devops_infra", "written_forms": ["Argo CD", "ArgoCD"], "ru_spoken": ["арго си ди", "арго сиди"], "en_spoken": ["argo c d"], "notes": ""}
+{"term": "Jenkins", "category": "devops_infra", "written_forms": ["Jenkins"], "ru_spoken": ["дженкинс"], "en_spoken": [], "notes": ""}
+{"term": "GitLab CI", "category": "devops_infra", "written_forms": ["GitLab CI"], "ru_spoken": ["гитлаб си ай", "гитлаб сиай"], "en_spoken": [], "notes": ""}
+{"term": "GitHub Actions", "category": "devops_infra", "written_forms": ["GitHub Actions"], "ru_spoken": ["гитхаб экшнс", "гитхаб экшены"], "en_spoken": [], "notes": ""}
+{"term": "Istio", "category": "devops_infra", "written_forms": ["Istio"], "ru_spoken": ["истио"], "en_spoken": [], "notes": ""}
+{"term": "Envoy", "category": "devops_infra", "written_forms": ["Envoy"], "ru_spoken": ["энвой"], "en_spoken": [], "notes": ""}
+{"term": "Consul", "category": "devops_infra", "written_forms": ["Consul"], "ru_spoken": ["консул"], "en_spoken": [], "notes": ""}
+{"term": "HashiCorp Vault", "category": "devops_infra", "written_forms": ["HashiCorp Vault"], "ru_spoken": ["хашикорп волт", "волт"], "en_spoken": [], "notes": ""}
+{"term": "Traefik", "category": "devops_infra", "written_forms": ["Traefik"], "ru_spoken": ["трафик", "трэфик"], "en_spoken": ["traffic"], "notes": "spelled Traefik, read \"traffic\""}
+{"term": "HAProxy", "category": "devops_infra", "written_forms": ["HAProxy"], "ru_spoken": ["эйчэй прокси", "аш а прокси"], "en_spoken": ["h a proxy"], "notes": ""}
+{"term": "Kafka Connect", "category": "devops_infra", "written_forms": ["Kafka Connect"], "ru_spoken": ["кафка коннект"], "en_spoken": [], "notes": ""}
+{"term": "Ceph", "category": "devops_infra", "written_forms": ["Ceph"], "ru_spoken": ["цеф", "сеф"], "en_spoken": [], "notes": ""}
+{"term": "MinIO", "category": "devops_infra", "written_forms": ["MinIO"], "ru_spoken": ["минио", "мин ай о"], "en_spoken": ["min i o"], "notes": ""}
+{"term": "Podman", "category": "devops_infra", "written_forms": ["Podman"], "ru_spoken": ["подман"], "en_spoken": [], "notes": ""}
+{"term": "containerd", "category": "devops_infra", "written_forms": ["containerd"], "ru_spoken": ["контейнер ди", "контейнерд"], "en_spoken": ["container d"], "notes": ""}
+{"term": "systemd", "category": "devops_infra", "written_forms": ["systemd"], "ru_spoken": ["системд", "систем ди"], "en_spoken": ["system d"], "notes": ""}
+{"term": "Ingress", "category": "devops_infra", "written_forms": ["Ingress"], "ru_spoken": ["ингресс", "ингрес"], "en_spoken": [], "notes": ""}
+{"term": "Kustomize", "category": "devops_infra", "written_forms": ["Kustomize"], "ru_spoken": ["кастомайз"], "en_spoken": ["customize"], "notes": "spelled with K"}
+{"term": "Karpenter", "category": "devops_infra", "written_forms": ["Karpenter"], "ru_spoken": ["карпентер"], "en_spoken": ["carpenter"], "notes": ""}
+{"term": "KEDA", "category": "devops_infra", "written_forms": ["KEDA"], "ru_spoken": ["кеда"], "en_spoken": ["keda"], "notes": ""}
+{"term": "Zabbix", "category": "devops_infra", "written_forms": ["Zabbix"], "ru_spoken": ["заббикс"], "en_spoken": [], "notes": ""}
+{"term": "VictoriaMetrics", "category": "devops_infra", "written_forms": ["VictoriaMetrics"], "ru_spoken": ["виктория метрикс"], "en_spoken": [], "notes": ""}
+{"term": "Alertmanager", "category": "devops_infra", "written_forms": ["Alertmanager"], "ru_spoken": ["алертменеджер", "алерт менеджер"], "en_spoken": [], "notes": ""}
+{"term": "Rancher", "category": "devops_infra", "written_forms": ["Rancher"], "ru_spoken": ["ранчер"], "en_spoken": [], "notes": ""}
+{"term": "OpenShift", "category": "devops_infra", "written_forms": ["OpenShift"], "ru_spoken": ["опеншифт"], "en_spoken": [], "notes": ""}
+{"term": "Nomad", "category": "devops_infra", "written_forms": ["Nomad"], "ru_spoken": ["номад"], "en_spoken": [], "notes": ""}
+{"term": "Packer", "category": "devops_infra", "written_forms": ["Packer"], "ru_spoken": ["пакер"], "en_spoken": [], "notes": ""}
+{"term": "Pulumi", "category": "devops_infra", "written_forms": ["Pulumi"], "ru_spoken": ["пулуми"], "en_spoken": [], "notes": ""}
+{"term": "Cilium", "category": "devops_infra", "written_forms": ["Cilium"], "ru_spoken": ["силиум", "цилиум"], "en_spoken": [], "notes": ""}
+{"term": "CoreDNS", "category": "devops_infra", "written_forms": ["CoreDNS"], "ru_spoken": ["кор ди эн эс", "кордиэнэс"], "en_spoken": ["core d n s"], "notes": ""}
+{"term": "etcd", "category": "devops_infra", "written_forms": ["etcd"], "ru_spoken": ["етсд", "и ти си ди", "эткд"], "en_spoken": ["e t c d", "et cetera d"], "notes": ""}
+{"term": "Fluent Bit", "category": "devops_infra", "written_forms": ["Fluent Bit"], "ru_spoken": ["флюент бит"], "en_spoken": [], "notes": ""}
+{"term": "Kibana", "category": "devops_infra", "written_forms": ["Kibana"], "ru_spoken": ["кибана"], "en_spoken": [], "notes": ""}
+{"term": "PostgreSQL", "category": "databases_data", "written_forms": ["PostgreSQL", "Postgres"], "ru_spoken": ["постгрес", "постгрескуэль", "постгре эс кью эль"], "en_spoken": ["postgres", "postgres q l"], "notes": ""}
+{"term": "ClickHouse", "category": "databases_data", "written_forms": ["ClickHouse"], "ru_spoken": ["кликхаус", "клик хаус"], "en_spoken": [], "notes": ""}
+{"term": "Redis", "category": "databases_data", "written_forms": ["Redis"], "ru_spoken": ["редис"], "en_spoken": [], "notes": ""}
+{"term": "MongoDB", "category": "databases_data", "written_forms": ["MongoDB"], "ru_spoken": ["монгодиби", "монга", "монго ди би"], "en_spoken": ["mongo d b"], "notes": ""}
+{"term": "Kafka", "category": "databases_data", "written_forms": ["Kafka", "Apache Kafka"], "ru_spoken": ["кафка", "апачи кафка"], "en_spoken": [], "notes": ""}
+{"term": "RabbitMQ", "category": "databases_data", "written_forms": ["RabbitMQ"], "ru_spoken": ["рэббит эм кью", "рэббит", "кролик"], "en_spoken": ["rabbit m q"], "notes": ""}
+{"term": "Elasticsearch", "category": "databases_data", "written_forms": ["Elasticsearch"], "ru_spoken": ["эластиксерч", "эластик"], "en_spoken": [], "notes": ""}
+{"term": "OpenSearch", "category": "databases_data", "written_forms": ["OpenSearch"], "ru_spoken": ["опенсерч"], "en_spoken": [], "notes": ""}
+{"term": "Cassandra", "category": "databases_data", "written_forms": ["Cassandra"], "ru_spoken": ["кассандра"], "en_spoken": [], "notes": ""}
+{"term": "SQLite", "category": "databases_data", "written_forms": ["SQLite"], "ru_spoken": ["эскьюлайт", "сиквел лайт"], "en_spoken": ["s q lite", "sequel lite"], "notes": ""}
+{"term": "MySQL", "category": "databases_data", "written_forms": ["MySQL"], "ru_spoken": ["майсиквел", "май эс кью эль"], "en_spoken": ["my sequel", "my s q l"], "notes": ""}
+{"term": "Apache Airflow", "category": "databases_data", "written_forms": ["Apache Airflow", "Airflow"], "ru_spoken": ["эйрфлоу", "апачи эйрфлоу", "эирфлоу"], "en_spoken": [], "notes": ""}
+{"term": "Apache Spark", "category": "databases_data", "written_forms": ["Apache Spark", "Spark"], "ru_spoken": ["спарк", "апачи спарк"], "en_spoken": [], "notes": ""}
+{"term": "dbt", "category": "databases_data", "written_forms": ["dbt"], "ru_spoken": ["ди би ти"], "en_spoken": ["d b t"], "notes": ""}
+{"term": "Snowflake", "category": "databases_data", "written_forms": ["Snowflake"], "ru_spoken": ["сноуфлейк"], "en_spoken": [], "notes": ""}
+{"term": "BigQuery", "category": "databases_data", "written_forms": ["BigQuery"], "ru_spoken": ["бигквери", "биг квери"], "en_spoken": [], "notes": ""}
+{"term": "Greenplum", "category": "databases_data", "written_forms": ["Greenplum"], "ru_spoken": ["гринплам"], "en_spoken": [], "notes": ""}
+{"term": "Trino", "category": "databases_data", "written_forms": ["Trino"], "ru_spoken": ["трино"], "en_spoken": [], "notes": ""}
+{"term": "DuckDB", "category": "databases_data", "written_forms": ["DuckDB"], "ru_spoken": ["дакдиби", "дак ди би"], "en_spoken": ["duck d b"], "notes": ""}
+{"term": "Qdrant", "category": "databases_data", "written_forms": ["Qdrant"], "ru_spoken": ["кудрант", "кьюдрант"], "en_spoken": ["quadrant"], "notes": "spelled Qdrant, read \"quadrant\""}
+{"term": "Milvus", "category": "databases_data", "written_forms": ["Milvus"], "ru_spoken": ["мильвус", "милвус"], "en_spoken": [], "notes": ""}
+{"term": "Weaviate", "category": "databases_data", "written_forms": ["Weaviate"], "ru_spoken": ["вивиэйт", "веавиат"], "en_spoken": ["wee-vee-ate"], "notes": ""}
+{"term": "pgvector", "category": "databases_data", "written_forms": ["pgvector"], "ru_spoken": ["пиджи вектор", "пэгэ вектор"], "en_spoken": ["p g vector"], "notes": ""}
+{"term": "Chroma", "category": "databases_data", "written_forms": ["Chroma", "ChromaDB"], "ru_spoken": ["хрома", "крома"], "en_spoken": [], "notes": ""}
+{"term": "FAISS", "category": "databases_data", "written_forms": ["FAISS", "Faiss"], "ru_spoken": ["фейс", "файсс"], "en_spoken": ["face"], "notes": "read like \"face\""}
+{"term": "Pinecone", "category": "databases_data", "written_forms": ["Pinecone"], "ru_spoken": ["пайнкон"], "en_spoken": [], "notes": ""}
+{"term": "Neo4j", "category": "databases_data", "written_forms": ["Neo4j"], "ru_spoken": ["нео фор джей", "неофорджей"], "en_spoken": ["neo four j"], "notes": ""}
+{"term": "Debezium", "category": "databases_data", "written_forms": ["Debezium"], "ru_spoken": ["дебезиум"], "en_spoken": [], "notes": ""}
+{"term": "Flink", "category": "databases_data", "written_forms": ["Flink", "Apache Flink"], "ru_spoken": ["флинк", "апачи флинк"], "en_spoken": [], "notes": ""}
+{"term": "Parquet", "category": "databases_data", "written_forms": ["Parquet"], "ru_spoken": ["паркет"], "en_spoken": ["par-kay"], "notes": ""}
+{"term": "Apache Iceberg", "category": "databases_data", "written_forms": ["Apache Iceberg", "Iceberg"], "ru_spoken": ["айсберг", "апачи айсберг"], "en_spoken": [], "notes": ""}
+{"term": "Delta Lake", "category": "databases_data", "written_forms": ["Delta Lake"], "ru_spoken": ["дельта лейк"], "en_spoken": [], "notes": ""}
+{"term": "Superset", "category": "databases_data", "written_forms": ["Superset", "Apache Superset"], "ru_spoken": ["суперсет", "апачи суперсет"], "en_spoken": [], "notes": ""}
+{"term": "Metabase", "category": "databases_data", "written_forms": ["Metabase"], "ru_spoken": ["метабейс"], "en_spoken": [], "notes": ""}
+{"term": "Tarantool", "category": "databases_data", "written_forms": ["Tarantool"], "ru_spoken": ["тарантул", "тарантул дб"], "en_spoken": [], "notes": "spelled Tarantool"}
+{"term": "YDB", "category": "databases_data", "written_forms": ["YDB"], "ru_spoken": ["ю ди би", "уай ди би"], "en_spoken": ["y d b"], "notes": ""}
+{"term": "pgBouncer", "category": "databases_data", "written_forms": ["pgBouncer", "PgBouncer"], "ru_spoken": ["пиджи баунсер", "пэгэ баунсер"], "en_spoken": ["p g bouncer"], "notes": ""}
+{"term": "TimescaleDB", "category": "databases_data", "written_forms": ["TimescaleDB"], "ru_spoken": ["таймскейл ди би"], "en_spoken": ["timescale d b"], "notes": ""}
+{"term": "Patroni", "category": "databases_data", "written_forms": ["Patroni"], "ru_spoken": ["патрони"], "en_spoken": [], "notes": ""}
+{"term": "Memcached", "category": "databases_data", "written_forms": ["Memcached"], "ru_spoken": ["мемкэшд", "мемкеш"], "en_spoken": ["mem cache d"], "notes": ""}
+{"term": "Hadoop", "category": "databases_data", "written_forms": ["Hadoop"], "ru_spoken": ["хадуп"], "en_spoken": [], "notes": ""}
+{"term": "Python", "category": "languages_frameworks", "written_forms": ["Python"], "ru_spoken": ["питон", "пайтон"], "en_spoken": [], "notes": ""}
+{"term": "TypeScript", "category": "languages_frameworks", "written_forms": ["TypeScript"], "ru_spoken": ["тайпскрипт"], "en_spoken": [], "notes": ""}
+{"term": "JavaScript", "category": "languages_frameworks", "written_forms": ["JavaScript"], "ru_spoken": ["джаваскрипт"], "en_spoken": [], "notes": ""}
+{"term": "Kotlin", "category": "languages_frameworks", "written_forms": ["Kotlin"], "ru_spoken": ["котлин"], "en_spoken": [], "notes": ""}
+{"term": "Rust", "category": "languages_frameworks", "written_forms": ["Rust"], "ru_spoken": ["раст"], "en_spoken": [], "notes": ""}
+{"term": "Golang", "category": "languages_frameworks", "written_forms": ["Golang"], "ru_spoken": ["голанг", "го"], "en_spoken": ["go lang"], "notes": ""}
+{"term": "C++", "category": "languages_frameworks", "written_forms": ["C++"], "ru_spoken": ["си плюс плюс", "плюсы"], "en_spoken": ["c plus plus"], "notes": ""}
+{"term": "C#", "category": "languages_frameworks", "written_forms": ["C#"], "ru_spoken": ["си шарп"], "en_spoken": ["c sharp"], "notes": ""}
+{"term": "Swift", "category": "languages_frameworks", "written_forms": ["Swift"], "ru_spoken": ["свифт"], "en_spoken": [], "notes": ""}
+{"term": "React", "category": "languages_frameworks", "written_forms": ["React"], "ru_spoken": ["реакт"], "en_spoken": [], "notes": ""}
+{"term": "React Native", "category": "languages_frameworks", "written_forms": ["React Native"], "ru_spoken": ["реакт нейтив"], "en_spoken": [], "notes": ""}
+{"term": "Next.js", "category": "languages_frameworks", "written_forms": ["Next.js"], "ru_spoken": ["некст джей эс", "некстджс"], "en_spoken": ["next j s"], "notes": ""}
+{"term": "Vue", "category": "languages_frameworks", "written_forms": ["Vue", "Vue.js"], "ru_spoken": ["вью", "вью джей эс"], "en_spoken": ["view"], "notes": "spelled Vue, read \"view\""}
+{"term": "Angular", "category": "languages_frameworks", "written_forms": ["Angular"], "ru_spoken": ["ангуляр"], "en_spoken": [], "notes": ""}
+{"term": "Svelte", "category": "languages_frameworks", "written_forms": ["Svelte"], "ru_spoken": ["свелт"], "en_spoken": [], "notes": ""}
+{"term": "Node.js", "category": "languages_frameworks", "written_forms": ["Node.js", "Node"], "ru_spoken": ["нода", "ноуд джей эс", "нод джей эс"], "en_spoken": ["node j s"], "notes": ""}
+{"term": "Django", "category": "languages_frameworks", "written_forms": ["Django"], "ru_spoken": ["джанго"], "en_spoken": [], "notes": "silent D"}
+{"term": "FastAPI", "category": "languages_frameworks", "written_forms": ["FastAPI"], "ru_spoken": ["фаст эй пи ай", "фастапи"], "en_spoken": ["fast a p i"], "notes": ""}
+{"term": "Flask", "category": "languages_frameworks", "written_forms": ["Flask"], "ru_spoken": ["фласк"], "en_spoken": [], "notes": ""}
+{"term": "Spring Boot", "category": "languages_frameworks", "written_forms": ["Spring Boot"], "ru_spoken": ["спринг бут"], "en_spoken": [], "notes": ""}
+{"term": "Jetpack Compose", "category": "languages_frameworks", "written_forms": ["Jetpack Compose", "Compose"], "ru_spoken": ["джетпак компоуз", "компоуз"], "en_spoken": [], "notes": ""}
+{"term": "Gradle", "category": "languages_frameworks", "written_forms": ["Gradle"], "ru_spoken": ["градл", "гредл"], "en_spoken": [], "notes": ""}
+{"term": "PyTorch", "category": "languages_frameworks", "written_forms": ["PyTorch"], "ru_spoken": ["пайторч", "питорч"], "en_spoken": [], "notes": ""}
+{"term": "TensorFlow", "category": "languages_frameworks", "written_forms": ["TensorFlow"], "ru_spoken": ["тензорфлоу"], "en_spoken": [], "notes": ""}
+{"term": "JAX", "category": "languages_frameworks", "written_forms": ["JAX"], "ru_spoken": ["джакс"], "en_spoken": ["jacks"], "notes": ""}
+{"term": "NumPy", "category": "languages_frameworks", "written_forms": ["NumPy"], "ru_spoken": ["нампай", "нампи"], "en_spoken": ["num pie"], "notes": ""}
+{"term": "pandas", "category": "languages_frameworks", "written_forms": ["pandas"], "ru_spoken": ["пандас"], "en_spoken": [], "notes": ""}
+{"term": "Pydantic", "category": "languages_frameworks", "written_forms": ["Pydantic"], "ru_spoken": ["пайдантик", "пидантик"], "en_spoken": [], "notes": ""}
+{"term": "SQLAlchemy", "category": "languages_frameworks", "written_forms": ["SQLAlchemy"], "ru_spoken": ["эскьюэль алхими", "алхимия"], "en_spoken": ["s q l alchemy", "sequel alchemy"], "notes": ""}
+{"term": "Celery", "category": "languages_frameworks", "written_forms": ["Celery"], "ru_spoken": ["селери", "сельдерей"], "en_spoken": [], "notes": ""}
+{"term": "asyncio", "category": "languages_frameworks", "written_forms": ["asyncio"], "ru_spoken": ["асинкио", "эйсинк ай о"], "en_spoken": ["async i o"], "notes": ""}
+{"term": "Tailwind", "category": "languages_frameworks", "written_forms": ["Tailwind", "Tailwind CSS"], "ru_spoken": ["тейлвинд", "тейлвинд си эс эс"], "en_spoken": [], "notes": ""}
+{"term": "GraphQL", "category": "languages_frameworks", "written_forms": ["GraphQL"], "ru_spoken": ["граф кью эль", "графкуэль"], "en_spoken": ["graph q l"], "notes": ""}
+{"term": "Protobuf", "category": "languages_frameworks", "written_forms": ["Protobuf"], "ru_spoken": ["протобаф"], "en_spoken": [], "notes": ""}
+{"term": "pytest", "category": "languages_frameworks", "written_forms": ["pytest"], "ru_spoken": ["пайтест", "питест"], "en_spoken": ["p y test"], "notes": ""}
+{"term": "Jest", "category": "languages_frameworks", "written_forms": ["Jest"], "ru_spoken": ["джест"], "en_spoken": [], "notes": ""}
+{"term": "Playwright", "category": "languages_frameworks", "written_forms": ["Playwright"], "ru_spoken": ["плейрайт"], "en_spoken": [], "notes": ""}
+{"term": "Selenium", "category": "languages_frameworks", "written_forms": ["Selenium"], "ru_spoken": ["селениум"], "en_spoken": [], "notes": ""}
+{"term": "Webpack", "category": "languages_frameworks", "written_forms": ["Webpack"], "ru_spoken": ["вебпак"], "en_spoken": [], "notes": ""}
+{"term": "Vite", "category": "languages_frameworks", "written_forms": ["Vite"], "ru_spoken": ["вит", "вайт"], "en_spoken": ["veet"], "notes": "read \"veet\""}
+{"term": "Bun", "category": "languages_frameworks", "written_forms": ["Bun"], "ru_spoken": ["бан"], "en_spoken": [], "notes": ""}
+{"term": "Deno", "category": "languages_frameworks", "written_forms": ["Deno"], "ru_spoken": ["дено", "дино"], "en_spoken": ["dee-no"], "notes": ""}
+{"term": "Ktor", "category": "languages_frameworks", "written_forms": ["Ktor"], "ru_spoken": ["ктор", "кейтор"], "en_spoken": ["k tor"], "notes": ""}
+{"term": "Spring", "category": "languages_frameworks", "written_forms": ["Spring"], "ru_spoken": ["спринг"], "en_spoken": [], "notes": ""}
+{"term": "Laravel", "category": "languages_frameworks", "written_forms": ["Laravel"], "ru_spoken": ["ларавел"], "en_spoken": [], "notes": ""}
+{"term": "Ruby on Rails", "category": "languages_frameworks", "written_forms": ["Ruby on Rails", "Rails"], "ru_spoken": ["руби он рейлс", "рельсы"], "en_spoken": [], "notes": ""}
+{"term": "Elixir", "category": "languages_frameworks", "written_forms": ["Elixir"], "ru_spoken": ["эликсир"], "en_spoken": [], "notes": ""}
+{"term": "Haskell", "category": "languages_frameworks", "written_forms": ["Haskell"], "ru_spoken": ["хаскель"], "en_spoken": [], "notes": ""}
+{"term": "Scala", "category": "languages_frameworks", "written_forms": ["Scala"], "ru_spoken": ["скала"], "en_spoken": [], "notes": ""}
+{"term": "NestJS", "category": "languages_frameworks", "written_forms": ["NestJS"], "ru_spoken": ["нест джей эс", "нестжс"], "en_spoken": ["nest j s"], "notes": ""}
+{"term": "Express", "category": "languages_frameworks", "written_forms": ["Express", "Express.js"], "ru_spoken": ["экспресс", "экспресс джей эс"], "en_spoken": [], "notes": ""}
+{"term": "Kotlin Multiplatform", "category": "languages_frameworks", "written_forms": ["Kotlin Multiplatform", "KMP"], "ru_spoken": ["котлин мультиплатформ", "кэ эм пэ"], "en_spoken": [], "notes": ""}
+{"term": "Flutter", "category": "languages_frameworks", "written_forms": ["Flutter"], "ru_spoken": ["флаттер"], "en_spoken": [], "notes": ""}
+{"term": "Dart", "category": "languages_frameworks", "written_forms": ["Dart"], "ru_spoken": ["дарт"], "en_spoken": [], "notes": ""}
+{"term": "WebAssembly", "category": "languages_frameworks", "written_forms": ["WebAssembly", "Wasm"], "ru_spoken": ["вебассембли", "васм"], "en_spoken": ["web assembly", "wasm"], "notes": ""}
+{"term": "LangChain", "category": "ai_tools", "written_forms": ["LangChain"], "ru_spoken": ["лэнгчейн", "лангчейн"], "en_spoken": [], "notes": ""}
+{"term": "LangGraph", "category": "ai_tools", "written_forms": ["LangGraph"], "ru_spoken": ["лэнггаф", "ланг граф"], "en_spoken": [], "notes": ""}
+{"term": "LlamaIndex", "category": "ai_tools", "written_forms": ["LlamaIndex"], "ru_spoken": ["ламаиндекс", "лама индекс"], "en_spoken": ["llama index"], "notes": ""}
+{"term": "vLLM", "category": "ai_tools", "written_forms": ["vLLM"], "ru_spoken": ["ви эл эл эм", "вэ эл эл эм"], "en_spoken": ["v l l m"], "notes": ""}
+{"term": "llama.cpp", "category": "ai_tools", "written_forms": ["llama.cpp"], "ru_spoken": ["лама си пи пи", "ламацпп", "лама цэпэпэ"], "en_spoken": ["llama c p p", "llama dot c p p"], "notes": ""}
+{"term": "Ollama", "category": "ai_tools", "written_forms": ["Ollama"], "ru_spoken": ["оллама", "олама"], "en_spoken": [], "notes": ""}
+{"term": "ONNX Runtime", "category": "ai_tools", "written_forms": ["ONNX Runtime"], "ru_spoken": ["онникс рантайм", "оникс рантайм"], "en_spoken": ["onyx runtime"], "notes": "ONNX read like \"onyx\""}
+{"term": "ONNX", "category": "ai_tools", "written_forms": ["ONNX"], "ru_spoken": ["онникс", "оникс"], "en_spoken": ["onyx"], "notes": ""}
+{"term": "Hugging Face", "category": "ai_tools", "written_forms": ["Hugging Face", "HF"], "ru_spoken": ["хаггинг фейс", "хагинфейс", "обнимашки", "аш эф"], "en_spoken": ["hugging face", "h f"], "notes": ""}
+{"term": "Transformers", "category": "ai_tools", "written_forms": ["Transformers"], "ru_spoken": ["трансформерс"], "en_spoken": [], "notes": "the Hugging Face library"}
+{"term": "PEFT", "category": "ai_tools", "written_forms": ["PEFT"], "ru_spoken": ["пефт"], "en_spoken": ["peft", "p e f t"], "notes": ""}
+{"term": "Unsloth", "category": "ai_tools", "written_forms": ["Unsloth"], "ru_spoken": ["анслот", "анслос"], "en_spoken": ["un-sloth"], "notes": ""}
+{"term": "DeepSpeed", "category": "ai_tools", "written_forms": ["DeepSpeed"], "ru_spoken": ["дипспид"], "en_spoken": [], "notes": ""}
+{"term": "bitsandbytes", "category": "ai_tools", "written_forms": ["bitsandbytes"], "ru_spoken": ["битсэндбайтс", "битс энд байтс"], "en_spoken": ["bits and bytes"], "notes": ""}
+{"term": "Axolotl", "category": "ai_tools", "written_forms": ["Axolotl"], "ru_spoken": ["аксолотль", "аксолотл"], "en_spoken": ["axolotl"], "notes": ""}
+{"term": "TRL", "category": "ai_tools", "written_forms": ["TRL"], "ru_spoken": ["ти ар эл"], "en_spoken": ["t r l"], "notes": ""}
+{"term": "LiteLLM", "category": "ai_tools", "written_forms": ["LiteLLM"], "ru_spoken": ["лайт эл эл эм"], "en_spoken": ["lite l l m"], "notes": ""}
+{"term": "Weights & Biases", "category": "ai_tools", "written_forms": ["Weights & Biases", "W&B", "wandb"], "ru_spoken": ["вейтс энд байесес", "вандб", "ванди би"], "en_spoken": ["weights and biases", "wand b"], "notes": ""}
+{"term": "MLflow", "category": "ai_tools", "written_forms": ["MLflow"], "ru_spoken": ["эм эл флоу", "млфлоу"], "en_spoken": ["m l flow"], "notes": ""}
+{"term": "ExecuTorch", "category": "ai_tools", "written_forms": ["ExecuTorch"], "ru_spoken": ["экзекуторч", "экзекьюторч"], "en_spoken": ["execu torch"], "notes": ""}
+{"term": "LiteRT", "category": "ai_tools", "written_forms": ["LiteRT"], "ru_spoken": ["лайт ар ти", "лайтерт"], "en_spoken": ["lite r t"], "notes": "Google's renamed TensorFlow Lite runtime"}
+{"term": "LiteRT-LM", "category": "ai_tools", "written_forms": ["LiteRT-LM"], "ru_spoken": ["лайт ар ти эл эм"], "en_spoken": ["lite r t l m"], "notes": ""}
+{"term": "TensorFlow Lite", "category": "ai_tools", "written_forms": ["TensorFlow Lite", "TFLite"], "ru_spoken": ["тензорфлоу лайт", "ти эф лайт"], "en_spoken": [], "notes": ""}
+{"term": "QNN", "category": "ai_tools", "written_forms": ["QNN"], "ru_spoken": ["ку эн эн", "кьюэнэн"], "en_spoken": ["q n n"], "notes": "Qualcomm AI Engine Direct SDK"}
+{"term": "Qualcomm AI Hub", "category": "ai_tools", "written_forms": ["Qualcomm AI Hub"], "ru_spoken": ["квалком эй ай хаб"], "en_spoken": [], "notes": ""}
+{"term": "MLX", "category": "ai_tools", "written_forms": ["MLX"], "ru_spoken": ["эм эл икс"], "en_spoken": ["m l x"], "notes": ""}
+{"term": "CUDA", "category": "ai_tools", "written_forms": ["CUDA"], "ru_spoken": ["куда"], "en_spoken": ["coo-da"], "notes": ""}
+{"term": "cuDNN", "category": "ai_tools", "written_forms": ["cuDNN"], "ru_spoken": ["кудиэнэн", "ку ди эн эн"], "en_spoken": ["coo d n n"], "notes": ""}
+{"term": "TensorRT", "category": "ai_tools", "written_forms": ["TensorRT"], "ru_spoken": ["тензор ар ти", "тензорт"], "en_spoken": ["tensor r t"], "notes": ""}
+{"term": "TensorRT-LLM", "category": "ai_tools", "written_forms": ["TensorRT-LLM"], "ru_spoken": ["тензор ар ти эл эл эм"], "en_spoken": ["tensor r t l l m"], "notes": ""}
+{"term": "Triton", "category": "ai_tools", "written_forms": ["Triton", "Triton Inference Server"], "ru_spoken": ["тритон", "тритон инференс сервер"], "en_spoken": [], "notes": ""}
+{"term": "SGLang", "category": "ai_tools", "written_forms": ["SGLang"], "ru_spoken": ["эс джи ланг", "эсджиланг"], "en_spoken": ["s g lang"], "notes": ""}
+{"term": "Gradio", "category": "ai_tools", "written_forms": ["Gradio"], "ru_spoken": ["градио"], "en_spoken": [], "notes": ""}
+{"term": "Streamlit", "category": "ai_tools", "written_forms": ["Streamlit"], "ru_spoken": ["стримлит"], "en_spoken": [], "notes": ""}
+{"term": "Jupyter", "category": "ai_tools", "written_forms": ["Jupyter", "Jupyter Notebook"], "ru_spoken": ["юпитер", "джупитер", "юпитер ноутбук"], "en_spoken": ["jupiter"], "notes": ""}
+{"term": "Google Colab", "category": "ai_tools", "written_forms": ["Google Colab", "Colab"], "ru_spoken": ["колаб", "гугл колаб"], "en_spoken": [], "notes": ""}
+{"term": "Kaggle", "category": "ai_tools", "written_forms": ["Kaggle"], "ru_spoken": ["кагл"], "en_spoken": [], "notes": ""}
+{"term": "OpenAI API", "category": "ai_tools", "written_forms": ["OpenAI API"], "ru_spoken": ["опен эй ай апи", "опенэйай апи"], "en_spoken": ["open a i a p i"], "notes": ""}
+{"term": "Anthropic API", "category": "ai_tools", "written_forms": ["Anthropic API"], "ru_spoken": ["антропик апи"], "en_spoken": [], "notes": ""}
+{"term": "sentence-transformers", "category": "ai_tools", "written_forms": ["sentence-transformers"], "ru_spoken": ["сентенс трансформерс"], "en_spoken": [], "notes": ""}
+{"term": "FlashAttention", "category": "ai_tools", "written_forms": ["FlashAttention", "Flash Attention"], "ru_spoken": ["флеш аттеншн", "флэш атеншн"], "en_spoken": [], "notes": ""}
+{"term": "NeMo", "category": "ai_tools", "written_forms": ["NeMo"], "ru_spoken": ["немо"], "en_spoken": [], "notes": ""}
+{"term": "sherpa-onnx", "category": "ai_tools", "written_forms": ["sherpa-onnx"], "ru_spoken": ["шерпа онникс"], "en_spoken": ["sherpa onyx"], "notes": ""}
+{"term": "faster-whisper", "category": "ai_tools", "written_forms": ["faster-whisper"], "ru_spoken": ["фастер виспер"], "en_spoken": [], "notes": ""}
+{"term": "whisper.cpp", "category": "ai_tools", "written_forms": ["whisper.cpp"], "ru_spoken": ["виспер си пи пи"], "en_spoken": ["whisper c p p"], "notes": ""}
+{"term": "OpenRouter", "category": "ai_tools", "written_forms": ["OpenRouter"], "ru_spoken": ["опенроутер", "опен роутер"], "en_spoken": [], "notes": ""}
+{"term": "LM Studio", "category": "ai_tools", "written_forms": ["LM Studio"], "ru_spoken": ["эл эм студио"], "en_spoken": ["l m studio"], "notes": ""}
+{"term": "Cursor", "category": "ai_tools", "written_forms": ["Cursor"], "ru_spoken": ["курсор"], "en_spoken": [], "notes": "the AI code editor"}
+{"term": "Claude Code", "category": "ai_tools", "written_forms": ["Claude Code"], "ru_spoken": ["клод код"], "en_spoken": [], "notes": ""}
+{"term": "GitHub Copilot", "category": "ai_tools", "written_forms": ["GitHub Copilot", "Copilot"], "ru_spoken": ["копайлот", "гитхаб копайлот"], "en_spoken": [], "notes": ""}
+{"term": "Label Studio", "category": "ai_tools", "written_forms": ["Label Studio"], "ru_spoken": ["лейбл студио"], "en_spoken": [], "notes": ""}
+{"term": "DSPy", "category": "ai_tools", "written_forms": ["DSPy"], "ru_spoken": ["ди эс пай", "дипай"], "en_spoken": ["d s pie"], "notes": ""}
+{"term": "LoRA", "category": "ai_ml_jargon", "written_forms": ["LoRA"], "ru_spoken": ["лора", "ло ра"], "en_spoken": ["lora"], "notes": "low-rank adaptation"}
+{"term": "QLoRA", "category": "ai_ml_jargon", "written_forms": ["QLoRA"], "ru_spoken": ["кью лора", "кулора"], "en_spoken": ["q lora"], "notes": ""}
+{"term": "RAG", "category": "ai_ml_jargon", "written_forms": ["RAG"], "ru_spoken": ["раг", "рэг"], "en_spoken": ["rag", "r a g"], "notes": ""}
+{"term": "fine-tuning", "category": "ai_ml_jargon", "written_forms": ["fine-tuning", "fine-tune"], "ru_spoken": ["файнтюнинг", "файн тюнинг"], "en_spoken": [], "notes": ""}
+{"term": "embedding", "category": "ai_ml_jargon", "written_forms": ["embedding", "embeddings"], "ru_spoken": ["эмбеддинг", "эмбединги"], "en_spoken": [], "notes": ""}
+{"term": "tokenizer", "category": "ai_ml_jargon", "written_forms": ["tokenizer"], "ru_spoken": ["токенайзер", "токенизатор"], "en_spoken": [], "notes": ""}
+{"term": "quantization", "category": "ai_ml_jargon", "written_forms": ["quantization"], "ru_spoken": ["квантизация", "квантование"], "en_spoken": [], "notes": ""}
+{"term": "GGUF", "category": "ai_ml_jargon", "written_forms": ["GGUF"], "ru_spoken": ["гэ гэ уэф", "джи джи ю эф", "ггуф"], "en_spoken": ["g g u f"], "notes": ""}
+{"term": "KV cache", "category": "ai_ml_jargon", "written_forms": ["KV cache", "KV-cache"], "ru_spoken": ["кей ви кэш", "кэвэ кэш"], "en_spoken": ["k v cache"], "notes": ""}
+{"term": "logits", "category": "ai_ml_jargon", "written_forms": ["logits"], "ru_spoken": ["логиты", "лоджитс"], "en_spoken": [], "notes": ""}
+{"term": "top-p", "category": "ai_ml_jargon", "written_forms": ["top-p"], "ru_spoken": ["топ пи", "топ пэ"], "en_spoken": ["top p"], "notes": ""}
+{"term": "top-k", "category": "ai_ml_jargon", "written_forms": ["top-k"], "ru_spoken": ["топ кей", "топ кэй"], "en_spoken": ["top k"], "notes": ""}
+{"term": "temperature", "category": "ai_ml_jargon", "written_forms": ["temperature"], "ru_spoken": ["температура"], "en_spoken": [], "notes": ""}
+{"term": "beam search", "category": "ai_ml_jargon", "written_forms": ["beam search"], "ru_spoken": ["бим серч", "лучевой поиск"], "en_spoken": [], "notes": ""}
+{"term": "RLHF", "category": "ai_ml_jargon", "written_forms": ["RLHF"], "ru_spoken": ["эр эл аш эф", "эрэлхаэф"], "en_spoken": ["r l h f"], "notes": ""}
+{"term": "DPO", "category": "ai_ml_jargon", "written_forms": ["DPO"], "ru_spoken": ["ди пи о", "дипио"], "en_spoken": ["d p o"], "notes": ""}
+{"term": "SFT", "category": "ai_ml_jargon", "written_forms": ["SFT"], "ru_spoken": ["эс эф ти"], "en_spoken": ["s f t"], "notes": ""}
+{"term": "MoE", "category": "ai_ml_jargon", "written_forms": ["MoE"], "ru_spoken": ["мое", "эм оу и", "микстура экспертов"], "en_spoken": ["m o e", "mixture of experts"], "notes": ""}
+{"term": "attention", "category": "ai_ml_jargon", "written_forms": ["attention", "self-attention"], "ru_spoken": ["аттеншн", "атеншн", "внимание", "селф аттеншн"], "en_spoken": [], "notes": ""}
+{"term": "transformer", "category": "ai_ml_jargon", "written_forms": ["transformer"], "ru_spoken": ["трансформер"], "en_spoken": [], "notes": ""}
+{"term": "context window", "category": "ai_ml_jargon", "written_forms": ["context window"], "ru_spoken": ["контекстное окно", "контекст виндоу"], "en_spoken": [], "notes": ""}
+{"term": "system prompt", "category": "ai_ml_jargon", "written_forms": ["system prompt"], "ru_spoken": ["системный промпт", "систем промпт"], "en_spoken": [], "notes": ""}
+{"term": "few-shot", "category": "ai_ml_jargon", "written_forms": ["few-shot"], "ru_spoken": ["фью шот", "фьюшот"], "en_spoken": [], "notes": ""}
+{"term": "zero-shot", "category": "ai_ml_jargon", "written_forms": ["zero-shot"], "ru_spoken": ["зиро шот"], "en_spoken": [], "notes": ""}
+{"term": "chain-of-thought", "category": "ai_ml_jargon", "written_forms": ["chain-of-thought", "CoT"], "ru_spoken": ["чейн оф тот", "цепочка рассуждений", "си оу ти"], "en_spoken": ["chain of thought", "c o t"], "notes": ""}
+{"term": "hallucination", "category": "ai_ml_jargon", "written_forms": ["hallucination", "hallucinations"], "ru_spoken": ["галлюцинация", "халлюсинейшн"], "en_spoken": [], "notes": ""}
+{"term": "reranker", "category": "ai_ml_jargon", "written_forms": ["reranker"], "ru_spoken": ["реранкер"], "en_spoken": ["re-ranker"], "notes": ""}
+{"term": "BM25", "category": "ai_ml_jargon", "written_forms": ["BM25"], "ru_spoken": ["би эм двадцать пять", "бээм двадцать пять"], "en_spoken": ["b m twenty five"], "notes": ""}
+{"term": "cosine similarity", "category": "ai_ml_jargon", "written_forms": ["cosine similarity"], "ru_spoken": ["косинусное сходство", "косинус симилярити"], "en_spoken": [], "notes": ""}
+{"term": "perplexity", "category": "ai_ml_jargon", "written_forms": ["perplexity"], "ru_spoken": ["перплексия", "перплексити"], "en_spoken": [], "notes": ""}
+{"term": "WER", "category": "ai_ml_jargon", "written_forms": ["WER"], "ru_spoken": ["вер", "ви и ар"], "en_spoken": ["w e r", "word error rate"], "notes": ""}
+{"term": "CER", "category": "ai_ml_jargon", "written_forms": ["CER"], "ru_spoken": ["сер", "си и ар"], "en_spoken": ["c e r", "character error rate"], "notes": ""}
+{"term": "BLEU", "category": "ai_ml_jargon", "written_forms": ["BLEU"], "ru_spoken": ["блю", "блеу"], "en_spoken": ["blue"], "notes": ""}
+{"term": "overfitting", "category": "ai_ml_jargon", "written_forms": ["overfitting"], "ru_spoken": ["оверфиттинг", "переобучение"], "en_spoken": [], "notes": ""}
+{"term": "learning rate", "category": "ai_ml_jargon", "written_forms": ["learning rate"], "ru_spoken": ["лернинг рейт", "скорость обучения"], "en_spoken": [], "notes": ""}
+{"term": "batch size", "category": "ai_ml_jargon", "written_forms": ["batch size"], "ru_spoken": ["батч сайз", "размер батча"], "en_spoken": [], "notes": ""}
+{"term": "warmup", "category": "ai_ml_jargon", "written_forms": ["warmup", "warm-up"], "ru_spoken": ["вармап", "ворм ап"], "en_spoken": [], "notes": ""}
+{"term": "checkpoint", "category": "ai_ml_jargon", "written_forms": ["checkpoint"], "ru_spoken": ["чекпоинт"], "en_spoken": [], "notes": ""}
+{"term": "safetensors", "category": "ai_ml_jargon", "written_forms": ["safetensors"], "ru_spoken": ["сейфтензорс", "сейф тензорс"], "en_spoken": ["safe tensors"], "notes": ""}
+{"term": "distillation", "category": "ai_ml_jargon", "written_forms": ["distillation"], "ru_spoken": ["дистилляция"], "en_spoken": [], "notes": ""}
+{"term": "speculative decoding", "category": "ai_ml_jargon", "written_forms": ["speculative decoding"], "ru_spoken": ["спекулятивный декодинг", "спекулятив декодинг"], "en_spoken": [], "notes": ""}
+{"term": "RoPE", "category": "ai_ml_jargon", "written_forms": ["RoPE"], "ru_spoken": ["роуп", "роп"], "en_spoken": ["rope"], "notes": ""}
+{"term": "AWQ", "category": "ai_ml_jargon", "written_forms": ["AWQ"], "ru_spoken": ["эй дабл ю кью", "авк"], "en_spoken": ["a w q"], "notes": ""}
+{"term": "GPTQ", "category": "ai_ml_jargon", "written_forms": ["GPTQ"], "ru_spoken": ["джи пи ти кью"], "en_spoken": ["g p t q"], "notes": ""}
+{"term": "int8", "category": "ai_ml_jargon", "written_forms": ["int8", "INT8"], "ru_spoken": ["инт восемь"], "en_spoken": ["int eight"], "notes": ""}
+{"term": "int4", "category": "ai_ml_jargon", "written_forms": ["int4", "INT4", "Q4"], "ru_spoken": ["инт четыре", "ку четыре"], "en_spoken": ["int four", "q four"], "notes": ""}
+{"term": "FP16", "category": "ai_ml_jargon", "written_forms": ["FP16", "fp16"], "ru_spoken": ["эф пи шестнадцать", "эфпэ шестнадцать"], "en_spoken": ["f p sixteen"], "notes": ""}
+{"term": "BF16", "category": "ai_ml_jargon", "written_forms": ["BF16", "bf16"], "ru_spoken": ["би эф шестнадцать", "бэфэ шестнадцать"], "en_spoken": ["b f sixteen", "bfloat sixteen"], "notes": ""}
+{"term": "Q4_K_M", "category": "ai_ml_jargon", "written_forms": ["Q4_K_M"], "ru_spoken": ["ку четыре ка эм", "ку четыре кей эм"], "en_spoken": ["q four k m"], "notes": "llama.cpp quant name"}
+{"term": "gradient accumulation", "category": "ai_ml_jargon", "written_forms": ["gradient accumulation"], "ru_spoken": ["градиент аккумулейшн", "аккумуляция градиентов"], "en_spoken": [], "notes": ""}
+{"term": "gradient checkpointing", "category": "ai_ml_jargon", "written_forms": ["gradient checkpointing"], "ru_spoken": ["градиент чекпоинтинг"], "en_spoken": [], "notes": ""}
+{"term": "eval loss", "category": "ai_ml_jargon", "written_forms": ["eval loss"], "ru_spoken": ["эвал лосс"], "en_spoken": ["e val loss"], "notes": ""}
+{"term": "cross-entropy", "category": "ai_ml_jargon", "written_forms": ["cross-entropy"], "ru_spoken": ["кросс энтропия"], "en_spoken": [], "notes": ""}
+{"term": "softmax", "category": "ai_ml_jargon", "written_forms": ["softmax"], "ru_spoken": ["софтмакс"], "en_spoken": ["soft max"], "notes": ""}
+{"term": "greedy decoding", "category": "ai_ml_jargon", "written_forms": ["greedy decoding"], "ru_spoken": ["гриди декодинг", "жадный декодинг"], "en_spoken": [], "notes": ""}
+{"term": "structured output", "category": "ai_ml_jargon", "written_forms": ["structured output", "structured outputs"], "ru_spoken": ["структурд аутпут", "структурированный вывод"], "en_spoken": [], "notes": ""}
+{"term": "function calling", "category": "ai_ml_jargon", "written_forms": ["function calling", "tool calling"], "ru_spoken": ["функшн коллинг", "тул коллинг"], "en_spoken": [], "notes": ""}
+{"term": "agent", "category": "ai_ml_jargon", "written_forms": ["agent", "AI agent"], "ru_spoken": ["агент", "эй ай агент"], "en_spoken": [], "notes": ""}
+{"term": "MCP", "category": "ai_ml_jargon", "written_forms": ["MCP"], "ru_spoken": ["эм си пи", "эмсипи"], "en_spoken": ["m c p"], "notes": "Model Context Protocol"}
+{"term": "guardrails", "category": "ai_ml_jargon", "written_forms": ["guardrails"], "ru_spoken": ["гардрейлс"], "en_spoken": ["guard rails"], "notes": ""}
+{"term": "prompt injection", "category": "ai_ml_jargon", "written_forms": ["prompt injection"], "ru_spoken": ["промпт инъекция", "промпт инжекшн"], "en_spoken": [], "notes": ""}
+{"term": "jailbreak", "category": "ai_ml_jargon", "written_forms": ["jailbreak"], "ru_spoken": ["джейлбрейк"], "en_spoken": [], "notes": ""}
+{"term": "vector store", "category": "ai_ml_jargon", "written_forms": ["vector store"], "ru_spoken": ["вектор стор", "векторное хранилище"], "en_spoken": [], "notes": ""}
+{"term": "chunking", "category": "ai_ml_jargon", "written_forms": ["chunking"], "ru_spoken": ["чанкинг", "нарезка на чанки"], "en_spoken": [], "notes": ""}
+{"term": "hybrid search", "category": "ai_ml_jargon", "written_forms": ["hybrid search"], "ru_spoken": ["гибридный поиск", "хайбрид серч"], "en_spoken": [], "notes": ""}
+{"term": "diarization", "category": "ai_ml_jargon", "written_forms": ["diarization", "speaker diarization"], "ru_spoken": ["диаризация", "диаризация спикеров"], "en_spoken": [], "notes": ""}
+{"term": "VAD", "category": "ai_ml_jargon", "written_forms": ["VAD"], "ru_spoken": ["вад", "ви эй ди"], "en_spoken": ["v a d"], "notes": "voice activity detection"}
+{"term": "streaming ASR", "category": "ai_ml_jargon", "written_forms": ["streaming ASR"], "ru_spoken": ["стриминг эй эс ар", "потоковое распознавание"], "en_spoken": [], "notes": ""}
+{"term": "CTC", "category": "ai_ml_jargon", "written_forms": ["CTC"], "ru_spoken": ["си ти си", "цэтэцэ"], "en_spoken": ["c t c"], "notes": ""}
+{"term": "RNN-T", "category": "ai_ml_jargon", "written_forms": ["RNN-T", "RNN-Transducer"], "ru_spoken": ["эр эн эн ти", "эрэнэн тэ"], "en_spoken": ["r n n t"], "notes": ""}
+{"term": "TDT", "category": "ai_ml_jargon", "written_forms": ["TDT"], "ru_spoken": ["ти ди ти", "тэдэтэ"], "en_spoken": ["t d t"], "notes": "token-and-duration transducer"}
+{"term": "beam width", "category": "ai_ml_jargon", "written_forms": ["beam width"], "ru_spoken": ["бим видс", "ширина луча"], "en_spoken": [], "notes": ""}
+{"term": "inference", "category": "ai_ml_jargon", "written_forms": ["inference"], "ru_spoken": ["инференс"], "en_spoken": [], "notes": ""}
+{"term": "throughput", "category": "ai_ml_jargon", "written_forms": ["throughput"], "ru_spoken": ["сруппут", "трупут", "пропускная способность"], "en_spoken": [], "notes": ""}
+{"term": "time to first token", "category": "ai_ml_jargon", "written_forms": ["time to first token", "TTFT"], "ru_spoken": ["тайм ту ферст токен", "ти ти эф ти"], "en_spoken": ["t t f t"], "notes": ""}
+{"term": "tokens per second", "category": "ai_ml_jargon", "written_forms": ["tokens per second", "tok/s"], "ru_spoken": ["токенов в секунду", "токены в секунду"], "en_spoken": [], "notes": ""}
+{"term": "prefill", "category": "ai_ml_jargon", "written_forms": ["prefill"], "ru_spoken": ["префилл", "префил"], "en_spoken": [], "notes": ""}
+{"term": "decode", "category": "ai_ml_jargon", "written_forms": ["decode", "decoding"], "ru_spoken": ["декод", "декодинг"], "en_spoken": [], "notes": ""}
+{"term": "eval set", "category": "ai_ml_jargon", "written_forms": ["eval set", "eval"], "ru_spoken": ["эвал сет", "эвал"], "en_spoken": ["e val set"], "notes": ""}
+{"term": "ablation", "category": "ai_ml_jargon", "written_forms": ["ablation"], "ru_spoken": ["абляция", "эблейшн"], "en_spoken": [], "notes": ""}
+{"term": "synthetic data", "category": "ai_ml_jargon", "written_forms": ["synthetic data"], "ru_spoken": ["синтетика", "синтетик дата", "синтетические данные"], "en_spoken": [], "notes": ""}
+{"term": "data augmentation", "category": "ai_ml_jargon", "written_forms": ["data augmentation"], "ru_spoken": ["аугментация данных", "аугментация"], "en_spoken": [], "notes": ""}
+{"term": "эмбеддинг", "category": "ai_ml_jargon_ru", "written_forms": ["эмбеддинг", "эмбеддинги", "эмбединг"], "ru_spoken": ["эмбеддинг"], "en_spoken": [], "notes": "embedding written in Cyrillic"}
+{"term": "токенизатор", "category": "ai_ml_jargon_ru", "written_forms": ["токенизатор", "токенайзер"], "ru_spoken": ["токенизатор", "токенайзер"], "en_spoken": [], "notes": ""}
+{"term": "квантизация", "category": "ai_ml_jargon_ru", "written_forms": ["квантизация", "квантование"], "ru_spoken": ["квантизация", "квантование"], "en_spoken": [], "notes": ""}
+{"term": "дообучение", "category": "ai_ml_jargon_ru", "written_forms": ["дообучение"], "ru_spoken": ["дообучение"], "en_spoken": [], "notes": "fine-tuning, Russian native term"}
+{"term": "файнтюн", "category": "ai_ml_jargon_ru", "written_forms": ["файнтюн", "файн-тюн", "файнтюнинг"], "ru_spoken": ["файнтюн"], "en_spoken": [], "notes": "fine-tune, slang"}
+{"term": "нейросеть", "category": "ai_ml_jargon_ru", "written_forms": ["нейросеть", "нейронка", "нейросетка"], "ru_spoken": ["нейросеть", "нейронка"], "en_spoken": [], "notes": ""}
+{"term": "промпт", "category": "ai_ml_jargon_ru", "written_forms": ["промпт", "промт"], "ru_spoken": ["промпт", "промт"], "en_spoken": [], "notes": "prompt; both spellings occur"}
+{"term": "системный промпт", "category": "ai_ml_jargon_ru", "written_forms": ["системный промпт"], "ru_spoken": ["системный промпт"], "en_spoken": [], "notes": ""}
+{"term": "галлюцинация", "category": "ai_ml_jargon_ru", "written_forms": ["галлюцинация", "галлюцинации"], "ru_spoken": ["галлюцинация"], "en_spoken": [], "notes": "LLM hallucination"}
+{"term": "датасет", "category": "ai_ml_jargon_ru", "written_forms": ["датасет", "дата-сет"], "ru_spoken": ["датасет"], "en_spoken": [], "notes": ""}
+{"term": "инференс", "category": "ai_ml_jargon_ru", "written_forms": ["инференс"], "ru_spoken": ["инференс"], "en_spoken": [], "notes": ""}
+{"term": "разметка", "category": "ai_ml_jargon_ru", "written_forms": ["разметка"], "ru_spoken": ["разметка"], "en_spoken": [], "notes": "data labelling"}
+{"term": "переобучение", "category": "ai_ml_jargon_ru", "written_forms": ["переобучение"], "ru_spoken": ["переобучение"], "en_spoken": [], "notes": "overfitting"}
+{"term": "чекпоинт", "category": "ai_ml_jargon_ru", "written_forms": ["чекпоинт"], "ru_spoken": ["чекпоинт"], "en_spoken": [], "notes": ""}
+{"term": "лосс", "category": "ai_ml_jargon_ru", "written_forms": ["лосс"], "ru_spoken": ["лосс", "лос"], "en_spoken": [], "notes": "loss value"}
+{"term": "трансформер", "category": "ai_ml_jargon_ru", "written_forms": ["трансформер"], "ru_spoken": ["трансформер"], "en_spoken": [], "notes": ""}
+{"term": "реранкер", "category": "ai_ml_jargon_ru", "written_forms": ["реранкер"], "ru_spoken": ["реранкер"], "en_spoken": [], "notes": ""}
+{"term": "ретривер", "category": "ai_ml_jargon_ru", "written_forms": ["ретривер"], "ru_spoken": ["ретривер"], "en_spoken": [], "notes": ""}
+{"term": "векторная база", "category": "ai_ml_jargon_ru", "written_forms": ["векторная база", "векторная БД"], "ru_spoken": ["векторная база"], "en_spoken": [], "notes": ""}
+{"term": "обучающая выборка", "category": "ai_ml_jargon_ru", "written_forms": ["обучающая выборка"], "ru_spoken": ["обучающая выборка"], "en_spoken": [], "notes": ""}
+{"term": "валидационная выборка", "category": "ai_ml_jargon_ru", "written_forms": ["валидационная выборка"], "ru_spoken": ["валидационная выборка"], "en_spoken": [], "notes": ""}
+{"term": "бенчмарк", "category": "ai_ml_jargon_ru", "written_forms": ["бенчмарк"], "ru_spoken": ["бенчмарк"], "en_spoken": [], "notes": ""}
+{"term": "контекстное окно", "category": "ai_ml_jargon_ru", "written_forms": ["контекстное окно"], "ru_spoken": ["контекстное окно"], "en_spoken": [], "notes": ""}
+{"term": "токен", "category": "ai_ml_jargon_ru", "written_forms": ["токен", "токены"], "ru_spoken": ["токен"], "en_spoken": [], "notes": ""}
+{"term": "логиты", "category": "ai_ml_jargon_ru", "written_forms": ["логиты"], "ru_spoken": ["логиты"], "en_spoken": [], "notes": ""}
+{"term": "дистилляция", "category": "ai_ml_jargon_ru", "written_forms": ["дистилляция"], "ru_spoken": ["дистилляция"], "en_spoken": [], "notes": ""}
+{"term": "батч", "category": "ai_ml_jargon_ru", "written_forms": ["батч", "батчи"], "ru_spoken": ["батч"], "en_spoken": [], "notes": ""}
+{"term": "гиперпараметры", "category": "ai_ml_jargon_ru", "written_forms": ["гиперпараметры", "гиперпараметр"], "ru_spoken": ["гиперпараметры"], "en_spoken": [], "notes": ""}
+{"term": "лора-адаптер", "category": "ai_ml_jargon_ru", "written_forms": ["лора-адаптер", "лора адаптер"], "ru_spoken": ["лора адаптер"], "en_spoken": [], "notes": "LoRA adapter written in Cyrillic"}
+{"term": "энкодер", "category": "ai_ml_jargon_ru", "written_forms": ["энкодер"], "ru_spoken": ["энкодер"], "en_spoken": [], "notes": ""}
+{"term": "декодер", "category": "ai_ml_jargon_ru", "written_forms": ["декодер"], "ru_spoken": ["декодер"], "en_spoken": [], "notes": ""}
+{"term": "распознавание речи", "category": "ai_ml_jargon_ru", "written_forms": ["распознавание речи"], "ru_spoken": ["распознавание речи"], "en_spoken": [], "notes": "ASR"}
+{"term": "синтез речи", "category": "ai_ml_jargon_ru", "written_forms": ["синтез речи"], "ru_spoken": ["синтез речи"], "en_spoken": [], "notes": "TTS"}
+{"term": "языковая модель", "category": "ai_ml_jargon_ru", "written_forms": ["языковая модель"], "ru_spoken": ["языковая модель"], "en_spoken": [], "notes": ""}
+{"term": "большая языковая модель", "category": "ai_ml_jargon_ru", "written_forms": ["большая языковая модель"], "ru_spoken": ["большая языковая модель"], "en_spoken": [], "notes": ""}
+{"term": "ллмка", "category": "ai_ml_jargon_ru", "written_forms": ["ллмка", "ЛЛМ"], "ru_spoken": ["ллмка", "эл эл эм"], "en_spoken": [], "notes": "slang for LLM"}
+{"term": "агент", "category": "ai_ml_jargon_ru", "written_forms": ["агент", "агенты"], "ru_spoken": ["агент"], "en_spoken": [], "notes": "AI agent"}
+{"term": "пайплайн", "category": "ai_ml_jargon_ru", "written_forms": ["пайплайн"], "ru_spoken": ["пайплайн"], "en_spoken": [], "notes": ""}
+{"term": "скор", "category": "ai_ml_jargon_ru", "written_forms": ["скор", "скоринг"], "ru_spoken": ["скор", "скоринг"], "en_spoken": [], "notes": "score"}
+{"term": "эвал", "category": "ai_ml_jargon_ru", "written_forms": ["эвал", "эвалы"], "ru_spoken": ["эвал"], "en_spoken": [], "notes": "evaluation run"}
+{"term": "ресемплинг", "category": "ai_ml_jargon_ru", "written_forms": ["ресемплинг"], "ru_spoken": ["ресемплинг"], "en_spoken": [], "notes": ""}
+{"term": "Qwen3.5 2B", "category": "model_names", "written_forms": ["Qwen3.5 2B"], "ru_spoken": ["квен три пять два бэ", "квен три и пять два миллиарда"], "en_spoken": ["qwen three point five two b"], "notes": ""}
+{"term": "Qwen3.5 0.8B", "category": "model_names", "written_forms": ["Qwen3.5 0.8B"], "ru_spoken": ["квен три пять ноль восемь бэ"], "en_spoken": ["qwen three point five zero point eight b"], "notes": ""}
+{"term": "Qwen3-ASR", "category": "model_names", "written_forms": ["Qwen3-ASR", "Qwen3-ASR 0.6B"], "ru_spoken": ["квен три эй эс ар", "квен три асер", "квен три эй эс ар ноль шесть бэ"], "en_spoken": ["qwen three a s r"], "notes": ""}
+{"term": "Qwen", "category": "model_names", "written_forms": ["Qwen"], "ru_spoken": ["квен", "кьювен"], "en_spoken": ["qwen", "chwen"], "notes": ""}
+{"term": "LFM3", "category": "model_names", "written_forms": ["LFM3", "LFM 3"], "ru_spoken": ["эл эф эм три"], "en_spoken": ["l f m three"], "notes": "Liquid foundation model 3"}
+{"term": "LFM2.5", "category": "model_names", "written_forms": ["LFM2.5", "LFM 2.5"], "ru_spoken": ["эл эф эм два пять"], "en_spoken": ["l f m two point five"], "notes": ""}
+{"term": "LFM3-1.7B", "category": "model_names", "written_forms": ["LFM3-1.7B"], "ru_spoken": ["эл эф эм три один и семь бэ"], "en_spoken": ["l f m three one point seven b"], "notes": ""}
+{"term": "Whisper large-v3-turbo", "category": "model_names", "written_forms": ["Whisper large-v3-turbo", "large-v3-turbo"], "ru_spoken": ["виспер лардж вэ три турбо", "виспер ладж три турбо"], "en_spoken": ["whisper large v three turbo"], "notes": ""}
+{"term": "Whisper", "category": "model_names", "written_forms": ["Whisper"], "ru_spoken": ["виспер"], "en_spoken": [], "notes": ""}
+{"term": "Distil-Whisper", "category": "model_names", "written_forms": ["Distil-Whisper"], "ru_spoken": ["дистил виспер"], "en_spoken": [], "notes": ""}
+{"term": "Parakeet TDT", "category": "model_names", "written_forms": ["Parakeet TDT", "Parakeet"], "ru_spoken": ["паракит", "паракит ти ди ти", "паракит тэдэтэ"], "en_spoken": ["parakeet t d t"], "notes": ""}
+{"term": "Parakeet TDT 0.6B v3", "category": "model_names", "written_forms": ["Parakeet TDT 0.6B v3"], "ru_spoken": ["паракит ти ди ти ноль шесть бэ вэ три"], "en_spoken": ["parakeet t d t zero point six b v three"], "notes": ""}
+{"term": "Nemotron", "category": "model_names", "written_forms": ["Nemotron"], "ru_spoken": ["немотрон"], "en_spoken": [], "notes": ""}
+{"term": "Canary", "category": "model_names", "written_forms": ["Canary"], "ru_spoken": ["канари"], "en_spoken": [], "notes": ""}
+{"term": "GigaAM", "category": "model_names", "written_forms": ["GigaAM"], "ru_spoken": ["гигаам", "гига эй эм", "гига аудио"], "en_spoken": ["giga a m"], "notes": ""}
+{"term": "T-one", "category": "model_names", "written_forms": ["T-one"], "ru_spoken": ["ти ван", "тиуан", "т один"], "en_spoken": ["t one"], "notes": ""}
+{"term": "GigaChat", "category": "model_names", "written_forms": ["GigaChat"], "ru_spoken": ["гигачат"], "en_spoken": [], "notes": ""}
+{"term": "YandexGPT", "category": "model_names", "written_forms": ["YandexGPT"], "ru_spoken": ["яндекс джи пи ти"], "en_spoken": ["yandex g p t"], "notes": ""}
+{"term": "Llama 4", "category": "model_names", "written_forms": ["Llama 4"], "ru_spoken": ["лама четыре", "ллама четыре"], "en_spoken": [], "notes": ""}
+{"term": "Llama", "category": "model_names", "written_forms": ["Llama"], "ru_spoken": ["лама", "ллама"], "en_spoken": [], "notes": ""}
+{"term": "Mistral", "category": "model_names", "written_forms": ["Mistral"], "ru_spoken": ["мистраль"], "en_spoken": [], "notes": ""}
+{"term": "Mixtral", "category": "model_names", "written_forms": ["Mixtral"], "ru_spoken": ["микстраль"], "en_spoken": [], "notes": ""}
+{"term": "Gemma 3", "category": "model_names", "written_forms": ["Gemma 3"], "ru_spoken": ["джемма три", "гемма три"], "en_spoken": [], "notes": ""}
+{"term": "Gemma", "category": "model_names", "written_forms": ["Gemma"], "ru_spoken": ["джемма", "гемма"], "en_spoken": [], "notes": ""}
+{"term": "Phi-4", "category": "model_names", "written_forms": ["Phi-4"], "ru_spoken": ["фай четыре", "фи четыре"], "en_spoken": ["phi four"], "notes": ""}
+{"term": "DeepSeek-V3", "category": "model_names", "written_forms": ["DeepSeek-V3"], "ru_spoken": ["дипсик вэ три"], "en_spoken": ["deepseek v three"], "notes": ""}
+{"term": "DeepSeek-R1", "category": "model_names", "written_forms": ["DeepSeek-R1", "DeepSeek R1"], "ru_spoken": ["дипсик эр один"], "en_spoken": ["deepseek r one"], "notes": ""}
+{"term": "DeepSeek", "category": "model_names", "written_forms": ["DeepSeek"], "ru_spoken": ["дипсик"], "en_spoken": [], "notes": ""}
+{"term": "GPT-4o", "category": "model_names", "written_forms": ["GPT-4o"], "ru_spoken": ["джи пи ти четыре о", "гпт четыре о"], "en_spoken": ["g p t four o"], "notes": ""}
+{"term": "GPT-5", "category": "model_names", "written_forms": ["GPT-5"], "ru_spoken": ["джи пи ти пять", "гпт пять"], "en_spoken": ["g p t five"], "notes": ""}
+{"term": "ChatGPT", "category": "model_names", "written_forms": ["ChatGPT"], "ru_spoken": ["чат джи пи ти", "чатгпт"], "en_spoken": ["chat g p t"], "notes": ""}
+{"term": "Claude", "category": "model_names", "written_forms": ["Claude"], "ru_spoken": ["клод"], "en_spoken": [], "notes": ""}
+{"term": "Claude Sonnet", "category": "model_names", "written_forms": ["Claude Sonnet", "Sonnet"], "ru_spoken": ["клод соннет", "соннет"], "en_spoken": [], "notes": ""}
+{"term": "Claude Opus", "category": "model_names", "written_forms": ["Claude Opus", "Opus"], "ru_spoken": ["клод опус", "опус"], "en_spoken": [], "notes": ""}
+{"term": "Gemini 2.5 Pro", "category": "model_names", "written_forms": ["Gemini 2.5 Pro"], "ru_spoken": ["джемини два пять про"], "en_spoken": ["gemini two point five pro"], "notes": ""}
+{"term": "Gemini", "category": "model_names", "written_forms": ["Gemini"], "ru_spoken": ["джемини"], "en_spoken": [], "notes": ""}
+{"term": "Kimi K2", "category": "model_names", "written_forms": ["Kimi K2"], "ru_spoken": ["кими ка два"], "en_spoken": ["kimi k two"], "notes": ""}
+{"term": "GLM-4.5", "category": "model_names", "written_forms": ["GLM-4.5"], "ru_spoken": ["джи эл эм четыре пять"], "en_spoken": ["g l m four point five"], "notes": ""}
+{"term": "Stable Diffusion", "category": "model_names", "written_forms": ["Stable Diffusion"], "ru_spoken": ["стейбл диффьюжн", "стабл диффузия"], "en_spoken": [], "notes": ""}
+{"term": "FLUX", "category": "model_names", "written_forms": ["FLUX"], "ru_spoken": ["флакс", "флюкс"], "en_spoken": ["flux"], "notes": ""}
+{"term": "Segment Anything", "category": "model_names", "written_forms": ["Segment Anything", "SAM"], "ru_spoken": ["сегмент энифинг", "сэм"], "en_spoken": [], "notes": ""}
+{"term": "CLIP", "category": "model_names", "written_forms": ["CLIP"], "ru_spoken": ["клип"], "en_spoken": ["clip"], "notes": ""}
+{"term": "BERT", "category": "model_names", "written_forms": ["BERT"], "ru_spoken": ["берт"], "en_spoken": ["bert"], "notes": ""}
+{"term": "RoBERTa", "category": "model_names", "written_forms": ["RoBERTa"], "ru_spoken": ["роберта"], "en_spoken": [], "notes": ""}
+{"term": "T5", "category": "model_names", "written_forms": ["T5"], "ru_spoken": ["ти файв", "тэ пять"], "en_spoken": ["t five"], "notes": ""}
+{"term": "Kokoro", "category": "model_names", "written_forms": ["Kokoro"], "ru_spoken": ["кокоро"], "en_spoken": [], "notes": ""}
+{"term": "XTTS", "category": "model_names", "written_forms": ["XTTS", "XTTS-v2"], "ru_spoken": ["икс ти ти эс", "икс ти ти эс вэ два"], "en_spoken": ["x t t s"], "notes": ""}
+{"term": "Silero", "category": "model_names", "written_forms": ["Silero"], "ru_spoken": ["силеро"], "en_spoken": [], "notes": ""}
+{"term": "Piper", "category": "model_names", "written_forms": ["Piper"], "ru_spoken": ["пайпер"], "en_spoken": [], "notes": ""}
+{"term": "F5-TTS", "category": "model_names", "written_forms": ["F5-TTS"], "ru_spoken": ["эф пять ти ти эс"], "en_spoken": ["f five t t s"], "notes": ""}
+{"term": "Moondream", "category": "model_names", "written_forms": ["Moondream"], "ru_spoken": ["мундрим"], "en_spoken": [], "notes": ""}
+{"term": "PaddleOCR", "category": "model_names", "written_forms": ["PaddleOCR"], "ru_spoken": ["паддл о си ар"], "en_spoken": ["paddle o c r"], "notes": ""}
+{"term": "Tesseract", "category": "model_names", "written_forms": ["Tesseract"], "ru_spoken": ["тессеракт"], "en_spoken": [], "notes": ""}
+{"term": "SmolLM", "category": "model_names", "written_forms": ["SmolLM"], "ru_spoken": ["смол эл эм"], "en_spoken": ["small l m"], "notes": ""}
+{"term": "деплой", "category": "dev_slang_ru", "written_forms": ["деплой"], "ru_spoken": ["деплой"], "en_spoken": [], "notes": "deploy (noun)"}
+{"term": "задеплоить", "category": "dev_slang_ru", "written_forms": ["задеплоить", "задеплоил", "задеплоили"], "ru_spoken": ["задеплоить"], "en_spoken": [], "notes": "to deploy"}
+{"term": "передеплоить", "category": "dev_slang_ru", "written_forms": ["передеплоить"], "ru_spoken": ["передеплоить"], "en_spoken": [], "notes": "to redeploy"}
+{"term": "стейджинг", "category": "dev_slang_ru", "written_forms": ["стейджинг", "стэйджинг"], "ru_spoken": ["стейджинг"], "en_spoken": [], "notes": "staging environment"}
+{"term": "прод", "category": "dev_slang_ru", "written_forms": ["прод", "продакшн", "продакшен"], "ru_spoken": ["прод", "продакшн"], "en_spoken": [], "notes": "production"}
+{"term": "пулреквест", "category": "dev_slang_ru", "written_forms": ["пулреквест", "пул-реквест", "пулл-реквест"], "ru_spoken": ["пулреквест", "пул реквест"], "en_spoken": [], "notes": "pull request"}
+{"term": "мерджреквест", "category": "dev_slang_ru", "written_forms": ["мерджреквест", "мерж-реквест", "мердж-реквест"], "ru_spoken": ["мерджреквест", "мерж реквест"], "en_spoken": [], "notes": "merge request"}
+{"term": "ревью", "category": "dev_slang_ru", "written_forms": ["ревью", "код-ревью", "кодревью", "ревьюить"], "ru_spoken": ["ревью", "код ревью"], "en_spoken": [], "notes": "code review"}
+{"term": "мердж", "category": "dev_slang_ru", "written_forms": ["мердж", "мерж"], "ru_spoken": ["мердж", "мерж"], "en_spoken": [], "notes": "merge"}
+{"term": "смерджить", "category": "dev_slang_ru", "written_forms": ["смерджить", "смержить", "замерджить", "замержить"], "ru_spoken": ["смерджить", "смержить"], "en_spoken": [], "notes": "to merge"}
+{"term": "бэкенд", "category": "dev_slang_ru", "written_forms": ["бэкенд", "бэкэнд", "бекенд"], "ru_spoken": ["бэкенд", "бэк"], "en_spoken": [], "notes": "backend"}
+{"term": "фронтенд", "category": "dev_slang_ru", "written_forms": ["фронтенд", "фронтэнд"], "ru_spoken": ["фронтенд", "фронт"], "en_spoken": [], "notes": "frontend"}
+{"term": "фича", "category": "dev_slang_ru", "written_forms": ["фича", "фичи"], "ru_spoken": ["фича"], "en_spoken": [], "notes": "feature"}
+{"term": "фичефлаг", "category": "dev_slang_ru", "written_forms": ["фичефлаг", "фиче-флаг", "фичафлаг"], "ru_spoken": ["фичефлаг", "фича флаг"], "en_spoken": [], "notes": "feature flag"}
+{"term": "баг", "category": "dev_slang_ru", "written_forms": ["баг", "баги"], "ru_spoken": ["баг"], "en_spoken": [], "notes": "bug"}
+{"term": "багфикс", "category": "dev_slang_ru", "written_forms": ["багфикс"], "ru_spoken": ["багфикс"], "en_spoken": [], "notes": "bugfix"}
+{"term": "хотфикс", "category": "dev_slang_ru", "written_forms": ["хотфикс"], "ru_spoken": ["хотфикс"], "en_spoken": [], "notes": "hotfix"}
+{"term": "коммит", "category": "dev_slang_ru", "written_forms": ["коммит"], "ru_spoken": ["коммит"], "en_spoken": [], "notes": "commit"}
+{"term": "закоммитить", "category": "dev_slang_ru", "written_forms": ["закоммитить", "закоммитил"], "ru_spoken": ["закоммитить"], "en_spoken": [], "notes": "to commit"}
+{"term": "запушить", "category": "dev_slang_ru", "written_forms": ["запушить", "запушил", "пушнуть"], "ru_spoken": ["запушить", "пушнуть"], "en_spoken": [], "notes": "to push"}
+{"term": "ребейз", "category": "dev_slang_ru", "written_forms": ["ребейз"], "ru_spoken": ["ребейз", "рибейз"], "en_spoken": [], "notes": "rebase"}
+{"term": "отребейзить", "category": "dev_slang_ru", "written_forms": ["отребейзить"], "ru_spoken": ["отребейзить"], "en_spoken": [], "notes": "to rebase"}
+{"term": "черрипик", "category": "dev_slang_ru", "written_forms": ["черрипик", "черри-пик"], "ru_spoken": ["черрипик", "черри пик"], "en_spoken": [], "notes": "cherry-pick"}
+{"term": "бранч", "category": "dev_slang_ru", "written_forms": ["бранч"], "ru_spoken": ["бранч", "ветка"], "en_spoken": [], "notes": "branch"}
+{"term": "релиз", "category": "dev_slang_ru", "written_forms": ["релиз"], "ru_spoken": ["релиз"], "en_spoken": [], "notes": "release"}
+{"term": "зарелизить", "category": "dev_slang_ru", "written_forms": ["зарелизить"], "ru_spoken": ["зарелизить"], "en_spoken": [], "notes": "to release"}
+{"term": "откатить", "category": "dev_slang_ru", "written_forms": ["откатить", "откатить релиз"], "ru_spoken": ["откатить", "откат"], "en_spoken": [], "notes": "roll back"}
+{"term": "тикет", "category": "dev_slang_ru", "written_forms": ["тикет"], "ru_spoken": ["тикет"], "en_spoken": [], "notes": "ticket"}
+{"term": "таска", "category": "dev_slang_ru", "written_forms": ["таска", "таску"], "ru_spoken": ["таска", "таск"], "en_spoken": [], "notes": "task"}
+{"term": "спринт", "category": "dev_slang_ru", "written_forms": ["спринт"], "ru_spoken": ["спринт"], "en_spoken": [], "notes": "sprint"}
+{"term": "бэклог", "category": "dev_slang_ru", "written_forms": ["бэклог"], "ru_spoken": ["бэклог"], "en_spoken": [], "notes": "backlog"}
+{"term": "апрув", "category": "dev_slang_ru", "written_forms": ["апрув"], "ru_spoken": ["апрув"], "en_spoken": [], "notes": "approval"}
+{"term": "заапрувить", "category": "dev_slang_ru", "written_forms": ["заапрувить"], "ru_spoken": ["заапрувить"], "en_spoken": [], "notes": "to approve"}
+{"term": "легаси", "category": "dev_slang_ru", "written_forms": ["легаси"], "ru_spoken": ["легаси"], "en_spoken": [], "notes": "legacy code"}
+{"term": "рефакторинг", "category": "dev_slang_ru", "written_forms": ["рефакторинг"], "ru_spoken": ["рефакторинг"], "en_spoken": [], "notes": "refactoring"}
+{"term": "костыль", "category": "dev_slang_ru", "written_forms": ["костыль"], "ru_spoken": ["костыль"], "en_spoken": [], "notes": "hack, workaround"}
+{"term": "тимлид", "category": "dev_slang_ru", "written_forms": ["тимлид"], "ru_spoken": ["тимлид"], "en_spoken": [], "notes": "team lead"}
+{"term": "техлид", "category": "dev_slang_ru", "written_forms": ["техлид"], "ru_spoken": ["техлид"], "en_spoken": [], "notes": "tech lead"}
+{"term": "джун", "category": "dev_slang_ru", "written_forms": ["джун", "джуниор"], "ru_spoken": ["джун", "джуниор"], "en_spoken": [], "notes": "junior"}
+{"term": "мидл", "category": "dev_slang_ru", "written_forms": ["мидл"], "ru_spoken": ["мидл"], "en_spoken": [], "notes": "middle-level engineer"}
+{"term": "синьор", "category": "dev_slang_ru", "written_forms": ["синьор", "сеньор"], "ru_spoken": ["синьор", "сеньор"], "en_spoken": [], "notes": "senior"}
+{"term": "эстимейт", "category": "dev_slang_ru", "written_forms": ["эстимейт"], "ru_spoken": ["эстимейт"], "en_spoken": [], "notes": "estimate"}
+{"term": "стендап", "category": "dev_slang_ru", "written_forms": ["стендап"], "ru_spoken": ["стендап"], "en_spoken": [], "notes": "stand-up meeting"}
+{"term": "дейлик", "category": "dev_slang_ru", "written_forms": ["дейлик", "дейли"], "ru_spoken": ["дейлик", "дейли"], "en_spoken": [], "notes": "daily stand-up"}
+{"term": "созвон", "category": "dev_slang_ru", "written_forms": ["созвон"], "ru_spoken": ["созвон"], "en_spoken": [], "notes": "call"}
+{"term": "ретро", "category": "dev_slang_ru", "written_forms": ["ретро", "ретроспектива"], "ru_spoken": ["ретро"], "en_spoken": [], "notes": "retrospective"}
+{"term": "онбординг", "category": "dev_slang_ru", "written_forms": ["онбординг"], "ru_spoken": ["онбординг"], "en_spoken": [], "notes": "onboarding"}
+{"term": "юнит-тест", "category": "dev_slang_ru", "written_forms": ["юнит-тест", "юнит-тесты", "юниттест"], "ru_spoken": ["юнит тест"], "en_spoken": [], "notes": "unit test"}
+{"term": "автотесты", "category": "dev_slang_ru", "written_forms": ["автотесты", "автотест"], "ru_spoken": ["автотесты"], "en_spoken": [], "notes": "automated tests"}
+{"term": "билд", "category": "dev_slang_ru", "written_forms": ["билд"], "ru_spoken": ["билд"], "en_spoken": [], "notes": "build"}
+{"term": "конфиг", "category": "dev_slang_ru", "written_forms": ["конфиг", "конфига"], "ru_spoken": ["конфиг"], "en_spoken": [], "notes": "config"}
+{"term": "кэш", "category": "dev_slang_ru", "written_forms": ["кэш", "кеш"], "ru_spoken": ["кэш", "кеш"], "en_spoken": [], "notes": "cache"}
+{"term": "логи", "category": "dev_slang_ru", "written_forms": ["логи", "лог"], "ru_spoken": ["логи", "лог"], "en_spoken": [], "notes": "logs"}
+{"term": "дашборд", "category": "dev_slang_ru", "written_forms": ["дашборд"], "ru_spoken": ["дашборд"], "en_spoken": [], "notes": "dashboard"}
+{"term": "алерт", "category": "dev_slang_ru", "written_forms": ["алерт"], "ru_spoken": ["алерт"], "en_spoken": [], "notes": "alert"}
+{"term": "инцидент", "category": "dev_slang_ru", "written_forms": ["инцидент"], "ru_spoken": ["инцидент"], "en_spoken": [], "notes": ""}
+{"term": "постмортем", "category": "dev_slang_ru", "written_forms": ["постмортем"], "ru_spoken": ["постмортем"], "en_spoken": [], "notes": "postmortem"}
+{"term": "фолбэк", "category": "dev_slang_ru", "written_forms": ["фолбэк", "фоллбэк"], "ru_spoken": ["фолбэк"], "en_spoken": [], "notes": "fallback"}
+{"term": "ретрай", "category": "dev_slang_ru", "written_forms": ["ретрай", "ретраи"], "ru_spoken": ["ретрай"], "en_spoken": [], "notes": "retry"}
+{"term": "таймаут", "category": "dev_slang_ru", "written_forms": ["таймаут"], "ru_spoken": ["таймаут"], "en_spoken": [], "notes": "timeout"}
+{"term": "эндпоинт", "category": "dev_slang_ru", "written_forms": ["эндпоинт", "эндпойнт"], "ru_spoken": ["эндпоинт"], "en_spoken": [], "notes": "endpoint"}
+{"term": "ручка", "category": "dev_slang_ru", "written_forms": ["ручка"], "ru_spoken": ["ручка"], "en_spoken": [], "notes": "API endpoint (slang)"}
+{"term": "воркер", "category": "dev_slang_ru", "written_forms": ["воркер"], "ru_spoken": ["воркер"], "en_spoken": [], "notes": "worker"}
+{"term": "джоба", "category": "dev_slang_ru", "written_forms": ["джоба"], "ru_spoken": ["джоба"], "en_spoken": [], "notes": "job (CI/cron)"}
+{"term": "крон", "category": "dev_slang_ru", "written_forms": ["крон", "кронджоба"], "ru_spoken": ["крон"], "en_spoken": [], "notes": "cron"}
+{"term": "скейлить", "category": "dev_slang_ru", "written_forms": ["скейлить", "отскейлить"], "ru_spoken": ["скейлить"], "en_spoken": [], "notes": "to scale"}
+{"term": "лейтенси", "category": "dev_slang_ru", "written_forms": ["лейтенси"], "ru_spoken": ["лейтенси"], "en_spoken": [], "notes": "latency"}
+{"term": "рейт-лимит", "category": "dev_slang_ru", "written_forms": ["рейт-лимит", "рейтлимит"], "ru_spoken": ["рейт лимит"], "en_spoken": [], "notes": "rate limit"}
+{"term": "нагрузочное", "category": "dev_slang_ru", "written_forms": ["нагрузочное", "нагрузочное тестирование"], "ru_spoken": ["нагрузочное"], "en_spoken": [], "notes": "load testing"}
+{"term": "юзкейс", "category": "dev_slang_ru", "written_forms": ["юзкейс"], "ru_spoken": ["юзкейс"], "en_spoken": [], "notes": "use case"}
+{"term": "фидбек", "category": "dev_slang_ru", "written_forms": ["фидбек", "фидбэк"], "ru_spoken": ["фидбек"], "en_spoken": [], "notes": "feedback"}
+{"term": "дедлайн", "category": "dev_slang_ru", "written_forms": ["дедлайн"], "ru_spoken": ["дедлайн"], "en_spoken": [], "notes": "deadline"}
+{"term": "пинговать", "category": "dev_slang_ru", "written_forms": ["пинговать", "пингануть"], "ru_spoken": ["пинговать", "пингануть"], "en_spoken": [], "notes": "to ping someone"}
+{"term": "расшарить", "category": "dev_slang_ru", "written_forms": ["расшарить"], "ru_spoken": ["расшарить"], "en_spoken": [], "notes": "to share"}
+{"term": "залить", "category": "dev_slang_ru", "written_forms": ["залить", "залить на прод"], "ru_spoken": ["залить"], "en_spoken": [], "notes": "to upload / deploy"}
+{"term": "выкатить", "category": "dev_slang_ru", "written_forms": ["выкатить", "выкатка"], "ru_spoken": ["выкатить", "выкатка"], "en_spoken": [], "notes": "to roll out"}
+{"term": "форкнуть", "category": "dev_slang_ru", "written_forms": ["форкнуть", "форк"], "ru_spoken": ["форкнуть", "форк"], "en_spoken": [], "notes": "to fork"}
+{"term": "зависимости", "category": "dev_slang_ru", "written_forms": ["зависимости"], "ru_spoken": ["зависимости"], "en_spoken": [], "notes": "dependencies"}
+{"term": "линтер", "category": "dev_slang_ru", "written_forms": ["линтер"], "ru_spoken": ["линтер"], "en_spoken": [], "notes": "linter"}
+{"term": "пайплайн сборки", "category": "dev_slang_ru", "written_forms": ["пайплайн сборки"], "ru_spoken": ["пайплайн сборки"], "en_spoken": [], "notes": "CI pipeline"}
+{"term": "продуктовая метрика", "category": "dev_slang_ru", "written_forms": ["продуктовая метрика"], "ru_spoken": ["продуктовая метрика"], "en_spoken": [], "notes": ""}
+{"term": "git rebase", "category": "cli_commands", "written_forms": ["git rebase", "git rebase -i"], "ru_spoken": ["гит ребейз", "гит рибейз", "гит ребейз минус ай"], "en_spoken": [], "notes": ""}
+{"term": "git cherry-pick", "category": "cli_commands", "written_forms": ["git cherry-pick"], "ru_spoken": ["гит черри пик"], "en_spoken": [], "notes": ""}
+{"term": "git stash", "category": "cli_commands", "written_forms": ["git stash"], "ru_spoken": ["гит стэш", "гит стеш"], "en_spoken": [], "notes": ""}
+{"term": "git push --force", "category": "cli_commands", "written_forms": ["git push --force", "git push -f"], "ru_spoken": ["гит пуш форс"], "en_spoken": ["git push force"], "notes": ""}
+{"term": "git reset --hard", "category": "cli_commands", "written_forms": ["git reset --hard"], "ru_spoken": ["гит ресет хард"], "en_spoken": ["git reset hard"], "notes": ""}
+{"term": "git bisect", "category": "cli_commands", "written_forms": ["git bisect"], "ru_spoken": ["гит бисект"], "en_spoken": [], "notes": ""}
+{"term": "git commit --amend", "category": "cli_commands", "written_forms": ["git commit --amend"], "ru_spoken": ["гит коммит аменд"], "en_spoken": ["git commit amend"], "notes": ""}
+{"term": "git pull", "category": "cli_commands", "written_forms": ["git pull"], "ru_spoken": ["гит пулл", "гит пул"], "en_spoken": [], "notes": ""}
+{"term": "docker compose up", "category": "cli_commands", "written_forms": ["docker compose up", "docker compose up -d"], "ru_spoken": ["докер компоуз ап", "докер компоуз ап минус дэ"], "en_spoken": ["docker compose up", "docker compose up dash d"], "notes": ""}
+{"term": "docker build", "category": "cli_commands", "written_forms": ["docker build"], "ru_spoken": ["докер билд"], "en_spoken": [], "notes": ""}
+{"term": "docker ps", "category": "cli_commands", "written_forms": ["docker ps"], "ru_spoken": ["докер пиэс", "докер пи эс"], "en_spoken": ["docker p s"], "notes": ""}
+{"term": "kubectl apply", "category": "cli_commands", "written_forms": ["kubectl apply"], "ru_spoken": ["кубконтрол эплай", "куб си ти эл эплай", "кубектл эплай"], "en_spoken": ["kube control apply", "kube cuttle apply"], "notes": ""}
+{"term": "kubectl get pods", "category": "cli_commands", "written_forms": ["kubectl get pods"], "ru_spoken": ["кубконтрол гет подс", "кубектл гет подс"], "en_spoken": ["kube control get pods"], "notes": ""}
+{"term": "kubectl logs", "category": "cli_commands", "written_forms": ["kubectl logs"], "ru_spoken": ["кубконтрол логс", "кубектл логс"], "en_spoken": ["kube control logs"], "notes": ""}
+{"term": "helm upgrade", "category": "cli_commands", "written_forms": ["helm upgrade"], "ru_spoken": ["хелм апгрейд"], "en_spoken": [], "notes": ""}
+{"term": "npm install", "category": "cli_commands", "written_forms": ["npm install", "npm i"], "ru_spoken": ["эн пи эм инсталл", "нпм инсталл"], "en_spoken": ["n p m install"], "notes": ""}
+{"term": "pip install", "category": "cli_commands", "written_forms": ["pip install"], "ru_spoken": ["пип инсталл", "пип"], "en_spoken": [], "notes": ""}
+{"term": "uv sync", "category": "cli_commands", "written_forms": ["uv sync"], "ru_spoken": ["ю ви синк", "уф синк"], "en_spoken": ["u v sync"], "notes": ""}
+{"term": "./gradlew assembleRelease", "category": "cli_commands", "written_forms": ["./gradlew assembleRelease", "gradlew assembleRelease"], "ru_spoken": ["градлв ассембл релиз", "градл ассембл релиз"], "en_spoken": ["gradle w assemble release"], "notes": ""}
+{"term": "adb logcat", "category": "cli_commands", "written_forms": ["adb logcat"], "ru_spoken": ["эй ди би логкат", "адб логкэт"], "en_spoken": ["a d b logcat"], "notes": ""}
+{"term": "adb install", "category": "cli_commands", "written_forms": ["adb install"], "ru_spoken": ["эй ди би инсталл", "адб инсталл"], "en_spoken": ["a d b install"], "notes": ""}
+{"term": "ssh", "category": "cli_commands", "written_forms": ["ssh"], "ru_spoken": ["эс эс эйч", "эсэсаш"], "en_spoken": ["s s h"], "notes": ""}
+{"term": "scp", "category": "cli_commands", "written_forms": ["scp"], "ru_spoken": ["эс си пи"], "en_spoken": ["s c p"], "notes": ""}
+{"term": "rsync", "category": "cli_commands", "written_forms": ["rsync"], "ru_spoken": ["арсинк", "эр синк"], "en_spoken": ["r sync"], "notes": ""}
+{"term": "grep", "category": "cli_commands", "written_forms": ["grep"], "ru_spoken": ["грэп", "греп"], "en_spoken": [], "notes": ""}
+{"term": "curl", "category": "cli_commands", "written_forms": ["curl"], "ru_spoken": ["курл", "керл"], "en_spoken": ["curl"], "notes": ""}
+{"term": "chmod +x", "category": "cli_commands", "written_forms": ["chmod +x", "chmod"], "ru_spoken": ["чмод плюс икс", "чмод"], "en_spoken": ["ch mod plus x"], "notes": ""}
+{"term": "sudo", "category": "cli_commands", "written_forms": ["sudo"], "ru_spoken": ["судо", "судо"], "en_spoken": ["soo-doo"], "notes": ""}
+{"term": "systemctl restart", "category": "cli_commands", "written_forms": ["systemctl restart"], "ru_spoken": ["системктл рестарт", "систем контрол рестарт"], "en_spoken": ["system control restart"], "notes": ""}
+{"term": "journalctl", "category": "cli_commands", "written_forms": ["journalctl"], "ru_spoken": ["журналктл", "джорнал контрол"], "en_spoken": ["journal control"], "notes": ""}
+{"term": "htop", "category": "cli_commands", "written_forms": ["htop"], "ru_spoken": ["эйч топ", "аштоп"], "en_spoken": ["h top"], "notes": ""}
+{"term": "nvidia-smi", "category": "cli_commands", "written_forms": ["nvidia-smi"], "ru_spoken": ["энвидиа смай", "нвидиа эс эм ай"], "en_spoken": ["nvidia s m i"], "notes": ""}
+{"term": "tmux", "category": "cli_commands", "written_forms": ["tmux"], "ru_spoken": ["тимукс", "ти макс"], "en_spoken": ["t mux"], "notes": ""}
+{"term": "vim", "category": "cli_commands", "written_forms": ["vim"], "ru_spoken": ["вим"], "en_spoken": [], "notes": ""}
+{"term": "make build", "category": "cli_commands", "written_forms": ["make build"], "ru_spoken": ["мейк билд"], "en_spoken": [], "notes": ""}
+{"term": "cmake", "category": "cli_commands", "written_forms": ["cmake"], "ru_spoken": ["си мейк", "симейк"], "en_spoken": ["c make"], "notes": ""}
+{"term": "brew install", "category": "cli_commands", "written_forms": ["brew install"], "ru_spoken": ["брю инсталл"], "en_spoken": [], "notes": ""}
+{"term": "apt install", "category": "cli_commands", "written_forms": ["apt install", "apt-get install"], "ru_spoken": ["апт инсталл", "апт гет инсталл"], "en_spoken": [], "notes": ""}
+{"term": "huggingface-cli download", "category": "cli_commands", "written_forms": ["huggingface-cli download", "hf download"], "ru_spoken": ["хаггинг фейс си эл ай даунлоад", "аш эф даунлоад"], "en_spoken": ["hugging face c l i download"], "notes": ""}
+{"term": "jq", "category": "cli_commands", "written_forms": ["jq"], "ru_spoken": ["джей кью"], "en_spoken": ["j q"], "notes": ""}
+{"term": "tail -f", "category": "cli_commands", "written_forms": ["tail -f"], "ru_spoken": ["тейл минус эф", "тейл эф"], "en_spoken": ["tail dash f"], "notes": ""}
+{"term": "ls -la", "category": "cli_commands", "written_forms": ["ls -la"], "ru_spoken": ["эл эс минус эл а"], "en_spoken": ["l s dash l a"], "notes": ""}
+{"term": "cd", "category": "cli_commands", "written_forms": ["cd"], "ru_spoken": ["си ди", "цэдэ"], "en_spoken": ["c d"], "notes": ""}
+{"term": ".env", "category": "files_config", "written_forms": [".env"], "ru_spoken": ["дот енв", "точка енв", "энв"], "en_spoken": ["dot env"], "notes": ""}
+{"term": "README", "category": "files_config", "written_forms": ["README", "README.md"], "ru_spoken": ["ридми", "рид ми", "ридми эм дэ"], "en_spoken": ["read me"], "notes": ""}
+{"term": "Dockerfile", "category": "files_config", "written_forms": ["Dockerfile"], "ru_spoken": ["докерфайл"], "en_spoken": ["docker file"], "notes": ""}
+{"term": "docker-compose.yml", "category": "files_config", "written_forms": ["docker-compose.yml", "compose.yaml"], "ru_spoken": ["докер компоуз ямл", "компоуз ямл"], "en_spoken": ["docker compose yaml"], "notes": ""}
+{"term": "package.json", "category": "files_config", "written_forms": ["package.json"], "ru_spoken": ["пакедж джейсон", "пэкидж джейсон"], "en_spoken": ["package json"], "notes": ""}
+{"term": "requirements.txt", "category": "files_config", "written_forms": ["requirements.txt"], "ru_spoken": ["реквайрментс тэ икс тэ", "реквайрментс"], "en_spoken": ["requirements text"], "notes": ""}
+{"term": "pyproject.toml", "category": "files_config", "written_forms": ["pyproject.toml"], "ru_spoken": ["пайпроджект томл"], "en_spoken": ["py project toml"], "notes": ""}
+{"term": "build.gradle.kts", "category": "files_config", "written_forms": ["build.gradle.kts"], "ru_spoken": ["билд градл кэ тэ эс", "билд градл котлин"], "en_spoken": ["build gradle k t s"], "notes": ""}
+{"term": "AndroidManifest.xml", "category": "files_config", "written_forms": ["AndroidManifest.xml"], "ru_spoken": ["андроид манифест", "андроидманифест икс эм эл"], "en_spoken": ["android manifest x m l"], "notes": ""}
+{"term": ".gitignore", "category": "files_config", "written_forms": [".gitignore"], "ru_spoken": ["гитигнор", "дот гитигнор"], "en_spoken": ["dot git ignore"], "notes": ""}
+{"term": "Makefile", "category": "files_config", "written_forms": ["Makefile"], "ru_spoken": ["мейкфайл"], "en_spoken": ["make file"], "notes": ""}
+{"term": "config.yaml", "category": "files_config", "written_forms": ["config.yaml"], "ru_spoken": ["конфиг ямл"], "en_spoken": ["config yaml"], "notes": ""}
+{"term": "values.yaml", "category": "files_config", "written_forms": ["values.yaml"], "ru_spoken": ["вэльюс ямл", "валюс ямл"], "en_spoken": ["values yaml"], "notes": ""}
+{"term": "CHANGELOG", "category": "files_config", "written_forms": ["CHANGELOG", "CHANGELOG.md"], "ru_spoken": ["чейнджлог", "чейнджлог эм дэ"], "en_spoken": ["change log"], "notes": ""}
+{"term": "LICENSE", "category": "files_config", "written_forms": ["LICENSE"], "ru_spoken": ["лайсенс", "лицензия"], "en_spoken": [], "notes": ""}
+{"term": "main.py", "category": "files_config", "written_forms": ["main.py"], "ru_spoken": ["мейн пай", "мейн точка пай"], "en_spoken": ["main dot p y"], "notes": ""}
+{"term": "index.ts", "category": "files_config", "written_forms": ["index.ts"], "ru_spoken": ["индекс тэ эс", "индекс тээс"], "en_spoken": ["index dot t s"], "notes": ""}
+{"term": "settings.json", "category": "files_config", "written_forms": ["settings.json"], "ru_spoken": ["сеттингс джейсон"], "en_spoken": ["settings dot json"], "notes": ""}
+{"term": "tsconfig.json", "category": "files_config", "written_forms": ["tsconfig.json"], "ru_spoken": ["тиэс конфиг", "тээс конфиг джейсон"], "en_spoken": ["t s config json"], "notes": ""}
+{"term": "nginx.conf", "category": "files_config", "written_forms": ["nginx.conf"], "ru_spoken": ["энджинкс конф"], "en_spoken": ["engine x conf"], "notes": ""}
+{"term": "/etc/hosts", "category": "files_config", "written_forms": ["/etc/hosts"], "ru_spoken": ["етс хостс", "слэш етс хостс"], "en_spoken": ["slash etc hosts"], "notes": "read \"slash e t c hosts\""}
+{"term": "~/.ssh/config", "category": "files_config", "written_forms": ["~/.ssh/config"], "ru_spoken": ["эс эс эйч конфиг"], "en_spoken": ["ssh config"], "notes": ""}
+{"term": ".bashrc", "category": "files_config", "written_forms": [".bashrc"], "ru_spoken": ["башрц", "баш ар си"], "en_spoken": ["bash r c"], "notes": ""}
+{"term": "Cargo.toml", "category": "files_config", "written_forms": ["Cargo.toml"], "ru_spoken": ["карго томл"], "en_spoken": ["cargo toml"], "notes": ""}
+{"term": "go.mod", "category": "files_config", "written_forms": ["go.mod"], "ru_spoken": ["го мод"], "en_spoken": ["go mod"], "notes": ""}
+{"term": "values-prod.yaml", "category": "files_config", "written_forms": ["values-prod.yaml"], "ru_spoken": ["вэльюс прод ямл"], "en_spoken": ["values prod yaml"], "notes": ""}
+{"term": ".github/workflows", "category": "files_config", "written_forms": [".github/workflows"], "ru_spoken": ["гитхаб воркфлоус"], "en_spoken": ["github workflows"], "notes": ""}
+{"term": "CODEOWNERS", "category": "files_config", "written_forms": ["CODEOWNERS"], "ru_spoken": ["кодоунерс"], "en_spoken": ["code owners"], "notes": ""}
+{"term": ".pre-commit-config.yaml", "category": "files_config", "written_forms": [".pre-commit-config.yaml", "pre-commit"], "ru_spoken": ["прекоммит", "пре коммит", "пре коммит конфиг ямл"], "en_spoken": ["pre commit", "pre commit config yaml"], "notes": ""}
+{"term": "schema.sql", "category": "files_config", "written_forms": ["schema.sql"], "ru_spoken": ["схема эс кью эль"], "en_spoken": ["schema dot s q l"], "notes": ""}
+{"term": "model.safetensors", "category": "files_config", "written_forms": ["model.safetensors"], "ru_spoken": ["модел сейфтензорс"], "en_spoken": ["model dot safe tensors"], "notes": ""}
+{"term": "tokenizer.json", "category": "files_config", "written_forms": ["tokenizer.json"], "ru_spoken": ["токенайзер джейсон"], "en_spoken": ["tokenizer json"], "notes": ""}
+{"term": "adapter_config.json", "category": "files_config", "written_forms": ["adapter_config.json"], "ru_spoken": ["адаптер конфиг джейсон"], "en_spoken": ["adapter config json"], "notes": ""}
+{"term": "API", "category": "acronyms", "written_forms": ["API"], "ru_spoken": ["апи", "эй пи ай"], "en_spoken": ["a p i"], "notes": ""}
+{"term": "SDK", "category": "acronyms", "written_forms": ["SDK"], "ru_spoken": ["эс ди кей", "эсдика"], "en_spoken": ["s d k"], "notes": ""}
+{"term": "GPU", "category": "acronyms", "written_forms": ["GPU"], "ru_spoken": ["гэпэу", "джи пи ю", "видюха"], "en_spoken": ["g p u"], "notes": ""}
+{"term": "NPU", "category": "acronyms", "written_forms": ["NPU"], "ru_spoken": ["эн пи ю", "энпиу"], "en_spoken": ["n p u"], "notes": ""}
+{"term": "CPU", "category": "acronyms", "written_forms": ["CPU"], "ru_spoken": ["цэпэу", "си пи ю", "проц"], "en_spoken": ["c p u"], "notes": ""}
+{"term": "TPU", "category": "acronyms", "written_forms": ["TPU"], "ru_spoken": ["ти пи ю", "тэпэу"], "en_spoken": ["t p u"], "notes": ""}
+{"term": "CI/CD", "category": "acronyms", "written_forms": ["CI/CD"], "ru_spoken": ["си ай си ди", "сиай сиди"], "en_spoken": ["c i c d"], "notes": ""}
+{"term": "CI", "category": "acronyms", "written_forms": ["CI"], "ru_spoken": ["си ай", "сиай"], "en_spoken": ["c i"], "notes": ""}
+{"term": "SLA", "category": "acronyms", "written_forms": ["SLA"], "ru_spoken": ["эс эл эй", "эсэлэй"], "en_spoken": ["s l a"], "notes": ""}
+{"term": "SLO", "category": "acronyms", "written_forms": ["SLO"], "ru_spoken": ["эс эл оу", "эсэло"], "en_spoken": ["s l o"], "notes": ""}
+{"term": "JSON", "category": "acronyms", "written_forms": ["JSON"], "ru_spoken": ["джейсон"], "en_spoken": ["jason"], "notes": ""}
+{"term": "YAML", "category": "acronyms", "written_forms": ["YAML"], "ru_spoken": ["ямл", "ямль"], "en_spoken": ["yamel"], "notes": ""}
+{"term": "REST", "category": "acronyms", "written_forms": ["REST", "REST API"], "ru_spoken": ["рест", "рест апи"], "en_spoken": [], "notes": ""}
+{"term": "gRPC", "category": "acronyms", "written_forms": ["gRPC"], "ru_spoken": ["джи ар пи си", "гэрпэцэ"], "en_spoken": ["g r p c"], "notes": ""}
+{"term": "HTTP", "category": "acronyms", "written_forms": ["HTTP"], "ru_spoken": ["эйч ти ти пи", "аштитипи"], "en_spoken": ["h t t p"], "notes": ""}
+{"term": "HTTPS", "category": "acronyms", "written_forms": ["HTTPS"], "ru_spoken": ["эйч ти ти пи эс"], "en_spoken": ["h t t p s"], "notes": ""}
+{"term": "TLS", "category": "acronyms", "written_forms": ["TLS"], "ru_spoken": ["ти эл эс"], "en_spoken": ["t l s"], "notes": ""}
+{"term": "DNS", "category": "acronyms", "written_forms": ["DNS"], "ru_spoken": ["ди эн эс", "днс"], "en_spoken": ["d n s"], "notes": ""}
+{"term": "VPN", "category": "acronyms", "written_forms": ["VPN"], "ru_spoken": ["ви пи эн", "впн"], "en_spoken": ["v p n"], "notes": ""}
+{"term": "SSO", "category": "acronyms", "written_forms": ["SSO"], "ru_spoken": ["эс эс оу", "эсэсо"], "en_spoken": ["s s o"], "notes": ""}
+{"term": "OAuth", "category": "acronyms", "written_forms": ["OAuth", "OAuth 2.0"], "ru_spoken": ["оаут", "о ауф", "оус", "о ауф два ноль"], "en_spoken": ["o auth"], "notes": ""}
+{"term": "JWT", "category": "acronyms", "written_forms": ["JWT"], "ru_spoken": ["джей дабл ю ти", "джот"], "en_spoken": ["j w t", "jot"], "notes": ""}
+{"term": "CRUD", "category": "acronyms", "written_forms": ["CRUD"], "ru_spoken": ["круд"], "en_spoken": ["crud"], "notes": ""}
+{"term": "ORM", "category": "acronyms", "written_forms": ["ORM"], "ru_spoken": ["о эр эм", "орм"], "en_spoken": ["o r m"], "notes": ""}
+{"term": "SQL", "category": "acronyms", "written_forms": ["SQL"], "ru_spoken": ["эс кью эль", "сиквел", "эскуэль"], "en_spoken": ["s q l", "sequel"], "notes": ""}
+{"term": "NoSQL", "category": "acronyms", "written_forms": ["NoSQL"], "ru_spoken": ["ноу сиквел", "но эс кью эль"], "en_spoken": ["no sequel"], "notes": ""}
+{"term": "MVP", "category": "acronyms", "written_forms": ["MVP"], "ru_spoken": ["эм ви пи", "эмвипи"], "en_spoken": ["m v p"], "notes": ""}
+{"term": "PoC", "category": "acronyms", "written_forms": ["PoC"], "ru_spoken": ["пи оу си", "пок"], "en_spoken": ["p o c", "proof of concept"], "notes": ""}
+{"term": "QA", "category": "acronyms", "written_forms": ["QA"], "ru_spoken": ["кью эй", "куа"], "en_spoken": ["q a"], "notes": ""}
+{"term": "UX", "category": "acronyms", "written_forms": ["UX"], "ru_spoken": ["ю икс", "юикс"], "en_spoken": ["u x"], "notes": ""}
+{"term": "UI", "category": "acronyms", "written_forms": ["UI"], "ru_spoken": ["ю ай", "юай"], "en_spoken": ["u i"], "notes": ""}
+{"term": "OKR", "category": "acronyms", "written_forms": ["OKR"], "ru_spoken": ["о кей ар", "окээр"], "en_spoken": ["o k r"], "notes": ""}
+{"term": "KPI", "category": "acronyms", "written_forms": ["KPI"], "ru_spoken": ["кей пи ай", "кипиай"], "en_spoken": ["k p i"], "notes": ""}
+{"term": "ETA", "category": "acronyms", "written_forms": ["ETA"], "ru_spoken": ["и ти эй", "эта"], "en_spoken": ["e t a"], "notes": ""}
+{"term": "RPS", "category": "acronyms", "written_forms": ["RPS"], "ru_spoken": ["ар пи эс", "эрпээс"], "en_spoken": ["r p s"], "notes": ""}
+{"term": "p99", "category": "acronyms", "written_forms": ["p99"], "ru_spoken": ["пэ девяносто девять", "пи девяносто девять"], "en_spoken": ["p ninety nine"], "notes": ""}
+{"term": "TTL", "category": "acronyms", "written_forms": ["TTL"], "ru_spoken": ["ти ти эл"], "en_spoken": ["t t l"], "notes": ""}
+{"term": "CDN", "category": "acronyms", "written_forms": ["CDN"], "ru_spoken": ["си ди эн"], "en_spoken": ["c d n"], "notes": ""}
+{"term": "VPC", "category": "acronyms", "written_forms": ["VPC"], "ru_spoken": ["ви пи си"], "en_spoken": ["v p c"], "notes": ""}
+{"term": "IAM", "category": "acronyms", "written_forms": ["IAM"], "ru_spoken": ["ай эй эм", "иам"], "en_spoken": ["i a m"], "notes": ""}
+{"term": "S3", "category": "acronyms", "written_forms": ["S3"], "ru_spoken": ["эс три"], "en_spoken": ["s three"], "notes": ""}
+{"term": "EC2", "category": "acronyms", "written_forms": ["EC2"], "ru_spoken": ["и си ту", "иситу"], "en_spoken": ["e c two"], "notes": ""}
+{"term": "ASR", "category": "acronyms", "written_forms": ["ASR"], "ru_spoken": ["эй эс ар", "асер"], "en_spoken": ["a s r"], "notes": ""}
+{"term": "TTS", "category": "acronyms", "written_forms": ["TTS"], "ru_spoken": ["ти ти эс", "тэтээс"], "en_spoken": ["t t s"], "notes": ""}
+{"term": "LLM", "category": "acronyms", "written_forms": ["LLM"], "ru_spoken": ["эл эл эм", "элэлэм"], "en_spoken": ["l l m"], "notes": ""}
+{"term": "NLP", "category": "acronyms", "written_forms": ["NLP"], "ru_spoken": ["эн эл пи"], "en_spoken": ["n l p"], "notes": ""}
+{"term": "OCR", "category": "acronyms", "written_forms": ["OCR"], "ru_spoken": ["о си ар", "оцээр"], "en_spoken": ["o c r"], "notes": ""}
+{"term": "RAM", "category": "acronyms", "written_forms": ["RAM"], "ru_spoken": ["рам", "оперативка"], "en_spoken": ["ram"], "notes": ""}
+{"term": "VRAM", "category": "acronyms", "written_forms": ["VRAM"], "ru_spoken": ["ви рам", "видеопамять"], "en_spoken": ["v ram"], "notes": ""}
+{"term": "SSD", "category": "acronyms", "written_forms": ["SSD"], "ru_spoken": ["эс эс ди"], "en_spoken": ["s s d"], "notes": ""}
+{"term": "NVMe", "category": "acronyms", "written_forms": ["NVMe"], "ru_spoken": ["эн ви эм и"], "en_spoken": ["n v m e"], "notes": ""}
+{"term": "OOM", "category": "acronyms", "written_forms": ["OOM"], "ru_spoken": ["оом", "оу оу эм", "ум"], "en_spoken": ["o o m", "out of memory"], "notes": ""}
+{"term": "PR", "category": "acronyms", "written_forms": ["PR"], "ru_spoken": ["пиар", "пи ар"], "en_spoken": ["p r"], "notes": ""}
+{"term": "MR", "category": "acronyms", "written_forms": ["MR"], "ru_spoken": ["эм ар", "мр"], "en_spoken": ["m r"], "notes": ""}
+{"term": "SRE", "category": "acronyms", "written_forms": ["SRE"], "ru_spoken": ["эс ар и"], "en_spoken": ["s r e"], "notes": ""}
+{"term": "DevOps", "category": "acronyms", "written_forms": ["DevOps"], "ru_spoken": ["девопс"], "en_spoken": ["dev ops"], "notes": ""}
+{"term": "MLOps", "category": "acronyms", "written_forms": ["MLOps"], "ru_spoken": ["эм эл опс", "млопс"], "en_spoken": ["m l ops"], "notes": ""}
+{"term": "SaaS", "category": "acronyms", "written_forms": ["SaaS"], "ru_spoken": ["саас", "сас"], "en_spoken": ["sass"], "notes": ""}
+{"term": "B2B", "category": "acronyms", "written_forms": ["B2B"], "ru_spoken": ["би ту би", "бэтубэ"], "en_spoken": ["b to b"], "notes": ""}
+{"term": "WebSocket", "category": "acronyms", "written_forms": ["WebSocket", "WebSockets"], "ru_spoken": ["вебсокет"], "en_spoken": ["web socket"], "notes": ""}
+{"term": "SSE", "category": "acronyms", "written_forms": ["SSE"], "ru_spoken": ["эс эс и"], "en_spoken": ["s s e"], "notes": "server-sent events"}
+{"term": "CORS", "category": "acronyms", "written_forms": ["CORS"], "ru_spoken": ["корс"], "en_spoken": ["cors"], "notes": ""}
+{"term": "XSS", "category": "acronyms", "written_forms": ["XSS"], "ru_spoken": ["икс эс эс"], "en_spoken": ["x s s"], "notes": ""}
+{"term": "CVE", "category": "acronyms", "written_forms": ["CVE"], "ru_spoken": ["си ви и"], "en_spoken": ["c v e"], "notes": ""}
+{"term": "PII", "category": "acronyms", "written_forms": ["PII"], "ru_spoken": ["пи ай ай"], "en_spoken": ["p i i"], "notes": "personally identifiable information"}
+{"term": "GDPR", "category": "acronyms", "written_forms": ["GDPR"], "ru_spoken": ["джи ди пи ар"], "en_spoken": ["g d p r"], "notes": ""}
+{"term": "SSH key", "category": "acronyms", "written_forms": ["SSH key"], "ru_spoken": ["эс эс эйч ключ"], "en_spoken": ["s s h key"], "notes": ""}
+{"term": "A/B test", "category": "acronyms", "written_forms": ["A/B test", "A/B-тест"], "ru_spoken": ["аб тест", "эй би тест"], "en_spoken": ["a b test"], "notes": ""}
+{"term": "NDA", "category": "acronyms", "written_forms": ["NDA"], "ru_spoken": ["эн ди эй", "энди эй"], "en_spoken": ["n d a"], "notes": ""}
+{"term": "RFC", "category": "acronyms", "written_forms": ["RFC"], "ru_spoken": ["ар эф си"], "en_spoken": ["r f c"], "notes": ""}
+{"term": "PDF", "category": "acronyms", "written_forms": ["PDF"], "ru_spoken": ["пэдээф", "пи ди эф"], "en_spoken": ["p d f"], "notes": ""}
+{"term": "UTC", "category": "acronyms", "written_forms": ["UTC"], "ru_spoken": ["ю ти си"], "en_spoken": ["u t c"], "notes": ""}
+{"term": "AWS", "category": "cloud_services", "written_forms": ["AWS"], "ru_spoken": ["эй дабл ю эс", "авс"], "en_spoken": ["a w s"], "notes": ""}
+{"term": "GCP", "category": "cloud_services", "written_forms": ["GCP"], "ru_spoken": ["джи си пи"], "en_spoken": ["g c p"], "notes": ""}
+{"term": "Azure", "category": "cloud_services", "written_forms": ["Azure"], "ru_spoken": ["ажур", "эжур"], "en_spoken": ["azure"], "notes": ""}
+{"term": "Yandex Cloud", "category": "cloud_services", "written_forms": ["Yandex Cloud"], "ru_spoken": ["яндекс клауд"], "en_spoken": [], "notes": ""}
+{"term": "Cloud.ru", "category": "cloud_services", "written_forms": ["Cloud.ru"], "ru_spoken": ["клауд ру"], "en_spoken": ["cloud dot r u"], "notes": ""}
+{"term": "Selectel", "category": "cloud_services", "written_forms": ["Selectel"], "ru_spoken": ["селектел"], "en_spoken": [], "notes": ""}
+{"term": "VK Cloud", "category": "cloud_services", "written_forms": ["VK Cloud"], "ru_spoken": ["вэка клауд", "вк клауд"], "en_spoken": ["v k cloud"], "notes": ""}
+{"term": "Cloudflare", "category": "cloud_services", "written_forms": ["Cloudflare"], "ru_spoken": ["клаудфлер", "клаудфлэр"], "en_spoken": [], "notes": ""}
+{"term": "Vercel", "category": "cloud_services", "written_forms": ["Vercel"], "ru_spoken": ["версел", "вёрсел"], "en_spoken": [], "notes": ""}
+{"term": "Netlify", "category": "cloud_services", "written_forms": ["Netlify"], "ru_spoken": ["нетлифай"], "en_spoken": [], "notes": ""}
+{"term": "Heroku", "category": "cloud_services", "written_forms": ["Heroku"], "ru_spoken": ["хероку"], "en_spoken": [], "notes": ""}
+{"term": "DigitalOcean", "category": "cloud_services", "written_forms": ["DigitalOcean"], "ru_spoken": ["диджитал оушен"], "en_spoken": [], "notes": ""}
+{"term": "Hetzner", "category": "cloud_services", "written_forms": ["Hetzner"], "ru_spoken": ["хецнер", "хетцнер"], "en_spoken": [], "notes": ""}
+{"term": "RunPod", "category": "cloud_services", "written_forms": ["RunPod"], "ru_spoken": ["ранпод", "ран под"], "en_spoken": [], "notes": ""}
+{"term": "Lambda Labs", "category": "cloud_services", "written_forms": ["Lambda Labs"], "ru_spoken": ["лямбда лабс"], "en_spoken": [], "notes": ""}
+{"term": "Modal", "category": "cloud_services", "written_forms": ["Modal"], "ru_spoken": ["модал"], "en_spoken": [], "notes": ""}
+{"term": "Replicate", "category": "cloud_services", "written_forms": ["Replicate"], "ru_spoken": ["репликейт"], "en_spoken": [], "notes": ""}
+{"term": "GitHub", "category": "cloud_services", "written_forms": ["GitHub"], "ru_spoken": ["гитхаб"], "en_spoken": [], "notes": ""}
+{"term": "GitLab", "category": "cloud_services", "written_forms": ["GitLab"], "ru_spoken": ["гитлаб"], "en_spoken": [], "notes": ""}
+{"term": "Bitbucket", "category": "cloud_services", "written_forms": ["Bitbucket"], "ru_spoken": ["битбакет"], "en_spoken": [], "notes": ""}
+{"term": "Jira", "category": "cloud_services", "written_forms": ["Jira"], "ru_spoken": ["жира", "джира"], "en_spoken": [], "notes": ""}
+{"term": "Confluence", "category": "cloud_services", "written_forms": ["Confluence"], "ru_spoken": ["конфлюенс"], "en_spoken": [], "notes": ""}
+{"term": "Notion", "category": "cloud_services", "written_forms": ["Notion"], "ru_spoken": ["ноушен"], "en_spoken": [], "notes": ""}
+{"term": "Slack", "category": "cloud_services", "written_forms": ["Slack"], "ru_spoken": ["слак", "слэк"], "en_spoken": [], "notes": ""}
+{"term": "Telegram", "category": "cloud_services", "written_forms": ["Telegram"], "ru_spoken": ["телеграм", "телега"], "en_spoken": [], "notes": ""}
+{"term": "Figma", "category": "cloud_services", "written_forms": ["Figma"], "ru_spoken": ["фигма"], "en_spoken": [], "notes": ""}
+{"term": "Miro", "category": "cloud_services", "written_forms": ["Miro"], "ru_spoken": ["миро"], "en_spoken": [], "notes": ""}
+{"term": "Sentry", "category": "cloud_services", "written_forms": ["Sentry"], "ru_spoken": ["сентри"], "en_spoken": [], "notes": ""}
+{"term": "Datadog", "category": "cloud_services", "written_forms": ["Datadog"], "ru_spoken": ["датадог"], "en_spoken": [], "notes": ""}
+{"term": "PagerDuty", "category": "cloud_services", "written_forms": ["PagerDuty"], "ru_spoken": ["пейджердьюти"], "en_spoken": [], "notes": ""}
+{"term": "Linear", "category": "cloud_services", "written_forms": ["Linear"], "ru_spoken": ["линеар", "линир"], "en_spoken": [], "notes": ""}
+{"term": "YouTrack", "category": "cloud_services", "written_forms": ["YouTrack"], "ru_spoken": ["ютрек"], "en_spoken": [], "notes": ""}
+{"term": "Google Meet", "category": "cloud_services", "written_forms": ["Google Meet"], "ru_spoken": ["гугл мит"], "en_spoken": [], "notes": ""}
+{"term": "Zoom", "category": "cloud_services", "written_forms": ["Zoom"], "ru_spoken": ["зум"], "en_spoken": [], "notes": ""}
+{"term": "Google Cloud Storage", "category": "cloud_services", "written_forms": ["Google Cloud Storage", "GCS"], "ru_spoken": ["гугл клауд сторадж", "джи си эс"], "en_spoken": [], "notes": ""}
+{"term": "Amazon S3", "category": "cloud_services", "written_forms": ["Amazon S3"], "ru_spoken": ["амазон эс три"], "en_spoken": [], "notes": ""}
+{"term": "AWS Lambda", "category": "cloud_services", "written_forms": ["AWS Lambda"], "ru_spoken": ["эй дабл ю эс лямбда"], "en_spoken": [], "notes": ""}
+{"term": "SageMaker", "category": "cloud_services", "written_forms": ["SageMaker"], "ru_spoken": ["сейджмейкер"], "en_spoken": [], "notes": ""}
+{"term": "Vertex AI", "category": "cloud_services", "written_forms": ["Vertex AI"], "ru_spoken": ["вертекс эй ай"], "en_spoken": ["vertex a i"], "notes": ""}
+{"term": "Azure OpenAI", "category": "cloud_services", "written_forms": ["Azure OpenAI"], "ru_spoken": ["ажур опен эй ай"], "en_spoken": [], "notes": ""}
+{"term": "Docker Hub", "category": "cloud_services", "written_forms": ["Docker Hub"], "ru_spoken": ["докер хаб"], "en_spoken": [], "notes": ""}
+{"term": "Artifactory", "category": "cloud_services", "written_forms": ["Artifactory"], "ru_spoken": ["артифактори"], "en_spoken": [], "notes": ""}
+{"term": "Nexus", "category": "cloud_services", "written_forms": ["Nexus"], "ru_spoken": ["нексус"], "en_spoken": [], "notes": ""}
+{"term": "SonarQube", "category": "cloud_services", "written_forms": ["SonarQube"], "ru_spoken": ["сонар кьюб", "сонаркуб"], "en_spoken": ["sonar cube"], "notes": ""}
+{"term": "Postman", "category": "cloud_services", "written_forms": ["Postman"], "ru_spoken": ["постман"], "en_spoken": [], "notes": ""}
+{"term": "Swagger", "category": "cloud_services", "written_forms": ["Swagger", "OpenAPI"], "ru_spoken": ["сваггер", "опен апи"], "en_spoken": [], "notes": ""}
+{"term": "Яндекс Трекер", "category": "cloud_services", "written_forms": ["Яндекс Трекер"], "ru_spoken": ["яндекс трекер"], "en_spoken": [], "notes": "Russian issue tracker"}
+{"term": "Яндекс", "category": "cloud_services", "written_forms": ["Яндекс"], "ru_spoken": ["яндекс"], "en_spoken": [], "notes": ""}
+{"term": "Сбер", "category": "cloud_services", "written_forms": ["Сбер", "Сбербанк"], "ru_spoken": ["сбер"], "en_spoken": [], "notes": ""}
+{"term": "Т-Банк", "category": "cloud_services", "written_forms": ["Т-Банк", "Тинькофф"], "ru_spoken": ["т банк", "тинькофф"], "en_spoken": [], "notes": ""}
+{"term": "Авито", "category": "cloud_services", "written_forms": ["Авито"], "ru_spoken": ["авито"], "en_spoken": [], "notes": ""}
+{"term": "Озон", "category": "cloud_services", "written_forms": ["Озон"], "ru_spoken": ["озон"], "en_spoken": [], "notes": ""}
+{"term": "ВКонтакте", "category": "cloud_services", "written_forms": ["ВКонтакте", "ВК"], "ru_spoken": ["вконтакте", "вэка"], "en_spoken": [], "notes": ""}
+{"term": "Госуслуги", "category": "cloud_services", "written_forms": ["Госуслуги"], "ru_spoken": ["госуслуги"], "en_spoken": [], "notes": ""}
+{"term": "1С", "category": "cloud_services", "written_forms": ["1С", "1С:Предприятие"], "ru_spoken": ["один эс", "одинэс"], "en_spoken": [], "notes": "Cyrillic С in 1С"}
+{"term": "Битрикс24", "category": "cloud_services", "written_forms": ["Битрикс24", "Битрикс"], "ru_spoken": ["битрикс двадцать четыре", "битрикс"], "en_spoken": [], "notes": ""}
+{"term": "Касперский", "category": "cloud_services", "written_forms": ["Касперский"], "ru_spoken": ["касперский"], "en_spoken": [], "notes": ""}
+{"term": "Контур", "category": "cloud_services", "written_forms": ["Контур"], "ru_spoken": ["контур"], "en_spoken": [], "notes": ""}
+{"term": "Пачка", "category": "cloud_services", "written_forms": ["Пачка"], "ru_spoken": ["пачка"], "en_spoken": [], "notes": "Russian work messenger"}
+{"term": "Яндекс Диск", "category": "cloud_services", "written_forms": ["Яндекс Диск"], "ru_spoken": ["яндекс диск"], "en_spoken": [], "notes": ""}
+{"term": "Мегафон", "category": "cloud_services", "written_forms": ["Мегафон"], "ru_spoken": ["мегафон"], "en_spoken": [], "notes": ""}
+{"term": "H100", "category": "hardware", "written_forms": ["H100"], "ru_spoken": ["аш сто", "эйч сто"], "en_spoken": ["h one hundred"], "notes": ""}
+{"term": "H200", "category": "hardware", "written_forms": ["H200"], "ru_spoken": ["аш двести", "эйч двести"], "en_spoken": ["h two hundred"], "notes": ""}
+{"term": "A100", "category": "hardware", "written_forms": ["A100"], "ru_spoken": ["а сто", "эй сто"], "en_spoken": ["a one hundred"], "notes": ""}
+{"term": "B200", "category": "hardware", "written_forms": ["B200"], "ru_spoken": ["би двести", "бэ двести"], "en_spoken": ["b two hundred"], "notes": ""}
+{"term": "RTX 5090", "category": "hardware", "written_forms": ["RTX 5090", "5090"], "ru_spoken": ["эр ти икс пятьдесят девяносто", "пятьдесят девяностая"], "en_spoken": ["r t x fifty ninety"], "notes": ""}
+{"term": "RTX 4090", "category": "hardware", "written_forms": ["RTX 4090", "4090"], "ru_spoken": ["эр ти икс сорок девяносто", "сорок девяностая"], "en_spoken": ["r t x forty ninety"], "notes": ""}
+{"term": "Snapdragon 8 Elite", "category": "hardware", "written_forms": ["Snapdragon 8 Elite"], "ru_spoken": ["снэпдрагон восемь элит", "снапдрагон восемь элит"], "en_spoken": [], "notes": ""}
+{"term": "Hexagon NPU", "category": "hardware", "written_forms": ["Hexagon NPU", "Hexagon"], "ru_spoken": ["хексагон", "гексагон эн пи ю"], "en_spoken": ["hexagon n p u"], "notes": ""}
+{"term": "Adreno", "category": "hardware", "written_forms": ["Adreno"], "ru_spoken": ["адрено"], "en_spoken": [], "notes": ""}
+{"term": "Galaxy Z Fold7", "category": "hardware", "written_forms": ["Galaxy Z Fold7", "Fold7"], "ru_spoken": ["гэлакси зет фолд семь", "фолд семь"], "en_spoken": ["galaxy z fold seven"], "notes": ""}
+{"term": "Pixel 9", "category": "hardware", "written_forms": ["Pixel 9"], "ru_spoken": ["пиксель девять"], "en_spoken": [], "notes": ""}
+{"term": "Apple M4", "category": "hardware", "written_forms": ["Apple M4", "M4"], "ru_spoken": ["эппл эм четыре", "эм четыре"], "en_spoken": [], "notes": ""}
+{"term": "MacBook Pro", "category": "hardware", "written_forms": ["MacBook Pro"], "ru_spoken": ["макбук про"], "en_spoken": [], "notes": ""}
+{"term": "Jetson Orin", "category": "hardware", "written_forms": ["Jetson Orin"], "ru_spoken": ["джетсон орин"], "en_spoken": [], "notes": ""}
+{"term": "Raspberry Pi", "category": "hardware", "written_forms": ["Raspberry Pi"], "ru_spoken": ["распберри пай", "малинка"], "en_spoken": [], "notes": ""}
+{"term": "ARM64", "category": "hardware", "written_forms": ["ARM64", "arm64", "aarch64"], "ru_spoken": ["арм шестьдесят четыре", "аарч шестьдесят четыре"], "en_spoken": ["arm sixty four"], "notes": ""}
+{"term": "x86_64", "category": "hardware", "written_forms": ["x86_64", "x86"], "ru_spoken": ["икс восемьдесят шесть шестьдесят четыре", "икс восемьдесят шесть"], "en_spoken": ["x eighty six sixty four"], "notes": ""}
+{"term": "NVLink", "category": "hardware", "written_forms": ["NVLink"], "ru_spoken": ["эн ви линк"], "en_spoken": ["n v link"], "notes": ""}
+{"term": "PCIe 5.0", "category": "hardware", "written_forms": ["PCIe 5.0", "PCIe"], "ru_spoken": ["пи си ай экспресс пять", "писиай"], "en_spoken": ["p c i e five"], "notes": ""}
+{"term": "LPDDR5X", "category": "hardware", "written_forms": ["LPDDR5X"], "ru_spoken": ["эл пи ди ди ар пять икс"], "en_spoken": ["l p d d r five x"], "notes": ""}
+{"term": "Infiniband", "category": "hardware", "written_forms": ["Infiniband", "InfiniBand"], "ru_spoken": ["инфинибенд", "инфинибэнд"], "en_spoken": [], "notes": ""}
+{"term": "NVIDIA", "category": "hardware", "written_forms": ["NVIDIA", "Nvidia"], "ru_spoken": ["нвидиа", "энвидиа"], "en_spoken": ["en-vid-ia"], "notes": ""}
+{"term": "AMD", "category": "hardware", "written_forms": ["AMD"], "ru_spoken": ["эй эм ди", "амд"], "en_spoken": ["a m d"], "notes": ""}
+{"term": "Qualcomm", "category": "hardware", "written_forms": ["Qualcomm"], "ru_spoken": ["квалком"], "en_spoken": [], "notes": ""}
+{"term": "Exynos", "category": "hardware", "written_forms": ["Exynos"], "ru_spoken": ["эксинос"], "en_spoken": [], "notes": ""}
+{"term": "Tensor G4", "category": "hardware", "written_forms": ["Tensor G4"], "ru_spoken": ["тензор джи четыре"], "en_spoken": [], "notes": ""}
+{"term": "Mac Studio", "category": "hardware", "written_forms": ["Mac Studio"], "ru_spoken": ["мак студио"], "en_spoken": [], "notes": ""}
+{"term": "ThinkPad", "category": "hardware", "written_forms": ["ThinkPad"], "ru_spoken": ["синкпад", "тинкпад"], "en_spoken": [], "notes": ""}
+{"term": "USB-C", "category": "hardware", "written_forms": ["USB-C"], "ru_spoken": ["ю эс би си", "юэсби си"], "en_spoken": ["u s b c"], "notes": ""}
+{"term": "Wi-Fi 7", "category": "hardware", "written_forms": ["Wi-Fi 7"], "ru_spoken": ["вайфай семь"], "en_spoken": [], "notes": ""}
+{"term": "Android", "category": "mobile_android", "written_forms": ["Android"], "ru_spoken": ["андроид"], "en_spoken": [], "notes": ""}
+{"term": "APK", "category": "mobile_android", "written_forms": ["APK"], "ru_spoken": ["апк", "эй пи кей"], "en_spoken": ["a p k"], "notes": ""}
+{"term": "AAB", "category": "mobile_android", "written_forms": ["AAB"], "ru_spoken": ["эй эй би", "ааб"], "en_spoken": ["a a b"], "notes": ""}
+{"term": "ADB", "category": "mobile_android", "written_forms": ["ADB"], "ru_spoken": ["эй ди би", "адб"], "en_spoken": ["a d b"], "notes": ""}
+{"term": "AccessibilityService", "category": "mobile_android", "written_forms": ["AccessibilityService", "Accessibility Service"], "ru_spoken": ["аксессибилити сервис"], "en_spoken": ["accessibility service"], "notes": ""}
+{"term": "foreground service", "category": "mobile_android", "written_forms": ["foreground service"], "ru_spoken": ["форграунд сервис"], "en_spoken": [], "notes": ""}
+{"term": "WorkManager", "category": "mobile_android", "written_forms": ["WorkManager"], "ru_spoken": ["воркменеджер", "ворк менеджер"], "en_spoken": ["work manager"], "notes": ""}
+{"term": "Hilt", "category": "mobile_android", "written_forms": ["Hilt"], "ru_spoken": ["хилт"], "en_spoken": [], "notes": ""}
+{"term": "Dagger", "category": "mobile_android", "written_forms": ["Dagger"], "ru_spoken": ["даггер"], "en_spoken": [], "notes": ""}
+{"term": "Retrofit", "category": "mobile_android", "written_forms": ["Retrofit"], "ru_spoken": ["ретрофит"], "en_spoken": [], "notes": ""}
+{"term": "OkHttp", "category": "mobile_android", "written_forms": ["OkHttp"], "ru_spoken": ["окей эйч ти ти пи", "окхттп"], "en_spoken": ["ok h t t p"], "notes": ""}
+{"term": "Kotlin coroutines", "category": "mobile_android", "written_forms": ["Kotlin coroutines", "coroutines"], "ru_spoken": ["корутины", "котлин корутины"], "en_spoken": [], "notes": ""}
+{"term": "Flow", "category": "mobile_android", "written_forms": ["Flow", "StateFlow"], "ru_spoken": ["флоу", "стейтфлоу"], "en_spoken": [], "notes": ""}
+{"term": "ViewModel", "category": "mobile_android", "written_forms": ["ViewModel"], "ru_spoken": ["вьюмодель", "вью модель"], "en_spoken": ["view model"], "notes": ""}
+{"term": "Google Play Console", "category": "mobile_android", "written_forms": ["Google Play Console", "Play Console"], "ru_spoken": ["гугл плей консоль", "плей консоль"], "en_spoken": [], "notes": ""}
+{"term": "Google Play", "category": "mobile_android", "written_forms": ["Google Play", "Play Market"], "ru_spoken": ["гугл плей", "плей маркет"], "en_spoken": [], "notes": ""}
+{"term": "RuStore", "category": "mobile_android", "written_forms": ["RuStore"], "ru_spoken": ["рустор"], "en_spoken": ["ru store"], "notes": ""}
+{"term": "ProGuard", "category": "mobile_android", "written_forms": ["ProGuard"], "ru_spoken": ["прогард"], "en_spoken": ["pro guard"], "notes": ""}
+{"term": "R8", "category": "mobile_android", "written_forms": ["R8"], "ru_spoken": ["эр восемь"], "en_spoken": ["r eight"], "notes": ""}
+{"term": "NDK", "category": "mobile_android", "written_forms": ["NDK"], "ru_spoken": ["эн ди кей"], "en_spoken": ["n d k"], "notes": ""}
+{"term": "JNI", "category": "mobile_android", "written_forms": ["JNI"], "ru_spoken": ["джей эн ай"], "en_spoken": ["j n i"], "notes": ""}
+{"term": "Android Studio", "category": "mobile_android", "written_forms": ["Android Studio"], "ru_spoken": ["андроид студио"], "en_spoken": [], "notes": ""}
+{"term": "Logcat", "category": "mobile_android", "written_forms": ["Logcat"], "ru_spoken": ["логкат", "логкэт"], "en_spoken": ["log cat"], "notes": ""}
+{"term": "Baseline Profiles", "category": "mobile_android", "written_forms": ["Baseline Profiles"], "ru_spoken": ["бейслайн профайлс"], "en_spoken": [], "notes": ""}
+{"term": "Material 3", "category": "mobile_android", "written_forms": ["Material 3", "Material You"], "ru_spoken": ["материал три", "матириал три", "материал ю"], "en_spoken": [], "notes": ""}
+{"term": "deep link", "category": "mobile_android", "written_forms": ["deep link", "deeplink"], "ru_spoken": ["диплинк", "дип линк"], "en_spoken": [], "notes": ""}
+{"term": "push notification", "category": "mobile_android", "written_forms": ["push notification", "push"], "ru_spoken": ["пуш уведомление", "пуш"], "en_spoken": [], "notes": ""}
+{"term": "TestFlight", "category": "mobile_android", "written_forms": ["TestFlight"], "ru_spoken": ["тестфлайт"], "en_spoken": [], "notes": ""}
+{"term": "Firebase", "category": "mobile_android", "written_forms": ["Firebase"], "ru_spoken": ["файрбейс"], "en_spoken": ["fire base"], "notes": ""}
+{"term": "Crashlytics", "category": "mobile_android", "written_forms": ["Crashlytics"], "ru_spoken": ["крашлитикс"], "en_spoken": [], "notes": ""}
+{"term": "DataStore", "category": "mobile_android", "written_forms": ["DataStore"], "ru_spoken": ["датастор"], "en_spoken": ["data store"], "notes": ""}
+{"term": "Room", "category": "mobile_android", "written_forms": ["Room"], "ru_spoken": ["рум"], "en_spoken": ["room"], "notes": ""}
+{"term": "emulator", "category": "mobile_android", "written_forms": ["emulator", "Android emulator"], "ru_spoken": ["эмулятор", "андроид эмулятор"], "en_spoken": [], "notes": ""}

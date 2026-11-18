@@ -1,0 +1,9 @@
+{
+  "_comment": "Stock models for the prompt eval. Paths are relative to the repo root (gitignored .cache). Downloaded from the public HF repos listed in 'repo'.",
+  "q2b":   {"gguf": ".cache/ml/llm/Qwen3.5-2B-Q4_0.gguf", "template": "qwen3.5", "repo": "unsloth/Qwen3.5-2B-GGUF", "langs": "ru,en"},
+  "lfm3":  {"gguf": ".cache/ml/llm/LFM3-1.7B-QAD-Q4_0.gguf", "template": "lfm3", "repo": "LiquidAI/LFM3-1.7B-GGUF", "langs": "ru,en"},
+  "q08":   {"gguf": ".cache/ml/llm/Qwen3.5-0.8B-Q4_0.gguf", "template": "qwen3.5", "repo": "unsloth/Qwen3.5-0.8B-GGUF", "langs": "ru,en"},
+  "lfm25": {"gguf": ".cache/ml/prompt/llm/LFM2.5-1.2B-Instruct-QAD-Q4_0.gguf", "template": "lfm2.5", "repo": "LiquidAI/LFM2.5-1.2B-Instruct-GGUF", "langs": "en (card lists no Russian)"},
+  "lfm25s": {"gguf": ".cache/ml/prompt/llm/LFM2.5-350M-QAD-Q4_0.gguf", "template": "lfm2.5", "repo": "LiquidAI/LFM2.5-350M-GGUF", "langs": "en (card lists no Russian)"},
+  "q3s":   {"gguf": ".cache/ml/prompt/llm/Qwen3-0.6B-Q4_0.gguf", "template": "qwen3", "repo": "unsloth/Qwen3-0.6B-GGUF", "langs": "ru,en"}
+}

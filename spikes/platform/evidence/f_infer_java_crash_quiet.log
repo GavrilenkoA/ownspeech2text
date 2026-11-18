@@ -1,0 +1,22 @@
+  9785  9785 I MurmurSpike: EV cmd {"pid":9785,"up":1135882,"c":"infer_load"}
+  9785  9785 I MurmurSpike: EV infer_bind {"pid":9785,"up":1135884,"ok":true,"ms":2}
+  9945  9945 I MurmurSpike: EV infer_created {"pid":9945,"up":1136678,"process":"infer"}
+  9945  9945 I MurmurSpike: EV infer_bound {"pid":9945,"up":1136679}
+  9785  9785 I MurmurSpike: EV infer_connected {"pid":9785,"up":1136684}
+  9785  9785 I MurmurSpike: EV infer_reply {"pid":9785,"up":1136907,"what":1,"inferPid":9945,"pssKb":98388,"loadMs":164}
+  9785  9785 I MurmurSpike: EV cmd {"pid":9785,"up":1137998,"c":"infer_crash"}
+  9945  9945 I MurmurSpike: EV infer_uncaught {"pid":9945,"up":1138004,"err":"java.lang.IllegalStateException: spike: simulated runtime crash in :infer"}
+  9785  9785 I MurmurSpike: EV infer_disconnected {"pid":9785,"up":1138047}
+  9964  9964 I MurmurSpike: EV infer_created {"pid":9964,"up":1139779,"process":"infer"}
+  9964  9964 I MurmurSpike: EV infer_bound {"pid":9964,"up":1139781}
+  9785  9785 I MurmurSpike: EV infer_connected {"pid":9785,"up":1139783}
+  9785  9785 I MurmurSpike: EV service_unbind {"pid":9785,"up":1141852}
+  9785  9785 I MurmurSpike: EV bubble_detached {"pid":9785,"up":1142010,"display":0}
+  9785  9785 I MurmurSpike: EV service_destroy {"pid":9785,"up":1142015}
+  9964  9964 I MurmurSpike: EV infer_unbound_exiting {"pid":9964,"up":1142110,"heldMb":0,"pssKb":32523}
+  9785  9785 I MurmurSpike: EV service_connected {"pid":9785,"up":1142997,"sdk":36,"flags":32848,"caps":129,"isAccessibilityTool":false,"inputMethod":true}
+  9785  9785 I MurmurSpike: EV bubble_attached {"pid":9785,"up":1143009,"display":0,"ok":true,"type":2032,"bounds":"[0,0][1080,2520]"}
+  9785  9785 I MurmurSpike: EV ime_start_input {"pid":9785,"up":1143016,"pkg":"app.murmur.spike.target","inputType":131073,"hint":"plain EditText (plain)","fieldId":-1,"restarting":false}
+  9785  9785 I MurmurSpike: EV fg_window_state {"pid":9785,"up":1143763,"pkg":"app.murmur.spike","cls":"androidx.compose.ui.platform.ComposeView"}
+  9785  9785 I MurmurSpike: EV cmd {"pid":9785,"up":1144001,"c":"ping"}
+  9785  9785 I MurmurSpike: EV pong {"pid":9785,"up":1144001,"connected":true,"overlays":1}

@@ -1,0 +1,76 @@
+cmd: Can't find service: settings
+cmd: Can't find service: activity
+cmd: Can't find service: window
+cmd: Can't find service: activity
+cmd: Can't find service: activity
+cmd: Can't find service: window
+a: 0 reclamps, 1 pongs, type: 
+
+Exception occurred while executing 'tap':
+java.lang.IllegalArgumentException: Argument expected after "tap"
+	at com.android.modules.utils.BasicShellCommandHandler.getNextArgRequired(BasicShellCommandHandler.java:295)
+	at com.android.server.input.InputShellCommand.runTap(InputShellCommand.java:484)
+	at com.android.server.input.InputShellCommand.onCommand(InputShellCommand.java:294)
+	at com.android.modules.utils.BasicShellCommandHandler.exec(BasicShellCommandHandler.java:97)
+	at android.os.ShellCommand.exec(ShellCommand.java:39)
+	at com.android.server.input.InputManagerService.onShellCommand(InputManagerService.java:4404)
+	at android.os.Binder.shellCommand(Binder.java:1088)
+	at android.os.Binder.onTransact(Binder.java:946)
+	at android.hardware.input.IInputManager$Stub.onTransact(IInputManager.java:1906)
+	at android.os.Binder.execTransactInternal(Binder.java:1369)
+	at android.os.Binder.execTransact(Binder.java:1323)
+
+Exception occurred while executing 'tap':
+java.lang.IllegalArgumentException: Argument expected after "tap"
+	at com.android.modules.utils.BasicShellCommandHandler.getNextArgRequired(BasicShellCommandHandler.java:295)
+	at com.android.server.input.InputShellCommand.runTap(InputShellCommand.java:484)
+	at com.android.server.input.InputShellCommand.onCommand(InputShellCommand.java:294)
+	at com.android.modules.utils.BasicShellCommandHandler.exec(BasicShellCommandHandler.java:97)
+	at android.os.ShellCommand.exec(ShellCommand.java:39)
+	at com.android.server.input.InputManagerService.onShellCommand(InputManagerService.java:4404)
+	at android.os.Binder.shellCommand(Binder.java:1088)
+	at android.os.Binder.onTransact(Binder.java:946)
+	at android.hardware.input.IInputManager$Stub.onTransact(IInputManager.java:1906)
+	at android.os.Binder.execTransactInternal(Binder.java:1369)
+	at android.os.Binder.execTransact(Binder.java:1323)
+b fgs: 
+   
+b hidden: ServiceRecord{c7aaa1 u0 app.murmur.spike/.SpikeA11yService code:PROC_STATE_PERSISTENT allowWiu:10 ServiceRecord{a9fbc02 u0 app.murmur.spike/.RecordingFgs code:ACTIVITY_STARTER allowWiu:52 | EV fgs_started {"pid":3562,"up":206541,"type":"microphone","msFromTap":93}
+
+Exception occurred while executing 'tap':
+java.lang.IllegalArgumentException: Argument expected after "tap"
+	at com.android.modules.utils.BasicShellCommandHandler.getNextArgRequired(BasicShellCommandHandler.java:295)
+	at com.android.server.input.InputShellCommand.runTap(InputShellCommand.java:484)
+	at com.android.server.input.InputShellCommand.onCommand(InputShellCommand.java:294)
+	at com.android.modules.utils.BasicShellCommandHandler.exec(BasicShellCommandHandler.java:97)
+	at android.os.ShellCommand.exec(ShellCommand.java:39)
+	at com.android.server.input.InputManagerService.onShellCommand(InputManagerService.java:4404)
+	at android.os.Binder.shellCommand(Binder.java:1088)
+	at android.os.Binder.onTransact(Binder.java:946)
+	at android.hardware.input.IInputManager$Stub.onTransact(IInputManager.java:1906)
+	at android.os.Binder.execTransactInternal(Binder.java:1369)
+	at android.os.Binder.execTransact(Binder.java:1323)
+
+Exception occurred while executing 'tap':
+java.lang.IllegalArgumentException: Argument expected after "tap"
+	at com.android.modules.utils.BasicShellCommandHandler.getNextArgRequired(BasicShellCommandHandler.java:295)
+	at com.android.server.input.InputShellCommand.runTap(InputShellCommand.java:484)
+	at com.android.server.input.InputShellCommand.onCommand(InputShellCommand.java:294)
+	at com.android.modules.utils.BasicShellCommandHandler.exec(BasicShellCommandHandler.java:97)
+	at android.os.ShellCommand.exec(ShellCommand.java:39)
+	at com.android.server.input.InputManagerService.onShellCommand(InputManagerService.java:4404)
+	at android.os.Binder.shellCommand(Binder.java:1088)
+	at android.os.Binder.onTransact(Binder.java:946)
+	at android.hardware.input.IInputManager$Stub.onTransact(IInputManager.java:1906)
+	at android.os.Binder.execTransactInternal(Binder.java:1369)
+	at android.os.Binder.execTransact(Binder.java:1323)
+b nofgs: 
+control off: 1:false 2:false 3:false 4:false 5:false 6:false 7:false 8:false 9:false 10:false 11:false 12:false 13:true
+c PlainActivity: window#1=true/ window#2_immediate=true/ display#1_immediate=true/ display#2_immediate=true/
+c SecureActivity: window#1=false/6 window#2_immediate=false/3 display#1_immediate=true/ display#2_immediate=true/ display#3_after350=true/ window#3_after350=false/6 invalid_window=false/5
+e clip: EV clip {"pid":3562,"up":279695,"writeOk":true,"readBackFromService":null} TGT {"field":"plain","text":"clip_from_service_37"}
+f load:  TOTAL PSS: 560062 TOTAL RSS: 676924 TOTAL SWAP (KB): 0
+f after idle: gone
+f crash: EV infer_created {"pid":4388,"up":284555,"process":"infer"}|EV infer_created {"pid":4419,"up":299575,"process":"infer"}|EV infer_disconnected {"pid":3562,"up":302702}|EV infer_created {"pid":4450,"up":305651,"process":"infer"}|EV pong {"pid":3562,"up":306250,"connected":true,"overlays":1}
+g: EV uidt_schedule {"pid":3562,"up":307795,"from":"a11y_service_background","result":"RESULT_SUCCESS"}|EV uidt_start {"pid":3562,"up":307826,"userInitiated":true,"name":"bg-test.bin","partBytes":0}|EV uidt_http {"pid":3562,"up":309729,"code":200,"rangeFrom":0,"contentRange":null,"finalHost":"us.aws.cdn.hf.co","len":151061672}
+EXIT=0

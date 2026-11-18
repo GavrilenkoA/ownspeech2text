@@ -1,0 +1,202 @@
+{
+ "clips": {
+  "ru": {
+   "tts": "piper/ru_RU-denis-medium",
+   "text_read": "Созвон с Laura по Kubernetes в 10:30, потом деплой в ClickHouse через GitHub Actions."
+  },
+  "en": {
+   "tts": "piper/en_US-joe-medium",
+   "text_read": "Deploy the LoRA adapter to Kubernetes, then check ClickHouse latency at 10:30."
+  }
+ },
+ "threads": 4,
+ "date": "2026-11-18",
+ "command": "tools/heavy .cache/ml/roundtrip/venv/bin/python -m ml.roundtrip.asr verify --ru <ru.wav> --en <en.wav> --threads 4",
+ "results": [
+  {
+   "asr_model": "parakeet-tdt-0.6b-v3@onnx-int8",
+   "languages": [
+    "en",
+    "ru"
+   ],
+   "load_s": 2.1,
+   "ru": {
+    "hypothesis": "Создался покупан эти с десять тридцать, потом диплое вклик через дета бакс.",
+    "wall_s": 0.261,
+    "rtfx": 19.6
+   },
+   "en": {
+    "hypothesis": "Deploy the low RA adapter to Kubernetes, then check click house latency at 1030.",
+    "wall_s": 0.274,
+    "rtfx": 18.29
+   },
+   "status": "ok"
+  },
+  {
+   "asr_model": "parakeet-ultra-0.6b@onnx-int8",
+   "languages": [
+    "en",
+    "ru"
+   ],
+   "load_s": 1.58,
+   "ru": {
+    "hypothesis": "Создан слая покупан эти с 1030, потом две пле вклик через Dita Box.",
+    "wall_s": 0.256,
+    "rtfx": 19.99
+   },
+   "en": {
+    "hypothesis": "Deploy the low RA adapter to Kubernetes, then check Click House latency at 1030.",
+    "wall_s": 0.261,
+    "rtfx": 19.2
+   },
+   "status": "ok"
+  },
+  {
+   "asr_model": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms",
+   "languages": [
+    "en",
+    "ru"
+   ],
+   "load_s": 1.33,
+   "ru": {
+    "hypothesis": "Санц лепа купанете с 1030, потом теплые вклика через дета Бокшенс",
+    "wall_s": 0.933,
+    "rtfx": 5.49
+   },
+   "en": {
+    "hypothesis": "Deploy the low RA adapter to Kubernetes, then check click House latency at ten thirty",
+    "wall_s": 0.886,
+    "rtfx": 5.66
+   },
+   "status": "ok"
+  },
+  {
+   "asr_model": "gigaam-v3-e2e-rnnt@onnx-int8",
+   "languages": [
+    "ru"
+   ],
+   "load_s": 0.78,
+   "ru": {
+    "hypothesis": "1030, потом клик через",
+    "wall_s": 0.173,
+    "rtfx": 29.63
+   },
+   "status": "ok"
+  },
+  {
+   "asr_model": "gigaam-v3-e2e-ctc@onnx-int8",
+   "languages": [
+    "ru"
+   ],
+   "load_s": 0.71,
+   "ru": {
+    "hypothesis": "Содаlp ube1030, по depl clicks через Detbactions.",
+    "wall_s": 0.169,
+    "rtfx": 30.33
+   },
+   "status": "ok"
+  },
+  {
+   "asr_model": "t-one@onnx",
+   "languages": [
+    "ru"
+   ],
+   "load_s": 1.16,
+   "ru": {
+    "hypothesis": "создал своя покупанета десять тридцать потом деплаю кликай через битабаксы",
+    "wall_s": 0.316,
+    "rtfx": 16.18
+   },
+   "status": "ok"
+  },
+  {
+   "asr_model": "qwen3-asr-0.6b@onnx-int8",
+   "languages": [
+    "en",
+    "ru"
+   ],
+   "load_s": 2.8,
+   "ru": {
+    "hypothesis": "Соснан слегка покрупнел и с десять тридцать потом дплыв к лике через летопоклонств.",
+    "wall_s": 1.625,
+    "rtfx": 3.15
+   },
+   "en": {
+    "hypothesis": "Deploy the low R adapter to Kubernetes. Then check. Click house latency at 10:30.",
+    "wall_s": 1.14,
+    "rtfx": 4.4
+   },
+   "status": "ok"
+  },
+  {
+   "asr_model": "whisper-large-v3-turbo@onnx-int8",
+   "languages": [
+    "en",
+    "ru"
+   ],
+   "load_s": 1.53,
+   "ru": {
+    "hypothesis": "Сознал слеп по кубанетис 10.30, потом деплыв клик из через Data Abactions.",
+    "wall_s": 2.662,
+    "rtfx": 1.92
+   },
+   "en": {
+    "hypothesis": "Deploy the low RA adapter to Kubernetes, then check click house latency at 10:30.",
+    "wall_s": 3.649,
+    "rtfx": 1.37
+   },
+   "status": "ok"
+  },
+  {
+   "asr_model": "distil-large-v3.5@onnx-int8",
+   "languages": [
+    "en"
+   ],
+   "load_s": 1.4,
+   "en": {
+    "hypothesis": "Deploy the low RA adapter to Kubernetes, then check Click House Latency at 10::",
+    "wall_s": 1.757,
+    "rtfx": 2.85
+   },
+   "status": "ok"
+  },
+  {
+   "asr_model": "whisper-small@onnx-int8",
+   "languages": [
+    "en",
+    "ru"
+   ],
+   "load_s": 1.13,
+   "ru": {
+    "hypothesis": "Соза слэп покупан с 10.30, потом деплыв кликась через DITO BUSHINS.",
+    "wall_s": 2.413,
+    "rtfx": 2.12
+   },
+   "en": {
+    "hypothesis": "Deploy the low RA adapter to Kubernetes, then check Click House Latency at 1030.",
+    "wall_s": 2.815,
+    "rtfx": 1.78
+   },
+   "status": "ok"
+  },
+  {
+   "asr_model": "whisper-medium@onnx-int8",
+   "languages": [
+    "en",
+    "ru"
+   ],
+   "load_s": 3.3,
+   "ru": {
+    "hypothesis": "Соза слева покупа на эти 10.30, потом диплеев кликать через дитаб акшнст.",
+    "wall_s": 8.693,
+    "rtfx": 0.59
+   },
+   "en": {
+    "hypothesis": "Deploy the low-RA adapter to Kubernetes, then check click house latency at 1030.",
+    "wall_s": 9.46,
+    "rtfx": 0.53
+   },
+   "status": "ok"
+  }
+ ]
+}

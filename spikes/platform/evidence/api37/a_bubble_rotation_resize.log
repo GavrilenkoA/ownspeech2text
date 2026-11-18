@@ -1,0 +1,6 @@
+  3562  3562 I MurmurSpike: EV cmd {"pid":3562,"up":338814,"c":"where"}
+  3562  3562 I MurmurSpike: EV bubble_where {"pid":3562,"up":338815,"display":0,"x":84,"y":684,"lpx":0,"lpy":600}
+  3562  3562 I MurmurSpike: EV cmd {"pid":3562,"up":338855,"c":"ping"}
+  3562  3562 I MurmurSpike: EV pong {"pid":3562,"up":338855,"connected":true,"overlays":1}
+  3562  3562 I MurmurSpike: EV cmd {"pid":3562,"up":344820,"c":"where"}
+  3562  3562 I MurmurSpike: EV bubble_where {"pid":3562,"up":344820,"display":0,"x":84,"y":684,"lpx":0,"lpy":600}

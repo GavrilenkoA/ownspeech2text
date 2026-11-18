@@ -1,0 +1,740 @@
+# term | extra written forms ; | ru_spoken ; | en_spoken ; | notes
+## devops_infra
+Kubernetes | | кубернетес; кубернетис; кубер | | often shortened to "кубер" in speech
+k8s | | кубер; кубернетес; кейтс | kubernetes; kates | numeronym, never read letter by letter
+Docker | | докер | |
+Docker Compose | | докер компоуз; докер композ | |
+Helm | | хелм; хельм | |
+Helm chart | | хелм чарт; хельм чарт | |
+Terraform | | терраформ | |
+Ansible | | ансибл; энсибл | |
+Nginx | | энджинкс; нджинкс; нгинкс | engine x | spelled nginx, read engine-x
+Prometheus | | прометеус; прометей | |
+Grafana | | графана | |
+Loki | | локи | |
+Jaeger | | егерь; джагер; йегер | yay-ger |
+OpenTelemetry | | опентелеметри; оупен телеметри | |
+Argo CD | ArgoCD | арго си ди; арго сиди | argo c d |
+Jenkins | | дженкинс | |
+GitLab CI | | гитлаб си ай; гитлаб сиай | |
+GitHub Actions | | гитхаб экшнс; гитхаб экшены | |
+Istio | | истио | |
+Envoy | | энвой | |
+Consul | | консул | |
+HashiCorp Vault | | хашикорп волт; волт | |
+Traefik | | трафик; трэфик | traffic | spelled Traefik, read "traffic"
+HAProxy | | эйчэй прокси; аш а прокси | h a proxy |
+Kafka Connect | | кафка коннект | |
+Ceph | | цеф; сеф | |
+MinIO | | минио; мин ай о | min i o |
+Podman | | подман | |
+containerd | | контейнер ди; контейнерд | container d |
+systemd | | системд; систем ди | system d |
+Ingress | | ингресс; ингрес | |
+Kustomize | | кастомайз | customize | spelled with K
+Karpenter | | карпентер | carpenter |
+KEDA | | кеда | keda |
+Zabbix | | заббикс | |
+VictoriaMetrics | | виктория метрикс | |
+Alertmanager | | алертменеджер; алерт менеджер | |
+Rancher | | ранчер | |
+OpenShift | | опеншифт | |
+Nomad | | номад | |
+Packer | | пакер | |
+Pulumi | | пулуми | |
+Cilium | | силиум; цилиум | |
+CoreDNS | | кор ди эн эс; кордиэнэс | core d n s |
+etcd | | етсд; и ти си ди; эткд | e t c d; et cetera d |
+Fluent Bit | | флюент бит | |
+Kibana | | кибана | |
+## databases_data
+PostgreSQL | Postgres | постгрес; постгрескуэль; постгре эс кью эль | postgres; postgres q l |
+ClickHouse | | кликхаус; клик хаус | |
+Redis | | редис | |
+MongoDB | | монгодиби; монга; монго ди би | mongo d b |
+Kafka | Apache Kafka | кафка; апачи кафка |  | 
+RabbitMQ | | рэббит эм кью; рэббит; кролик | rabbit m q |
+Elasticsearch | | эластиксерч; эластик | |
+OpenSearch | | опенсерч | |
+Cassandra | | кассандра | |
+SQLite | | эскьюлайт; сиквел лайт | s q lite; sequel lite |
+MySQL | | майсиквел; май эс кью эль | my sequel; my s q l |
+Apache Airflow | Airflow | эйрфлоу; апачи эйрфлоу; эирфлоу | |
+Apache Spark | Spark | спарк; апачи спарк | |
+dbt | | ди би ти | d b t |
+Snowflake | | сноуфлейк | |
+BigQuery | | бигквери; биг квери | |
+Greenplum | | гринплам | |
+Trino | | трино | |
+DuckDB | | дакдиби; дак ди би | duck d b |
+Qdrant | | кудрант; кьюдрант | quadrant | spelled Qdrant, read "quadrant"
+Milvus | | мильвус; милвус | |
+Weaviate | | вивиэйт; веавиат | wee-vee-ate |
+pgvector | | пиджи вектор; пэгэ вектор | p g vector |
+Chroma | ChromaDB | хрома; крома | |
+FAISS | Faiss | фейс; файсс | face | read like "face"
+Pinecone | | пайнкон | |
+Neo4j | | нео фор джей; неофорджей | neo four j |
+Debezium | | дебезиум | |
+Flink | Apache Flink | флинк; апачи флинк |  | 
+Parquet | | паркет | par-kay |
+Apache Iceberg | Iceberg | айсберг; апачи айсберг | |
+Delta Lake | | дельта лейк | |
+Superset | Apache Superset | суперсет; апачи суперсет |  | 
+Metabase | | метабейс | |
+Tarantool | | тарантул; тарантул дб | | spelled Tarantool
+YDB | | ю ди би; уай ди би | y d b |
+pgBouncer | PgBouncer | пиджи баунсер; пэгэ баунсер | p g bouncer |
+TimescaleDB | | таймскейл ди би | timescale d b |
+Patroni | | патрони | |
+Memcached | | мемкэшд; мемкеш | mem cache d |
+Hadoop | | хадуп | |
+## languages_frameworks
+Python | | питон; пайтон | |
+TypeScript | | тайпскрипт | |
+JavaScript | | джаваскрипт | |
+Kotlin | | котлин | |
+Rust | | раст | |
+Golang | | голанг; го | go lang |
+C++ | | си плюс плюс; плюсы | c plus plus |
+C# | | си шарп | c sharp |
+Swift | | свифт | |
+React | | реакт | |
+React Native | | реакт нейтив | |
+Next.js | | некст джей эс; некстджс | next j s |
+Vue | Vue.js | вью; вью джей эс | view | spelled Vue, read "view"
+Angular | | ангуляр | |
+Svelte | | свелт | |
+Node.js | Node | нода; ноуд джей эс; нод джей эс | node j s |
+Django | | джанго | | silent D
+FastAPI | | фаст эй пи ай; фастапи | fast a p i |
+Flask | | фласк | |
+Spring Boot | | спринг бут | |
+Jetpack Compose | Compose | джетпак компоуз; компоуз | |
+Gradle | | градл; гредл | |
+PyTorch | | пайторч; питорч | |
+TensorFlow | | тензорфлоу | |
+JAX | | джакс | jacks |
+NumPy | | нампай; нампи | num pie |
+pandas | | пандас | |
+Pydantic | | пайдантик; пидантик | |
+SQLAlchemy | | эскьюэль алхими; алхимия | s q l alchemy; sequel alchemy |
+Celery | | селери; сельдерей | |
+asyncio | | асинкио; эйсинк ай о | async i o |
+Tailwind | Tailwind CSS | тейлвинд; тейлвинд си эс эс |  | 
+GraphQL | | граф кью эль; графкуэль | graph q l |
+Protobuf | | протобаф | |
+pytest | | пайтест; питест | p y test |
+Jest | | джест | |
+Playwright | | плейрайт | |
+Selenium | | селениум | |
+Webpack | | вебпак | |
+Vite | | вит; вайт | veet | read "veet"
+Bun | | бан | |
+Deno | | дено; дино | dee-no |
+Ktor | | ктор; кейтор | k tor |
+Spring | | спринг | |
+Laravel | | ларавел | |
+Ruby on Rails | Rails | руби он рейлс; рельсы | |
+Elixir | | эликсир | |
+Haskell | | хаскель | |
+Scala | | скала | |
+NestJS | | нест джей эс; нестжс | nest j s |
+Express | Express.js | экспресс; экспресс джей эс |  | 
+Kotlin Multiplatform | KMP | котлин мультиплатформ; кэ эм пэ | |
+Flutter | | флаттер | |
+Dart | | дарт | |
+WebAssembly | Wasm | вебассембли; васм | web assembly; wasm |
+## ai_tools
+LangChain | | лэнгчейн; лангчейн | |
+LangGraph | | лэнггаф; ланг граф | |
+LlamaIndex | | ламаиндекс; лама индекс | llama index |
+vLLM | | ви эл эл эм; вэ эл эл эм | v l l m |
+llama.cpp | | лама си пи пи; ламацпп; лама цэпэпэ | llama c p p; llama dot c p p |
+Ollama | | оллама; олама | |
+ONNX Runtime | | онникс рантайм; оникс рантайм | onyx runtime | ONNX read like "onyx"
+ONNX | | онникс; оникс | onyx |
+Hugging Face | HF | хаггинг фейс; хагинфейс; обнимашки; аш эф | hugging face; h f | 
+Transformers | | трансформерс | | the Hugging Face library
+PEFT | | пефт | peft; p e f t |
+Unsloth | | анслот; анслос | un-sloth |
+DeepSpeed | | дипспид | |
+bitsandbytes | | битсэндбайтс; битс энд байтс | bits and bytes |
+Axolotl | | аксолотль; аксолотл | axolotl |
+TRL | | ти ар эл | t r l |
+LiteLLM | | лайт эл эл эм | lite l l m |
+Weights & Biases | W&B; wandb | вейтс энд байесес; вандб; ванди би | weights and biases; wand b |
+MLflow | | эм эл флоу; млфлоу | m l flow |
+ExecuTorch | | экзекуторч; экзекьюторч | execu torch |
+LiteRT | | лайт ар ти; лайтерт | lite r t | Google's renamed TensorFlow Lite runtime
+LiteRT-LM | | лайт ар ти эл эм | lite r t l m |
+TensorFlow Lite | TFLite | тензорфлоу лайт; ти эф лайт | |
+QNN | | ку эн эн; кьюэнэн | q n n | Qualcomm AI Engine Direct SDK
+Qualcomm AI Hub | | квалком эй ай хаб | |
+MLX | | эм эл икс | m l x |
+CUDA | | куда | coo-da |
+cuDNN | | кудиэнэн; ку ди эн эн | coo d n n |
+TensorRT | | тензор ар ти; тензорт | tensor r t |
+TensorRT-LLM | | тензор ар ти эл эл эм | tensor r t l l m |
+Triton | Triton Inference Server | тритон; тритон инференс сервер |  | 
+SGLang | | эс джи ланг; эсджиланг | s g lang |
+Gradio | | градио | |
+Streamlit | | стримлит | |
+Jupyter | Jupyter Notebook | юпитер; джупитер; юпитер ноутбук | jupiter |
+Google Colab | Colab | колаб; гугл колаб | |
+Kaggle | | кагл | |
+OpenAI API | | опен эй ай апи; опенэйай апи | open a i a p i |
+Anthropic API | | антропик апи | |
+sentence-transformers | | сентенс трансформерс | |
+FlashAttention | Flash Attention | флеш аттеншн; флэш атеншн | |
+NeMo | | немо | |
+sherpa-onnx | | шерпа онникс | sherpa onyx |
+faster-whisper | | фастер виспер | |
+whisper.cpp | | виспер си пи пи | whisper c p p |
+OpenRouter | | опенроутер; опен роутер | |
+LM Studio | | эл эм студио | l m studio |
+Cursor | | курсор | | the AI code editor
+Claude Code | | клод код | |
+GitHub Copilot | Copilot | копайлот; гитхаб копайлот | |
+Label Studio | | лейбл студио | |
+DSPy | | ди эс пай; дипай | d s pie |
+## ai_ml_jargon
+LoRA | | лора; ло ра | lora | low-rank adaptation
+QLoRA | | кью лора; кулора | q lora |
+RAG | | раг; рэг | rag; r a g |
+fine-tuning | fine-tune | файнтюнинг; файн тюнинг | |
+embedding | embeddings | эмбеддинг; эмбединги | |
+tokenizer | | токенайзер; токенизатор | |
+quantization | | квантизация; квантование | |
+GGUF | | гэ гэ уэф; джи джи ю эф; ггуф | g g u f |
+KV cache | KV-cache | кей ви кэш; кэвэ кэш | k v cache |
+logits | | логиты; лоджитс | |
+top-p | | топ пи; топ пэ | top p |
+top-k | | топ кей; топ кэй | top k |
+temperature | | температура | |
+beam search | | бим серч; лучевой поиск | |
+RLHF | | эр эл аш эф; эрэлхаэф | r l h f |
+DPO | | ди пи о; дипио | d p o |
+SFT | | эс эф ти | s f t |
+MoE | | мое; эм оу и; микстура экспертов | m o e; mixture of experts |
+attention | self-attention | аттеншн; атеншн; внимание; селф аттеншн |  | 
+transformer | | трансформер | |
+context window | | контекстное окно; контекст виндоу | |
+system prompt | | системный промпт; систем промпт | |
+few-shot | | фью шот; фьюшот | |
+zero-shot | | зиро шот | |
+chain-of-thought | CoT | чейн оф тот; цепочка рассуждений; си оу ти | chain of thought; c o t | 
+hallucination | hallucinations | галлюцинация; халлюсинейшн | |
+reranker | | реранкер | re-ranker |
+BM25 | | би эм двадцать пять; бээм двадцать пять | b m twenty five |
+cosine similarity | | косинусное сходство; косинус симилярити | |
+perplexity | | перплексия; перплексити | |
+WER | | вер; ви и ар | w e r; word error rate |
+CER | | сер; си и ар | c e r; character error rate |
+BLEU | | блю; блеу | blue |
+overfitting | | оверфиттинг; переобучение | |
+learning rate | | лернинг рейт; скорость обучения | |
+batch size | | батч сайз; размер батча | |
+warmup | warm-up | вармап; ворм ап | |
+checkpoint | | чекпоинт | |
+safetensors | | сейфтензорс; сейф тензорс | safe tensors |
+distillation | | дистилляция | |
+speculative decoding | | спекулятивный декодинг; спекулятив декодинг | |
+RoPE | | роуп; роп | rope |
+AWQ | | эй дабл ю кью; авк | a w q |
+GPTQ | | джи пи ти кью | g p t q |
+int8 | INT8 | инт восемь | int eight |
+int4 | INT4; Q4 | инт четыре; ку четыре | int four; q four |
+FP16 | fp16 | эф пи шестнадцать; эфпэ шестнадцать | f p sixteen |
+BF16 | bf16 | би эф шестнадцать; бэфэ шестнадцать | b f sixteen; bfloat sixteen |
+Q4_K_M | | ку четыре ка эм; ку четыре кей эм | q four k m | llama.cpp quant name
+gradient accumulation | | градиент аккумулейшн; аккумуляция градиентов | |
+gradient checkpointing | | градиент чекпоинтинг | |
+eval loss | | эвал лосс | e val loss |
+cross-entropy | | кросс энтропия | |
+softmax | | софтмакс | soft max |
+greedy decoding | | гриди декодинг; жадный декодинг | |
+structured output | structured outputs | структурд аутпут; структурированный вывод | |
+function calling | tool calling | функшн коллинг; тул коллинг | |
+agent | AI agent | агент; эй ай агент | |
+MCP | | эм си пи; эмсипи | m c p | Model Context Protocol
+guardrails | | гардрейлс | guard rails |
+prompt injection | | промпт инъекция; промпт инжекшн | |
+jailbreak | | джейлбрейк | |
+vector store | | вектор стор; векторное хранилище | |
+chunking | | чанкинг; нарезка на чанки | |
+hybrid search | | гибридный поиск; хайбрид серч | |
+diarization | speaker diarization | диаризация; диаризация спикеров |  | 
+VAD | | вад; ви эй ди | v a d | voice activity detection
+streaming ASR | | стриминг эй эс ар; потоковое распознавание | |
+CTC | | си ти си; цэтэцэ | c t c |
+RNN-T | RNN-Transducer | эр эн эн ти; эрэнэн тэ | r n n t |
+TDT | | ти ди ти; тэдэтэ | t d t | token-and-duration transducer
+beam width | | бим видс; ширина луча | |
+inference | | инференс | |
+throughput | | сруппут; трупут; пропускная способность | |
+time to first token | TTFT | тайм ту ферст токен; ти ти эф ти | t t f t |
+tokens per second | tok/s | токенов в секунду; токены в секунду | |
+prefill | | префилл; префил | |
+decode | decoding | декод; декодинг | |
+eval set | eval | эвал сет; эвал | e val set |
+ablation | | абляция; эблейшн | |
+synthetic data | | синтетика; синтетик дата; синтетические данные | |
+data augmentation | | аугментация данных; аугментация | |
+## ai_ml_jargon_ru
+эмбеддинг | эмбеддинги; эмбединг | эмбеддинг | | embedding written in Cyrillic
+токенизатор | токенайзер | токенизатор; токенайзер | |
+квантизация | квантование | квантизация; квантование | |
+дообучение | | дообучение | | fine-tuning, Russian native term
+файнтюн | файн-тюн; файнтюнинг | файнтюн | | fine-tune, slang
+нейросеть | нейронка; нейросетка | нейросеть; нейронка | |
+промпт | промт | промпт; промт | | prompt; both spellings occur
+системный промпт | | системный промпт | |
+галлюцинация | галлюцинации | галлюцинация | | LLM hallucination
+датасет | дата-сет | датасет | |
+инференс | | инференс | |
+разметка | | разметка | | data labelling
+переобучение | | переобучение | | overfitting
+чекпоинт | | чекпоинт | |
+лосс | | лосс; лос | | loss value
+трансформер | | трансформер | |
+реранкер | | реранкер | |
+ретривер | | ретривер | |
+векторная база | векторная БД | векторная база | |
+обучающая выборка | | обучающая выборка | |
+валидационная выборка | | валидационная выборка | |
+бенчмарк | | бенчмарк | |
+контекстное окно | | контекстное окно | |
+токен | токены | токен | |
+логиты | | логиты | |
+дистилляция | | дистилляция | |
+батч | батчи | батч | |
+гиперпараметры | гиперпараметр | гиперпараметры | |
+лора-адаптер | лора адаптер | лора адаптер | | LoRA adapter written in Cyrillic
+энкодер | | энкодер | |
+декодер | | декодер | |
+распознавание речи | | распознавание речи | | ASR
+синтез речи | | синтез речи | | TTS
+языковая модель | | языковая модель | |
+большая языковая модель | | большая языковая модель | |
+ллмка | ЛЛМ | ллмка; эл эл эм | | slang for LLM
+агент | агенты | агент | | AI agent
+пайплайн | | пайплайн | |
+скор | скоринг | скор; скоринг | | score
+эвал | эвалы | эвал | | evaluation run
+ресемплинг | | ресемплинг | |
+## model_names
+Qwen3.5 2B | | квен три пять два бэ; квен три и пять два миллиарда | qwen three point five two b |
+Qwen3.5 0.8B | | квен три пять ноль восемь бэ | qwen three point five zero point eight b |
+Qwen3-ASR | Qwen3-ASR 0.6B | квен три эй эс ар; квен три асер; квен три эй эс ар ноль шесть бэ | qwen three a s r | 
+Qwen | | квен; кьювен | qwen; chwen |
+LFM3 | LFM 3 | эл эф эм три | l f m three | Liquid foundation model 3
+LFM2.5 | LFM 2.5 | эл эф эм два пять | l f m two point five |
+LFM3-1.7B | | эл эф эм три один и семь бэ | l f m three one point seven b |
+Whisper large-v3-turbo | large-v3-turbo | виспер лардж вэ три турбо; виспер ладж три турбо | whisper large v three turbo |
+Whisper | | виспер | |
+Distil-Whisper | | дистил виспер | |
+Parakeet TDT | Parakeet | паракит; паракит ти ди ти; паракит тэдэтэ | parakeet t d t |
+Parakeet TDT 0.6B v3 | | паракит ти ди ти ноль шесть бэ вэ три | parakeet t d t zero point six b v three |
+Nemotron | | немотрон | |
+Canary | | канари | |
+GigaAM | | гигаам; гига эй эм; гига аудио | giga a m |
+T-one | | ти ван; тиуан; т один | t one |
+GigaChat | | гигачат | |
+YandexGPT | | яндекс джи пи ти | yandex g p t |
+Llama 4 | | лама четыре; ллама четыре | |
+Llama | | лама; ллама | |
+Mistral | | мистраль | |
+Mixtral | | микстраль | |
+Gemma 3 | | джемма три; гемма три | |
+Gemma | | джемма; гемма | |
+Phi-4 | | фай четыре; фи четыре | phi four |
+DeepSeek-V3 | | дипсик вэ три | deepseek v three |
+DeepSeek-R1 | DeepSeek R1 | дипсик эр один | deepseek r one |
+DeepSeek | | дипсик | |
+GPT-4o | | джи пи ти четыре о; гпт четыре о | g p t four o |
+GPT-5 | | джи пи ти пять; гпт пять | g p t five |
+ChatGPT | | чат джи пи ти; чатгпт | chat g p t |
+Claude | | клод | |
+Claude Sonnet | Sonnet | клод соннет; соннет | |
+Claude Opus | Opus | клод опус; опус | |
+Gemini 2.5 Pro | | джемини два пять про | gemini two point five pro |
+Gemini | | джемини | |
+Kimi K2 | | кими ка два | kimi k two |
+GLM-4.5 | | джи эл эм четыре пять | g l m four point five |
+Stable Diffusion | | стейбл диффьюжн; стабл диффузия | |
+FLUX | | флакс; флюкс | flux |
+Segment Anything | SAM | сегмент энифинг; сэм | |
+CLIP | | клип | clip |
+BERT | | берт | bert |
+RoBERTa | | роберта | |
+T5 | | ти файв; тэ пять | t five |
+Kokoro | | кокоро | |
+XTTS | XTTS-v2 | икс ти ти эс; икс ти ти эс вэ два | x t t s | 
+Silero | | силеро | |
+Piper | | пайпер | |
+F5-TTS | | эф пять ти ти эс | f five t t s |
+Moondream | | мундрим | |
+PaddleOCR | | паддл о си ар | paddle o c r |
+Tesseract | | тессеракт | |
+SmolLM | | смол эл эм | small l m |
+## dev_slang_ru
+деплой | | деплой | | deploy (noun)
+задеплоить | задеплоил; задеплоили | задеплоить | | to deploy
+передеплоить | | передеплоить | | to redeploy
+стейджинг | стэйджинг | стейджинг | | staging environment
+прод | продакшн; продакшен | прод; продакшн | | production
+пулреквест | пул-реквест; пулл-реквест | пулреквест; пул реквест | | pull request
+мерджреквест | мерж-реквест; мердж-реквест | мерджреквест; мерж реквест | | merge request
+ревью | код-ревью; кодревью; ревьюить | ревью; код ревью | | code review
+мердж | мерж | мердж; мерж | | merge
+смерджить | смержить; замерджить; замержить | смерджить; смержить | | to merge
+бэкенд | бэкэнд; бекенд | бэкенд; бэк | | backend
+фронтенд | фронтэнд | фронтенд; фронт | | frontend
+фича | фичи | фича | | feature
+фичефлаг | фиче-флаг; фичафлаг | фичефлаг; фича флаг | | feature flag
+баг | баги | баг | | bug
+багфикс | | багфикс | | bugfix
+хотфикс | | хотфикс | | hotfix
+коммит | | коммит | | commit
+закоммитить | закоммитил | закоммитить | | to commit
+запушить | запушил; пушнуть | запушить; пушнуть | | to push
+ребейз | | ребейз; рибейз | | rebase
+отребейзить | | отребейзить | | to rebase
+черрипик | черри-пик | черрипик; черри пик | | cherry-pick
+бранч | | бранч; ветка | | branch
+релиз | | релиз | | release
+зарелизить | | зарелизить | | to release
+откатить | откатить релиз | откатить; откат | | roll back
+тикет | | тикет | | ticket
+таска | таску | таска; таск | | task
+спринт | | спринт | | sprint
+бэклог | | бэклог | | backlog
+апрув | | апрув | | approval
+заапрувить | | заапрувить | | to approve
+легаси | | легаси | | legacy code
+рефакторинг | | рефакторинг | | refactoring
+костыль | | костыль | | hack, workaround
+тимлид | | тимлид | | team lead
+техлид | | техлид | | tech lead
+джун | джуниор | джун; джуниор | | junior
+мидл | | мидл | | middle-level engineer
+синьор | сеньор | синьор; сеньор | | senior
+эстимейт | | эстимейт | | estimate
+стендап | | стендап | | stand-up meeting
+дейлик | дейли | дейлик; дейли | | daily stand-up
+созвон | | созвон | | call
+ретро | ретроспектива | ретро | | retrospective
+онбординг | | онбординг | | onboarding
+юнит-тест | юнит-тесты; юниттест | юнит тест | | unit test
+автотесты | автотест | автотесты | | automated tests
+билд | | билд | | build
+конфиг | конфига | конфиг | | config
+кэш | кеш | кэш; кеш | | cache
+логи | лог | логи; лог | | logs
+дашборд | | дашборд | | dashboard
+алерт | | алерт | | alert
+инцидент | | инцидент | |
+постмортем | | постмортем | | postmortem
+фолбэк | фоллбэк | фолбэк | | fallback
+ретрай | ретраи | ретрай | | retry
+таймаут | | таймаут | | timeout
+эндпоинт | эндпойнт | эндпоинт | | endpoint
+ручка | | ручка | | API endpoint (slang)
+воркер | | воркер | | worker
+джоба | | джоба | | job (CI/cron)
+крон | кронджоба | крон | | cron
+скейлить | отскейлить | скейлить | | to scale
+лейтенси | | лейтенси | | latency
+рейт-лимит | рейтлимит | рейт лимит | | rate limit
+нагрузочное | нагрузочное тестирование | нагрузочное | | load testing
+юзкейс | | юзкейс | | use case
+фидбек | фидбэк | фидбек | | feedback
+дедлайн | | дедлайн | | deadline
+пинговать | пингануть | пинговать; пингануть | | to ping someone
+расшарить | | расшарить | | to share
+залить | залить на прод | залить | | to upload / deploy
+выкатить | выкатка | выкатить; выкатка | | to roll out
+форкнуть | форк | форкнуть; форк | | to fork
+зависимости | | зависимости | | dependencies
+линтер | | линтер | | linter
+пайплайн сборки | | пайплайн сборки | | CI pipeline
+продуктовая метрика | | продуктовая метрика | |
+## cli_commands
+git rebase | git rebase -i | гит ребейз; гит рибейз; гит ребейз минус ай |  | 
+git cherry-pick | | гит черри пик | |
+git stash | | гит стэш; гит стеш | |
+git push --force | git push -f | гит пуш форс | git push force |
+git reset --hard | | гит ресет хард | git reset hard |
+git bisect | | гит бисект | |
+git commit --amend | | гит коммит аменд | git commit amend |
+git pull | | гит пулл; гит пул | |
+docker compose up | docker compose up -d | докер компоуз ап; докер компоуз ап минус дэ | docker compose up; docker compose up dash d | 
+docker build | | докер билд | |
+docker ps | | докер пиэс; докер пи эс | docker p s |
+kubectl apply | | кубконтрол эплай; куб си ти эл эплай; кубектл эплай | kube control apply; kube cuttle apply |
+kubectl get pods | | кубконтрол гет подс; кубектл гет подс | kube control get pods |
+kubectl logs | | кубконтрол логс; кубектл логс | kube control logs |
+helm upgrade | | хелм апгрейд | |
+npm install | npm i | эн пи эм инсталл; нпм инсталл | n p m install |
+pip install | | пип инсталл; пип | |
+uv sync | | ю ви синк; уф синк | u v sync |
+./gradlew assembleRelease | gradlew assembleRelease | градлв ассембл релиз; градл ассембл релиз | gradle w assemble release |
+adb logcat | | эй ди би логкат; адб логкэт | a d b logcat |
+adb install | | эй ди би инсталл; адб инсталл | a d b install |
+ssh | | эс эс эйч; эсэсаш | s s h |
+scp | | эс си пи | s c p |
+rsync | | арсинк; эр синк | r sync |
+grep | | грэп; греп | |
+curl | | курл; керл | curl |
+chmod +x | chmod | чмод плюс икс; чмод | ch mod plus x |
+sudo | | судо; судо | soo-doo |
+systemctl restart | | системктл рестарт; систем контрол рестарт | system control restart |
+journalctl | | журналктл; джорнал контрол | journal control |
+htop | | эйч топ; аштоп | h top |
+nvidia-smi | | энвидиа смай; нвидиа эс эм ай | nvidia s m i |
+tmux | | тимукс; ти макс | t mux |
+vim | | вим | |
+make build | | мейк билд | |
+cmake | | си мейк; симейк | c make |
+brew install | | брю инсталл | |
+apt install | apt-get install | апт инсталл; апт гет инсталл | |
+huggingface-cli download | hf download | хаггинг фейс си эл ай даунлоад; аш эф даунлоад | hugging face c l i download | 
+jq | | джей кью | j q |
+tail -f | | тейл минус эф; тейл эф | tail dash f |
+ls -la | | эл эс минус эл а | l s dash l a |
+cd | | си ди; цэдэ | c d |
+## files_config
+.env | | дот енв; точка енв; энв | dot env |
+README | README.md | ридми; рид ми; ридми эм дэ | read me | 
+Dockerfile | | докерфайл | docker file |
+docker-compose.yml | compose.yaml | докер компоуз ямл; компоуз ямл | docker compose yaml | 
+package.json | | пакедж джейсон; пэкидж джейсон | package json |
+requirements.txt | | реквайрментс тэ икс тэ; реквайрментс | requirements text |
+pyproject.toml | | пайпроджект томл | py project toml |
+build.gradle.kts | | билд градл кэ тэ эс; билд градл котлин | build gradle k t s |
+AndroidManifest.xml | | андроид манифест; андроидманифест икс эм эл | android manifest x m l |
+.gitignore | | гитигнор; дот гитигнор | dot git ignore |
+Makefile | | мейкфайл | make file |
+config.yaml | | конфиг ямл | config yaml |
+values.yaml | | вэльюс ямл; валюс ямл | values yaml |
+CHANGELOG | CHANGELOG.md | чейнджлог; чейнджлог эм дэ | change log | 
+LICENSE | | лайсенс; лицензия | |
+main.py | | мейн пай; мейн точка пай | main dot p y |
+index.ts | | индекс тэ эс; индекс тээс | index dot t s |
+settings.json | | сеттингс джейсон | settings dot json |
+tsconfig.json | | тиэс конфиг; тээс конфиг джейсон | t s config json |
+nginx.conf | | энджинкс конф | engine x conf |
+/etc/hosts | | етс хостс; слэш етс хостс | slash etc hosts | read "slash e t c hosts"
+~/.ssh/config | | эс эс эйч конфиг | ssh config |
+.bashrc | | башрц; баш ар си | bash r c |
+Cargo.toml | | карго томл | cargo toml |
+go.mod | | го мод | go mod |
+values-prod.yaml | | вэльюс прод ямл | values prod yaml |
+.github/workflows | | гитхаб воркфлоус | github workflows |
+CODEOWNERS | | кодоунерс | code owners |
+.pre-commit-config.yaml | pre-commit | прекоммит; пре коммит; пре коммит конфиг ямл | pre commit; pre commit config yaml |
+schema.sql | | схема эс кью эль | schema dot s q l |
+model.safetensors | | модел сейфтензорс | model dot safe tensors |
+tokenizer.json | | токенайзер джейсон | tokenizer json |
+adapter_config.json | | адаптер конфиг джейсон | adapter config json |
+## acronyms
+API | | апи; эй пи ай | a p i |
+SDK | | эс ди кей; эсдика | s d k |
+GPU | | гэпэу; джи пи ю; видюха | g p u |
+NPU | | эн пи ю; энпиу | n p u |
+CPU | | цэпэу; си пи ю; проц | c p u |
+TPU | | ти пи ю; тэпэу | t p u |
+CI/CD | | си ай си ди; сиай сиди | c i c d |
+CI | | си ай; сиай | c i |
+SLA | | эс эл эй; эсэлэй | s l a |
+SLO | | эс эл оу; эсэло | s l o |
+JSON | | джейсон | jason |
+YAML | | ямл; ямль | yamel |
+REST | REST API | рест; рест апи | |
+gRPC | | джи ар пи си; гэрпэцэ | g r p c |
+HTTP | | эйч ти ти пи; аштитипи | h t t p |
+HTTPS | | эйч ти ти пи эс | h t t p s |
+TLS | | ти эл эс | t l s |
+DNS | | ди эн эс; днс | d n s |
+VPN | | ви пи эн; впн | v p n |
+SSO | | эс эс оу; эсэсо | s s o |
+OAuth | OAuth 2.0 | оаут; о ауф; оус; о ауф два ноль | o auth | 
+JWT | | джей дабл ю ти; джот | j w t; jot |
+CRUD | | круд | crud |
+ORM | | о эр эм; орм | o r m |
+SQL | | эс кью эль; сиквел; эскуэль | s q l; sequel |
+NoSQL | | ноу сиквел; но эс кью эль | no sequel |
+MVP | | эм ви пи; эмвипи | m v p |
+PoC | | пи оу си; пок | p o c; proof of concept |
+QA | | кью эй; куа | q a |
+UX | | ю икс; юикс | u x |
+UI | | ю ай; юай | u i |
+OKR | | о кей ар; окээр | o k r |
+KPI | | кей пи ай; кипиай | k p i |
+ETA | | и ти эй; эта | e t a |
+RPS | | ар пи эс; эрпээс | r p s |
+p99 | | пэ девяносто девять; пи девяносто девять | p ninety nine |
+TTL | | ти ти эл | t t l |
+CDN | | си ди эн | c d n |
+VPC | | ви пи си | v p c |
+IAM | | ай эй эм; иам | i a m |
+S3 | | эс три | s three |
+EC2 | | и си ту; иситу | e c two |
+ASR | | эй эс ар; асер | a s r |
+TTS | | ти ти эс; тэтээс | t t s |
+LLM | | эл эл эм; элэлэм | l l m |
+NLP | | эн эл пи | n l p |
+OCR | | о си ар; оцээр | o c r |
+RAM | | рам; оперативка | ram |
+VRAM | | ви рам; видеопамять | v ram |
+SSD | | эс эс ди | s s d |
+NVMe | | эн ви эм и | n v m e |
+OOM | | оом; оу оу эм; ум | o o m; out of memory |
+PR | | пиар; пи ар | p r |
+MR | | эм ар; мр | m r |
+SRE | | эс ар и | s r e |
+DevOps | | девопс | dev ops |
+MLOps | | эм эл опс; млопс | m l ops |
+SaaS | | саас; сас | sass |
+B2B | | би ту би; бэтубэ | b to b |
+WebSocket | WebSockets | вебсокет | web socket |
+SSE | | эс эс и | s s e | server-sent events
+CORS | | корс | cors |
+XSS | | икс эс эс | x s s |
+CVE | | си ви и | c v e |
+PII | | пи ай ай | p i i | personally identifiable information
+GDPR | | джи ди пи ар | g d p r |
+SSH key | | эс эс эйч ключ | s s h key |
+A/B test | A/B-тест | аб тест; эй би тест | a b test |
+NDA | | эн ди эй; энди эй | n d a |
+RFC | | ар эф си | r f c |
+PDF | | пэдээф; пи ди эф | p d f |
+UTC | | ю ти си | u t c |
+## cloud_services
+AWS | | эй дабл ю эс; авс | a w s |
+GCP | | джи си пи | g c p |
+Azure | | ажур; эжур | azure |
+Yandex Cloud | | яндекс клауд | |
+Cloud.ru | | клауд ру | cloud dot r u |
+Selectel | | селектел | |
+VK Cloud | | вэка клауд; вк клауд | v k cloud |
+Cloudflare | | клаудфлер; клаудфлэр | |
+Vercel | | версел; вёрсел | |
+Netlify | | нетлифай | |
+Heroku | | хероку | |
+DigitalOcean | | диджитал оушен | |
+Hetzner | | хецнер; хетцнер | |
+RunPod | | ранпод; ран под | |
+Lambda Labs | | лямбда лабс | |
+Modal | | модал | |
+Replicate | | репликейт | |
+GitHub | | гитхаб | |
+GitLab | | гитлаб | |
+Bitbucket | | битбакет | |
+Jira | | жира; джира | |
+Confluence | | конфлюенс | |
+Notion | | ноушен | |
+Slack | | слак; слэк | |
+Telegram | | телеграм; телега | |
+Figma | | фигма | |
+Miro | | миро | |
+Sentry | | сентри | |
+Datadog | | датадог | |
+PagerDuty | | пейджердьюти | |
+Linear | | линеар; линир | |
+YouTrack | | ютрек | |
+Google Meet | | гугл мит | |
+Zoom | | зум | |
+Google Cloud Storage | GCS | гугл клауд сторадж; джи си эс |  | 
+Amazon S3 | | амазон эс три | |
+AWS Lambda | | эй дабл ю эс лямбда | |
+SageMaker | | сейджмейкер | |
+Vertex AI | | вертекс эй ай | vertex a i |
+Azure OpenAI | | ажур опен эй ай | |
+Docker Hub | | докер хаб | |
+Artifactory | | артифактори | |
+Nexus | | нексус | |
+SonarQube | | сонар кьюб; сонаркуб | sonar cube |
+Postman | | постман | |
+Swagger | OpenAPI | сваггер; опен апи | |
+Яндекс Трекер | | яндекс трекер | | Russian issue tracker
+Яндекс | | яндекс | |
+Сбер | Сбербанк | сбер | |
+Т-Банк | Тинькофф | т банк; тинькофф | |
+Авито | | авито | |
+Озон | | озон | |
+ВКонтакте | ВК | вконтакте; вэка | |
+Госуслуги | | госуслуги | |
+1С | 1С:Предприятие | один эс; одинэс | | Cyrillic С in 1С
+Битрикс24 | Битрикс | битрикс двадцать четыре; битрикс | |
+Касперский | | касперский | |
+Контур | | контур | |
+Пачка | | пачка | | Russian work messenger
+Яндекс Диск | | яндекс диск | |
+Мегафон | | мегафон | |
+## hardware
+H100 | | аш сто; эйч сто | h one hundred |
+H200 | | аш двести; эйч двести | h two hundred |
+A100 | | а сто; эй сто | a one hundred |
+B200 | | би двести; бэ двести | b two hundred |
+RTX 5090 | 5090 | эр ти икс пятьдесят девяносто; пятьдесят девяностая | r t x fifty ninety |
+RTX 4090 | 4090 | эр ти икс сорок девяносто; сорок девяностая | r t x forty ninety |
+Snapdragon 8 Elite | | снэпдрагон восемь элит; снапдрагон восемь элит | |
+Hexagon NPU | Hexagon | хексагон; гексагон эн пи ю | hexagon n p u |
+Adreno | | адрено | |
+Galaxy Z Fold7 | Fold7 | гэлакси зет фолд семь; фолд семь | galaxy z fold seven |
+Pixel 9 | | пиксель девять | |
+Apple M4 | M4 | эппл эм четыре; эм четыре | |
+MacBook Pro | | макбук про | |
+Jetson Orin | | джетсон орин | |
+Raspberry Pi | | распберри пай; малинка | |
+ARM64 | arm64; aarch64 | арм шестьдесят четыре; аарч шестьдесят четыре | arm sixty four |
+x86_64 | x86 | икс восемьдесят шесть шестьдесят четыре; икс восемьдесят шесть | x eighty six sixty four |
+NVLink | | эн ви линк | n v link |
+PCIe 5.0 | PCIe | пи си ай экспресс пять; писиай | p c i e five |
+LPDDR5X | | эл пи ди ди ар пять икс | l p d d r five x |
+Infiniband | InfiniBand | инфинибенд; инфинибэнд | |
+NVIDIA | Nvidia | нвидиа; энвидиа | en-vid-ia |
+AMD | | эй эм ди; амд | a m d |
+Qualcomm | | квалком | |
+Exynos | | эксинос | |
+Tensor G4 | | тензор джи четыре | |
+Mac Studio | | мак студио | |
+ThinkPad | | синкпад; тинкпад | |
+USB-C | | ю эс би си; юэсби си | u s b c |
+Wi-Fi 7 | | вайфай семь | |
+## mobile_android
+Android | | андроид | |
+APK | | апк; эй пи кей | a p k |
+AAB | | эй эй би; ааб | a a b |
+ADB | | эй ди би; адб | a d b |
+AccessibilityService | Accessibility Service | аксессибилити сервис | accessibility service |
+foreground service | | форграунд сервис | |
+WorkManager | | воркменеджер; ворк менеджер | work manager |
+Hilt | | хилт | |
+Dagger | | даггер | |
+Retrofit | | ретрофит | |
+OkHttp | | окей эйч ти ти пи; окхттп | ok h t t p |
+Kotlin coroutines | coroutines | корутины; котлин корутины | |
+Flow | StateFlow | флоу; стейтфлоу | |
+ViewModel | | вьюмодель; вью модель | view model |
+Google Play Console | Play Console | гугл плей консоль; плей консоль | |
+Google Play | Play Market | гугл плей; плей маркет | |
+RuStore | | рустор | ru store |
+ProGuard | | прогард | pro guard |
+R8 | | эр восемь | r eight |
+NDK | | эн ди кей | n d k |
+JNI | | джей эн ай | j n i |
+Android Studio | | андроид студио | |
+Logcat | | логкат; логкэт | log cat |
+Baseline Profiles | | бейслайн профайлс | |
+Material 3 | Material You | материал три; матириал три; материал ю | |
+deep link | deeplink | диплинк; дип линк | |
+push notification | push | пуш уведомление; пуш | |
+TestFlight | | тестфлайт | |
+Firebase | | файрбейс | fire base |
+Crashlytics | | крашлитикс | |
+DataStore | | датастор | data store |
+Room | | рум | room |
+emulator | Android emulator | эмулятор; андроид эмулятор | |

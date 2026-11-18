@@ -1,0 +1,9 @@
+ 11923 11923 I MurmurSpike: EV rec_started {"pid":11923,"up":1761729,"label":"activity-then-background","recordingState":3,"session":153}
+ 11923 11923 I MurmurSpike: EV restricted_op_check_failed {"pid":11923,"up":1761738,"err":"java.lang.SecurityException: verifyIncomingOp: uid 10218 does not have any of {MANAGE_APPOPS, GET_APP_OPS_STATS, MANAGE_APP_OPS_MODES}"}
+ 11923 11923 I MurmurSpike: EV main_status {"pid":11923,"up":1761739,"a11yConnected":true,"restrictedSettingsOp":-99,"aapm":"false","install":"installer=null initiating=com.android.shell source=1"}
+ 11923 12057 I MurmurSpike: EV rec_config {"pid":11923,"up":1761798,"label":"activity-then-background","silenced":false,"source":6,"device":"sdk_gphone64_x86_64"}
+ 11923 11923 I MurmurSpike: EV ime_finish_input {"pid":11923,"up":1762118}
+ 11923 11923 I MurmurSpike: EV fg_window_state {"pid":11923,"up":1762419,"pkg":"com.google.android.apps.nexuslauncher","cls":"android.widget.FrameLayout"}
+ 11923 11923 I MurmurSpike: EV ime_start_input {"pid":11923,"up":1764032,"pkg":"com.google.android.apps.nexuslauncher","inputType":0,"hint":null,"fieldId":0,"restarting":false}
+ 11923 11923 I MurmurSpike: EV fg_window_state {"pid":11923,"up":1766088,"pkg":"com.android.systemui","cls":"android.widget.FrameLayout"}
+ 11923 11923 I MurmurSpike: EV rec_bg_result {"pid":11923,"up":1767776,"a11yConnected":true,"rec":"{\"label\":\"activity-then-background\",\"samples\":95040,\"seconds\":5.94,\"nonZero\":3082,\"peak\":8,\"firstBufferMs\":187,\"silencedAtStop\":false,\"silencedCallback\":false}"}
