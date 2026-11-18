@@ -40,6 +40,9 @@ GOLD: list[tuple[str, str, str]] = [
     ("Elasticsearch", "эластиксерч", T), ("Nginx", "энджинкс", T), ("Laura", "лорой", T), ("Laura", "лаурой", T),
     ("Mark", "марка", T), ("Mark", "марком", T), ("YouTrack", "ютрек", T), ("YouTrack", "ютрэк", T),
     ("FLUX", "флакс", T), ("Q4_K_M", "ку четыре ка эм", T),
+    # Latin written as the term is said, digits as words, Cyrillic slang as the English word
+    ("journalctl", "journal control", T), ("FP16", "FP sixteen", T), ("Apple M4", "Apple M Four", T),
+    ("пулреквест", "pull request", T), ("лейтенси", "latency", T),
     # mishearings
     ("Kafka", "кофка", E), ("Kafka", "кавка", E), ("Kafka", "каска", E), ("Kafka Connect", "кавка конект", E),
     ("Slack", "слаг", E), ("Sentry", "центре", E), ("package.json", "пакедж сон", E), ("package.json", "пакетж", E),
@@ -55,7 +58,8 @@ GOLD: list[tuple[str, str, str]] = [
     ("ClickHouse", "клипхаус", E), ("ClickHouse", "клыкхаус", E), ("GitHub", "гитхап", E), ("LoRA", "лоор", E),
     ("LoRA", "лога", E), ("CORS", "косе", E), ("RabbitMQ", "рабит мк", E), ("CoreDNS", "кордин", E), ("PEFT", "пирта", E), ("Greenplum", "гримплум", E),
     ("Kubernetes", "кубернетез", E), ("Kubernetes", "кубернец", E), ("FLUX", "флекс", E), ("JSON", "сон", E),
-    ("Q4_K_M", "ку четыре крем", E), ("build.gradle.kts", "белграду ктс", E), ("Helm chart", "хельм шард", E),
+    ("Q4_K_M", "ку четыре крем", E), ("Raspberry Pi", "raspberry pie", E), ("FP16", "FP sixty", E),
+    ("Patroni", "Petroni", E), ("build.gradle.kts", "белграду ктс", E), ("Helm chart", "хельм шард", E),
 ]
 
 

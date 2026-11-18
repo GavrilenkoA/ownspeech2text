@@ -3,8 +3,10 @@
 #   1. the hand-made fixture            -> ml/roundtrip/samples/mined/fixture/
 #   2. real speech, enrich adapter      -> .cache/ml/roundtrip/mined/enrich/  (sample: samples/mined/enrich/)
 #   3. the real TTS->ASR round trip     -> .cache/ml/roundtrip/mined/real/    (sample: samples/mined/real/)
-# Steps 2 and 3 are skipped when their input is absent. Run from anywhere; heavy steps go through tools/heavy.
-#   ROUNDTRIP_ROWS=path/to/roundtrip.jsonl ml/roundtrip/mine/regen_outputs.sh
+#   4. cross-set check: tables mined on CROSS_ROWS (another probe run), simulated on ROUNDTRIP_ROWS
+# Steps 2-4 are skipped when their input is absent. Run from anywhere; heavy steps go through tools/heavy.
+#   ROUNDTRIP_ROWS=ml/roundtrip/samples/roundtrip/final80.jsonl \
+#   CROSS_ROWS=ml/roundtrip/samples/roundtrip/local_proof.jsonl ml/roundtrip/mine/regen_outputs.sh
 set -euo pipefail
 REPO="$(cd "$(dirname "$0")/../../.." && pwd)"
 cd "$REPO"
@@ -43,7 +45,7 @@ with open(sys.argv[1], encoding="utf-8") as src, open(sys.argv[2], "w", encoding
   for c in calibration calibration_holdout; do cp $E/$c/CALIBRATION.md $E/$c/calibration.json $S/enrich/$c/; done
 fi
 
-RT_ROWS="${ROUNDTRIP_ROWS:-.cache/ml/roundtrip/mined/real/rows.jsonl}"
+RT_ROWS="${ROUNDTRIP_ROWS:-ml/roundtrip/samples/roundtrip/final80.jsonl}"
 if [ -f "$RT_ROWS" ]; then
   R=.cache/ml/roundtrip/mined/real
   mkdir -p $R
@@ -57,5 +59,13 @@ if [ -f "$RT_ROWS" ]; then
   mkdir -p $S/real/calibration $S/real/calibration_holdout
   cp $R/REPORT.md $R/profiles.json $R/confusions.jsonl $R/term_manglings.jsonl $S/real/
   for c in calibration calibration_holdout; do cp $R/$c/CALIBRATION.md $R/$c/calibration.json $S/real/$c/; done
+  if [ -n "${CROSS_ROWS:-}" ] && [ -f "$CROSS_ROWS" ]; then
+    X=.cache/ml/roundtrip/mined/cross
+    $H $PY -m ml.roundtrip.mine.mine_errors "$CROSS_ROWS" --out $X --jobs 12 --title "Error mining — $(basename "$CROSS_ROWS")"
+    $H $PY -m ml.roundtrip.mine.noise calibrate --rows $R/rows.jsonl --mined $X --cross --out $R/calibration_cross \
+      --repeats 4 --jobs 12
+    mkdir -p $S/real/calibration_cross
+    cp $R/calibration_cross/CALIBRATION.md $R/calibration_cross/calibration.json $S/real/calibration_cross/
+  fi
 fi
 echo REGEN_DONE

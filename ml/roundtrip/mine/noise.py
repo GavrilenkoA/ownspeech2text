@@ -38,7 +38,7 @@ from .align import ERROR_KINDS, classify, is_error_variant, locate_terms
 from .mine_errors import MinedTables, guess_lang, mine_rows, read_jsonl, write_outputs
 from .norm import (Token, cardinal_word_run, fold, is_number_word, is_numeric_token, script_of, spell_numeric_token,
                    tokenize)
-from .translit import camel_parts, char_sim, is_acronym, lat2cyr
+from .translit import camel_parts, char_sim, is_acronym, lat2cyr, lexicon_readings
 
 _EDGE_PUNCT = re.compile(r"[.,!?;:…—–\-\"«»„“”'()\[\]{}]")
 _FALLBACK_INS = {"cyr": ["и", "а", "в", "ну", "вот", "это"], "lat": ["the", "a", "and", "uh", "to", "it"]}
@@ -346,7 +346,18 @@ class NoiseModel:
                 if lower:
                     v = v.lower()
             else:
-                v = lat2cyr(term, split_camel=rng.random() < 0.5, acronym_style="en" if rng.random() < 0.8 else "ru")
+                # how the term is said (probe lexicon reading, "JSON" -> "джейсон"), else a transliteration
+                readings = [r for r in lexicon_readings(term) if not re.search(r"[A-Za-z]", r)]
+                if readings and rng.random() < 0.8:
+                    v = readings[0] if len(readings) == 1 or rng.random() < 0.6 else rng.choice(readings[1:])
+                else:
+                    v = lat2cyr(term, split_camel=rng.random() < 0.5,
+                                acronym_style="en" if rng.random() < 0.8 else "ru")
+                if len(v.split()) > 1 and len(term.split()) == 1:
+                    tb = self.profiles[model].get("terms", {}).get("by_lang", {}).get(lang) or {}
+                    split_rate = tb.get("split_rate")
+                    if split_rate is not None and rng.random() >= split_rate:
+                        v = v.replace(" ", "")  # this model writes one word for one written word
                 if spell_digits:
                     # a recogniser that never writes digits does not write them inside a term either
                     # ("Qwen3.5" -> "квен три пять", not "квен 3 5")
@@ -525,12 +536,18 @@ class NoiseModel:
                         # a language-model decoder substitutes real words ("голосовой" -> "голосом"),
                         # never character soup ("голосоем"): take the nearest real word seen in the data
                         near = self._near_words(w)
-                        target = rng.choice(near) if near else (rng.choice(vocab) if vocab else tok.core)
+                        if not near:
+                            near = vocab or [v for v in self._words.get(script_of(w), [])
+                                             if v != w and abs(len(v) - len(w)) <= 2]
+                        target = rng.choice(near) if near else None
                     else:
                         target = perturb_word(tok.core, rng)
-                target = _match_case(tok.core, target)
-                events.append(f"sub:{tok.core}->{target}")
-                pieces.append(_Piece(target, tok.lead, tok.trail))
+                if target is None or fold(target) == w:
+                    pieces.append(_Piece(tok.core, tok.lead, tok.trail))  # nothing plausible to say instead
+                else:
+                    target = _match_case(tok.core, target)
+                    events.append(f"sub:{tok.core}->{target}")
+                    pieces.append(_Piece(target, tok.lead, tok.trail))
             else:
                 pieces.append(_Piece(tok.core, tok.lead, tok.trail))
             if rng.random() < p_ins:
@@ -779,6 +796,22 @@ def _get(p: dict, path: Sequence[str]) -> float | None:
     return None if cur is None else float(cur)
 
 
+_WER_LIKE = ("wer", "wer_style_aware", "cer")
+
+
+def _standard_error(real_profile: dict, name: str, value: float | None, support: int) -> float:
+    """Binomial standard error of a real rate. Word-level rates are clustered by sentence, so they use the
+    number of rows of that model (and language) as the sample size, not the number of words."""
+    if value is None or support <= 0:
+        return 0.0
+    base, _, lang = name.partition("@")
+    n = support
+    if base in _WER_LIKE:
+        n = int((real_profile.get("wer_by_lang", {}).get(lang, {}) if lang else real_profile).get("n") or support)
+    p = min(1.0, max(0.0, value))
+    return (max(p * (1 - p), 1e-4) / max(1, n)) ** 0.5
+
+
 def compare_profiles(real: dict[str, dict], sim: dict[str, dict],
                      mined: dict[str, dict] | None = None) -> dict[str, dict[str, dict]]:
     """Per model and metric: real vs simulated value, gap and tolerance check.
@@ -801,8 +834,12 @@ def compare_profiles(real: dict[str, dict], sim: dict[str, dict],
             support = int(_get(real[m], support_path) or 0)
             gap = None if a is None or b is None else round(b - a, 4)
             judged = gap is not None and support >= CAL_MIN_SUPPORT
-            rows[name] = {"real": a, "sim": b, "gap": gap, "tol": tol, "support": support,
-                          "ok": abs(gap) <= tol if judged else None}
+            se = _standard_error(real[m], name, a, support)
+            # flagged only when the gap exceeds both the tolerance and twice the sampling noise of the real
+            # value: with 26 English terms a real rate is itself uncertain by +-0.09
+            rows[name] = {"real": a, "sim": b, "gap": gap, "tol": tol, "support": support, "se": se,
+                          "over_tol": abs(gap) > tol if judged else None,
+                          "ok": abs(gap) <= max(tol, 2 * se) if judged else None}
             if mined is not None:
                 c = _get(mined.get(m, {}), path)
                 rows[name]["mined"] = c
@@ -813,14 +850,18 @@ def compare_profiles(real: dict[str, dict], sim: dict[str, dict],
 
 def render_calibration(cmp: dict[str, dict[str, dict]], title: str, note: str) -> str:
     L = [f"# {title}", "", note, "",
-         "Gap = simulated − real. A metric is flagged (⚠) when |gap| exceeds its tolerance. Values in brackets "
-         f"rest on fewer than {CAL_MIN_SUPPORT} real observations and are shown but not judged.", ""]
+         "Gap = simulated − real. A metric is flagged (⚠) when |gap| exceeds its tolerance and also twice the "
+         "standard error of the real value (binomial; rows as the sample for WER-like rates), i.e. when the "
+         "difference is larger than the real set can measure. `~` marks a gap above the tolerance that is within "
+         f"that noise. Values in brackets rest on fewer than {CAL_MIN_SUPPORT} real observations and are not "
+         "judged.", ""]
     def cell(r: dict | None) -> str:
         if r is None or r["real"] is None or r["sim"] is None:
             return "–"
         if r["ok"] is None:
             return f"({r['real']:.3f}→{r['sim']:.3f})"
-        return f"{r['real']:.3f}→{r['sim']:.3f}{'' if r['ok'] else ' ⚠'}"
+        mark = " ⚠" if not r["ok"] else (" ~" if r.get("over_tol") else "")
+        return f"{r['real']:.3f}→{r['sim']:.3f}{mark}"
 
     names = [n for n, _, _, _ in CAL_METRICS]
     L.append("| ASR model | " + " | ".join(names) + " |")
@@ -841,15 +882,17 @@ def render_calibration(cmp: dict[str, dict[str, dict]], title: str, note: str) -
 
     fp, tp = count(lambda n: "@" not in n)
     fl, tl = count(lambda n: "@" in n)
+    noisy = sum(1 for rows in cmp.values() for r in rows.values() if r["ok"] is True and r.get("over_tol"))
     flagged = [(m, n) for m, rows in cmp.items() for n, r in rows.items() if r["ok"] is False]
-    L += ["", f"Flagged gaps: {fp} of {tp} pooled metrics, {fl} of {tl} per-language metrics."]
+    L += ["", f"Flagged gaps: {fp} of {tp} pooled metrics, {fl} of {tl} per-language metrics; "
+              f"{noisy} more exceed the tolerance within the real set's sampling noise."]
     for m, n in flagged:
         r = cmp[m][n]
         extra = ""
         if r.get("mined") is not None:
             extra = f"; mined-on rows {r['mined']:.3f}, sampler gap {r['sampler_gap']:+.3f}"
         L.append(f"- `{m}` {n}: real {r['real']:.3f}, sim {r['sim']:.3f} (gap {r['gap']:+.3f}, tol {r['tol']}, "
-                 f"n={r['support']}{extra})")
+                 f"2·SE {2 * r.get('se', 0.0):.3f}, n={r['support']}{extra})")
     sampler_bad = [(m, n) for m, rows in cmp.items() for n, r in rows.items()
                    if r["ok"] is not None and r.get("sampler_gap") is not None and abs(r["sampler_gap"]) > r["tol"]]
     if any("mined" in r for rows in cmp.values() for r in rows.values()):
@@ -875,7 +918,12 @@ def _split_holdout(rows: Sequence[dict], frac: float, seed: int) -> tuple[list[d
 
 
 def calibrate(real_rows: Sequence[dict], mined: MinedTables | None, out_dir: Path, seed: int, repeats: int,
-              severity: float = 1.0, holdout_frac: float = 0.0, jobs: int = 1) -> dict[str, dict[str, dict]]:
+              severity: float = 1.0, holdout_frac: float = 0.0, jobs: int = 1,
+              cross_source: str | None = None) -> dict[str, dict[str, dict]]:
+    """Simulate ``real_rows``' texts, mine the simulation and compare it with mining ``real_rows``.
+
+    Modes: in-sample (``mined`` from these rows), out-of-sample (``holdout_frac``: mine on the other probe
+    ids), cross-set (``cross_source``: ``mined`` came from a different set of rows, e.g. another probe run)."""
     if holdout_frac > 0:
         train, test = _split_holdout(real_rows, holdout_frac, seed)
         mined = mine_rows(train, jobs=jobs)
@@ -883,6 +931,12 @@ def calibrate(real_rows: Sequence[dict], mined: MinedTables | None, out_dir: Pat
         note = (f"Out-of-sample: tables mined on {len(train)} rows, simulated and compared on {len(test)} held-out "
                 f"rows (by probe_id), {repeats} repeat(s), severity {severity:g}.")
         eval_rows = test
+    elif cross_source:
+        assert mined is not None
+        mined_profiles = mined.profiles
+        note = (f"Cross-set: tables mined on other rows ({cross_source}), simulated and compared on these "
+                f"{len(real_rows)} rows (different sentences), {repeats} repeat(s), severity {severity:g}.")
+        eval_rows = list(real_rows)
     else:
         assert mined is not None
         mined_profiles = None
@@ -945,6 +999,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     s3.add_argument("--repeats", type=int, default=5)
     s3.add_argument("--severity", type=float, default=1.0)
     s3.add_argument("--jobs", type=int, default=1)
+    s3.add_argument("--cross", action="store_true",
+                    help="--mined comes from other rows than --rows (cross-set check, e.g. an earlier probe run)")
     args = ap.parse_args(argv)
 
     if args.cmd == "sample":
@@ -990,7 +1046,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         profiles = json.loads((nm_dir / "profiles.json").read_text(encoding="utf-8"))
         mined = MinedTables(profiles, read_jsonl_plain(nm_dir / "confusions.jsonl"),
                             read_jsonl_plain(nm_dir / "term_manglings.jsonl"), len(real), 0)
-    cmp = calibrate(real, mined, Path(args.out), args.seed, args.repeats, args.severity, args.holdout_frac, args.jobs)
+    cmp = calibrate(real, mined, Path(args.out), args.seed, args.repeats, args.severity, args.holdout_frac, args.jobs,
+                    cross_source=args.mined if args.cross and args.holdout_frac <= 0 else None)
     flagged = sum(1 for rows in cmp.values() for r in rows.values() if r["ok"] is False)
     total = sum(1 for rows in cmp.values() for r in rows.values() if r["ok"] is not None)
     print(f"calibration: {flagged}/{total} metrics outside tolerance -> {args.out}/CALIBRATION.md")

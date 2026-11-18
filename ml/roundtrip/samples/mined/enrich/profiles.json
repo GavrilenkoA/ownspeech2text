@@ -1,5 +1,25 @@
 {
  "gigaam-v2@enrich-dataset": {
+  "by_tts": {
+   "human": {
+    "by_lang": {
+     "ru": {
+      "cer": 0.0086,
+      "latin_kept_rate": null,
+      "n": 2500,
+      "term_error_rate": null,
+      "term_exact_rate": null,
+      "term_n": 0,
+      "wer": 0.0259,
+      "wer_style_aware": 0.0217,
+      "words": 27244
+     }
+    },
+    "inputs": {
+     "?": 2500
+    }
+   }
+  },
   "casing": {
    "all_lower_rate": 0.0069,
    "first_upper_rate": 0.9832,
@@ -25,6 +45,8 @@
   },
   "hallucination": {
    "empty_rate": 0.0,
+   "foreign_examples": [],
+   "foreign_script_rate": 0.0,
    "lead_rate": 0.0008,
    "leads": [
     [
@@ -57,8 +79,8 @@
    "number": 32,
    "punct": 90,
    "sub": 36,
-   "sub_near": 459,
-   "translit": 1,
+   "sub_near": 457,
+   "translit": 3,
    "yo": 764
   },
   "langs": {
@@ -75,7 +97,7 @@
   },
   "n": 2500,
   "n_ref_words": 27244,
-  "nonterm_wer": 0.0218,
+  "nonterm_wer": 0.0217,
   "nonterm_words": 27244,
   "punctuation": {
    "any_rate": 0.9914,
@@ -88,6 +110,15 @@
   },
   "rtf": null,
   "sampler": {
+   "by_lang": {
+    "ru": {
+     "near_share": 0.927,
+     "nonterm_words": 27244,
+     "p_del": 0.0004,
+     "p_ins": 0.0029,
+     "p_sub": 0.0181
+    }
+   },
    "confusable_words": {
     "а": 172,
     "адриатико-ионической": 1,
@@ -431,7 +462,6 @@
     "стрелой": 1,
     "строках": 2,
     "суетилось": 1,
-    "сьерра-леоне": 1,
     "т": 2,
     "т.д": 1,
     "т.п": 1,
@@ -648,11 +678,11 @@
      1
     ]
    ],
-   "near_share": 0.9273,
+   "near_share": 0.927,
    "nonterm_words": 27244,
    "p_del": 0.0004,
    "p_ins": 0.0029,
-   "p_sub": 0.0182
+   "p_sub": 0.0181
   },
   "style_excluded_rows": 178,
   "term_wer": null,
@@ -675,7 +705,7 @@
     "cer": 0.0086,
     "n": 2500,
     "wer": 0.0259,
-    "wer_style_aware": 0.0218,
+    "wer_style_aware": 0.0217,
     "words": 27244
    }
   },
@@ -684,17 +714,37 @@
     "cer": 0.0086,
     "n": 2500,
     "wer": 0.0259,
-    "wer_style_aware": 0.0218,
+    "wer_style_aware": 0.0217,
     "words": 27244
    }
   },
-  "wer_style_aware": 0.0218,
+  "wer_style_aware": 0.0217,
   "yo": {
    "kept_rate": 1.0,
    "ref_yo_words": 39
   }
  },
  "nemotron-3.5-transcribe@enrich-dataset": {
+  "by_tts": {
+   "human": {
+    "by_lang": {
+     "ru": {
+      "cer": 0.0276,
+      "latin_kept_rate": null,
+      "n": 2500,
+      "term_error_rate": null,
+      "term_exact_rate": null,
+      "term_n": 0,
+      "wer": 0.0592,
+      "wer_style_aware": 0.053,
+      "words": 27244
+     }
+    },
+    "inputs": {
+     "?": 2500
+    }
+   }
+  },
   "casing": {
    "all_lower_rate": 0.0017,
    "first_upper_rate": 0.9974,
@@ -720,6 +770,25 @@
   },
   "hallucination": {
    "empty_rate": 0.012,
+   "foreign_examples": [
+    [
+     "- Юлія.",
+     1
+    ],
+    [
+     "Monsieur Baumann habitait à la ronde.",
+     1
+    ],
+    [
+     "O colocar a perna de escorço no lugar.",
+     1
+    ],
+    [
+     "Профессионалізм - залог успіху любого діла.",
+     1
+    ]
+   ],
+   "foreign_script_rate": 0.0016,
    "lead_rate": 0.0008,
    "leads": [
     [
@@ -738,13 +807,13 @@
   "kinds": {
    "case": 908,
    "del": 511,
-   "ins": 70,
+   "ins": 71,
    "match": 24837,
    "number": 7,
    "punct": 159,
-   "sub": 80,
-   "sub_near": 789,
-   "translit": 7,
+   "sub": 81,
+   "sub_near": 782,
+   "translit": 12,
    "yo": 48
   },
   "langs": {
@@ -761,7 +830,7 @@
   },
   "n": 2500,
   "n_ref_words": 27244,
-  "nonterm_wer": 0.0532,
+  "nonterm_wer": 0.053,
   "nonterm_words": 27244,
   "punctuation": {
    "any_rate": 0.9974,
@@ -774,6 +843,15 @@
   },
   "rtf": null,
   "sampler": {
+   "by_lang": {
+    "ru": {
+     "near_share": 0.9061,
+     "nonterm_words": 26812,
+     "p_del": 0.0029,
+     "p_ins": 0.0025,
+     "p_sub": 0.0322
+    }
+   },
    "confusable_words": {
     "а": 166,
     "адриатико-ионической": 1,
@@ -1155,7 +1233,6 @@
     "подле": 2,
     "подольют": 1,
     "позиции": 3,
-    "показали": 1,
     "показывавшим": 1,
     "покойники": 1,
     "поколения": 1,
@@ -1239,7 +1316,6 @@
     "ребята": 2,
     "регулируя": 1,
     "резолюции": 12,
-    "релизнут": 1,
     "решаетесь": 1,
     "рифмы": 1,
     "роднящий": 1,
@@ -1575,6 +1651,10 @@
      1
     ],
     [
+     "slej",
+     1
+    ],
+    [
      "à",
      1
     ],
@@ -1641,17 +1721,13 @@
     [
      "так",
      1
-    ],
-    [
-     "тому",
-     1
     ]
    ],
-   "near_share": 0.9079,
+   "near_share": 0.9061,
    "nonterm_words": 26812,
    "p_del": 0.0029,
    "p_ins": 0.0025,
-   "p_sub": 0.0324
+   "p_sub": 0.0322
   },
   "style_excluded_rows": 178,
   "term_wer": null,
@@ -1674,7 +1750,7 @@
     "cer": 0.0276,
     "n": 2500,
     "wer": 0.0592,
-    "wer_style_aware": 0.0532,
+    "wer_style_aware": 0.053,
     "words": 27244
    }
   },
@@ -1683,11 +1759,11 @@
     "cer": 0.0276,
     "n": 2500,
     "wer": 0.0592,
-    "wer_style_aware": 0.0532,
+    "wer_style_aware": 0.053,
     "words": 27244
    }
   },
-  "wer_style_aware": 0.0532,
+  "wer_style_aware": 0.053,
   "yo": {
    "kept_rate": 0.3243,
    "ref_yo_words": 37

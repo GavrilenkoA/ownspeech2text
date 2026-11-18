@@ -2,90 +2,96 @@
  "threads": 2,
  "tts": {
   "piper": {
-   "audio_s": 45.3604375,
-   "wall_s": 5.694474863994401,
-   "n": 9,
-   "x_realtime": 7.965692813363624
+   "audio_s": 71.20437500000001,
+   "wall_s": 3.0146234069834463,
+   "n": 15,
+   "x_realtime": 23.619658374261075
   },
   "supertonic3": {
-   "audio_s": 56.17275,
-   "wall_s": 26.17544958606595,
-   "n": 9,
-   "x_realtime": 2.1460089850721262
+   "audio_s": 89.53406249999999,
+   "wall_s": 15.386329277185723,
+   "n": 15,
+   "x_realtime": 5.819065801013226
   },
   "kokoro1": {
-   "audio_s": 15.839125,
-   "wall_s": 18.161815388011746,
-   "n": 3,
-   "x_realtime": 0.8721113314726837
+   "audio_s": 22.2289375,
+   "wall_s": 7.855822974059265,
+   "n": 5,
+   "x_realtime": 2.8296128328505157
   }
  },
  "asr": {
   "parakeet-tdt-0.6b-v3@onnx-int8": {
-   "audio_s": 45.3604375,
-   "wall_s": 9.589850606862456,
-   "n": 9,
-   "x_realtime": 4.7300463124566585
+   "audio_s": 71.20437500000001,
+   "wall_s": 4.98403744091047,
+   "n": 15,
+   "x_realtime": 14.286484771469253
   },
   "parakeet-ultra-0.6b@onnx-int8": {
-   "audio_s": 45.3604375,
-   "wall_s": 11.022046969039366,
-   "n": 9,
-   "x_realtime": 4.115427708429864
+   "audio_s": 71.20437500000001,
+   "wall_s": 4.328257285116706,
+   "n": 15,
+   "x_realtime": 16.451049535536118
   },
   "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms": {
-   "audio_s": 45.3604375,
-   "wall_s": 38.133118369907606,
-   "n": 9,
-   "x_realtime": 1.1895286679674162
+   "audio_s": 71.20437500000001,
+   "wall_s": 13.255939466063865,
+   "n": 15,
+   "x_realtime": 5.371507253958741
   },
   "gigaam-v3-e2e-rnnt@onnx-int8": {
-   "audio_s": 28.641937499999997,
-   "wall_s": 5.798509143991396,
-   "n": 6,
-   "x_realtime": 4.939534764669589
+   "audio_s": 50.97968750000001,
+   "wall_s": 2.115442211914342,
+   "n": 10,
+   "x_realtime": 24.098832486597026
   },
   "gigaam-v3-e2e-ctc@onnx-int8": {
-   "audio_s": 28.641937499999997,
-   "wall_s": 4.310617952956818,
-   "n": 6,
-   "x_realtime": 6.644508470149482
+   "audio_s": 50.97968750000001,
+   "wall_s": 2.0316282100393437,
+   "n": 10,
+   "x_realtime": 25.09302009495761
   },
   "t-one@onnx": {
-   "audio_s": 28.641937499999997,
-   "wall_s": 10.532111156964675,
-   "n": 6,
-   "x_realtime": 2.7194868220755204
+   "audio_s": 50.97968750000001,
+   "wall_s": 3.0088202048791572,
+   "n": 10,
+   "x_realtime": 16.94341437129757
   },
   "qwen3-asr-0.6b@onnx-int8": {
-   "audio_s": 45.3604375,
-   "wall_s": 58.72122014098568,
-   "n": 9,
-   "x_realtime": 0.7724709634965462
+   "audio_s": 71.20437500000001,
+   "wall_s": 18.907045232946984,
+   "n": 15,
+   "x_realtime": 3.7660234120517626
   },
   "whisper-large-v3-turbo@onnx-int8": {
-   "audio_s": 45.3604375,
-   "wall_s": 72.35533535201102,
-   "n": 9,
-   "x_realtime": 0.6269121313489879
+   "audio_s": 71.20437500000001,
+   "wall_s": 42.31272285693558,
+   "n": 15,
+   "x_realtime": 1.682812407056634
   },
   "distil-large-v3.5@onnx-int8": {
-   "audio_s": 16.7185,
-   "wall_s": 37.51288537803339,
-   "n": 3,
-   "x_realtime": 0.44567352874940236
+   "audio_s": 20.2246875,
+   "wall_s": 10.074632941978052,
+   "n": 5,
+   "x_realtime": 2.0074862892254504
   },
   "whisper-small@onnx-int8": {
-   "audio_s": 45.3604375,
-   "wall_s": 86.19206501700683,
-   "n": 9,
-   "x_realtime": 0.5262716178229375
+   "audio_s": 71.20437500000001,
+   "wall_s": 27.124089083925355,
+   "n": 15,
+   "x_realtime": 2.6251342406259135
+  },
+  "nemotron-speech-streaming-en-0.6b@onnx-int8-560ms": {
+   "audio_s": 20.2246875,
+   "wall_s": 3.9071859398973174,
+   "n": 5,
+   "x_realtime": 5.176279760192707
   },
   "whisper-medium@onnx-int8": {
-   "audio_s": 45.3604375,
-   "wall_s": 128.03553516889224,
-   "n": 9,
-   "x_realtime": 0.3542800632665365
+   "audio_s": 71.20437500000001,
+   "wall_s": 95.559454752889,
+   "n": 15,
+   "x_realtime": 0.7451316584437432
   }
  },
  "status": {
@@ -102,6 +108,7 @@
   "asr:whisper-large-v3-turbo@onnx-int8": "ok",
   "asr:distil-large-v3.5@onnx-int8": "ok",
   "asr:whisper-small@onnx-int8": "ok",
+  "asr:nemotron-speech-streaming-en-0.6b@onnx-int8-560ms": "ok",
   "asr:whisper-medium@onnx-int8": "ok"
  }
 }

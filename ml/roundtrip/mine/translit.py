@@ -411,22 +411,39 @@ def set_term_lexicon(readings: dict[str, Sequence[str]] | None) -> None:
     global _lexicon_override
     _lexicon_override = None if readings is None else {k: tuple(v) for k, v in readings.items()}
     lexicon_readings.cache_clear()
+    spoken_readings.cache_clear()
     faithful_translit.cache_clear()
 
 
 @lru_cache(maxsize=1)
-def _probe_lexicon() -> dict[str, tuple[str, ...]]:
-    table: dict[str, tuple[str, ...]] = {}
+def _probe_lexicon_full() -> tuple[dict[str, tuple[str, ...]], dict[str, tuple[str, ...]]]:
+    ru: dict[str, tuple[str, ...]] = {}
+    en: dict[str, tuple[str, ...]] = {}
     if not LEXICON_PATH.exists():
-        return table
+        return ru, en
     with open(LEXICON_PATH, encoding="utf-8") as fh:
         for line in fh:
             if not line.strip():
                 continue
             e = json.loads(line)
             for f in e.get("written_forms", []):
-                table.setdefault(f, tuple(e.get("ru_spoken", [])))
-    return table
+                ru.setdefault(f, tuple(e.get("ru_spoken", [])))
+                en.setdefault(f, tuple(e.get("en_spoken", [])))
+    return ru, en
+
+
+def _probe_lexicon() -> dict[str, tuple[str, ...]]:
+    return _probe_lexicon_full()[0]
+
+
+@lru_cache(maxsize=65536)
+def spoken_readings(term: str) -> tuple[str, ...]:
+    """Every reading of ``term`` in the probe lexicon, Russian and English ("journalctl" -> "journal
+    control"). A hypothesis that writes exactly a reading wrote down what was said: style, not an error."""
+    if _lexicon_override is not None:
+        return _lexicon_override.get(term, ())
+    ru, en = _probe_lexicon_full()
+    return ru.get(term, ()) + en.get(term, ())
 
 
 @lru_cache(maxsize=65536)

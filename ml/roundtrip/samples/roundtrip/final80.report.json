@@ -1,0 +1,123 @@
+{
+ "run": "final80",
+ "probes": 80,
+ "utterances": 160,
+ "jobs": 1546,
+ "pending": 0,
+ "workers": 8,
+ "threads": 2,
+ "wall_s": 2076.3,
+ "tts": {
+  "piper": {
+   "audio_s": 380.41512500000005,
+   "wall_s": 57.23661973973503,
+   "n": 80,
+   "x_realtime": 6.646359039541721
+  },
+  "supertonic3": {
+   "audio_s": 475.2878125,
+   "wall_s": 344.3429738539271,
+   "n": 80,
+   "x_realtime": 1.380274460606885
+  }
+ },
+ "asr": {
+  "distil-large-v3.5@onnx-int8": {
+   "audio_s": 281.846,
+   "wall_s": 442.5644999999998,
+   "n": 54,
+   "x_realtime": 0.6368472844071319
+  },
+  "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms": {
+   "audio_s": 855.6990000000002,
+   "wall_s": 788.3525,
+   "n": 160,
+   "x_realtime": 1.085426887084141
+  },
+  "nemotron-speech-streaming-en-0.6b@onnx-int8-560ms": {
+   "audio_s": 281.846,
+   "wall_s": 244.03089999999992,
+   "n": 54,
+   "x_realtime": 1.1549602939627732
+  },
+  "whisper-large-v3-turbo@onnx-int8": {
+   "audio_s": 855.6990000000004,
+   "wall_s": 1354.5165000000002,
+   "n": 160,
+   "x_realtime": 0.6317375978808677
+  },
+  "whisper-small@onnx-int8": {
+   "audio_s": 855.699,
+   "wall_s": 1133.5556000000004,
+   "n": 160,
+   "x_realtime": 0.7548804840274264
+  },
+  "qwen3-asr-0.6b@onnx-int8": {
+   "audio_s": 855.6989999999998,
+   "wall_s": 824.5258,
+   "n": 160,
+   "x_realtime": 1.0378074282211665
+  },
+  "t-one@onnx": {
+   "audio_s": 573.8530000000002,
+   "wall_s": 199.62779999999998,
+   "n": 106,
+   "x_realtime": 2.874614657878313
+  },
+  "gigaam-v3-e2e-rnnt@onnx-int8": {
+   "audio_s": 573.8530000000002,
+   "wall_s": 103.85730000000001,
+   "n": 106,
+   "x_realtime": 5.525398792381471
+  },
+  "gigaam-v3-e2e-ctc@onnx-int8": {
+   "audio_s": 573.8530000000002,
+   "wall_s": 87.78050000000003,
+   "n": 106,
+   "x_realtime": 6.537363081777843
+  },
+  "parakeet-ultra-0.6b@onnx-int8": {
+   "audio_s": 855.6990000000004,
+   "wall_s": 203.19770000000005,
+   "n": 160,
+   "x_realtime": 4.211164791727466
+  },
+  "parakeet-tdt-0.6b-v3@onnx-int8": {
+   "audio_s": 855.6990000000004,
+   "wall_s": 196.3667,
+   "n": 160,
+   "x_realtime": 4.357658401348092
+  },
+  "whisper-medium@onnx-int8": {
+   "audio_s": 855.6989999999998,
+   "wall_s": 2760.8017000000004,
+   "n": 160,
+   "x_realtime": 0.30994583928284297
+  }
+ },
+ "errors": [],
+ "args": {
+  "probe": "[PosixPath('ml/roundtrip/review/probe80.jsonl')]",
+  "out": ".cache/ml/roundtrip/final_out",
+  "run": "final80",
+  "tts": "piper,supertonic3",
+  "voices": "None",
+  "voices_per_sentence": "1",
+  "channels": "clean",
+  "asr": "all",
+  "limit": "None",
+  "seed": "13",
+  "workers": "8",
+  "threads": "2",
+  "tts_shard": "8",
+  "tts_batch": "1",
+  "ref_dir": "None",
+  "asr_shard": "48",
+  "asr_shard_s": "150.0",
+  "allow_errors": "False",
+  "mem_gb": "12.0",
+  "skip_asr": "False",
+  "measure": "False",
+  "measure_n": "3"
+ }
+}

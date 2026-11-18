@@ -402,6 +402,9 @@ def _accumulate(st: ModelStats, a: RowAnalysis, conf: Counter, terms: dict, tail
         st.terms_translit += (not h.is_error) and "translit" in h.kinds
         st.terms_error += h.is_error
         tl = st.terms_by_lang[lang]
+        if h.r1 - h.r0 == 1 and h.h1 > h.h0:
+            tl["single"] += 1
+            tl["split"] += (h.h1 - h.h0) > 1
         tl["n"] += 1
         tl["exact"] += h.exact
         tl["folded"] += h.folded_equal
@@ -494,7 +497,9 @@ def _profile(st: ModelStats, conf: Counter) -> dict[str, Any]:
         "folded_rate": _rate(st.terms_folded, st.terms_n), "translit_rate": _rate(st.terms_translit, st.terms_n),
         "error_rate": _rate(st.terms_error, st.terms_n),
         "by_lang": {lg: {"n": c["n"], "exact_rate": _rate(c["exact"], c["n"]), "folded_rate": _rate(c["folded"], c["n"]),
-                         "error_rate": _rate(c["error"], c["n"]), "latin_kept_rate": _rate(c["latin_kept"], c["n"])}
+                         "error_rate": _rate(c["error"], c["n"]), "latin_kept_rate": _rate(c["latin_kept"], c["n"]),
+                         # one written word heard as several ("ClickHouse" -> "клик хаус")
+                         "split_rate": _rate(c["split"], c["single"])}
                     for lg, c in sorted(st.terms_by_lang.items())},
     }
     ins_words: Counter = Counter()
@@ -758,12 +763,18 @@ def main(argv: Sequence[str] | None = None) -> int:
     ap.add_argument("--title", default="ASR error mining report")
     ap.add_argument("--jobs", type=int, default=1, help="alignment worker processes (output is identical)")
     ap.add_argument("--models", nargs="*", help="only mine these asr_model ids")
+    ap.add_argument("--tts", nargs="*", help="only mine rows read by these tts_system ids (per-TTS profiles)")
+    ap.add_argument("--channels", nargs="*", help="only mine rows of these channels (e.g. clean)")
     ap.add_argument("--tail-min", type=int, default=TAIL_MIN_WORDS,
                     help="trailing insertion run length counted as a hallucination tail")
     args = ap.parse_args(argv)
     rows = read_jsonl(args.inputs)
     if args.models:
         rows = [r for r in rows if r["asr_model"] in set(args.models)]
+    if args.tts:
+        rows = [r for r in rows if r.get("tts_system") in set(args.tts)]
+    if args.channels:
+        rows = [r for r in rows if (r.get("channel") or "clean") in set(args.channels)]
     if not rows:
         print("no rows", file=sys.stderr)
         return 1

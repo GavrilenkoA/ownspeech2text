@@ -192,7 +192,9 @@ _EN_ORD = {"zeroth": 0, "first": 1, "second": 2, "third": 3, "fourth": 4, "fifth
            "seventieth": 70, "eightieth": 80, "ninetieth": 90, "hundredth": 100, "thousandth": 1000}
 
 # connectors that may sit between number words without breaking the number span
-CONNECTORS = {"и", "and", "point", "dot", "точка", "запятая", "целых", "целая", "a"}
+CONNECTORS = {"и", "and", "point", "dot", "точка", "запятая", "целых", "целая", "a",
+              # fraction denominators said after the decimals ("девяносто девять и девять десятых")
+              "десятых", "десятая", "сотых", "сотая", "тысячных", "тысячная"}
 _PERCENT_WORDS = {"процент", "процента", "процентов", "проценту", "процентами", "процентах", "percent",
                   "percents", "per-cent"}
 

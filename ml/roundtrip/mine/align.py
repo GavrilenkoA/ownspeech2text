@@ -27,10 +27,10 @@ from dataclasses import dataclass, field
 from functools import lru_cache
 from typing import Iterable, Sequence
 
-from .norm import (CONNECTORS, Token, fold, is_number_word, is_numeric_token, number_groups, numbers_equivalent, script_of,
-                   squash, tokenize, unit_of)
+from .norm import (CONNECTORS, Token, fold, is_number_word, is_numeric_token, number_groups,
+                   numbers_equivalent, parse_number_words, script_of, squash, tokenize, unit_of)
 from .translit import (acronym_readings, camel_parts, char_sim, cyr2lat, faithful_translit, is_acronym, lat2cyr,
-                       levenshtein, phonetic_key, term_sim)
+                       levenshtein, phonetic_key, spoken_readings, term_sim)
 
 STYLE_KINDS = ("match", "case", "yo", "punct", "number", "translit")
 ERROR_KINDS = ("sub_near", "sub", "del", "ins")
@@ -165,6 +165,10 @@ def classify(ref: tuple[str, ...], hyp: tuple[str, ...]) -> tuple[str, float] | 
     rs, hs = squash(rj.replace(" ", "")), squash(hj.replace(" ", ""))
     if rs and rs == hs:
         return ("punct", 1.0)
+    if rs and _digits_in_words_equal(ref, hyp):
+        return ("number", 1.0)  # "FP16" / "FP sixteen", "Apple M4" / "Apple M Four"
+    if rs and len(hyp) <= 4 and hs in {squash(r.replace(" ", "")) for r in spoken_readings(rj)}:
+        return ("translit", 1.0)  # the term's spoken form written down: "journalctl" / "journal control"
     if (ng_r is None) != (ng_h is None) and not single:
         # a number on one side only can never be a multi-word phrase match
         return None
@@ -181,7 +185,7 @@ def classify(ref: tuple[str, ...], hyp: tuple[str, ...]) -> tuple[str, float] | 
     # a transliteration maps a one-script span onto the other script; a block that also swallows a Cyrillic
     # neighbour of a Latin term ("по Kubernetes" -> "покубернитесь", "в Slack" -> "вслаг") is a merge error
     pure = len(sr) == 1 and len(sh) == 1
-    if cross and pure and len(hyp) <= _parts(ref):
+    if cross and pure and (len(hyp) <= _parts(ref) or (sr == {"cyr"} and len(hyp) <= 3)):
         if sr == {"lat"}:
             # Latin term written in Cyrillic: faithful only when it matches how the term is said, with
             # voicing and the stressed vowel intact (faithful_translit); "кофка", "слаг", "центре" are errors
@@ -194,6 +198,29 @@ def classify(ref: tuple[str, ...], hyp: tuple[str, ...]) -> tuple[str, float] | 
     if sim >= BLOCK_MIN_SIM:
         return ("sub_near", sim)
     return None
+
+
+def _digits_in_words_equal(ref: Sequence[str], hyp: Sequence[str]) -> bool:
+    """Equal once runs of number words become digits ("M Four" -> "M4"); at least one side had words."""
+    def norm(ws: Sequence[str]) -> tuple[str, bool]:
+        out, i, changed = [], 0, False
+        while i < len(ws):
+            if is_number_word(ws[i]):
+                j = i
+                while j < len(ws) and is_number_word(ws[j]):
+                    j += 1
+                parsed = parse_number_words(list(ws[i:j]))
+                digits = str(parsed[0]) if parsed and len(parsed) == 1 else None
+                if digits is not None:
+                    out.append(digits)
+                    changed = True
+                    i = j
+                    continue
+            out.append(ws[i])
+            i += 1
+        return squash("".join(out)), changed
+    (a, ca), (b, cb) = norm(ref), norm(hyp)
+    return (ca or cb) and bool(a) and a == b and any(c.isdigit() for c in a)
 
 
 def _parts(ref: Sequence[str]) -> int:

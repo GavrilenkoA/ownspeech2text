@@ -25,6 +25,15 @@ WER is the conventional normalised WER (case, punctuation and ё folded; nothing
 | `gigaam-v2@enrich-dataset` | 99.3% | 98.3% | 87.4% | 99.1% | 98.0% | 110.6% | – | – | 100.0% |
 | `nemotron-3.5-transcribe@enrich-dataset` | 99.8% | 99.7% | 81.0% | 99.7% | 98.2% | 113.0% | – | – | 32.4% |
 
+## By TTS system
+
+The voice that read a sentence moves these numbers as much as the recogniser does: Piper's Russian voices read the Cyrillic respelling (`tts_text`), Supertonic reads the Latin terms as written. Every per-model figure above pools the TTS systems in the proportions of the input rows.
+
+| ASR model | TTS | lang | rows | WER | style-aware WER | term exact | term error | Latin kept |
+|---|---|---|---:|---:|---:|---:|---:|---:|
+| `gigaam-v2@enrich-dataset` | human | ru | 2500 | 2.6% | 2.2% | – | – | – |
+| `nemotron-3.5-transcribe@enrich-dataset` | human | ru | 2500 | 5.9% | 5.3% | – | – | – |
+
 ## `gigaam-v2@enrich-dataset`
 
 What the cleanup LLM must learn to undo:

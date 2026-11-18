@@ -38,6 +38,14 @@ def models_dir() -> Path:
     return d
 
 
+def keep_hf_state_local() -> None:
+    """Point huggingface_hub's Xet chunk cache and logs into our cache instead of ~/.cache/huggingface
+    (observed: every download left a log file under ~/.cache/huggingface/xet/logs). Call before
+    huggingface_hub is imported; explicit settings in the environment win."""
+    os.environ.setdefault("HF_XET_CACHE", str(models_dir() / "xet"))
+    os.environ.setdefault("HF_HUB_DISABLE_TELEMETRY", "1")
+
+
 class FetchError(RuntimeError):
     """A model file could not be downloaded or unpacked."""
 
@@ -74,6 +82,7 @@ def fetch_hf(files: Sequence[HfFile]) -> Path:
     repos = {(f.repo, f.revision) for f in files}
     if len(repos) != 1:
         raise FetchError(f"fetch_hf() expects files of one repo/revision, got {sorted(repos)}")
+    keep_hf_state_local()
     try:
         from huggingface_hub import hf_hub_download
     except ImportError as exc:  # pragma: no cover - environment problem

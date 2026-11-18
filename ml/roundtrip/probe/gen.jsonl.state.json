@@ -1,8 +1,8 @@
 {
  "seed": 1,
- "next_batch": 82,
- "requests": 82,
- "accepted": 819,
+ "next_batch": 92,
+ "requests": 92,
+ "accepted": 919,
  "rejected": 1,
  "prompt_version": "Probe-sentence generation prompt (v2)"
 }

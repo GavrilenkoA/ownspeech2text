@@ -207,6 +207,7 @@
 {"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "de", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
 {"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "escorço", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
 {"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "habitait", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
+{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "slej", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
 {"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "à", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
 {"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "бы", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
 {"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "выскочить", "in_term": false, "kind": "ins", "lang": "ru", "ref": ""}
@@ -297,4 +298,3 @@
 {"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "випонизацией", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "вепонизацией"}
 {"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "них", "in_term": false, "kind": "sub", "lang": "ru", "ref": "вернись"}
 {"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "уверно", "in_term": false, "kind": "sub_near", "lang": "ru", "ref": "верно"}
-{"asr_model": "nemotron-3.5-transcribe@enrich-dataset", "count": 1, "hyp": "взаимно отталкивающей", "in_term": false, "kind": "punct", "lang": "ru", "ref": "взаимно-отталкивающей"}

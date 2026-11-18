@@ -296,3 +296,14 @@ def test_channel_stats_sees_band_limit_noise_and_clipping(tmp_path, capsys):
     assert channel.main(["stats", str(f), "--preset", "phone"]) == 0
     row = json.loads(capsys.readouterr().out.strip())
     assert row["preset"] == "phone" and row["duration_s"] == 1.5
+
+
+def test_fleurs_reference_clip_choice_is_deterministic_and_balanced():
+    from ml.roundtrip.tts.fetch_refvoices import Clip, choose
+
+    clips = [Clip("ru", f"{i}.wav", f"фраза {i % 20}", 3.0 + (i % 12), "female" if i % 3 else "male") for i in range(60)]
+    a, b = choose(clips, 6, seed=1), choose(clips, 6, seed=1)
+    assert a == b and len(a) == 6
+    assert all(4.0 <= c.seconds <= 12.0 for c in a)
+    assert len({c.text for c in a}) == 6  # one clip per transcript
+    assert [c.gender for c in a].count("male") == 3  # genders alternate

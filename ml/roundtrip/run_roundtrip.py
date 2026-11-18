@@ -433,23 +433,33 @@ def run_tts_stage(utts: List[Utterance], out: Path, workers: int, threads: int, 
     return agg
 
 
+MODEL_BUDGET_SHARE = 2 / 3  # one model may hold at most this share of the memory budget
+
+
 def _bounded_submit(pool, shards: List[Tuple[str, list]], workers: int, budget: Optional[int],
                     mem: Dict[str, int], make_call) -> Iterator[Tuple[Future, str, int]]:
     """Submit ``shards`` keeping at most ``workers`` in flight and their memory within ``budget``;
     yield (future, model, n_clips) as each completes. Order of submission follows ``shards``,
-    except that a shard too big for the remaining budget lets smaller later ones go first."""
+    except that a shard too big for the remaining budget lets smaller later ones go first. One model
+    never holds more than ``MODEL_BUDGET_SHARE`` of the budget while shards of other models wait, so a
+    memory-heavy model that goes first (whisper-medium) cannot keep every other model waiting."""
     queue = list(shards)
     inflight: Dict[Future, Tuple[str, int, int]] = {}
     used = 0
+    per_model: Dict[str, int] = defaultdict(int)
     while queue or inflight:
         i = 0
         while i < len(queue) and len(inflight) < workers:
             m, part = queue[i]
             need = mem.get(m, DEFAULT_MODEL_MEM_MB)
-            if budget is None or not inflight or used + need <= budget:
+            others_waiting = any(q[0] != m for q in queue)
+            fits = budget is None or (used + need <= budget and (
+                not others_waiting or not per_model[m] or per_model[m] + need <= MODEL_BUDGET_SHARE * budget))
+            if not inflight or fits:
                 f = pool.submit(*make_call(m, part))
                 inflight[f] = (m, len(part), need)
                 used += need
+                per_model[m] += need
                 queue.pop(i)
             else:
                 i += 1
@@ -457,6 +467,7 @@ def _bounded_submit(pool, shards: List[Tuple[str, list]], workers: int, budget: 
         for f in done:
             m, n, need = inflight.pop(f)
             used -= need
+            per_model[m] -= need
             yield f, m, n
 
 
@@ -486,8 +497,9 @@ def plan_asr_shards(by_model: Dict[str, List[Utterance]], out: Path, max_clips: 
                     duration: Callable[[Path], float] = clip_seconds) -> List[Tuple[str, list]]:
     """Cut each model's clips into shards of about ``target_s`` expected wall seconds (clip seconds
     divided by the model's x-realtime per worker), at most ``max_clips`` clips, one language hint per
-    shard, then order all shards longest-expected first (LPT). A fixed clip count let one whisper-medium
-    shard run alone for 20 minutes at the end of a run while 7 workers sat idle."""
+    shard. Shards of the model with the most total expected work come first, each model's longest first.
+    A fixed clip count let one whisper-medium shard run alone for 20 minutes at the end of a run while 7
+    workers sat idle."""
     planned: List[Tuple[float, str, int, list]] = []
     for m, us in by_model.items():
         speed = max(1e-3, xrt.get(m, DEFAULT_XRT))
@@ -503,7 +515,12 @@ def plan_asr_shards(by_model: Dict[str, List[Utterance]], out: Path, max_clips: 
                 cur_s += est
             if cur:
                 planned.append((cur_s, m, len(planned), cur))
-    planned.sort(key=lambda t: (-t[0], t[1], t[2]))
+    # the model with the most total work is the critical path (whisper-medium: ~3500 worker-s for 160
+    # clips, and only 2-3 fit in memory at once): its shards go first, then longest shard first
+    total: Dict[str, float] = defaultdict(float)
+    for est, m, _, _ in planned:
+        total[m] += est
+    planned.sort(key=lambda t: (-total[t[1]], -t[0], t[1], t[2]))
     return [(m, part) for _, m, _, part in planned]
 
 

@@ -3,7 +3,9 @@
   "all_lower_rate": {
    "gap": 0.0108,
    "ok": true,
+   "over_tol": false,
    "real": 0.0069,
+   "se": 0.0017178685489353336,
    "sim": 0.0177,
    "support": 2322,
    "tol": 0.08
@@ -11,7 +13,9 @@
   "cer": {
    "gap": -0.0009,
    "ok": true,
+   "over_tol": false,
    "real": 0.0086,
+   "se": 0.0018467311661419482,
    "sim": 0.0077,
    "support": 27244,
    "tol": 0.05
@@ -19,7 +23,9 @@
   "digits_kept_rate": {
    "gap": null,
    "ok": null,
+   "over_tol": null,
    "real": null,
+   "se": 0.0,
    "sim": null,
    "support": 0,
    "tol": 0.1
@@ -27,7 +33,9 @@
   "empty_rate": {
    "gap": 0.0002,
    "ok": true,
+   "over_tol": false,
    "real": 0.0,
+   "se": 0.0002,
    "sim": 0.0002,
    "support": 2500,
    "tol": 0.05
@@ -35,7 +43,9 @@
   "first_upper_rate": {
    "gap": -0.0049,
    "ok": true,
+   "over_tol": false,
    "real": 0.9832,
+   "se": 0.0026671317423903468,
    "sim": 0.9783,
    "support": 2322,
    "tol": 0.08
@@ -43,7 +53,9 @@
   "latin_kept_rate": {
    "gap": null,
    "ok": null,
+   "over_tol": null,
    "real": null,
+   "se": 0.0,
    "sim": null,
    "support": 0,
    "tol": 0.1
@@ -51,7 +63,9 @@
   "punct_any_rate": {
    "gap": -0.0459,
    "ok": true,
+   "over_tol": false,
    "real": 0.9914,
+   "se": 0.0019162076745102223,
    "sim": 0.9455,
    "support": 2322,
    "tol": 0.08
@@ -59,7 +73,9 @@
   "tail_rate": {
    "gap": -0.0004,
    "ok": true,
+   "over_tol": false,
    "real": 0.0008,
+   "se": 0.0005654591055063134,
    "sim": 0.0004,
    "support": 2500,
    "tol": 0.05
@@ -67,7 +83,19 @@
   "term_error_rate": {
    "gap": null,
    "ok": null,
+   "over_tol": null,
    "real": null,
+   "se": 0.0,
+   "sim": null,
+   "support": 0,
+   "tol": 0.08
+  },
+  "term_error_rate@ru": {
+   "gap": null,
+   "ok": null,
+   "over_tol": null,
+   "real": null,
+   "se": 0.0,
    "sim": null,
    "support": 0,
    "tol": 0.08
@@ -75,31 +103,59 @@
   "term_exact_rate": {
    "gap": null,
    "ok": null,
+   "over_tol": null,
    "real": null,
+   "se": 0.0,
+   "sim": null,
+   "support": 0,
+   "tol": 0.08
+  },
+  "term_exact_rate@ru": {
+   "gap": null,
+   "ok": null,
+   "over_tol": null,
+   "real": null,
+   "se": 0.0,
    "sim": null,
    "support": 0,
    "tol": 0.08
   },
   "terminal_kept_rate": {
-   "gap": -0.0037,
+   "gap": -0.0032,
    "ok": true,
+   "over_tol": false,
    "real": 0.9797,
-   "sim": 0.976,
+   "se": 0.0029266006537851325,
+   "sim": 0.9765,
    "support": 2322,
    "tol": 0.1
   },
   "wer": {
-   "gap": -0.001,
+   "gap": -0.0011,
    "ok": true,
+   "over_tol": false,
    "real": 0.0259,
-   "sim": 0.0249,
+   "se": 0.003176739838261862,
+   "sim": 0.0248,
    "support": 27244,
    "tol": 0.05
   },
   "wer_style_aware": {
-   "gap": 0.0023,
+   "gap": 0.0024,
    "ok": true,
-   "real": 0.0218,
+   "over_tol": false,
+   "real": 0.0217,
+   "se": 0.002914042552880791,
+   "sim": 0.0241,
+   "support": 27244,
+   "tol": 0.03
+  },
+  "wer_style_aware@ru": {
+   "gap": 0.0024,
+   "ok": true,
+   "over_tol": false,
+   "real": 0.0217,
+   "se": 0.002914042552880791,
    "sim": 0.0241,
    "support": 27244,
    "tol": 0.03
@@ -107,7 +163,9 @@
   "words_to_digits_rate": {
    "gap": 0.0,
    "ok": true,
+   "over_tol": false,
    "real": 0.5,
+   "se": 0.11180339887498948,
    "sim": 0.5,
    "support": 20,
    "tol": 0.1
@@ -115,25 +173,31 @@
  },
  "nemotron-3.5-transcribe@enrich-dataset": {
   "all_lower_rate": {
-   "gap": 0.0018,
+   "gap": 0.002,
    "ok": true,
+   "over_tol": false,
    "real": 0.0017,
-   "sim": 0.0035,
+   "se": 0.0008601185011928058,
+   "sim": 0.0037,
    "support": 2294,
    "tol": 0.08
   },
   "cer": {
-   "gap": -0.0013,
+   "gap": -0.0003,
    "ok": true,
+   "over_tol": false,
    "real": 0.0276,
-   "sim": 0.0263,
+   "se": 0.003276476155872342,
+   "sim": 0.0273,
    "support": 27244,
    "tol": 0.05
   },
   "digits_kept_rate": {
    "gap": null,
    "ok": null,
+   "over_tol": null,
    "real": null,
+   "se": 0.0,
    "sim": null,
    "support": 0,
    "tol": 0.1
@@ -141,39 +205,49 @@
   "empty_rate": {
    "gap": 0.0006,
    "ok": true,
+   "over_tol": false,
    "real": 0.012,
+   "se": 0.002177705214210592,
    "sim": 0.0126,
    "support": 2500,
    "tol": 0.05
   },
   "first_upper_rate": {
-   "gap": -0.0033,
+   "gap": -0.0029,
    "ok": true,
+   "over_tol": false,
    "real": 0.9974,
-   "sim": 0.9941,
+   "se": 0.001063223700914626,
+   "sim": 0.9945,
    "support": 2294,
    "tol": 0.08
   },
   "latin_kept_rate": {
    "gap": null,
    "ok": null,
+   "over_tol": null,
    "real": null,
+   "se": 0.0,
    "sim": null,
    "support": 0,
    "tol": 0.1
   },
   "punct_any_rate": {
-   "gap": -0.0576,
+   "gap": -0.053,
    "ok": true,
+   "over_tol": false,
    "real": 0.9974,
-   "sim": 0.9398,
+   "se": 0.0010567937793921525,
+   "sim": 0.9444,
    "support": 2322,
    "tol": 0.08
   },
   "tail_rate": {
    "gap": 0.0,
    "ok": true,
+   "over_tol": false,
    "real": 0.0,
+   "se": 0.0002,
    "sim": 0.0,
    "support": 2500,
    "tol": 0.05
@@ -181,7 +255,19 @@
   "term_error_rate": {
    "gap": null,
    "ok": null,
+   "over_tol": null,
    "real": null,
+   "se": 0.0,
+   "sim": null,
+   "support": 0,
+   "tol": 0.08
+  },
+  "term_error_rate@ru": {
+   "gap": null,
+   "ok": null,
+   "over_tol": null,
+   "real": null,
+   "se": 0.0,
    "sim": null,
    "support": 0,
    "tol": 0.08
@@ -189,40 +275,70 @@
   "term_exact_rate": {
    "gap": null,
    "ok": null,
+   "over_tol": null,
    "real": null,
+   "se": 0.0,
+   "sim": null,
+   "support": 0,
+   "tol": 0.08
+  },
+  "term_exact_rate@ru": {
+   "gap": null,
+   "ok": null,
+   "over_tol": null,
+   "real": null,
+   "se": 0.0,
    "sim": null,
    "support": 0,
    "tol": 0.08
   },
   "terminal_kept_rate": {
-   "gap": -0.0152,
+   "gap": -0.006,
    "ok": true,
+   "over_tol": false,
    "real": 0.9822,
-   "sim": 0.967,
+   "se": 0.002743966837475988,
+   "sim": 0.9762,
    "support": 2322,
    "tol": 0.1
   },
   "wer": {
-   "gap": -0.0066,
+   "gap": -0.0063,
    "ok": true,
+   "over_tol": false,
    "real": 0.0592,
-   "sim": 0.0526,
+   "se": 0.004719972881278027,
+   "sim": 0.0529,
    "support": 27244,
    "tol": 0.05
   },
   "wer_style_aware": {
-   "gap": -0.0008,
+   "gap": -0.0002,
    "ok": true,
-   "real": 0.0532,
-   "sim": 0.0524,
+   "over_tol": false,
+   "real": 0.053,
+   "se": 0.004480669592817573,
+   "sim": 0.0528,
+   "support": 27244,
+   "tol": 0.03
+  },
+  "wer_style_aware@ru": {
+   "gap": -0.0002,
+   "ok": true,
+   "over_tol": false,
+   "real": 0.053,
+   "se": 0.004480669592817573,
+   "sim": 0.0528,
    "support": 27244,
    "tol": 0.03
   },
   "words_to_digits_rate": {
-   "gap": 0.0,
+   "gap": -0.0213,
    "ok": true,
+   "over_tol": false,
    "real": 0.0476,
-   "sim": 0.0476,
+   "se": 0.04646260144818985,
+   "sim": 0.0263,
    "support": 21,
    "tol": 0.1
   }
