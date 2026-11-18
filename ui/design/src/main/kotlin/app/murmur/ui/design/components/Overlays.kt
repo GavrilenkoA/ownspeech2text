@@ -324,7 +324,8 @@ fun MurmurSheet(onDismiss: () -> Unit, content: @Composable ColumnScope.() -> Un
             scrimColor = c.scrim,
             dragHandle = { SheetHandle(Modifier.padding(top = 8.dp)) },
         ) {
-            Column(Modifier.padding(bottom = 20.dp).windowInsetsPadding(WindowInsets.navigationBars), content = content)
+            // ModalBottomSheet applies the bottom/system-bar insets itself (contentWindowInsets default).
+            Column(Modifier.padding(bottom = 20.dp), content = content)
         }
         return
     }
