@@ -28,7 +28,30 @@ double ms_since(clk::time_point t0) {
 
 int g_verbose = 0;
 
+// What the backend loader picked, captured from ggml's log during mllm_global_init (no API exposes it).
+std::mutex  g_info_mu;
+std::string g_cpu_backend;   // file name of the CPU variant, e.g. "libggml-cpu-haswell.so"
+std::string g_htp_arch;      // e.g. "v79"
+
+void capture_runtime_info(const char * text) {
+    static const char kCpu[] = "loaded CPU backend from ";
+    static const char kArch[] = "Hexagon Arch version ";
+    if (const char * p = strstr(text, kCpu)) {
+        std::string path(p + sizeof(kCpu) - 1);
+        while (!path.empty() && (path.back() == '\n' || path.back() == '\r')) path.pop_back();
+        const size_t slash = path.find_last_of('/');
+        std::lock_guard<std::mutex> lk(g_info_mu);
+        g_cpu_backend = slash == std::string::npos ? path : path.substr(slash + 1);
+    } else if (const char * a = strstr(text, kArch)) {
+        std::string arch(a + sizeof(kArch) - 1);
+        const size_t end = arch.find_first_of(", \n");
+        std::lock_guard<std::mutex> lk(g_info_mu);
+        g_htp_arch = arch.substr(0, end);
+    }
+}
+
 void log_cb(ggml_log_level level, const char * text, void *) {
+    if (level == GGML_LOG_LEVEL_INFO) capture_runtime_info(text);
     if (level == GGML_LOG_LEVEL_DEBUG && g_verbose < 2) return;
     if ((level == GGML_LOG_LEVEL_INFO || level == GGML_LOG_LEVEL_CONT) && g_verbose < 1) return;
 #ifdef __ANDROID__
@@ -59,6 +82,7 @@ struct mllm_engine {
     const llama_vocab * vocab = nullptr;
     llama_batch_ext * batch = nullptr;
     mllm_load_params lp {};
+    std::string      device_name = "CPU";
     std::atomic<bool> cancel {false};
     std::string      err;
 
@@ -101,6 +125,23 @@ extern "C" int mllm_global_init(const mllm_init_params * p) {
     return rc;
 }
 
+extern "C" const char * mllm_build_info(void) {
+    static const std::string s = std::string("llama.cpp ") + MURMUR_LLAMA_TAG + " " + std::string(MURMUR_LLAMA_COMMIT).substr(0, 12)
+                               + " ggml-hexagon " + MURMUR_BUILD_VARIANT;
+    return s.c_str();
+}
+
+extern "C" int32_t mllm_runtime_info(char * buf, int32_t buf_len) {
+    std::string s;
+    {
+        std::lock_guard<std::mutex> lk(g_info_mu);
+        if (!g_cpu_backend.empty()) s += "cpu_backend=" + g_cpu_backend + ";";
+        if (!g_htp_arch.empty())    s += "htp_arch=" + g_htp_arch + ";";
+    }
+    if (buf && buf_len > 0) snprintf(buf, (size_t) buf_len, "%s", s.c_str());
+    return (int32_t) s.size();
+}
+
 extern "C" int32_t mllm_devices(char * buf, int32_t buf_len) {
     std::string s;
     for (size_t i = 0; i < ggml_backend_dev_count(); ++i) {
@@ -127,11 +168,11 @@ static ggml_backend_dev_t find_device(mllm_device dev) {
 }
 
 extern "C" int mllm_load(const mllm_load_params * p, mllm_engine ** out, mllm_load_info * info) {
-    if (!p || !p->model_path || !out) return MLLM_E_ARG;
+    if (!p || !p->model_path || !out || p->n_ctx <= 0) return MLLM_E_ARG;   // n_ctx comes from the catalog (ADR-045)
+    if (p->kv_type != MLLM_KV_F16 && p->kv_type != MLLM_KV_Q8_0) return MLLM_E_ARG;
     mllm_global_init(nullptr);
     auto * e = new mllm_engine();
     e->lp = *p;
-    if (e->lp.n_ctx <= 0)           e->lp.n_ctx = 4096;
     if (e->lp.n_batch <= 0)         e->lp.n_batch = 512;
     if (e->lp.n_threads <= 0)       e->lp.n_threads = 4;
     if (e->lp.n_threads_batch <= 0) e->lp.n_threads_batch = e->lp.n_threads;
@@ -163,6 +204,8 @@ extern "C" int mllm_load(const mllm_load_params * p, mllm_engine ** out, mllm_lo
     // reserve worst-case logits for all n_batch tokens: 248k vocab x 512 x 4 B = 0.5 GB for Qwen3.5.
     cp.n_outputs_max   = cp.n_seq_max;
     cp.kv_unified      = true;               // seq_cp shares KV cells instead of copying across streams
+    cp.type_k          = e->lp.kv_type == MLLM_KV_Q8_0 ? GGML_TYPE_Q8_0 : GGML_TYPE_F16;
+    cp.type_v          = cp.type_k;
     cp.n_threads       = e->lp.n_threads;
     cp.n_threads_batch = e->lp.n_threads_batch;
     cp.no_perf         = false;
@@ -173,6 +216,7 @@ extern "C" int mllm_load(const mllm_load_params * p, mllm_engine ** out, mllm_lo
     double ctx_ms = ms_since(t0);
     if (!e->ctx) { int rc = e->fail(MLLM_E_CTX, "llama_init_from_model failed"); mllm_unload(e); *out = nullptr; return rc; }
     e->batch = llama_batch_ext_init(e->ctx);
+    e->device_name = dev ? ggml_backend_dev_name(dev) : "CPU";
 
     if (info) {
         memset(info, 0, sizeof(*info));
@@ -240,7 +284,6 @@ static int take_snapshot(mllm_engine * e, mllm_prefix_info * info) {
 
 extern "C" int mllm_prefix_set(mllm_engine * e, const char * prefix, mllm_prefix_info * info) {
     if (!e || !prefix) return MLLM_E_ARG;
-    e->cancel = false;
     if (info) memset(info, 0, sizeof(*info));
     e->prefix_tokens = tokenize(e->vocab, prefix);
     e->snapshot.clear();
@@ -326,12 +369,20 @@ extern "C" int mllm_generate(mllm_engine * e, const char * suffix, const mllm_ge
                              mllm_token_cb cb, void * user, mllm_gen_stats * st) {
     if (!e || !suffix || !gp) return MLLM_E_ARG;
     mllm_gen_stats s {};
-    e->cancel = false;
     const auto t_start = clk::now();
+    // cancelled before the first token (restore or prefill): report it like a decode-time cancel
+    auto cancelled_early = [&]() {
+        s.stop_reason = 3;
+        s.total_ms = ms_since(t_start);
+        if (st) *st = s;
+        return MLLM_E_CANCELLED;
+    };
+    if (e->cancel.load()) return cancelled_early();
 
     llama_pos n_past = 0;
     auto t0 = clk::now();
     const int seq = restore_prefix(e, &n_past);
+    if (seq == MLLM_E_CANCELLED) return cancelled_early();
     if (seq < 0) return seq;
     s.restore_ms = ms_since(t0);
 
@@ -345,6 +396,7 @@ extern "C" int mllm_generate(mllm_engine * e, const char * suffix, const mllm_ge
 
     t0 = clk::now();
     int rc = prefill(e, toks, n_past, seq);
+    if (rc == MLLM_E_CANCELLED) { s.prefill_ms = ms_since(t0); return cancelled_early(); }
     if (rc != MLLM_OK) return rc;
     s.prefill_ms = ms_since(t0);
     n_past += (llama_pos) toks.size();
@@ -436,8 +488,16 @@ extern "C" void mllm_cancel(mllm_engine * e) {
     if (e) e->cancel.store(true, std::memory_order_relaxed);
 }
 
+extern "C" void mllm_cancel_clear(mllm_engine * e) {
+    if (e) e->cancel.store(false, std::memory_order_relaxed);
+}
+
 extern "C" const char * mllm_last_error(const mllm_engine * e) {
     return e ? e->err.c_str() : "null engine";
+}
+
+extern "C" const char * mllm_device_name(const mllm_engine * e) {
+    return e ? e->device_name.c_str() : "";
 }
 
 extern "C" void mllm_unload(mllm_engine * e) {
@@ -450,7 +510,6 @@ extern "C" void mllm_unload(mllm_engine * e) {
 
 extern "C" int mllm_bench(mllm_engine * e, int32_t n_prompt, int32_t n_gen, int32_t reps, mllm_bench_result * r) {
     if (!e || !r || n_prompt <= 0 || n_gen <= 0 || n_prompt + n_gen > e->lp.n_ctx) return MLLM_E_ARG;
-    e->cancel = false;
     const int32_t nv = llama_vocab_n_tokens(e->vocab);
     std::vector<llama_token> toks((size_t) n_prompt);
     uint32_t x = 12345;

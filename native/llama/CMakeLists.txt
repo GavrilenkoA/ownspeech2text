@@ -14,11 +14,15 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Pinned commit lives in versions.env (single source of truth); parse it so FetchContent matches the script.
 file(STRINGS "${CMAKE_CURRENT_LIST_DIR}/versions.env" _ver REGEX "^LLAMA_COMMIT=")
 string(REGEX REPLACE "^LLAMA_COMMIT=\"?([0-9a-f]+)\"?.*" "\\1" MURMUR_LLAMA_COMMIT "${_ver}")
+file(STRINGS "${CMAKE_CURRENT_LIST_DIR}/versions.env" _tag REGEX "^LLAMA_TAG=")
+string(REGEX REPLACE "^LLAMA_TAG=\"?([A-Za-z0-9]+)\"?.*" "\\1" MURMUR_LLAMA_TAG "${_tag}")
 file(STRINGS "${CMAKE_CURRENT_LIST_DIR}/versions.env" _sha REGEX "^LLAMA_ARCHIVE_SHA256=")
 string(REGEX REPLACE "^LLAMA_ARCHIVE_SHA256=\"?([0-9a-f]+)\"?.*" "\\1" MURMUR_LLAMA_ARCHIVE_SHA256 "${_sha}")
 
 set(MURMUR_LLAMA_SRC "" CACHE PATH "llama.cpp checkout at ${MURMUR_LLAMA_COMMIT} (empty = FetchContent)")
 option(MURMUR_LLM_BENCH "build murmur-llm-bench" ON)
+# Names the build in mllm_build_info() (ProcessProbe fact native.build, part of the prefix cache key, ADR-060).
+set(MURMUR_BUILD_VARIANT "custom" CACHE STRING "build_android.sh variant (npu, cpu-arm64, cpu-x86_64, host)")
 
 if (NOT MURMUR_LLAMA_SRC)
     # 39 MB source archive of the pinned commit, sha256-checked (a git clone of llama.cpp is far bigger).
@@ -60,8 +64,14 @@ add_subdirectory(${MURMUR_LLAMA_SRC} llama.cpp)
 add_library(murmur_llm SHARED src/murmur_llm.cpp include/murmur_llm.h)
 target_include_directories(murmur_llm PUBLIC include)
 target_link_libraries(murmur_llm PRIVATE llama ggml)
+target_compile_definitions(murmur_llm PRIVATE
+    MURMUR_LLAMA_TAG="${MURMUR_LLAMA_TAG}" MURMUR_LLAMA_COMMIT="${MURMUR_LLAMA_COMMIT}"
+    MURMUR_BUILD_VARIANT="${MURMUR_BUILD_VARIANT}")
 if (ANDROID)
     target_link_libraries(murmur_llm PRIVATE log)
+    # JNI shim of the :llm process (Kotlin: app.murmur.infer.llm.LlmNative). Thin layer over murmur_llm.h.
+    add_library(murmur_llm_jni SHARED src/murmur_llm_jni.cpp include/murmur_llm_jni.h)
+    target_link_libraries(murmur_llm_jni PRIVATE murmur_llm log)
 endif()
 
 if (MURMUR_LLM_BENCH)
