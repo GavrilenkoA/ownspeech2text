@@ -5,6 +5,7 @@ import app.murmur.core.model.ComputeUnit
 import app.murmur.core.model.MurmurError
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.serialization.Serializable
 
 /** Install state of one catalog artifact (Model hub row states, DESIGN 6.4). */
@@ -99,6 +100,16 @@ sealed interface BenchmarkResultData {
 data class ClipResult(val clip: String, val audioMs: Long, val processMs: Long, val wer: Double?)
 
 interface BenchmarkRepository {
+    /** The newest record of each unit of [id] (valid or not), newest first: what the hub's benchmark rows show. */
     fun latest(id: ArtifactId): Flow<List<BenchmarkRecord>>
     suspend fun save(record: BenchmarkRecord)
+
+    /**
+     * The newest record of ([id], [unit]) whose [BenchmarkResultData.valid] is true, or null (ARCHITECTURE 10: the input
+     * of ArtifactSelector's BenchLookup, CleanupBudget's LLM speed and the adaptive timeouts). An invalid run never
+     * hides an older valid one. The default filters [latest], which is exact only for stores whose [latest] returns
+     * every record (the :testing fake); the Room store overrides it with a query.
+     */
+    suspend fun latestValid(id: ArtifactId, unit: ComputeUnit): BenchmarkRecord? =
+        latest(id).first().filter { it.unit == unit && it.result.valid }.maxByOrNull { it.atEpochMs }
 }

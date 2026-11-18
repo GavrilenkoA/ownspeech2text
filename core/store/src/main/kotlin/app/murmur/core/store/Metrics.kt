@@ -76,11 +76,77 @@ interface DeliveryMetrics {
     fun mixedLanguage(text: String): Boolean
 }
 
-/** WP-12 replaces the bodies; the signatures are the contract WP-11 calls (tests use :testing SimpleDeliveryMetrics). */
+/**
+ * The real [DeliveryMetrics] (ARCHITECTURE 12). Tokens follow prompts/guard.py `_words`: runs of letters, digits and
+ * underscores joined by inner hyphens or apostrophes ("э-э", "uh-huh", "don't" are one token), casefolded, with
+ * "ё" folded to "е", so the filler lexicon (OutputGuard.fillers = guard.py FILLERS) matches token for token.
+ */
 class DefaultDeliveryMetrics : DeliveryMetrics {
-    override fun wordCount(text: String): Int = TODO("WP-12")
-    override fun editDistanceWords(raw: String, final: String): Int = TODO("WP-12")
-    override fun fillersRemoved(raw: String, final: String, fillers: Set<String>): Int = TODO("WP-12")
-    override fun fixes(raw: String, final: String, fillers: Set<String>): Int = TODO("WP-12")
-    override fun mixedLanguage(text: String): Boolean = TODO("WP-12")
+    override fun wordCount(text: String): Int = Words.tokens(text).size
+
+    override fun editDistanceWords(raw: String, final: String): Int = levenshtein(Words.tokens(raw), Words.tokens(final))
+
+    /**
+     * Per filler type, how many more times it occurs in [raw] than in [final] (a multiset difference), so a filler
+     * that the cleanup kept is not counted and one filler replaced by another counts once, not twice.
+     */
+    override fun fillersRemoved(raw: String, final: String, fillers: Set<String>): Int {
+        if (fillers.isEmpty()) return 0
+        val lexicon = fillers.mapTo(HashSet()) { Words.fold(it) }
+        val before = Words.tokens(raw).filter { it in lexicon }.groupingBy { it }.eachCount()
+        val after = Words.tokens(final).filter { it in lexicon }.groupingBy { it }.eachCount()
+        return before.entries.sumOf { (w, n) -> (n - (after[w] ?: 0)).coerceAtLeast(0) }
+    }
+
+    override fun fixes(raw: String, final: String, fillers: Set<String>): Int =
+        (editDistanceWords(raw, final) - fillersRemoved(raw, final, fillers)).coerceAtLeast(0)
+
+    /**
+     * Each token is assigned the script most of its letters are written in (Cyrillic or Latin; digits and other
+     * scripts count for neither); mixed = the smaller of the two counts is at least 2 (DESIGN 6.2 "Languages").
+     */
+    override fun mixedLanguage(text: String): Boolean {
+        var cyrillic = 0
+        var latin = 0
+        for (t in Words.tokens(text)) {
+            var c = 0
+            var l = 0
+            for (ch in t) {
+                if (!ch.isLetter()) continue
+                when (Character.UnicodeScript.of(ch.code)) {
+                    Character.UnicodeScript.CYRILLIC -> c++
+                    Character.UnicodeScript.LATIN -> l++
+                    else -> {}
+                }
+            }
+            if (c > l) cyrillic++ else if (l > c) latin++
+        }
+        return minOf(cyrillic, latin) >= 2
+    }
+
+    private fun levenshtein(a: List<String>, b: List<String>): Int {
+        if (a.isEmpty()) return b.size
+        if (b.isEmpty()) return a.size
+        val row = IntArray(b.size + 1) { it }
+        for (i in 1..a.size) {
+            var diagonal = row[0]
+            row[0] = i
+            for (j in 1..b.size) {
+                val above = row[j]
+                row[j] = minOf(above + 1, row[j - 1] + 1, diagonal + if (a[i - 1] == b[j - 1]) 0 else 1)
+                diagonal = above
+            }
+        }
+        return row[b.size]
+    }
+}
+
+/** Word tokens shared by the delivery metrics and history search normalisation (guard.py `_WORD` + `_words`). */
+object Words {
+    private val WORD = Regex("""[\p{L}\p{M}\p{N}_]+(?:[-'’][\p{L}\p{M}\p{N}_]+)*""")
+
+    fun tokens(text: String): List<String> = WORD.findAll(text).map { fold(it.value) }.toList()
+
+    /** Casefold (locale independent) with "ё" -> "е", as guard.py does before comparing words. */
+    fun fold(s: String): String = s.lowercase(java.util.Locale.ROOT).replace('ё', 'е')
 }
