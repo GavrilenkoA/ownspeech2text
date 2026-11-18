@@ -1,9 +1,33 @@
 package app.murmur.platform.a11y
 
 import android.accessibilityservice.AccessibilityService
+import android.accessibilityservice.InputMethod
+import android.content.Intent
+import android.hardware.display.DisplayManager
+import android.os.Handler
+import android.os.HandlerThread
+import android.os.Looper
+import android.util.Log
+import android.view.Display
 import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityManager
+import app.murmur.core.dictation.DictationBubble
 import app.murmur.core.dictation.DictationOrchestrator
+import app.murmur.core.dictation.UserInput
 import app.murmur.core.store.SettingsRepository
+import app.murmur.platform.overlay.OverlayHost
+import app.murmur.platform.overlay.VisibilityInput
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.android.asCoroutineDispatcher
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Implemented by the Application (:app). Gives the service its collaborators without a DI framework
@@ -17,30 +41,206 @@ interface A11yServiceHost {
      * host also calls DictationOrchestrator.onAccessibilityLost() (ExternalStop(A11Y_OFF) for a running dictation).
      */
     fun onServiceState(connected: Boolean)
+
+    /** Bubble gestures and the notification's "Start dictation" go to the orchestrator. */
+    fun onUserInput(input: UserInput) = dictation.onInput(input)
+
+    /** The bubble on [displayId] (one per display). Default: WP-03's Compose bubble in an accessibility overlay. */
+    fun bubbleFor(service: AccessibilityService, displayId: Int): BubbleSurface =
+        OverlayBubbleSurface(OverlayHost(service, displayId, dictation.bubble, dictation.levels, ::onUserInput))
+}
+
+/** What the service needs from a per-display bubble window. */
+interface BubbleSurface {
+    fun attach()
+    fun updateVisibility(input: VisibilityInput)
+    fun detach()
+}
+
+private class OverlayBubbleSurface(private val host: OverlayHost) : BubbleSurface {
+    override fun attach() = host.attach()
+    override fun updateVisibility(input: VisibilityInput) = host.updateVisibility(input)
+    override fun detach() = host.detach()
 }
 
 /**
- * The accessibility service (WP-02). Owns: focus tracking -> VisibilityInput, one OverlayHost per display,
- * the target snapshot at press, screenshots, the insertion ladder, the AccessibilityInputMethod (API 33)
- * for commitText/getSurroundingText. Node reads on a single HandlerThread ("a11y-io"), never on main.
+ * The accessibility service (WP-02). Owns: focus tracking -> VisibilityInput, one bubble per display (DisplayListener:
+ * added / removed / changed, fold and unfold), the target snapshot, screenshots, the insertion ladder and the
+ * accessibility IME (API 33) for commitText / getSurroundingText. Node reads run on one HandlerThread ("a11y-io"),
+ * never on main (ARCHITECTURE 14). Logs carry codes and numbers only (D9).
  */
 class MurmurAccessibilityService : AccessibilityService() {
+    private val ioThread = HandlerThread("a11y-io")
+    internal lateinit var io: Handler
+        private set
+    internal lateinit var ioDispatcher: CoroutineDispatcher
+        private set
+    private val main = Handler(Looper.getMainLooper())
+    private var scope: CoroutineScope? = null
+
+    internal val nodes = NodeReader(this)
+    /** Bumped on every TYPE_WINDOWS_CHANGED (snapshotAfterShade waits on it). */
+    internal val windowsVersion = MutableStateFlow(0L)
+    @Volatile internal var ime: MurmurInputMethod? = null
+        private set
+
+    val targetReader = A11yTargetReader(this)
+    val inserter = A11yInserter(this)
+
+    private var host: A11yServiceHost? = null
+    private var tracker: FocusTracker? = null
+    private val surfaces = LinkedHashMap<Int, BubbleSurface>()
+    private var lastVisibility: Pair<Int, VisibilityInput>? = null
+    private val focusReadQueued = AtomicBoolean(false)
+    @Volatile private var connected = false
+
+    override fun onCreate() {
+        super.onCreate()
+        ioThread.start()
+        io = Handler(ioThread.looper)
+        ioDispatcher = io.asCoroutineDispatcher("a11y-io")
+    }
+
+    override fun onCreateInputMethod(): InputMethod = MurmurInputMethod(this, ::requestFocusRead).also { ime = it }
+
     override fun onServiceConnected() {
         super.onServiceConnected()
+        if (connected) return
+        connected = true
+        val h = application as? A11yServiceHost
+        host = h
+        val s = CoroutineScope(SupervisorJob() + main.asCoroutineDispatcher("a11y-main"))
+        scope = s
+        A11yStatus.get(this).onServiceConnected()
+        val t = FocusTracker(s, packageName, System::currentTimeMillis, ::pushVisibility)
+        tracker = t
+
+        val dm = getSystemService(DisplayManager::class.java)
+        dm.displays.filter { it.isPublic() }.forEach { attachBubble(it.displayId) }
+        dm.registerDisplayListener(displayListener, main)
+
+        val am = getSystemService(AccessibilityManager::class.java)
+        t.onTalkBack(am.isTouchExplorationEnabled)
+        am.addTouchExplorationStateChangeListener(talkBackListener)
+
+        if (h != null) {
+            s.launch { h.settings.settings.map(VisibilitySettings::of).distinctUntilChanged().collect { t.onSettings(it) } }
+            s.launch {
+                var previous: DictationBubble? = null
+                h.dictation.bubble.collect { b ->
+                    if (b is DictationBubble.Idle && previous != null && previous !is DictationBubble.Idle) t.onDictationIdle()
+                    previous = b
+                }
+            }
+        }
         A11yBridge.service.value = this
-        (application as? A11yServiceHost)?.onServiceState(true)
-        // WP-02: attach OverlayHost for the default display; register DisplayListener.
+        Log.i(TAG, "service_state connected=true displays=${surfaces.size} host=${h != null}")
+        h?.onServiceState(true)
+        requestFocusRead()
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        // WP-02: focus / window changes -> visibility policy (debounced 300 ms on blur, DESIGN 5.2).
+        when (event?.eventType) {
+            AccessibilityEvent.TYPE_WINDOWS_CHANGED -> { windowsVersion.update { it + 1 }; requestFocusRead() }
+            AccessibilityEvent.TYPE_VIEW_FOCUSED, AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> requestFocusRead()
+            else -> Unit // text selection changes: nothing for the bubble
+        }
     }
 
     override fun onInterrupt() {}
 
-    override fun onUnbind(intent: android.content.Intent?): Boolean {
-        A11yBridge.service.value = null
-        (application as? A11yServiceHost)?.onServiceState(false)
+    override fun onUnbind(intent: Intent?): Boolean {
+        teardown("unbind")
         return super.onUnbind(intent)
+    }
+
+    override fun onDestroy() {
+        teardown("destroy")
+        ioThread.quitSafely()
+        super.onDestroy()
+    }
+
+    /** Notification start: the shade does not collapse for a broadcast action (API 31 global action). */
+    internal fun dismissNotificationShade() {
+        performGlobalAction(GLOBAL_ACTION_DISMISS_NOTIFICATION_SHADE)
+    }
+
+    /** Conflated: one focus read in flight on a11y-io, re-queued when an event arrives meanwhile. */
+    private fun requestFocusRead() {
+        if (!connected || !focusReadQueued.compareAndSet(false, true)) return
+        io.post {
+            focusReadQueued.set(false)
+            val f = runCatching { nodes.focus() }.getOrElse {
+                Log.w(TAG, "focus_read_failed ${it.javaClass.simpleName}")
+                return@post
+            }
+            main.post { if (connected) tracker?.onFocus(f) }
+        }
+    }
+
+    private fun pushVisibility(focusDisplayId: Int, input: VisibilityInput) {
+        lastVisibility = focusDisplayId to input
+        for ((displayId, surface) in surfaces) surface.updateVisibility(VisibilityRules.forDisplay(input, focusDisplayId, displayId))
+    }
+
+    private fun attachBubble(displayId: Int) {
+        if (displayId in surfaces) return
+        val h = host ?: return
+        val surface = try {
+            h.bubbleFor(this, displayId).also { it.attach() }
+        } catch (e: RuntimeException) {
+            // e.g. a display that went away between the event and the attach (WindowManager.BadTokenException).
+            Log.w(TAG, "bubble_attach_failed display=$displayId ${e.javaClass.simpleName}")
+            return
+        }
+        surfaces[displayId] = surface
+        lastVisibility?.let { (focusDisplay, input) -> surface.updateVisibility(VisibilityRules.forDisplay(input, focusDisplay, displayId)) }
+    }
+
+    private fun detachBubble(displayId: Int) {
+        surfaces.remove(displayId)?.detach()
+    }
+
+    private fun Display.isPublic() = (flags and Display.FLAG_PRIVATE) == 0
+
+    private val displayListener = object : DisplayManager.DisplayListener {
+        override fun onDisplayAdded(displayId: Int) {
+            val d = getSystemService(DisplayManager::class.java).getDisplay(displayId) ?: return
+            if (d.isPublic()) attachBubble(displayId)
+            Log.i(TAG, "display_added id=$displayId bubbles=${surfaces.size}")
+        }
+
+        override fun onDisplayRemoved(displayId: Int) {
+            detachBubble(displayId)
+            Log.i(TAG, "display_removed id=$displayId bubbles=${surfaces.size}")
+        }
+
+        /** Fold/unfold and rotation (a 180° flip arrives only here, platform spike a): focus and bounds may have moved. */
+        override fun onDisplayChanged(displayId: Int) {
+            requestFocusRead()
+            tracker?.republish()
+        }
+    }
+
+    private val talkBackListener = AccessibilityManager.TouchExplorationStateChangeListener { on -> tracker?.onTalkBack(on) }
+
+    private fun teardown(why: String) {
+        if (!connected) return
+        connected = false
+        A11yBridge.service.compareAndSet(this, null)
+        runCatching { getSystemService(DisplayManager::class.java).unregisterDisplayListener(displayListener) }
+        runCatching { getSystemService(AccessibilityManager::class.java).removeTouchExplorationStateChangeListener(talkBackListener) }
+        surfaces.keys.toList().forEach(::detachBubble)
+        scope?.cancel()
+        scope = null
+        tracker = null
+        lastVisibility = null
+        Log.i(TAG, "service_state connected=false reason=$why")
+        host?.onServiceState(false)
+        host = null
+    }
+
+    private companion object {
+        const val TAG = "MurmurA11y"
     }
 }
