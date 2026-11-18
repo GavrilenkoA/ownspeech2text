@@ -20,8 +20,9 @@ import app.murmur.core.model.Stage
  * every Done(Failed) starts the 6 s error dismiss timer and plays REJECT (DESIGN 5.3) unless the accessibility
  * service is gone (no overlay); Copied plays CLOCK_TICK (DESIGN 5.3); DELIVERY is started with every Deliver;
  * an ASR death in Arming after the preflight follows rows 21/22; a Tap also finishes a HOLD pill (recovers from a
- * release ignored by row 10); a start input in Done also accepts NotificationStart / InAppStart; a transcript with
- * speechMs = 0 is "not measured" (streaming models without VAD) and only blank text or the precheck make it NoSpeech.
+ * release ignored by row 10); a start input in Done also accepts NotificationStart / InAppStart; row 26's speech
+ * test applies when the ASR measures speech (SessionPlan.speechMeasured): a streaming model reports speechMs = 0
+ * ("not measured", Transcript KDoc), so for it only blank text or the precheck make NoSpeech.
  */
 object DictationMachine {
 
@@ -276,9 +277,8 @@ object DictationMachine {
     private fun transcript(st: DictationState.Finishing, t: Transcript, precheckSkip: Boolean, c: DictationConfig): Transition {
         val s = st.session
         val stopTimers = listOf(Effect.CancelTimer(Timer.ASR_FINAL), Effect.CancelTimer(Timer.TRANSCRIBING_LABEL))
-        // Row 26 (speechMs = 0 means "not measured": streaming models without VAD).
-        val tooShort = t.speechMs in 1 until c.minSpeechMs
-        if (precheckSkip || t.text.isBlank() || tooShort) {
+        // Row 26.
+        if (isNoSpeech(t, precheckSkip, st.plan, c)) {
             return failed(s, MurmurError.NoSpeech, null, c,
                 *stopTimers.toTypedArray(), Effect.RecordFailure(s, MurmurError.NoSpeech, keepAudio = true), Effect.ScheduleIdleUnload(c.idleUnloadMs))
         }
@@ -501,6 +501,10 @@ object DictationMachine {
         is DictationEvent.ContextReady -> if (eng.context == ContextReadiness.NotRequested) eng else eng.copy(context = ContextReadiness.Ready(e.hasScreen, e.contextWords))
         else -> null
     }
+
+    /** Row 26: the transcript is no speech (failed, audio kept); the executor asks the same before it loads an LLM. */
+    fun isNoSpeech(t: Transcript, precheckSkip: Boolean, plan: SessionPlan, c: DictationConfig): Boolean =
+        precheckSkip || t.text.isBlank() || (plan.speechMeasured && t.speechMs < c.minSpeechMs)
 
     /** cleanup_outcome code for an LLM that is not usable (ARCHITECTURE 15). */
     fun skipReasonOf(e: MurmurError): String = when (e) {

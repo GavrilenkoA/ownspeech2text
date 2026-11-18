@@ -256,6 +256,21 @@ class OrchestratorEnginesTest {
         h.assertNoInternalErrors()
     }
 
+    /** Review F5: a transcript that ends as NoSpeech keeps :asr warm and loads no LLM that nothing would use. */
+    @Test fun lowMemoryWithANoSpeechTranscriptKeepsAsrWarmAndLoadsNoLlm() = runTest {
+        val h = harness { settings.edit { it.copy(cleanup = CleanupChoice.None) } }
+        h.dictate()
+        h.w.settings.edit { it.copy(cleanup = CleanupChoice.Default) }
+        h.w.memory.source = { if (h.w.engines.asrHost.state.value is HostState.Up) 1_000 else 6_000 }
+        h.w.engines.asr.script = "   "                                     // blank text: row 26
+        h.dictate(startAt = h.now + 1_000)
+        assertEquals(DictationOutcome.Failed(MurmurError.NoSpeech, h.history().maxBy { it.createdAt }.id), h.outcomes().last())
+        assertEquals(0, h.w.engines.asrHost.shutdowns)
+        assertTrue(h.w.engines.asrHost.state.value is HostState.Up)
+        assertTrue(h.w.engines.llm.loadAttempts.isEmpty())
+        h.assertNoInternalErrors()
+    }
+
     @Test fun lowMemoryThatStaysShortAfterTheTailIsSkippedLowMemory() = runTest {
         val h = harness { settings.edit { it.copy(cleanup = CleanupChoice.None) } }
         h.dictate()

@@ -106,6 +106,11 @@ data class SessionPlan(
     val screenshot: Boolean,
     /** Batch ASR models need VAD; the resolver already guaranteed it is installed. */
     val asrUnit: ComputeUnit,
+    /**
+     * The ASR reports VAD speech time (batch models, fed VAD segments). false for streaming models, whose
+     * Transcript.speechMs is 0 ("not measured"): row 26 then judges the text and the precheck only.
+     */
+    val speechMeasured: Boolean = true,
 )
 
 /** Readiness of the per-session engines, tracked by the reducer from completion events. */

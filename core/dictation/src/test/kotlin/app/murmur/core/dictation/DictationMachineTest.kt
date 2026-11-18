@@ -265,8 +265,13 @@ class DictationMachineTest {
             assertEquals(DictationState.Done(s, DictationOutcome.Failed(MurmurError.NoSpeech, null)), r.state)
             assertTrue(r.effects.containsAll(listOf(Effect.CancelTimer(Timer.ASR_FINAL), Effect.RecordFailure(s, MurmurError.NoSpeech, keepAudio = true))))
         }
-        // speechMs = 0 = not measured (streaming models without VAD): the text decides.
-        assertTrue(reduce(finishing(), DictationEvent.TranscriptReady(s, t.copy(speechMs = 0), false)).state is DictationState.Polishing)
+        // A VAD-fed (batch) model measures speech: 0 ms is no speech, as the table says, whatever text it returned.
+        assertEquals(DictationState.Done(s, DictationOutcome.Failed(MurmurError.NoSpeech, null)),
+            reduce(finishing(), DictationEvent.TranscriptReady(s, t.copy(speechMs = 0), false)).state)
+        // A streaming model has no VAD (Transcript.speechMs = 0, "not measured"): the text and the precheck decide.
+        val streaming = finishing().copy(plan = plan.copy(speechMeasured = false))
+        assertTrue(reduce(streaming, DictationEvent.TranscriptReady(s, t.copy(speechMs = 0), false)).state is DictationState.Polishing)
+        assertTrue(reduce(streaming, DictationEvent.TranscriptReady(s, t.copy(speechMs = 0, text = " "), false)).state is DictationState.Done)
     }
 
     @Test fun row27_transcriptWithoutUsableLlmIsDeliveredRawWithTheReason() {

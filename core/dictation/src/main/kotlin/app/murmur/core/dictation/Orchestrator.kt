@@ -419,6 +419,7 @@ class DictationOrchestrator(
             cleanupSkipReason = skip,
             screenshot = mode != StartMode.IN_APP && decision.takeScreenshot && settings.useScreen && models.ocrDet != null && models.ocrRec != null,
             asrUnit = models.asr.unit,
+            speechMeasured = !models.asrTraits.streaming,
         )
         r.plan = plan
         return DictationEvent.PreflightPassed(s, plan)
@@ -590,7 +591,9 @@ class DictationOrchestrator(
                 val pre = deps.guard.precheck(res.value.text)
                 val t = if (pre.skip) res.value else res.value.copy(text = pre.transcript)
                 r.transcript = t
-                loadDeferredLlm(r)
+                // Only a transcript that goes on to Polishing is worth shutting :asr down for (row 26 ends the others).
+                val plan = r.plan
+                if (plan != null && !DictationMachine.isNoSpeech(t, pre.skip, plan, r.config)) loadDeferredLlm(r)
                 post(DictationEvent.TranscriptReady(s, t, pre.skip))
             }
         }
