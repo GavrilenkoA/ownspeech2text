@@ -277,6 +277,10 @@ class DictationOrchestrator(
         r.contextJob?.cancel()
         r.screen = null
         r.captureJobs.forEach { it.cancel() }
+        r.pumpJob?.cancel()
+        // The session PCM (up to 9.6 MB for 5 min) is only for replay inside the session; Retry reads the stored file.
+        r.buffer.clear()
+        r.buffer.trimToSize()
         _levels.value = FloatArray(LEVEL_BARS)
     }
 
