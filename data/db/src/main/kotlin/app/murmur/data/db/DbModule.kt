@@ -41,7 +41,11 @@ object DbModule {
     /** User-added models (WP-13 stores validated ModelEntry JSON here). */
     fun customModels(db: MurmurDatabase): CustomModelDao = db.customModels()
 
-    /** Typed DataStore; its StateFlow is collected eagerly in [scope] (AppContainer.appScope). One per process. */
+    /**
+     * Typed DataStore; its StateFlow is collected eagerly in [scope] (AppContainer.appScope). Every repository made here
+     * or with `DataStoreSettingsRepository(context)` shares the process's one DataStore, so a second instance neither
+     * fails nor sees different values; one per process is still the intent (one collector).
+     */
     fun settings(context: Context, scope: CoroutineScope): SettingsRepository = DataStoreSettingsRepository(context, scope)
 
     fun stats(): StatsCalculator = DefaultStatsCalculator()

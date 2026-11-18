@@ -15,15 +15,18 @@ import app.murmur.core.store.HistoryEntry
 import app.murmur.core.store.InsertMethod
 import app.murmur.core.store.ModelUse
 import app.murmur.core.store.Timings
+import app.murmur.core.store.Words
 import kotlinx.serialization.json.Json
 import java.time.Instant
 import java.time.LocalDate
-import java.util.Locale
 
 /** History search folding (DESIGN 6.3 search covers Final and Original, any case, Cyrillic included). */
 internal object SearchText {
-    /** Unicode lowercase independent of the device locale, "ё" -> "е" (people rarely type "ё" in a search). */
-    fun fold(s: String): String = s.lowercase(Locale.ROOT).replace('ё', 'е')
+    /**
+     * [Words.fold]: NFC, full case folding independent of the device locale ("Straße" = "STRASSE"), "ё" -> "е" (people
+     * rarely type "ё" in a search). Stored text and query are folded the same way, so any form of either matches.
+     */
+    fun fold(s: String): String = Words.fold(s)
 
     /** Final and original joined by a separator no query contains, so a match never spans the two. */
     fun of(finalText: String?, rawText: String?): String = fold(listOfNotNull(finalText, rawText).joinToString("\u001F"))

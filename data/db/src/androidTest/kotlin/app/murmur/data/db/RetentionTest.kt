@@ -223,4 +223,30 @@ class RetentionTest {
         assertFalse(inFlight.exists())
         assertTrue(withRow.exists())
     }
+
+    @Test
+    fun aRowSpellingItsAudioPathDifferentlyStillKeepsTheFile() = runBlocking {
+        val now = LocalDateTime.of(2026, 11, 18, 12, 0)
+        setNow(now)
+        // The row stores the canonical path (/data/data/… for /data/user/0/…) or a path through "..", the store lists
+        // its own spelling: the same file either way.
+        val canonical = audio.record(now.minusHours(3).atZone(MOSCOW).toInstant().toEpochMilli(), 1)
+        val canonicalFile = File(canonical.path)
+        history.insert(entry(now.minusHours(3), audio = canonical.copy(path = canonicalFile.canonicalPath)))
+        val dotted = audio.record(now.minusHours(2).atZone(MOSCOW).toInstant().toEpochMilli(), 2)
+        val dottedFile = File(dotted.path)
+        history.insert(entry(now.minusHours(2), audio = dotted.copy(path = "${audio.dir.path}/../${audio.dir.name}/${dottedFile.name}")))
+        val listed = audio.listAll().map { it.path }.toSet()
+        assertFalse(db.history().audioPaths().any { it in listed })
+
+        assertEquals(0, retention.deleteOrphanAudio())
+        retention.runAtStart(7)
+
+        assertTrue(canonicalFile.exists())
+        assertTrue(dottedFile.exists())
+        // Deleting through the row's spelling still removes the file.
+        history.deleteAll()
+        assertFalse(canonicalFile.exists())
+        assertFalse(dottedFile.exists())
+    }
 }

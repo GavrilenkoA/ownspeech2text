@@ -22,7 +22,11 @@ class Retention(
     private val metrics: MetricsRepository,
     private val audio: AudioStore,
     private val clock: MurmurClock,
-    /** Audio paths any history row refers to, pending deletes included (they can still be restored). */
+    /**
+     * Audio paths any history row refers to, pending deletes included (they can still be restored). Compared with
+     * [AudioStore.listAll] by file name only: the store keeps every file in one directory, and the same file may be
+     * spelled differently by the two sides (/data/user/0/… against /data/data/…, relative or canonical paths).
+     */
     private val referencedAudioPaths: suspend () -> Set<String>,
 ) {
     private val lock = Mutex()
@@ -61,11 +65,11 @@ class Retention(
     }
 
     private suspend fun sweepOrphans(): Int {
-        val referenced = referencedAudioPaths()
+        val referenced = referencedAudioPaths().mapTo(HashSet()) { fileName(it) }
         val now = clock.now().toEpochMilli()
         var n = 0
         for (ref in audio.listAll()) {
-            if (ref.path in referenced) continue
+            if (fileName(ref.path) in referenced) continue
             val keyMs = audioKeyTime(ref.path)
             if (keyMs != null && abs(now - keyMs) < ORPHAN_GRACE_MS) continue
             try {
@@ -86,6 +90,12 @@ class Retention(
 
         /** "…/<createdAtEpochMs>-<session>.ogg" -> createdAtEpochMs; null when the name is not an AudioKey. */
         internal fun audioKeyTime(path: String): Long? =
-            path.substringAfterLast('/').substringBefore('.').substringBefore('-').toLongOrNull()
+            fileName(path).substringBefore('.').substringBefore('-').toLongOrNull()
+
+        /**
+         * The file name ("<key>.ogg"; an unfinished "<key>.ogg.part" is a different name, so a part file a dead process
+         * left next to a live entry's recording is an orphan once past the grace).
+         */
+        internal fun fileName(path: String): String = path.substringAfterLast('/')
     }
 }

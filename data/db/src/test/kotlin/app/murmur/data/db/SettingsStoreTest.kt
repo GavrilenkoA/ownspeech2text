@@ -11,6 +11,8 @@ import app.murmur.core.store.Feedback
 import app.murmur.core.store.PromptOverride
 import app.murmur.core.store.Settings
 import app.murmur.core.store.Tone
+import androidx.datastore.core.DataStore
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -18,11 +20,17 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
@@ -30,6 +38,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.io.File
+import java.io.IOException
 import java.nio.file.Files
 
 /** Typed DataStore on a real file (JVM): round trip, serialised updates, old and corrupt documents. */
@@ -54,7 +63,7 @@ class SettingsStoreTest {
 
     private fun open(): DataStoreSettingsRepository {
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO).also { scopes += it }
-        return DataStoreSettingsRepository(file, scope) { code, where -> synchronized(logged) { logged += "$code@$where" } }
+        return DataStoreSettingsRepository(file, scope, log = { code, where -> synchronized(logged) { logged += "$code@$where" } })
     }
 
     /** Closes the store so that the next [open] on the same file is a fresh read (one active DataStore per file). */
@@ -185,5 +194,77 @@ class SettingsStoreTest {
         file.writeText("""{"languages":"ru","retentionDays":"seven"}""")
         assertEquals(Settings(), open().current())
         assertEquals(listOf("data.io@settings_corrupt"), logged)
+    }
+
+    @Test
+    fun everyFieldIsWrittenEvenAtItsDefault() = runBlocking {
+        val repo = open()
+        repo.update { it.copy(typingWpm = 41) }
+        repo.update { Settings() } // a real write (the value changed) of a document that is all defaults
+        close()
+        val written = Json.parseToJsonElement(file.readText()).jsonObject
+        // A later release that changes a default must not change what this user has: every key is on disk.
+        val descriptor = Settings.serializer().descriptor
+        assertEquals((0 until descriptor.elementsCount).map { descriptor.getElementName(it) }.toSet(), written.keys)
+        assertEquals(7, written.getValue("retentionDays").jsonPrimitive.int)
+        assertEquals(40, written.getValue("typingWpm").jsonPrimitive.int)
+    }
+
+    /** A store whose first [failures] reads fail with [error]; a later read sees what [updateData] stored. */
+    private class FlakyStore(@Volatile var failures: Int, private val error: () -> Throwable) : DataStore<Settings> {
+        private val value = MutableStateFlow(Settings())
+        @Volatile var reads = 0
+        override val data: Flow<Settings> = flow {
+            reads++
+            if (failures > 0) {
+                failures--
+                throw error()
+            }
+            emitAll(value)
+        }
+        override suspend fun updateData(transform: suspend (t: Settings) -> Settings): Settings =
+            synchronized(value) { value.value }.let { transform(it) }.also { value.value = it }
+    }
+
+    private val crashes = mutableListOf<Throwable>()
+
+    private fun openOn(store: DataStore<Settings>, retryDelayMs: Long): DataStoreSettingsRepository {
+        val handler = CoroutineExceptionHandler { _, e -> synchronized(crashes) { crashes += e } }
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO + handler).also { scopes += it }
+        return DataStoreSettingsRepository(store, scope, { code, where -> synchronized(logged) { logged += "$code@$where" } }) { retryDelayMs }
+    }
+
+    @Test
+    fun readIoErrorsAreRetriedUntilTheStoreReadsAgain() = runBlocking {
+        val store = FlakyStore(failures = 5) { IOException("disk busy") }
+        val repo = openOn(store, retryDelayMs = 20)
+        // Decisions do not wait for the store to recover: the first failure releases current() with the defaults.
+        assertEquals(Settings(), withTimeout(2_000) { repo.current() })
+        store.updateData { it.copy(retentionDays = 1) }
+        // After five failed reads the collection is still alive and picks up the stored document...
+        withTimeout(5_000) { repo.settings.first { it.retentionDays == 1 } }
+        // ...and every later update.
+        repo.update { it.copy(typingWpm = 70) }
+        withTimeout(5_000) { repo.settings.first { it.typingWpm == 70 } }
+        assertEquals(6, store.reads)
+        assertEquals(List(5) { "data.io@settings_read" }, logged)
+        assertEquals(emptyList<Throwable>(), crashes)
+    }
+
+    @Test
+    fun currentDoesNotWaitForTheRetries() = runBlocking {
+        val repo = openOn(FlakyStore(failures = Int.MAX_VALUE) { IOException("no disk") }, retryDelayMs = 60_000)
+        assertEquals(Settings(), withTimeout(2_000) { repo.current() })
+        assertEquals(listOf("data.io@settings_read"), logged)
+    }
+
+    @Test
+    fun anyOtherReadErrorIsLoggedAndNeitherCrashesNorHangs() = runBlocking {
+        // E.g. DataStore's "multiple DataStores active for the same file" (IllegalStateException).
+        val repo = openOn(FlakyStore(failures = 1) { IllegalStateException("second store") }, retryDelayMs = 20)
+        assertEquals(Settings(), withTimeout(2_000) { repo.current() })
+        assertEquals(listOf("data.io@settings_read"), logged)
+        assertEquals(emptyList<Throwable>(), crashes)
+        assertEquals(Settings(), repo.settings.value)
     }
 }

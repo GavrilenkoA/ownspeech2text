@@ -48,7 +48,7 @@ data class HistoryRow(
     /** Soft delete for the Undo snackbar (DESIGN 6.3); committed when the snackbar times out. */
     @ColumnInfo(name = "pending_delete") val pendingDelete: Boolean = false,
     /**
-     * Search shadow: final + raw text folded by [SearchText.fold] (Unicode lowercase, "ё" -> "е"). SQLite's LIKE only
+     * Search shadow: final + raw text folded by [SearchText.fold] (NFC, full case folding, "ё" -> "е"). SQLite's LIKE only
      * folds ASCII, so "Привет" would not find "привет" in the text columns themselves.
      */
     @ColumnInfo(name = "search_text") val searchText: String = "",
