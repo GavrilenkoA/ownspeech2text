@@ -6,5 +6,15 @@
             android:name=".RetentionJob"
             android:exported="false"
             android:permission="android.permission.BIND_JOB_SERVICE" />
+        <!-- Time zone / wall clock changed: the next local midnight moved, reschedule and run (ARCHITECTURE 12).
+             Exported only so that the system can deliver these protected broadcasts; no other app can send them. -->
+        <receiver
+            android:name=".ClockChangeReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.intent.action.TIME_SET" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>
