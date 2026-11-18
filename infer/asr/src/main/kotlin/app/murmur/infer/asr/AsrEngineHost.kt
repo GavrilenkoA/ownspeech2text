@@ -109,8 +109,9 @@ class AsrEngineHost(private val nativeLibraryDir: String) {
         }
     }
 
+    /** deviceName = sherpa's provider ("qnn" | "cpu"), what DEVICE_CHECKLIST DC8 asserts; the HTP arch is a probe fact. */
     private fun info(m: SherpaModel, qnn: QnnStatus?): LoadInfo =
-        LoadInfo(unit = m.unit, loadMs = 0, deviceName = if (qnn != null) "HTP${qnn.htpArch?.let { " v$it" } ?: ""}" else "CPU")
+        LoadInfo(unit = m.unit, loadMs = 0, deviceName = if (qnn != null) "qnn" else "cpu")
 
     fun unloadAll() {
         sessions.toList().forEach { it.abort(MurmurError.AsrFailed("unloaded")) }
