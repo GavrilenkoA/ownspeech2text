@@ -14,7 +14,7 @@ class OcrGoldenSuiteTest {
         assertEquals(26, goldens.size)
         for (g in goldens) {
             assertEquals(g.name, OcrConfig().pipelineVersion, g.pipeline)
-            assertTrue(g.name, g.png.exists())
+            assertTrue(g.name, Golden.png(g).exists())
             assertEquals(g.name, OcrPipelineSizes.detTargetSize(g.ocr.size[0], g.ocr.size[1]), g.detInput)
         }
     }
@@ -56,6 +56,15 @@ class OcrGoldenSuiteTest {
         println("post-processing: ${goldens.size} pages, $lines lines; conf undetermined by stages.rec: $undetermined; " +
             "pages byte-identical as stored: $exactPages")
         assertEquals(578, lines)
+    }
+
+    /** infer/asr's emulator test pages (androidTest assets) are unmodified copies of goldens of this suite. */
+    @Test
+    fun emulatorAssetsAreCopiesOfTheGoldenSuite() {
+        val assets = File(Golden.root, "infer/asr/src/androidTest/assets/ocr")
+        val files = assets.listFiles().orEmpty().sortedBy { it.name }
+        assertEquals(listOf("001", "002", "005", "006"), files.map { it.nameWithoutExtension }.distinct())
+        for (f in files) assertTrue(f.name, File(Golden.dir, f.name).readBytes().contentEquals(f.readBytes()))
     }
 
     /** rec_keys.txt (the dictionary as exported by ml/ocr) reads back as 850 entries, apostrophe included. */

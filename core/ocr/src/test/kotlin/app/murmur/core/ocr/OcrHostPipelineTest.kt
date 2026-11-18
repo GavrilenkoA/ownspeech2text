@@ -14,13 +14,13 @@ import kotlin.math.abs
 class OcrHostPipelineTest {
     companion object {
         private lateinit var models: HostOrtModels
-        private lateinit var runs: Map<Golden, OcrRun>
+        private lateinit var runs: Map<OcrGolden, OcrRun>
 
         @BeforeClass @JvmStatic
         fun runSuite() {
             models = HostOrtModels()
             val pipeline = OcrPipeline(OcrConfig(), models)
-            runs = Golden.all().associateWith { pipeline.runDetailed(it.image()) }
+            runs = Golden.all().associateWith { pipeline.runDetailed(Golden.image(it)) }
         }
 
         @AfterClass @JvmStatic
@@ -41,7 +41,7 @@ class OcrHostPipelineTest {
             for ((w, got) in g.detBoxes.zip(r.detBoxes)) {
                 total++
                 val d = maxOf(abs(w.rect.x0 - got.rect.x0), abs(w.rect.y0 - got.rect.y0), abs(w.rect.x1 - got.rect.x1), abs(w.rect.y1 - got.rect.y1))
-                assertTrue("${g.name} ${w.rect} vs ${got.rect}", d <= Parity.BOX_PX)
+                assertTrue("${g.name} ${w.rect} vs ${got.rect}", d <= OcrTolerance.BOX_PX)
                 assertEquals("${g.name} score ${w.rect}", w.score, got.score, 0.02)
                 if (w.rect == got.rect && w.score == OcrPostProcess.roundHalfEven(got.score, 4)) exact++
             }
@@ -53,17 +53,17 @@ class OcrHostPipelineTest {
     fun recognisedLinesMatchGolden() {
         val pages = runs.map { (g, r) ->
             assertEquals("${g.name} rec line count", g.rec.size, r.rec.size)
-            Parity.compare(g.name,
+            OcrTolerance.compare(g.name,
                 g.rec.map { OcrLine(it.text, it.conf, it.rect.list()) },
                 r.rec.map { OcrLine(it.text, OcrPostProcess.roundHalfEven(it.conf, 4), it.rect.list()) })
         }
-        println("rec stage (raw text, conf rounded to 4 digits like the golden):\n" + Parity.assertWithin(pages))
+        println("rec stage (raw text, conf rounded to 4 digits like the golden):\n" + Golden.assertWithin(OcrTolerance.Suite(pages)))
     }
 
     @Test
     fun finalOutputWithinReadmeTolerances() {
-        val pages = runs.map { (g, r) -> Parity.compare(g.name, g.ocr.lines, r.result.lines) }
-        println("ocr (final output):\n" + Parity.assertWithin(pages))
+        val pages = runs.map { (g, r) -> OcrTolerance.compare(g.name, g.ocr.lines, r.result.lines) }
+        println("ocr (final output):\n" + Golden.assertWithin(OcrTolerance.Suite(pages)))
         for ((g, r) in runs) assertEquals(g.name, g.ocr.size, r.result.size)
     }
 
@@ -91,7 +91,7 @@ class OcrHostPipelineTest {
     fun batchSizeDoesNotChangeTheOutput() {
         val batched = OcrPipeline(OcrConfig(recBatch = 8), models)
         for ((g, r) in runs.entries.take(4)) {
-            val b = batched.runDetailed(g.image())
+            val b = batched.runDetailed(Golden.image(g))
             assertEquals(g.name, r.rec.map { it.text to it.rect }, b.rec.map { it.text to it.rect })
             for ((x, y) in r.rec.zip(b.rec)) assertEquals("${g.name} ${x.rect}", x.conf, y.conf, 1e-4)
             assertTrue(b.result.stats!!.recCalls < r.result.stats!!.recCalls)
