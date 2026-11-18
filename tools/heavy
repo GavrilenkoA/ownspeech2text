@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Run a memory-heavy command (Gradle, emulator, native builds, local inference) in its own
+# systemd user scope. The agent session itself is capped at 8 GB; a scope is not.
+#   tools/heavy ./gradlew :app:assembleDebug
+#   MURMUR_MEM=24G tools/heavy <cmd>
+set -euo pipefail
+exec systemd-run --user --scope -q -p MemoryMax="${MURMUR_MEM:-16G}" -- "$@"

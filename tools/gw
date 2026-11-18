@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Serialized Gradle for this checkout: one build at a time (several agents share the tree),
+# run outside the 8 GB session memory cap. Usage: tools/gw :app:assembleDebug
+set -euo pipefail
+root="$(cd "$(dirname "$0")/.." && pwd)"
+mkdir -p "$root/.cache"
+exec flock "$root/.cache/gradle.lock" "$root/tools/heavy" "$root/gradlew" -p "$root" "$@"
