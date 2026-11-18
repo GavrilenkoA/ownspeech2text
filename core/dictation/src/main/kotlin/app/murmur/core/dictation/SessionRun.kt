@@ -53,8 +53,13 @@ internal class SessionRun(
     var asrFellBack = false
     var asrJob: Job? = null
     var finishJob: Job? = null
-    /** One :asr death is reported once, whether the host watcher or the failing call sees it first. */
-    var asrDeathReported = false
+    /** Pid of the :asr instance the current ASR session runs in (HostState.Up at attach time). */
+    var asrPid: Int? = null
+    /**
+     * :asr instances whose death this session already reported: the failing call (EPIPE / DeadObject) and the host's
+     * Crashed notice report the same death in either order, possibly while the restart is already under way.
+     */
+    val asrDeaths = HashSet<Int?>()
     val ocrLoaded = CompletableDeferred<Boolean>()
     var transcript: Transcript? = null
     var asrTailMs: Long? = null

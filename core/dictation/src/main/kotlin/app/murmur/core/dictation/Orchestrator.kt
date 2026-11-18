@@ -539,6 +539,7 @@ class DictationOrchestrator(
         val session = deps.engines.asr.startSession(sessionOptions(r.settings))
         if (r.ended) { session.cancel(); return false }
         for (chunk in r.buffer) session.accept(chunk)
+        r.asrPid = (deps.engines.asrHost.state.value as? HostState.Up)?.pid
         r.asrSession = session
         r.asrSlot.value = AsrSlot.Ready(session)
         return true
@@ -581,10 +582,8 @@ class DictationOrchestrator(
         r.asrTailMs = deps.clock.elapsedMs() - t0
         when (res) {
             is Outcome.Err -> {
-                if (res.error is MurmurError.ProcessDied) {
-                    if (r.asrDeathReported) return       // the host watcher already reported this death
-                    r.asrDeathReported = true
-                }
+                // The host watcher may already have reported this death (its notice came first).
+                if (res.error is MurmurError.ProcessDied && !r.asrDeaths.add(r.asrPid)) return
                 post(DictationEvent.AsrFailed(s, res.error))
             }
             is Outcome.Ok -> {
@@ -617,7 +616,6 @@ class DictationOrchestrator(
         r.asrSession?.cancel()
         r.asrSession = null
         r.asrSlot.value = AsrSlot.Loading
-        r.asrDeathReported = false
         val job = launchFor(r, { DictationEvent.AsrFailed(r.session, internal("asr", it)) }) {
             val models = r.models ?: return@launchFor
             val s = r.session
@@ -653,20 +651,30 @@ class DictationOrchestrator(
         // An LLM load in flight continues: the processes stay warm for the next dictation (row 12, row 34).
     }
 
+    /** A Crashed notice is the death of the instance last seen Up (null = none seen). */
     private fun watchDeaths(host: InferenceHost) {
         work.launch {
-            host.state.collect { st -> if (st is HostState.Crashed) onDied(host.process) }
+            var lastUp: Int? = null
+            host.state.collect { st ->
+                when (st) {
+                    is HostState.Up -> lastUp = st.pid
+                    is HostState.Crashed -> onDied(host.process, lastUp)
+                    else -> Unit
+                }
+            }
         }
     }
 
-    private fun onDied(process: InferProcess) {
+    private fun onDied(process: InferProcess, pid: Int?) {
         keeper.forget(process)
         val r = activeRun() ?: return
         when (process) {
             InferProcess.ASR -> {
-                // A death during a load is that load's error (it falls back); a death seen first by finish() is reported there.
-                if (keeper.asrLoading > 0 || r.asrDeathReported) return
-                r.asrDeathReported = true
+                // A death during a load is that load's error (it falls back). A death of another instance than the one
+                // the session runs in is not this session's; one already reported by the failing finish() is not new.
+                if (keeper.asrLoading > 0) return
+                if (pid != null && r.asrPid != null && pid != r.asrPid) return
+                if (!r.asrDeaths.add(pid ?: r.asrPid)) return
                 r.asrSession = null
                 r.asrSlot.value = AsrSlot.Loading
                 post(DictationEvent.ProcessDied(r.session, InferProcess.ASR))

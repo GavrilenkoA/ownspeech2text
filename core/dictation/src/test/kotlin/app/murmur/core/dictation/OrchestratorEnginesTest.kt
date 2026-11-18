@@ -114,6 +114,63 @@ class OrchestratorEnginesTest {
         h.assertInserted("accept")
     }
 
+    /** Review F1: the failing finish() reports the death before the host's Crashed notice, which lands in the restart. */
+    @Test fun firstAsrCrashInFinishingSeenByFinishBeforeTheHostNoticeIsCountedOnce() = runTest {
+        val h = harness {
+            engines.asr.finishDelayMs = 1_000
+            engines.asrHost.shutdownDelayMs = 100
+        }
+        h.at(0); h.tap(); h.at(2_800); h.tap(); h.at(3_000)
+        h.w.engines.asrHost.crash(publish = false)       // finish() returns ProcessDied(ASR) now
+        h.at(3_060)
+        val st = h.state as DictationState.Finishing
+        assertEquals(1, st.engines.asrCrashes)
+        h.w.engines.asrHost.publishCrash()               // binderDied for the same process, inside the restart's shutdown
+        h.scope.testScheduler.advanceUntilIdle()
+        assertEquals(2, h.w.engines.asr.sessions.size)
+        assertEquals(2_800L * 16, h.w.engines.asr.sessions.last().samples)
+        assertTrue(h.outcomes().single() is DictationOutcome.Inserted)
+        h.assertInserted("accept")
+    }
+
+    /** Deaths are told apart per process instance: a death of the re-bound :asr still counts as the second (row 22). */
+    @Test fun aDeathOfTheReboundAsrIsTheSecondDeath() = runTest {
+        val h = harness { engines.asrHost.shutdownDelayMs = 100 }
+        h.at(0); h.tap(); h.at(1_000)
+        h.w.engines.asrHost.crash()
+        h.at(1_500)
+        assertEquals(1, (h.state as DictationState.Listening).engines.asrCrashes)
+        assertTrue((h.state as DictationState.Listening).engines.asr is AsrReadiness.Ready)
+        h.w.engines.asrHost.crash()
+        h.at(1_600)
+        assertEquals(AsrReadiness.Failed(MurmurError.ProcessDied(InferProcess.ASR)), (h.state as DictationState.Listening).engines.asr)
+        h.at(2_800); h.tap()
+        h.scope.testScheduler.advanceUntilIdle()
+        assertEquals("engine.process_died.asr", h.only().failureCode)
+        h.assertNoInternalErrors()
+    }
+
+    /** Finishing: the restarted session's own death (finish() first, its notice later) fails at row 30. */
+    @Test fun aDeathOfTheRestartedAsrInFinishingFailsWithAudio() = runTest {
+        val h = harness {
+            engines.asr.finishDelayMs = 1_000
+            engines.asrHost.shutdownDelayMs = 100
+        }
+        h.at(0); h.tap(); h.at(2_800); h.tap(); h.at(3_000)
+        h.w.engines.asrHost.crash(publish = false)
+        h.at(3_060)
+        h.w.engines.asrHost.publishCrash()                // late notice of the first death, inside the restart: ignored
+        h.at(3_200)
+        assertEquals(2, h.w.engines.asr.sessions.size)
+        assertTrue(h.state is DictationState.Finishing)
+        h.w.engines.asrHost.crash()                       // the restarted process dies
+        h.scope.testScheduler.advanceUntilIdle()
+        val e = h.only()
+        assertEquals("engine.process_died.asr", e.failureCode)
+        assertNotNull(e.audio)
+        h.assertNoInternalErrors()
+    }
+
     @Test fun asrFinalTimeoutRestartsOnceThenFailsWithAudio() = runTest {
         val h = harness { engines.asr.finishDelayMs = 60_000 }
         h.dictate(stopAt = 2_800)

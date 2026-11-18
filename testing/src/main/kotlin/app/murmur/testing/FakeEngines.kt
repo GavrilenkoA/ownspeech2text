@@ -75,15 +75,30 @@ class FakeInferenceHost(
     override suspend fun probe() = ProcessProbe(process, app.murmur.core.catalog.RuntimeKeys.known, units, facts)
     override suspend fun memory() = ProcessMemory(100_000, 90_000, 80_000, 4_000)
     override fun scheduleIdleExit(ms: Long) { idleExitMs = ms }
-    override suspend fun shutdown() { shutdowns++; _state.value = HostState.Down; listeners.forEach { it() } }
+    /** How long shutdown() takes (unbind + process kill), in coroutine time. */
+    var shutdownDelayMs: Long = 0
 
-    /** Simulate a native crash of the process. */
-    fun crash() {
+    override suspend fun shutdown() {
+        shutdowns++
+        if (shutdownDelayMs > 0) delay(shutdownDelayMs)
+        _state.value = HostState.Down
+        listeners.forEach { it() }
+    }
+
+    /**
+     * Simulate a native crash of the process. [publish] = false fails the in-flight calls (EPIPE / DeadObject) without
+     * the state notice yet; [publishCrash] delivers it later (binderDied / onServiceDisconnected arriving after the
+     * failing call, an order the binder does not fix).
+     */
+    fun crash(publish: Boolean = true) {
         crashes++
-        _state.value = HostState.Crashed(crashes)
+        if (publish) _state.value = HostState.Crashed(crashes)
         listeners.forEach { it() }
         _deaths.tryEmit(crashes)
     }
+
+    /** The late state notice of the last [crash] (publish = false). */
+    fun publishCrash() { _state.value = HostState.Crashed(crashes) }
 }
 
 /**
