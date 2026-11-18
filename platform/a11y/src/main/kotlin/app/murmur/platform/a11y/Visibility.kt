@@ -47,11 +47,11 @@ object VisibilityRules {
     /** DESIGN 5.2: "Keyboard closes while Ready or Rest -> Hidden after 300 ms (debounced to avoid flicker between fields)". */
     const val BLUR_DEBOUNCE_MS = 300L
 
-    fun build(focus: FocusState, settings: VisibilitySettings, ownPackage: String, nowMs: Long, idleSinceMs: Long?, talkBackOn: Boolean) =
+    fun build(focus: FocusState, settings: VisibilitySettings, ownUi: Set<String>, nowMs: Long, idleSinceMs: Long?, talkBackOn: Boolean) =
         VisibilityInput(
             editableFocused = focus.editableFocused,
             bubbleAllowedForField = !focus.isPassword && FieldKinds.bubbleAllowed(focus.inputType),
-            appHidden = focus.pkg != null && appHidden(focus.pkg, settings.hiddenInPackages, ownPackage),
+            appHidden = focus.pkg != null && appHidden(focus.pkg, settings.hiddenInPackages, ownUi),
             hiddenUntilMs = settings.hiddenUntilEpochMs,
             nowMs = nowMs,
             showAlways = settings.showAlways,
@@ -61,8 +61,8 @@ object VisibilityRules {
         )
 
     /** Built-in denylist ∪ the user's "Hidden in" ∪ Murmur's own UI (the practice field uses an in-app bubble). */
-    fun appHidden(pkg: String, hiddenIn: Set<String>, ownPackage: String): Boolean =
-        pkg == ownPackage || pkg in BuiltInDenylist.packages || pkg in hiddenIn
+    fun appHidden(pkg: String, hiddenIn: Set<String>, ownUi: Set<String>): Boolean =
+        pkg in ownUi || pkg in BuiltInDenylist.packages || pkg in hiddenIn
 
     /** A blur (editable -> not editable) waits [BLUR_DEBOUNCE_MS]; everything else, including a password focus, is immediate. */
     fun delayFor(previous: FocusState?, next: FocusState): Long =
@@ -88,7 +88,8 @@ object VisibilityRules {
  */
 class FocusTracker(
     private val scope: CoroutineScope,
-    private val ownPackage: String,
+    /** Murmur's own UI packages ([A11yServiceHost.ownUiPackages]). */
+    private val ownUi: Set<String>,
     private val now: () -> Long,
     private val emit: (displayId: Int, input: VisibilityInput) -> Unit,
 ) {
@@ -130,7 +131,7 @@ class FocusTracker(
     }
 
     private fun publish(state: FocusState) {
-        val input = VisibilityRules.build(state, settings, ownPackage, now(), idleSince, talkBack)
+        val input = VisibilityRules.build(state, settings, ownUi, now(), idleSince, talkBack)
         emit(state.displayId, input)
         deadline?.cancel()
         deadline = VisibilityRules.nextDeadline(input)?.let { at ->

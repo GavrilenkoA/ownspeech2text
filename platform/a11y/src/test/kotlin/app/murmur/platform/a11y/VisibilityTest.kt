@@ -20,7 +20,8 @@ import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class VisibilityTest {
-    private val own = "app.murmur"
+    private val ownPkg = "app.murmur"
+    private val own = setOf(ownPkg)
     private val text = FieldKinds.TYPE_CLASS_TEXT
     private val password = FieldKinds.TYPE_CLASS_TEXT or FieldKinds.TYPE_TEXT_VARIATION_PASSWORD
 
@@ -40,7 +41,7 @@ class VisibilityTest {
         assertFalse(VisibilityRules.build(focus(inputType = FieldKinds.TYPE_CLASS_PHONE), s, own, 0, null, false).bubbleAllowedForField)
         assertTrue(VisibilityRules.build(focus(pkg = "com.bank"), s, own, 0, null, false).appHidden)
         assertTrue(VisibilityRules.build(focus(pkg = "com.android.systemui"), s, own, 0, null, false).appHidden)
-        assertTrue(VisibilityRules.build(focus(pkg = own), s, own, 0, null, false).appHidden)
+        assertTrue(VisibilityRules.build(focus(pkg = ownPkg), s, own, 0, null, false).appHidden)
         assertFalse(VisibilityRules.build(FocusState.NONE, s, own, 0, null, false).appHidden)
     }
 
@@ -171,7 +172,7 @@ class VisibilityTest {
         t.onSettings(VisibilitySettings(showAlways = true, hiddenInPackages = setOf("com.bank")))
         t.onFocus(focus(pkg = "com.bank")); runCurrent()
         assertEquals(BubbleVisual.Hidden, visual(rec.events.last().second))
-        t.onFocus(focus(pkg = own, key = 3)); runCurrent()
+        t.onFocus(focus(pkg = ownPkg, key = 3)); runCurrent()
         assertEquals(BubbleVisual.Hidden, visual(rec.events.last().second))
         t.onFocus(focus(pkg = "com.other", editable = false)); advanceTimeBy(300); runCurrent()
         assertEquals(BubbleVisual.Rest, visual(rec.events.last().second)) // "Always": Rest tab without a field

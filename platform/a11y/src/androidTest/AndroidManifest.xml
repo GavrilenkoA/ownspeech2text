@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <!-- The test APK hosts the service (merged from the library manifest) with a fake A11yServiceHost, and the
+         "other app" targets in their own process (:target), so that every node read and every insertion crosses a
+         process boundary as it does for a real app. Each target logs "TGT text=<field text>" on every change. -->
+    <application
+        android:name="app.murmur.platform.a11y.TestHostApp"
+        android:label="@string/test_app_label"
+        tools:replace="android:label">
+        <activity android:name="app.murmur.platform.a11y.HostActivity" android:exported="false" android:label="Host" />
+        <activity android:name="app.murmur.platform.a11y.PlainTargetActivity" android:process=":target"
+            android:exported="false" android:label="Plain target" android:windowSoftInputMode="stateAlwaysVisible|adjustResize" />
+        <activity android:name="app.murmur.platform.a11y.FocusPairActivity" android:process=":target"
+            android:exported="false" android:label="Focus pair" android:windowSoftInputMode="stateAlwaysVisible|adjustResize" />
+        <activity android:name="app.murmur.platform.a11y.SecureTargetActivity" android:process=":target"
+            android:exported="false" android:label="Secure target" android:windowSoftInputMode="stateAlwaysVisible|adjustResize" />
+        <activity android:name="app.murmur.platform.a11y.ComposeTargetActivity" android:process=":target"
+            android:exported="false" android:label="Compose target" android:windowSoftInputMode="stateAlwaysVisible|adjustResize" />
+        <activity android:name="app.murmur.platform.a11y.WebTargetActivity" android:process=":target"
+            android:exported="false" android:label="Web target" android:windowSoftInputMode="stateAlwaysVisible|adjustResize" />
+    </application>
+</manifest>

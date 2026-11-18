@@ -45,6 +45,12 @@ interface A11yServiceHost {
     /** Bubble gestures and the notification's "Start dictation" go to the orchestrator. */
     fun onUserInput(input: UserInput) = dictation.onInput(input)
 
+    /**
+     * Packages whose UI counts as "Murmur's own UI" (DESIGN 5.2: no bubble there; the practice field has its own).
+     * Default: the app itself.
+     */
+    fun ownUiPackages(service: AccessibilityService): Set<String> = setOf(service.packageName)
+
     /** The bubble on [displayId] (one per display). Default: WP-03's Compose bubble in an accessibility overlay. */
     fun bubbleFor(service: AccessibilityService, displayId: Int): BubbleSurface =
         OverlayBubbleSurface(OverlayHost(service, displayId, dictation.bubble, dictation.levels, ::onUserInput))
@@ -112,7 +118,7 @@ class MurmurAccessibilityService : AccessibilityService() {
         val s = CoroutineScope(SupervisorJob() + main.asCoroutineDispatcher("a11y-main"))
         scope = s
         A11yStatus.get(this).onServiceConnected()
-        val t = FocusTracker(s, packageName, System::currentTimeMillis, ::pushVisibility)
+        val t = FocusTracker(s, h?.ownUiPackages(this) ?: setOf(packageName), System::currentTimeMillis, ::pushVisibility)
         tracker = t
 
         val dm = getSystemService(DisplayManager::class.java)
