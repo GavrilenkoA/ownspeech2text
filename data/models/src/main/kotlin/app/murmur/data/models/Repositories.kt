@@ -15,6 +15,7 @@ import app.murmur.core.model.ComputeUnit
 import app.murmur.core.store.BenchmarkRepository
 import app.murmur.core.catalog.ModelEntry
 import app.murmur.core.dictation.ActiveModels
+import app.murmur.core.dictation.PrepareTargets
 import app.murmur.core.dictation.ModelResolver
 import app.murmur.core.model.ArtifactId
 import app.murmur.core.model.ModelId
@@ -57,6 +58,8 @@ class DefaultModelResolver(
     private val benchmarks: BenchmarkRepository,
 ) : ModelResolver {
     override suspend fun resolve(settings: Settings): Outcome<ActiveModels> = TODO("WP-13")
+    override suspend fun prepareTargets(artifact: ArtifactId, settings: Settings): Outcome<PrepareTargets> =
+        TODO("WP-13: specs of the artifact on every usable unit, built like resolve() (ModelResolver.prepareTargets)")
 }
 
 /**
