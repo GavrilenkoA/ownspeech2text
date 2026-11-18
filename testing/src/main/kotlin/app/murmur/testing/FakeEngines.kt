@@ -105,6 +105,8 @@ class FakeAsrEngine(
     val host: FakeInferenceHost? = null,
 ) : AsrEngine {
     var loads = 0; private set
+    /** Every load call's unit, failed ones included (loadedUnits holds the successful ones). */
+    val loadAttempts = mutableListOf<ComputeUnit>()
     val loadedUnits = mutableListOf<ComputeUnit>()
     var loaded: LoadSpec? = null; private set
     val sessions = mutableListOf<FakeAsrSession>()
@@ -113,6 +115,7 @@ class FakeAsrEngine(
 
     override suspend fun load(asr: LoadSpec, vad: LoadSpec?): Outcome<LoadInfo> {
         loads++
+        loadAttempts += asr.unit
         if (loadDelayMs > 0) delay(loadDelayMs)
         (loadErrors[asr.unit] ?: loadError)?.let { return Outcome.Err(it) }
         loaded = asr
@@ -202,7 +205,11 @@ class FakeLlmEngine(
 ) : LlmEngine {
     var prefix: PrefixSpec? = null; private set
     var loadedUnit: ComputeUnit? = null; private set
+    /** Every load call's unit, failed ones included (loadedUnits holds the successful ones). */
+    val loadAttempts = mutableListOf<ComputeUnit>()
     val loadedUnits = mutableListOf<ComputeUnit>()
+    /** Every setPrefix call (snapshot builds and restores). */
+    val prefixCalls = mutableListOf<PrefixSpec>()
     var requests = mutableListOf<LlmRequest>()
     var cancelled = 0; private set
     var benches = 0; private set
@@ -211,6 +218,7 @@ class FakeLlmEngine(
     init { host?.onDeath { loadedUnit = null; prefix = null; died.complete(Unit); died = CompletableDeferred() } }
 
     override suspend fun load(spec: LoadSpec): Outcome<LoadInfo> {
+        loadAttempts += spec.unit
         if (loadDelayMs > 0) delay(loadDelayMs)
         (loadErrors[spec.unit] ?: loadError)?.let { return Outcome.Err(it) }
         loadedUnit = spec.unit
@@ -219,6 +227,7 @@ class FakeLlmEngine(
     }
 
     override suspend fun setPrefix(prefix: PrefixSpec): Outcome<PrefixInfo> {
+        prefixCalls += prefix
         if (prefixDelayMs > 0) delay(prefixDelayMs)
         this.prefix = prefix
         return Outcome.Ok(PrefixInfo((prefix.text.length * 0.27).toInt(), 1, restoredFromDisk = false, bytes = 0))

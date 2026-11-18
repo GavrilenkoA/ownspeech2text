@@ -22,7 +22,11 @@ interface AudioCapture {
 }
 
 interface CaptureHandle {
-    /** Every sample from the first buffer on, replayed to late collectors (the ASR session may attach after load). */
+    /**
+     * Every sample from the first buffer on, replayed to late collectors (the ASR session may attach after load).
+     * Completes after [stop] once the last captured sample was emitted (the orchestrator waits at most
+     * DictationConfig.captureDrainMs for that, then finishes the ASR with what it has).
+     */
     val chunks: Flow<PcmChunk>
     /** 7 bar heights 0..1 at ~30 Hz for the bubble (LevelMeter). */
     val levels: StateFlow<FloatArray>
@@ -88,6 +92,43 @@ interface Feedback {
  */
 interface ModelResolver {
     suspend fun resolve(settings: Settings): Outcome<ActiveModels>
+
+    /**
+     * EnginePreparer input (ARCHITECTURE 8.5): [artifact] (installed, or being installed: InstallState.Preparing) as
+     * load specs on every usable unit of this phone (ArtifactSelector.candidates with UnitHealth, in ranked order),
+     * built exactly like [resolve] builds them (absolute dir, layout, LoadOptions). Err(CatalogInvalid) for an
+     * unknown artifact.
+     */
+    suspend fun prepareTargets(artifact: ArtifactId, settings: Settings): Outcome<PrepareTargets>
+}
+
+/** What [EnginePreparer.prepareArtifact] proves for one artifact. */
+data class PrepareTargets(
+    val kind: app.murmur.core.model.ModelKind,
+    /** One spec per usable unit, ranked (NPU first on the Fold7). Empty = nothing usable on this phone. */
+    val specs: List<LoadSpec>,
+    /** ASR: the installed VAD for batch runtimes (null for streaming ones, or when it is not installed yet). */
+    val vad: LoadSpec? = null,
+    /** ASR: batch runtime (VAD-segmented); preparing it without [vad] is refused (Err(NoVadModel), nothing marked). */
+    val needsVad: Boolean = false,
+    /** LLM: what the prefix snapshot is built from (template, profile, nCtx, model sha). */
+    val llm: LlmPrepare? = null,
+    /** OCR det/rec: the other stage of the pair when installed (loadOcr needs both); null = proven when it arrives. */
+    val ocrPartner: LoadSpec? = null,
+    /** ASR: the model's CPU artifact (catalog), and whether it is installed (PrepareReport.needsCpuArtifact). */
+    val cpuArtifact: ArtifactId? = null,
+    val cpuArtifactInstalled: Boolean = false,
+)
+
+data class LlmPrepare(val template: String, val profile: String, val nCtx: Int, val modelSha256: String)
+
+/**
+ * Preflight's device checks (row 6): free storage and thermal state. :app implements it (StatFs on filesDir,
+ * PowerManager.currentThermalStatus >= THERMAL_STATUS_CRITICAL).
+ */
+interface SystemConditions {
+    fun freeStorageBytes(): Long
+    fun thermalCritical(): Boolean
 }
 
 data class ActiveModels(
@@ -205,5 +246,6 @@ interface InAppTarget {
  * the field context is mid-sentence (before ends without . ! ? or newline) AND the guard accepted the text.
  */
 interface JoinPolicy {
-    fun join(beforeCursor: String?, text: String): String
+    /** [lowercaseAllowed] = the guard accepted the text (raw transcripts and fallbacks keep their casing). */
+    fun join(beforeCursor: String?, text: String, lowercaseAllowed: Boolean = false): String
 }

@@ -32,6 +32,8 @@ sealed interface DictationState {
         val micStartedAtMs: Long? = null,
         val engines: EngineStatus = EngineStatus(),
         val stopRequested: Boolean = false,
+        /** When the early stop arrived (row 10); Finishing freezes the timer at max(micStartedAt, this). */
+        val stopAtMs: Long? = null,
     ) : DictationState
 
     /** Audio flows to the ASR session (buffered until the model is loaded). */
@@ -77,6 +79,8 @@ sealed interface DictationState {
         val text: String,
         val cleaned: Boolean,
         val shownAs: DictationBubble,
+        /** cleanup_outcome of this delivery; becomes [DictationOutcome.Inserted.skipReason] when not cleaned. */
+        val cleanupOutcome: String? = null,
     ) : DictationState
 
     /** Result pill on screen; dismiss timer running. */
@@ -159,6 +163,8 @@ sealed interface UserInput {
     data object Cancel : UserInput
     /** Notification action "Start dictation" (and the Quick Settings tile later). */
     data object NotificationStart : UserInput
+    /** Onboarding practice field (row 4): posted by DictationOrchestrator.startInApp, never by the overlay. */
+    data object InAppStart : UserInput
     /** Tap on the body of the Copied / Error pill (opens the entry / dismisses). */
     data object ResultTap : UserInput
     /** Tap on the 40 dp action button of an Error pill (Retry / Open / Open entry, DESIGN 5.5). */
@@ -182,7 +188,11 @@ enum class Timer { MIC_START, WARN, MAX_DURATION, TRANSCRIBING_LABEL, ASR_FINAL,
 
 /** Everything the reducer reacts to. Completion events come from [Effect] execution in the orchestrator. */
 sealed interface DictationEvent {
-    data class Input(val input: UserInput, val atMs: Long) : DictationEvent
+    /**
+     * [atMs] = MurmurClock.elapsedMs() of the input. [session] = the id a start input creates (rows 1-4, 46, 49): the
+     * orchestrator stamps the next SessionId so the reducer stays pure; null = previous session + 1 (tests).
+     */
+    data class Input(val input: UserInput, val atMs: Long, val session: SessionId? = null) : DictationEvent
     data class PreflightPassed(val session: SessionId, val plan: SessionPlan) : DictationEvent
     /** Mic permission, service, ASR/VAD model, password field, excluded app, storage, thermal (ARCHITECTURE 5.2). */
     data class PreflightFailed(val session: SessionId, val error: MurmurError) : DictationEvent
@@ -206,7 +216,10 @@ sealed interface DictationEvent {
     data class Delivered(val session: SessionId, val result: DeliveryResult) : DictationEvent
     data class TimerFired(val session: SessionId, val timer: Timer) : DictationEvent
     data class ProcessDied(val session: SessionId, val process: InferProcess) : DictationEvent
-    data class ExternalStop(val session: SessionId, val reason: StopReason) : DictationEvent
+    /** [atMs] = elapsedMs when the stop happened (freezes the Finishing timer); null = the recording start. */
+    data class ExternalStop(val session: SessionId, val reason: StopReason, val atMs: Long? = null) : DictationEvent
+    /** Result of [Effect.RecordFailure]: the history entry (null when nothing is stored), for Retry / Open entry. */
+    data class FailureRecorded(val session: SessionId, val entry: EntryId?) : DictationEvent
 }
 
 /** Result of [Effect.Deliver]. */
