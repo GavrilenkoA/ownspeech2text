@@ -14,12 +14,16 @@
 #   same AAR, so sherpa-onnx, Silero VAD and OCR share it. Pass ORT_AAR=<path> to use a local copy (same sha256 required).
 #   Android NDK r30 + CMake 4.1.2 from $ANDROID_HOME.
 #
+# Patches: native/sherpa/patches/*.patch (patch -p1 on the pristine source; the tree is re-extracted when they change).
+#
 # Outputs:
 #   <workdir>/out/<abi>/{lib,bin}   full sherpa install (CLI binaries + libonnxruntime.so for tools/device/asr_npu_smoke.sh)
-#   <workdir>/out/<abi>/BUILD_INFO  versions, sha256 of the JNI library, build seconds
+#   <workdir>/out/<abi>/BUILD_INFO  versions, patches, sha256 of the JNI library, build seconds
 #   <libs>/sherpa/<abi>/libsherpa-onnx-jni.so  ONLY this file; <libs> = $MURMUR_NATIVE_LIBS_DIR or <repo>/.cache/native/jniLibs
 #     (Gradle: -Pmurmur.nativeLibsDir=<libs>). The script refuses an install dir that holds libonnxruntime.so or the
 #     sherpa C/C++ API libraries: a second libonnxruntime.so would clash with the AAR's in the APK.
+#   <libs>/qnn-probe/arm64-v8a/libmurmur-qnn-probe.so  (native/sherpa/qnn-probe: does the QNN HTP backend initialise?
+#     sherpa-onnx _Exit()s the process on QNN errors, so :asr asks this small library first).
 #
 # Checks (fail = exit != 0): source/AAR/header sha256; out/<abi>/lib/libonnxruntime.so byte-identical (cmp) to the AAR's;
 #   libsherpa-onnx-jni.so NEEDED = libonnxruntime.so + Android system libraries only; arm64 contains the QNN code
@@ -53,16 +57,17 @@ die() { echo "build-android.sh: $*" >&2; exit 1; }
 abi_of() { case $1 in arm64) echo arm64-v8a ;; x86_64) echo x86_64 ;; *) die "unknown target $1" ;; esac; }
 
 # The install dir of one ABI may hold libsherpa-onnx-jni.so and nothing else that is a shared library.
-check_install_dir() {
-  local d=$1 bad
+check_install_dir() { # dir allowed-library-name
+  local d=$1 keep=${2:-libsherpa-onnx-jni.so} bad
   [ -d "$d" ] || return 0
-  bad=$(find "$d" -maxdepth 1 -name '*.so' ! -name libsherpa-onnx-jni.so -printf '%f ')
-  [ -z "$bad" ] || die "refusing $d: it holds $bad(only libsherpa-onnx-jni.so belongs there; libonnxruntime.so comes from the AAR)"
+  bad=$(find "$d" -maxdepth 1 -name '*.so' ! -name "$keep" -printf '%f ')
+  [ -z "$bad" ] || die "refusing $d: it holds $bad(only $keep belongs there; libonnxruntime.so comes from the AAR)"
 }
 
 if [ "$what" = verify ]; then
   for abi in arm64-v8a x86_64; do check_install_dir "$libs/sherpa/$abi"; done
-  echo "install dir OK: $libs/sherpa"
+  check_install_dir "$libs/qnn-probe/arm64-v8a" libmurmur-qnn-probe.so
+  echo "install dir OK: $libs/sherpa $libs/qnn-probe"
   exit 0
 fi
 
@@ -91,9 +96,17 @@ else
 fi
 
 src=$work/sherpa-onnx-$SHERPA_COMMIT
+patches=$(cd "$root/native/sherpa/patches" && ls *.patch 2>/dev/null | sort || true)
+patch_sum=$( (cd "$root/native/sherpa/patches" && cat $patches /dev/null) | sha256sum | cut -d' ' -f1)
+if [ -d "$src" ] && [ "$(cat "$src/.murmur-patches" 2>/dev/null)" != "$patch_sum" ]; then
+  echo "patch set changed: re-extracting $src (full rebuild)"
+  rm -rf "$src"
+fi
 if [ ! -d "$src" ]; then
   tar -C "$work" -xzf "$work/dl/sherpa-onnx-$SHERPA_COMMIT.tar.gz"
   cd "$src"
+  for p in $patches; do patch -p1 --forward --quiet < "$root/native/sherpa/patches/$p" || die "patch $p does not apply"; done
+  echo "$patch_sum" > .murmur-patches
   # make -jN instead of the hard-coded -j4; CMake 4 refuses cmake_minimum_required(<3.5) in some FetchContent deps
   sed -i "s/^make -j4$/make -j${JOBS}/" build-android-arm64-v8a.sh build-android-x86-64.sh
   sed -i 's|^cmake -DCMAKE_TOOLCHAIN_FILE|cmake -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DCMAKE_TOOLCHAIN_FILE|' \
@@ -124,7 +137,8 @@ post_check() { # abi qnn
   extra=$(for n in $needed; do case $n in libonnxruntime.so|libandroid.so|liblog.so|libm.so|libdl.so|libc.so) ;; *) echo -n "$n " ;; esac; done)
   [ -z "$extra" ] || die "$abi: unexpected NEEDED $extra"
   if [ "$qnn" = ON ]; then
-    "$STRINGS" "$out/lib/libsherpa-onnx-jni.so" | grep -q QnnInterface_getProviders || die "$abi: QNN code missing"
+    # grep -c reads everything (grep -q would SIGPIPE llvm-strings and fail the pipeline under pipefail)
+    [ "$("$STRINGS" "$out/lib/libsherpa-onnx-jni.so" | grep -c QnnInterface_getProviders)" -gt 0 ] || die "$abi: QNN code missing"
   fi
   echo "$abi NEEDED: $needed"
 }
@@ -141,6 +155,12 @@ for t in $targets; do
     export QNN_SDK_ROOT=$work/qnn-include-$QNN_HDR_VER
     SHERPA_ONNX_ENABLE_QNN=ON ./build-android-arm64-v8a.sh
     inst=build-android-arm64-v8a/install
+    "$ANDROID_NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android26-clang++" -shared -fPIC -O2 -Wall -Wextra \
+      -Werror -std=c++17 -fno-exceptions -fno-rtti -static-libstdc++ -I"$QNN_SDK_ROOT/include/QNN" \
+      -o "$work/libmurmur-qnn-probe.so" "$root/native/sherpa/qnn-probe/murmur_qnn_probe.cc" -ldl
+    "$ANDROID_NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip" --strip-unneeded "$work/libmurmur-qnn-probe.so"
+    probe_needed=$("$READELF" -d "$work/libmurmur-qnn-probe.so" | sed -n 's/.*(NEEDED).*\[\(.*\)\]/\1/p' | sort | tr '\n' ' ')
+    [ "$probe_needed" = "libc.so libdl.so libm.so " ] || die "libmurmur-qnn-probe.so: unexpected NEEDED $probe_needed"
   else
     qnn=OFF
     SHERPA_ONNX_ENABLE_QNN=OFF ./build-android-x86-64.sh
@@ -153,13 +173,19 @@ for t in $targets; do
   mkdir -p "$libs/sherpa/$abi"
   install -m 0644 "$work/out/$abi/lib/libsherpa-onnx-jni.so" "$libs/sherpa/$abi/libsherpa-onnx-jni.so"
   check_install_dir "$libs/sherpa/$abi"
+  if [ "$abi" = arm64-v8a ]; then
+    mkdir -p "$libs/qnn-probe/$abi"
+    install -m 0644 "$work/libmurmur-qnn-probe.so" "$libs/qnn-probe/$abi/libmurmur-qnn-probe.so"
+    check_install_dir "$libs/qnn-probe/$abi" libmurmur-qnn-probe.so
+  fi
   {
     echo "sherpa-onnx $SHERPA_VERSION $SHERPA_COMMIT"
     echo "onnxruntime-android $ORT_VER (AAR sha256 $ORT_AAR_SHA256)"
+    echo "patches ${patches//$'\n'/ }"
     if [ "$qnn" = ON ]; then echo "qnn ON (headers $QNN_HDR_VER)"; else echo "qnn OFF"; fi
     echo "ndk $(basename "$ANDROID_NDK"), jobs $JOBS, build seconds $secs"
     echo "libsherpa-onnx-jni.so sha256 $(sha256sum "$work/out/$abi/lib/libsherpa-onnx-jni.so" | cut -d' ' -f1)"
   } > "$work/out/$abi/BUILD_INFO"
   cat "$work/out/$abi/BUILD_INFO"
 done
-ls -la "$libs/sherpa"/*/
+ls -la "$libs/sherpa"/*/ "$libs"/qnn-probe/*/ 2>/dev/null || true

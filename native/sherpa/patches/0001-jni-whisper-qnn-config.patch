@@ -1,0 +1,29 @@
+JNI: read OfflineWhisperModelConfig.qnnConfig (the C++ config has it, sherpa-onnx 2.0.1's JNI did not read it, so
+Whisper SM8750 context binaries could not be loaded from Kotlin). Applied by native/sherpa/build-android.sh.
+
+--- a/sherpa-onnx/jni/offline-recognizer.cc	2026-11-19 01:53:54.314366873 +0300
++++ b/sherpa-onnx/jni/offline-recognizer.cc	2026-11-19 01:53:54.330238070 +0300
+@@ -171,6 +171,23 @@
+                             enableSegmentTimestamps, whisper_config_cls,
+                             whisper_config);
+ 
++  fid = env->GetFieldID(whisper_config_cls, "qnnConfig",
++                        "Lcom/k2fsa/sherpa/onnx/QnnConfig;");
++  jobject whisper_qnn_config = env->GetObjectField(whisper_config, fid);
++  jclass whisper_qnn_config_cls = env->GetObjectClass(whisper_qnn_config);
++
++  SHERPA_ONNX_JNI_READ_STRING(ans.model_config.whisper.qnn_config.backend_lib,
++                              backendLib, whisper_qnn_config_cls,
++                              whisper_qnn_config);
++
++  SHERPA_ONNX_JNI_READ_STRING(
++      ans.model_config.whisper.qnn_config.context_binary, contextBinary,
++      whisper_qnn_config_cls, whisper_qnn_config);
++
++  SHERPA_ONNX_JNI_READ_STRING(ans.model_config.whisper.qnn_config.system_lib,
++                              systemLib, whisper_qnn_config_cls,
++                              whisper_qnn_config);
++
+   fid = env->GetFieldID(model_config_cls, "fireRedAsr",
+                         "Lcom/k2fsa/sherpa/onnx/OfflineFireRedAsrModelConfig;");
+   jobject fire_red_asr_config = env->GetObjectField(model_config, fid);
