@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Model download notification (job progress, ARCHITECTURE 8.5). %1$s = model name from the catalog. -->
+    <string name="models_dl_channel">Model downloads</string>
+    <string name="models_dl_queued">Waiting to download %1$s</string>
+    <string name="models_dl_downloading">Downloading %1$s</string>
+    <string name="models_dl_progress">%1$s of %2$s</string>
+    <string name="models_dl_verifying">Checking files of %1$s</string>
+    <string name="models_dl_preparing">Preparing %1$s</string>
+    <string name="models_dl_done">%1$s is ready</string>
+    <string name="models_dl_paused">Download paused: %1$s</string>
+    <string name="models_dl_paused_network">Paused, no connection</string>
+    <string name="models_dl_paused_storage">Not enough space</string>
+    <string name="models_dl_failed">Download failed: %1$s</string>
+    <!-- DESIGN 6.4 checksum mismatch; %1$s = product name (D10). -->
+    <string name="models_dl_damaged">Download was damaged. %1$s deleted it.</string>
+</resources>
