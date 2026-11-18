@@ -47,11 +47,9 @@ object Resampler {
             val h = table[(pos % up).toInt()]
             var acc = 0.0
             val start = base - half
-            for (j in 0 until taps) {
-                val idx = start + j
-                if (idx < 0 || idx >= input.size) continue
-                acc += input[idx] * h[j]
-            }
+            val j0 = maxOf(0, -start)
+            val j1 = minOf(taps, input.size - start)
+            for (j in j0 until j1) acc += input[start + j] * h[j]
             out[n] = acc.roundToInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
         }
         return out

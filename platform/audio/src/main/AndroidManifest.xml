@@ -3,12 +3,17 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <application>
         <!-- Started on the bubble tap from the accessibility-service context (WIU via UID_VISIBLE /
-             ACTIVITY_STARTER, platform spike b). Lives only while AudioRecord records. -->
+             ACTIVITY_STARTER, platform spike b). Lives only while AudioRecord records (I3). -->
         <service
             android:name=".RecordingFgs"
             android:exported="false"
             android:foregroundServiceType="microphone" />
+        <!-- Actions of the status and microphone notifications (explicit PendingIntents only). -->
+        <receiver
+            android:name=".StatusActionReceiver"
+            android:exported="false" />
     </application>
 </manifest>
