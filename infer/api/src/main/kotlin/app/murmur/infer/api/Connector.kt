@@ -10,6 +10,7 @@ import android.os.DeadObjectException
 import android.os.IBinder
 import android.os.Process
 import android.os.RemoteException
+import android.os.SystemClock
 import android.util.Log
 import app.murmur.core.engine.HostState
 import app.murmur.core.model.InferProcess
@@ -99,12 +100,15 @@ class ServiceConnector(
         @Volatile var intentional = false
         /** The service returned no binder from onBind. */
         @Volatile var refused = false
+        /** connect() has not finished with this binding: a death now is handled there, not counted here. */
+        @Volatile var starting = false
         @Volatile private var unbound = false
         private val watchers = ConcurrentHashMap.newKeySet<(MurmurError) -> Unit>()
 
         override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
             if (service == null || binder != null) return
             try {
+                // Throws for a binder whose process is already gone (a stale binder right after a kill).
                 service.linkToDeath(this, 0)
             } catch (_: RemoteException) {
                 died(); return
@@ -141,10 +145,11 @@ class ServiceConnector(
             ready.complete(null)
             runCatching { binder?.unlinkToDeath(this, 0) }
             unbind()
+            // State first: whoever receives ProcessDied below already sees Crashed.
+            onBindingDead(this)
             val error = MurmurError.ProcessDied(process)
             watchers.toList().forEach { runCatching { it(error) } }
             watchers.clear()
-            onBindingDead(this)
         }
     }
 
@@ -166,8 +171,34 @@ class ServiceConnector(
         }
         val t = timeouts()
         _state.value = HostState.Starting
-        val ctx = bindContext()
+        val ctx = bindContext() // once per connect: every attempt below is the same logical bind
+        val deadline = SystemClock.elapsedRealtime() + t.scaled(t.bindMs)
+        var attempt = 0
+        while (true) {
+            attempt++
+            when (val r = attemptBind(ctx, t, deadline)) {
+                is Attempt.Done -> return r.result
+                is Attempt.Died -> {
+                    // Right after a kill the system can still hand out the dying process's binder; bind again.
+                    if (attempt < MAX_BIND_ATTEMPTS && SystemClock.elapsedRealtime() + RETRY_DELAY_MS < deadline) {
+                        delay(RETRY_DELAY_MS)
+                        continue
+                    }
+                    return Outcome.Err(startupDeath(r.binding))
+                }
+            }
+        }
+    }
+
+    private sealed interface Attempt {
+        class Done(val result: Outcome<IBinder>) : Attempt
+        /** The process (or the binder handed to us) died before the connection was usable. */
+        class Died(val binding: Binding) : Attempt
+    }
+
+    private suspend fun attemptBind(ctx: Context, t: BinderTimeouts, deadline: Long): Attempt {
         val b = Binding(ctx, processNameOf(ctx))
+        b.starting = true
         current = b
         val bound = try {
             ctx.bindService(intent(ctx), Context.BIND_AUTO_CREATE or Context.BIND_IMPORTANT, callbacks, b)
@@ -175,29 +206,52 @@ class ServiceConnector(
             Log.w(tag, "bind refused: ${e.javaClass.simpleName}")
             false
         }
-        if (!bound) return fail(b, MurmurError.Internal("bind"))
-        val binder = withTimeoutOrNull(t.scaled(t.bindMs)) { b.ready.await() }
+        if (!bound) return Attempt.Done(fail(b, MurmurError.Internal("bind")))
+        val binder = withTimeoutOrNull((deadline - SystemClock.elapsedRealtime()).coerceAtLeast(1)) { b.ready.await() }
         if (binder == null) {
-            // Died while starting (state is Crashed), refused (null binding), or did not come up in time.
-            if (b.dead.isCompleted) return Outcome.Err(MurmurError.ProcessDied(process))
+            if (b.dead.isCompleted) return Attempt.Died(b)
+            // Refused (null binding) or not up in time.
             terminate(b, force = true)
-            return Outcome.Err(if (b.refused) MurmurError.Internal("bind") else MurmurError.ProcessDied(process))
+            return Attempt.Done(Outcome.Err(if (b.refused) MurmurError.Internal("bind") else MurmurError.ProcessDied(process)))
         }
         val version = blocking(t.scaled(t.callMs)) { apiVersionOf(binder) }
         if (version !is Outcome.Ok) {
-            if (b.dead.isCompleted) return Outcome.Err(MurmurError.ProcessDied(process))
+            if (b.dead.isCompleted || (version as Outcome.Err).error is MurmurError.ProcessDied) {
+                b.died()
+                return Attempt.Died(b)
+            }
             terminate(b, force = true)
-            return version.asError()
+            return Attempt.Done(version.asError())
         }
         if (version.value != InferApi.API_VERSION) {
             Log.w(tag, "api version ${version.value} != ${InferApi.API_VERSION}")
             // Another build of the service: no other call is safe, not even unload.
             terminate(b, force = true)
-            return Outcome.Err(MurmurError.Internal("api"))
+            return Attempt.Done(Outcome.Err(MurmurError.Internal("api")))
         }
         b.pid = b.processName?.let { pidOf(ctx, it) } ?: 0
-        synchronized(lock) { if (current === b && !b.dead.isCompleted) _state.value = HostState.Up(b.pid) }
-        return if (b.dead.isCompleted) Outcome.Err(MurmurError.ProcessDied(process)) else Outcome.Ok(binder)
+        synchronized(lock) {
+            b.starting = false
+            if (current === b && !b.dead.isCompleted) {
+                _state.value = HostState.Up(b.pid)
+                return Attempt.Done(Outcome.Ok(binder))
+            }
+        }
+        return Attempt.Died(b)
+    }
+
+    /** Every bind attempt ended in a death: that is a crash of the process, like a death after it was up. */
+    private fun startupDeath(b: Binding): MurmurError {
+        val count: Int
+        synchronized(lock) {
+            if (current === b) current = null
+            crashes++
+            count = crashes
+            _state.value = HostState.Crashed(count)
+        }
+        Log.w(tag, "process died while starting (crash $count)")
+        _deaths.tryEmit(count)
+        return MurmurError.ProcessDied(process)
     }
 
     private fun fail(b: Binding, error: MurmurError): Outcome<Nothing> {
@@ -211,7 +265,7 @@ class ServiceConnector(
     private fun onBindingDead(b: Binding) {
         val count: Int
         synchronized(lock) {
-            if (current !== b) return
+            if (current !== b || b.starting) return
             current = null
             if (b.intentional) {
                 _state.value = HostState.Down
@@ -340,7 +394,8 @@ class ServiceConnector(
 
     /**
      * Runs a synchronous binder call on an IO thread and waits at most [timeoutMs]. A binder transaction cannot be
-     * interrupted, so on timeout the thread is abandoned (it returns once the process is killed) and null comes back.
+     * interrupted, so on timeout the thread is abandoned (it returns once the process is killed) and the result is
+     * [TIMEOUT_MARKER], which the caller maps to its [BinderCall] stage.
      */
     internal suspend fun <T> blocking(timeoutMs: Long, call: () -> T): Outcome<T> {
         val d = scope.async(Dispatchers.IO) { runCatching(call) }
@@ -368,6 +423,8 @@ class ServiceConnector(
         /** D5 default (DictationConfig.idleUnloadMs) until the orchestrator sets Settings.idleUnloadSec. */
         const val DEFAULT_IDLE_MS = 60_000L
         private const val KILL_WAIT_MS = 1_000L
+        private const val MAX_BIND_ATTEMPTS = 3
+        private const val RETRY_DELAY_MS = 100L
         private const val EXIT_POLL_MS = 20L
 
         /** Returned by [blocking] when the call did not finish in time; callers map it to their [BinderCall]. */

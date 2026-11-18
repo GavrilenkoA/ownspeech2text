@@ -37,11 +37,13 @@ import app.murmur.core.ocr.Rect
 import app.murmur.core.ocr.ScreenImage
 import app.murmur.core.ocr.ScreenText
 import java.io.IOException
+import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -271,37 +273,59 @@ class AsrClient(
     override suspend fun recognize(image: ScreenImage): Outcome<ScreenText> {
         val t = timeouts()
         val exclude = InferApi.encode(ListSerializer(Rect.serializer()), image.exclude)
-        val shm = withContext(Dispatchers.IO) { frameOf(image) }
+        val frame = frameOf(image)
             ?: return Outcome.Err(MurmurError.OcrFailed("shm"))
         try {
             return result(BinderCall.OCR_RECOGNIZE, t.scaled(t.ocrMs), { InferApi.decode(ScreenText.serializer(), it) }) { b, cb ->
-                svc(b).recognizeScreen(shm, image.width, image.height, exclude, cb)
+                try {
+                    svc(b).recognizeScreen(frame.shm, image.width, image.height, exclude, cb)
+                } finally {
+                    // Off the critical path: the service already reads its own mapping while ours goes away.
+                    frame.unmap()
+                }
             }
         } finally {
             // The service received its own descriptor; ours goes after the reply or the timeout.
+            withContext(NonCancellable + Dispatchers.IO) { frame.close() }
+        }
+    }
+
+    /** A frame in SharedMemory: read-only for every new mapping, plus the writable view it was filled through. */
+    internal class Frame(val shm: SharedMemory, private var view: ByteBuffer?) : AutoCloseable {
+        /** Drops our view (a 17 MB munmap is not free: it is done once the descriptor is on its way). */
+        @Synchronized fun unmap() {
+            view?.let { SharedMemory.unmap(it) }
+            view = null
+        }
+
+        override fun close() {
+            unmap()
             shm.close()
         }
     }
 
-    /** ARGB_8888 ints, little-endian, in a SharedMemory that is read-only by the time it leaves :main. */
-    private fun frameOf(image: ScreenImage): SharedMemory? {
+    /**
+     * ARGB_8888 ints, little-endian. setProtect(PROT_READ) before it leaves :main: the service can only map it
+     * read-only (existing mappings keep their rights, so ours stays valid until [Frame.unmap]).
+     */
+    internal suspend fun frameOf(image: ScreenImage): Frame? = withContext(Dispatchers.IO) {
         val shm = try {
             SharedMemory.create(FRAME_NAME, image.width * image.height * 4)
         } catch (_: ErrnoException) {
-            return null
+            return@withContext null
         }
+        var view: ByteBuffer? = null
         try {
-            val buf = shm.mapReadWrite()
-            try {
-                buf.order(ByteOrder.LITTLE_ENDIAN).asIntBuffer().put(image.argb)
-            } finally {
-                SharedMemory.unmap(buf)
-            }
+            val v = shm.mapReadWrite()
+            view = v
+            v.order(ByteOrder.LITTLE_ENDIAN).asIntBuffer().put(image.argb)
             if (!shm.setProtect(OsConstants.PROT_READ)) error("protect")
-            return shm
-        } catch (_: Exception) {
+            Frame(shm, v)
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            view?.let { SharedMemory.unmap(it) }
             shm.close()
-            return null
+            null
         }
     }
 

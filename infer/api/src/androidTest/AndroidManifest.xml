@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <!-- Test-only stand-ins for :asr and :llm: the real AIDL with canned answers, each in its own process,
+             so that binding, death, timeouts, the PCM pipe and SharedMemory cross a real process boundary. -->
+        <service
+            android:name="app.murmur.infer.api.fake.FakeAsrService"
+            android:exported="false"
+            android:process=":fakeasr" />
+        <service
+            android:name="app.murmur.infer.api.fake.FakeLlmService"
+            android:exported="false"
+            android:process=":fakellm" />
+    </application>
+</manifest>
