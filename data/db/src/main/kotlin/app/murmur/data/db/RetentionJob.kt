@@ -30,12 +30,16 @@ import kotlin.coroutines.cancellation.CancellationException
  * calls). Built once per :main process by [DbModule.retention].
  */
 class RetentionScheduler internal constructor(
-    private val context: Context,
+    context: Context,
     private val retention: Retention,
     private val settings: SettingsRepository,
     internal val clock: MurmurClock,
     internal val scope: CoroutineScope,
 ) {
+    // No Context field: the instance is reachable from a static ([active]) for the whole process.
+    private val jobs: JobScheduler? = context.getSystemService(JobScheduler::class.java)
+    private val component = ComponentName(context, RetentionJob::class.java)
+
     /**
      * Call once when :main starts (AppContainer init): registers this instance for the job and the clock receiver,
      * schedules the next midnight run, runs the start-up retention (pending Undo deletes, the period, orphan audio) and
@@ -43,7 +47,7 @@ class RetentionScheduler internal constructor(
      */
     fun start(): Job {
         active = this
-        schedule(context, clock)
+        schedule(jobs, component, clock)
         return scope.launch(Dispatchers.IO) {
             var last = settings.current().retentionDays
             guarded("retention_start") { retention.runAtStart(last) }
@@ -65,7 +69,7 @@ class RetentionScheduler internal constructor(
     }
 
     internal suspend fun onClockChanged() {
-        schedule(context, clock)
+        schedule(jobs, component, clock)
         guarded("retention_clock") { retention.runScheduled(settings.current().retentionDays) }
     }
 
@@ -97,9 +101,12 @@ class RetentionScheduler internal constructor(
         }
 
         /** (Re)schedules the one-off midnight job; replaces a pending one. */
-        fun schedule(context: Context, clock: MurmurClock) {
-            val js = context.getSystemService(JobScheduler::class.java) ?: return
-            val info = JobInfo.Builder(JOB_ID, ComponentName(context, RetentionJob::class.java))
+        fun schedule(context: Context, clock: MurmurClock) =
+            schedule(context.getSystemService(JobScheduler::class.java), ComponentName(context, RetentionJob::class.java), clock)
+
+        private fun schedule(js: JobScheduler?, component: ComponentName, clock: MurmurClock) {
+            if (js == null) return
+            val info = JobInfo.Builder(JOB_ID, component)
                 .setMinimumLatency(delayToNextMidnight(clock.now(), clock.zone()))
                 .build()
             if (js.schedule(info) != JobScheduler.RESULT_SUCCESS) DbLog.code(MurmurError.StorageFailed(null).code, "retention_schedule")

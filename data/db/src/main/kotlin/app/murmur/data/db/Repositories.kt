@@ -26,8 +26,9 @@ import kotlin.coroutines.cancellation.CancellationException
 
 /**
  * History rows + their audio files (DESIGN 6.3). Every deletion removes the audio files first and the rows second, so a
- * crash in between leaves at worst an orphan file (swept at the next start by [Retention.runAtStart]), never a
- * row that points at a missing recording.
+ * crash in between never leaves a private recording behind without its row: the rows that remain are still pending or
+ * expired, and the next commit or retention run ([Retention.runAtStart]) removes them. A file that could not be deleted
+ * becomes an orphan, swept at the next start.
  */
 class RoomHistoryRepository(
     private val db: MurmurDatabase,
