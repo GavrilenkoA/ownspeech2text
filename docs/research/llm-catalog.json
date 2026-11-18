@@ -1,0 +1,399 @@
+{
+  "schema_version": 1,
+  "kind": "llm-postprocessing-catalog",
+  "generated": "2026-11-18",
+  "doc": "docs/research/llm-models.md",
+  "notes": "Sizes and sha256 from the Hugging Face API (?blobs=true) on 2026-11-18. Speeds are vendor-published numbers for Snapdragon 8 Elite for Galaxy (SM8750-AC, same SoC as Galaxy Z Fold7) unless stated; none measured on a Fold7. Download URLs: https://huggingface.co/{repo}/resolve/{revision}/{path}. Pin revision to the listed repo_sha in production.",
+  "default_model_id": "lfm3-1.7b",
+  "finetune_targets": ["lfm3-1.7b", "qwen3.5-0.8b", "qwen3-0.6b"],
+  "runtime_defaults": {
+    "n_ctx": 2048,
+    "screen_context_max_tokens": 300,
+    "max_new_tokens_formula": "ceil(1.3 * transcript_tokens) + 16",
+    "decoding": "greedy",
+    "fallback_rules": [
+      "strip <think>...</think> if present",
+      "if output empty or longer than 3x input chars, insert raw transcript",
+      "if output starts with a label/explanation pattern, insert raw transcript"
+    ],
+    "prefill_during_dictation": "system prompt + screen context are prefilled when OCR/context arrive; only the transcript is prefilled after stop"
+  },
+  "templates": {
+    "lfm3-chatml": {
+      "bos": "<|startoftext|>",
+      "system": "<|im_start|>system\n{system}<|im_end|>\n",
+      "user": "<|im_start|>user\n{user}<|im_end|>\n",
+      "assistant_prefix_no_think": "<|im_start|>assistant\n<think></think>",
+      "assistant_prefix_think": "<|im_start|>assistant\n<think>",
+      "stop": ["<|im_end|>"],
+      "eos_token_id": 124900,
+      "bos_token_id": 124894,
+      "source": "https://huggingface.co/LiquidAI/LFM3-1.7B/blob/main/chat_template.jinja"
+    },
+    "lfm2-chatml": {
+      "bos": "<|startoftext|>",
+      "system": "<|im_start|>system\n{system}<|im_end|>\n",
+      "user": "<|im_start|>user\n{user}<|im_end|>\n",
+      "assistant_prefix_no_think": "<|im_start|>assistant\n",
+      "stop": ["<|im_end|>"],
+      "eos_token_id": 7,
+      "bos_token_id": 1,
+      "source": "https://huggingface.co/LiquidAI/LFM2.5-1.2B-Instruct/blob/main/chat_template.jinja"
+    },
+    "lfm2-chatml-always-think": {
+      "bos": "<|startoftext|>",
+      "system": "<|im_start|>system\n{system}<|im_end|>\n",
+      "user": "<|im_start|>user\n{user}<|im_end|>\n",
+      "assistant_prefix_think": "<|im_start|>assistant\n<think>",
+      "assistant_prefix_no_think": null,
+      "stop": ["<|im_end|>"],
+      "eos_token_id": 124900,
+      "note": "Template always opens <think>; no official way to disable reasoning (prefilling <think></think> is UNVERIFIED).",
+      "source": "https://huggingface.co/LiquidAI/LFM2.5-2.6B/blob/main/chat_template.jinja"
+    },
+    "qwen3.5-chatml": {
+      "bos": "",
+      "system": "<|im_start|>system\n{system}<|im_end|>\n",
+      "user": "<|im_start|>user\n{user}<|im_end|>\n",
+      "assistant_prefix_no_think": "<|im_start|>assistant\n<think>\n\n</think>\n\n",
+      "assistant_prefix_think": "<|im_start|>assistant\n<think>\n",
+      "stop": ["<|im_end|>"],
+      "note": "/think and /nothink soft switches are not supported in Qwen3.5.",
+      "source": "https://huggingface.co/Qwen/Qwen3.5-0.8B/blob/main/chat_template.jinja"
+    },
+    "qwen3-chatml": {
+      "bos": "",
+      "system": "<|im_start|>system\n{system}<|im_end|>\n",
+      "user": "<|im_start|>user\n{user}<|im_end|>\n",
+      "assistant_prefix_no_think": "<|im_start|>assistant\n<think>\n\n</think>\n\n",
+      "assistant_prefix_think": "<|im_start|>assistant\n<think>\n",
+      "stop": ["<|im_end|>"],
+      "source": "https://huggingface.co/Qwen/Qwen3-0.6B"
+    }
+  },
+  "models": [
+    {
+      "id": "none",
+      "family": "none",
+      "display_name": "None (no post-processing)",
+      "role": "option",
+      "notes": "Raw ASR transcript is inserted unchanged."
+    },
+    {
+      "id": "lfm3-1.7b",
+      "family": "lfm3",
+      "display_name": "LFM3 1.7B",
+      "role": "default",
+      "status": "available",
+      "base_repo": "LiquidAI/LFM3-1.7B",
+      "release_date": "2026-10-23",
+      "params": 1728801536,
+      "params_display": "1.73B",
+      "architecture": "hybrid: 13 gated short-conv + 5 sliding-window attn (256) + 6 global attn, 24 layers",
+      "languages": ["en", "ar", "zh", "fr", "de", "it", "ja", "ko", "pt", "es", "vi", "th", "id", "hi", "ru", "pl"],
+      "russian": "listed by vendor; quality UNVERIFIED",
+      "license": {"id": "lfm-open-1.0", "commercial": "free only if licensee annual revenue < US$10M; applies to fine-tunes", "url": "https://huggingface.co/LiquidAI/LFM3-1.7B/blob/main/LICENSE"},
+      "context_length": 262144,
+      "vocab_size": 128000,
+      "template_id": "lfm3-chatml",
+      "thinking": {"default": "on", "disable": "enable_thinking=False -> assistant prefix '<think></think>'", "caveat": "vendor: disabling 'can be inconsistent'"},
+      "sampling": {"recommended": "greedy, or temperature 0.1, top_k 50, repetition_penalty 1.1"},
+      "runtime_format": "gguf",
+      "min_llama_cpp": "b11960 (v0.8.0)",
+      "download_files": [
+        {"repo": "LiquidAI/LFM3-1.7B-GGUF", "repo_sha": "cd0c74c575b5", "path": "LFM3-1.7B-QAD-Q4_0.gguf", "bytes": 1049615680, "sha256": "43a7d09a0e9cba91b63eb7052488b9564569bddfd65754d2e426465e572a7452", "quant": "Q4_0 (QAD)", "default": true, "backends": ["npu", "cpu", "gpu"]},
+        {"repo": "LiquidAI/LFM3-1.7B-GGUF", "repo_sha": "cd0c74c575b5", "path": "LFM3-1.7B-Q4_K_M.gguf", "bytes": 1099627808, "sha256": "3793e1e6e2266919d6e015287221b41100175a98eddaba92e111aed3b05c93c4", "quant": "Q4_K_M", "default": false, "backends": ["cpu", "gpu"]}
+      ],
+      "npu_artifacts": [
+        {"runtime": "geniex-llama_cpp", "file_ref": "LFM3-1.7B-QAD-Q4_0.gguf", "note": "Qualcomm AI Hub lists this exact GGUF as the deployable asset (https://huggingface.co/qualcomm/LFM3-1.7B)"}
+      ],
+      "kv_cache_bytes_per_token_f16": 12288,
+      "ram_estimate_mb": 1100,
+      "perf_8elite_galaxy": {
+        "source": "https://github.com/qualcomm/ai-hub-models/blob/v0.66.0/src/qai_hub_models/models/lfm3_1_7b/perf.yaml",
+        "runtime": "GenieX v0.10.0 llama_cpp, Q4_0",
+        "ctx512": {"cpu": {"prefill_tps": 368.4, "decode_tps": 53.4}, "gpu": {"prefill_tps": 653.8, "decode_tps": 45.2}, "npu": {"prefill_tps": 2596.9, "decode_tps": 40.9}},
+        "ctx4096": {"cpu": {"prefill_tps": 211.5, "decode_tps": 36.0}, "gpu": {"prefill_tps": 454.4, "decode_tps": 36.1}, "npu": {"prefill_tps": 2314.7, "decode_tps": 36.0}}
+      },
+      "benchmarks": {"IFEval": 96.66, "IFBench": 73.03, "AA_Omniscience_non_hallucination": 92.93},
+      "notes": "Best zero-shot instruction follower in budget. Max ~26 (1 s) / ~52 (2 s) Russian words after stop on CPU when prefix is prefilled during dictation. Primary fine-tune target."
+    },
+    {
+      "id": "lfm2.5-1.2b-instruct",
+      "family": "lfm2.5",
+      "display_name": "LFM2.5 1.2B Instruct",
+      "role": "option",
+      "status": "available",
+      "base_repo": "LiquidAI/LFM2.5-1.2B-Instruct",
+      "release_date": "2026-01-06",
+      "params": 1170340608,
+      "params_display": "1.17B",
+      "architecture": "hybrid: 10 double-gated conv + 6 GQA, 16 layers",
+      "languages": ["en", "ar", "zh", "fr", "de", "ja", "ko", "es"],
+      "russian": "NOT listed by vendor",
+      "license": {"id": "lfm-open-1.0", "commercial": "free only if licensee annual revenue < US$10M", "url": "https://huggingface.co/LiquidAI/LFM2.5-1.2B-Instruct/blob/main/LICENSE"},
+      "context_length": 32768,
+      "vocab_size": 65536,
+      "template_id": "lfm2-chatml",
+      "thinking": {"default": "none"},
+      "sampling": {"recommended": "temperature 0.1, top_k 50, repetition_penalty 1.05"},
+      "runtime_format": "gguf",
+      "download_files": [
+        {"repo": "LiquidAI/LFM2.5-1.2B-Instruct-GGUF", "repo_sha": "8ed288026e23", "path": "LFM2.5-1.2B-Instruct-QAD-Q4_0.gguf", "bytes": 695755488, "sha256": "bb741ebb106d543e9de114b843a3d3d73d51c74b5801e69da2abde821a0cb3e1", "quant": "Q4_0 (QAD)", "default": true, "backends": ["npu", "cpu", "gpu"]},
+        {"repo": "LiquidAI/LFM2.5-1.2B-Instruct-GGUF", "repo_sha": "8ed288026e23", "path": "LFM2.5-1.2B-Instruct-Q4_0.gguf", "bytes": 695751488, "sha256": "2ea801949d760cdf1a2cc04a54262c22c3c0c54f0769d57760c9adeb0e59233f", "quant": "Q4_0 (PTQ)", "default": false, "backends": ["npu", "cpu", "gpu"]},
+        {"repo": "LiquidAI/LFM2.5-1.2B-Instruct-GGUF", "repo_sha": "8ed288026e23", "path": "LFM2.5-1.2B-Instruct-Q4_K_M.gguf", "bytes": 730895168, "sha256": "b1b3de114215d9507409a662a501a631095a479a419584e8a2ded6304b19b4f5", "quant": "Q4_K_M", "default": false, "backends": ["cpu", "gpu"]}
+      ],
+      "npu_artifacts": [
+        {"runtime": "geniex-llama_cpp", "file_ref": "LFM2.5-1.2B-Instruct-Q4_0.gguf", "note": "AI Hub asset (https://huggingface.co/qualcomm/LFM2.5-1.2B-Instruct)"},
+        {"runtime": "nexasdk", "repo": "NexaAI/LFM2.5-1.2B-mobile", "license": "CC BY-NC 4.0", "note": "non-commercial; do not ship"}
+      ],
+      "kv_cache_bytes_per_token_f16": 12288,
+      "ram_estimate_mb": 800,
+      "perf_8elite_galaxy": {
+        "source": "https://github.com/qualcomm/ai-hub-models/blob/v0.66.0/src/qai_hub_models/models/lfm2_5_1_2b_instruct/perf.yaml",
+        "runtime": "GenieX v0.8.0 llama_cpp, Q4_0",
+        "ctx512": {"cpu": {"prefill_tps": 567.2, "decode_tps": 80.4}, "gpu": {"prefill_tps": 1111.4, "decode_tps": 72.3}, "npu": {"prefill_tps": 3748.8, "decode_tps": 57.0}},
+        "ctx4096": {"cpu": {"prefill_tps": 261.4, "decode_tps": 45.6}, "gpu": {"prefill_tps": 799.9, "decode_tps": 57.8}, "npu": {"prefill_tps": 3100.1, "decode_tps": 46.2}},
+        "vendor_s25_ultra_cpu_llamacpp_q4_0": {"prefill_tps": 335, "decode_tps": 70, "memory_mb": 719, "source": "https://huggingface.co/LiquidAI/LFM2.5-1.2B-Instruct"}
+      },
+      "benchmarks": {"IFEval": 86.23, "IFBench": 47.33},
+      "notes": "Fast; DSpark drafter exists (LiquidAI/LFM2.5-1.2B-Instruct-DSpark-GGUF) but vendor says little gain with a Q4 target on CPU. Russian not officially supported: label 'EN-focused' in the hub."
+    },
+    {
+      "id": "lfm2.5-350m",
+      "family": "lfm2.5",
+      "display_name": "LFM2.5 350M",
+      "role": "option",
+      "status": "available",
+      "base_repo": "LiquidAI/LFM2.5-350M",
+      "release_date": "2026-03-31",
+      "params": 354483968,
+      "params_display": "354M",
+      "languages": ["en", "ar", "zh", "fr", "de", "ja", "ko", "es", "pt"],
+      "russian": "NOT listed by vendor",
+      "license": {"id": "lfm-open-1.0", "commercial": "free only if licensee annual revenue < US$10M", "url": "https://huggingface.co/LiquidAI/LFM2.5-350M/blob/main/LICENSE"},
+      "context_length": 32768,
+      "vocab_size": 65536,
+      "template_id": "lfm2-chatml",
+      "thinking": {"default": "none"},
+      "runtime_format": "gguf",
+      "download_files": [
+        {"repo": "LiquidAI/LFM2.5-350M-GGUF", "repo_sha": "657e078c9408", "path": "LFM2.5-350M-QAD-Q4_0.gguf", "bytes": 219312832, "sha256": "3d10b6ab8fc91a919534b9558e266255aca0bbc7f6d015963599aa9e74e05b1d", "quant": "Q4_0 (QAD)", "default": true, "backends": ["cpu", "npu", "gpu"]}
+      ],
+      "ram_estimate_mb": 425,
+      "perf_8elite_galaxy": {"vendor_s25_ultra_cpu_4bit_2k_ctx": {"prefill_tps": 1286, "decode_tps": 188, "memory_mb": 425, "source": "https://huggingface.co/LiquidAI/LFM2.5-350M"}},
+      "benchmarks": {"IFEval": 76.96, "IFBench": 40.69},
+      "notes": "English-only speed option. Base of Sotto/ScribeKey cleanup fine-tunes (English)."
+    },
+    {
+      "id": "lfm2.5-2.6b",
+      "family": "lfm2.5",
+      "display_name": "LFM2.5 2.6B (experimental)",
+      "role": "experimental",
+      "status": "available",
+      "base_repo": "LiquidAI/LFM2.5-2.6B",
+      "release_date": "2026-07-28",
+      "params": 2697198592,
+      "params_display": "2.69B",
+      "languages": ["ar", "zh", "en", "fr", "de", "hi", "id", "it", "ja", "ko", "pl", "pt", "ru", "es", "th", "vi"],
+      "russian": "listed by vendor; quality UNVERIFIED",
+      "license": {"id": "lfm-open-1.0", "commercial": "free only if licensee annual revenue < US$10M", "url": "https://huggingface.co/LiquidAI/LFM2.5-2.6B/blob/main/LICENSE"},
+      "context_length": 131072,
+      "vocab_size": 128000,
+      "template_id": "lfm2-chatml-always-think",
+      "thinking": {"default": "always", "disable": "none officially"},
+      "runtime_format": "gguf",
+      "download_files": [
+        {"repo": "LiquidAI/LFM2.5-2.6B-GGUF", "repo_sha": "e7caca5d835a", "path": "LFM2.5-2.6B-QAD-Q4_0.gguf", "bytes": 1593894944, "sha256": "a247afd6414918eac8e520a9e6137dc271235461ecbe1180462221d5b8d40b03", "quant": "Q4_0 (QAD)", "default": true, "backends": ["npu", "cpu", "gpu"]}
+      ],
+      "ram_estimate_mb": 2450,
+      "perf_8elite_galaxy": {"vendor_galaxy_SM-S948U1_cpu_q4_k_m_4k_ctx": {"prefill_tps": 70, "decode_tps": 30, "memory_mb": 2448, "note": "SM-S948U1 is not the Fold7 SoC generation (inferred S26 Ultra)", "source": "https://huggingface.co/LiquidAI/LFM2.5-2.6B"}},
+      "notes": "Always reasons before answering and decodes ~30 tok/s: does not fit the latency budget. Hide or mark experimental."
+    },
+    {
+      "id": "qwen3.5-0.8b",
+      "family": "qwen3.5",
+      "display_name": "Qwen3.5 0.8B",
+      "role": "option",
+      "status": "available",
+      "base_repo": "Qwen/Qwen3.5-0.8B",
+      "release_date": "2026-02-28",
+      "params": 873438784,
+      "params_display": "0.8B (LM ~752M; checkpoint includes vision encoder)",
+      "architecture": "hybrid: 6 x (3 x Gated DeltaNet + 1 x Gated Attention), 24 layers",
+      "languages": ["multilingual (201 languages and dialects claimed)", "ru", "en"],
+      "russian": "covered by broad claim; quality UNVERIFIED; most token-efficient tokenizer for Russian (1.36 tok/word measured)",
+      "license": {"id": "apache-2.0", "commercial": "yes", "url": "https://huggingface.co/Qwen/Qwen3.5-0.8B/blob/main/LICENSE"},
+      "context_length": 262144,
+      "vocab_size": 248320,
+      "template_id": "qwen3.5-chatml",
+      "thinking": {"default": "off for 0.8B/2B", "disable": "enable_thinking false/undefined -> '<think>\\n\\n</think>\\n\\n'"},
+      "sampling": {"recommended": "greedy for cleanup"},
+      "runtime_format": "gguf",
+      "download_files": [
+        {"repo": "unsloth/Qwen3.5-0.8B-GGUF", "repo_sha": "6ab461498e20", "path": "Qwen3.5-0.8B-Q4_0.gguf", "bytes": 507154688, "sha256": "444406ddd926550c724ec18d5120a9d40ded44908a063b0e66e9a7e5464c652c", "quant": "Q4_0", "default": true, "backends": ["cpu", "npu", "gpu"]},
+        {"repo": "unsloth/Qwen3.5-0.8B-GGUF", "repo_sha": "6ab461498e20", "path": "Qwen3.5-0.8B-Q4_K_M.gguf", "bytes": 532517120, "sha256": "bd258782e35f7f458f8aced1adc053e6e92e89bc735ba3be89d38a06121dc517", "quant": "Q4_K_M", "default": false, "backends": ["cpu", "gpu"]},
+        {"repo": "ggml-org/Qwen3.5-0.8B-GGUF", "path": "Qwen3.5-0.8B-Q4_0.gguf", "bytes": 563036064, "sha256": "57d1997790d1744fba5b40a7317df71ea5e2acee28c47e78f0cce39c0703f8cf", "quant": "Q4_0", "default": false, "backends": ["cpu", "npu", "gpu"]}
+      ],
+      "npu_artifacts": [
+        {"runtime": "geniex-llama_cpp", "file_ref": "unsloth/Qwen3.5-0.8B-GGUF:Qwen3.5-0.8B-Q4_0.gguf", "note": "AI Hub asset; NPU slower than CPU for decode"}
+      ],
+      "kv_cache_bytes_per_token_f16": 12288,
+      "ram_estimate_mb": 1000,
+      "perf_8elite_galaxy": {
+        "source": "https://github.com/qualcomm/ai-hub-models/blob/v0.66.0/src/qai_hub_models/models/qwen3_5_0_8b/perf.yaml",
+        "runtime": "GenieX llama_cpp, Q4_0",
+        "ctx512": {"cpu": {"prefill_tps": 569.0, "decode_tps": 83.8}, "gpu": {"prefill_tps": 1108.7, "decode_tps": 60.9}, "npu": {"prefill_tps": 979.8, "decode_tps": 42.2}},
+        "ctx4096": {"cpu": {"prefill_tps": 281.0, "decode_tps": 52.2}, "gpu": {"prefill_tps": 823.6, "decode_tps": 47.2}, "npu": {"prefill_tps": 889.5, "decode_tps": 37.7}}
+      },
+      "benchmarks": {"IFEval_non_thinking": 52.1},
+      "notes": "Weak zero-shot instruction following; strong fine-tune target for speed (CPU-first). Do not use QLoRA (Unsloth guidance)."
+    },
+    {
+      "id": "qwen3.5-2b",
+      "family": "qwen3.5",
+      "display_name": "Qwen3.5 2B",
+      "role": "experimental",
+      "status": "available",
+      "base_repo": "Qwen/Qwen3.5-2B",
+      "release_date": "2026-02-28",
+      "params": 2274069824,
+      "params_display": "2B (LM ~1.88B; checkpoint includes vision encoder)",
+      "languages": ["multilingual (201 languages and dialects claimed)", "ru", "en"],
+      "russian": "covered by broad claim; quality UNVERIFIED",
+      "license": {"id": "apache-2.0", "commercial": "yes", "url": "https://huggingface.co/Qwen/Qwen3.5-2B/blob/main/LICENSE"},
+      "context_length": 262144,
+      "vocab_size": 248320,
+      "template_id": "qwen3.5-chatml",
+      "thinking": {"default": "off for 0.8B/2B", "disable": "enable_thinking false/undefined"},
+      "runtime_format": "gguf",
+      "download_files": [
+        {"repo": "unsloth/Qwen3.5-2B-GGUF", "repo_sha": "f6d5376be1ed", "path": "Qwen3.5-2B-Q4_0.gguf", "bytes": 1214873856, "sha256": "cd70221bebaee0503e0f6717e174250cd7825aa88438b3aabec9ad55731d9bb1", "quant": "Q4_0", "default": true, "backends": ["cpu", "npu", "gpu"]},
+        {"repo": "unsloth/Qwen3.5-2B-GGUF", "repo_sha": "f6d5376be1ed", "path": "Qwen3.5-2B-Q4_K_M.gguf", "bytes": 1280835840, "sha256": "aaf42c8b7c3cab2bf3d69c355048d4a0ee9973d48f16c731c0520ee914699223", "quant": "Q4_K_M", "default": false, "backends": ["cpu", "gpu"]}
+      ],
+      "kv_cache_bytes_per_token_f16": 12288,
+      "ram_estimate_mb": 1500,
+      "perf_8elite_galaxy": {
+        "source": "https://github.com/qualcomm/ai-hub-models/blob/v0.66.0/src/qai_hub_models/models/qwen3_5_2b/perf.yaml",
+        "runtime": "GenieX llama_cpp, Q4_0",
+        "ctx512": {"cpu": {"prefill_tps": 285.9, "decode_tps": 40.4}, "gpu": {"prefill_tps": 535.8, "decode_tps": 33.7}, "npu": {"prefill_tps": 644.4, "decode_tps": 24.8}},
+        "ctx4096": {"cpu": {"prefill_tps": 169.5, "decode_tps": 30.2}, "gpu": {"prefill_tps": 389.9, "decode_tps": 27.5}, "npu": {"prefill_tps": 593.1, "decode_tps": 22.6}}
+      },
+      "benchmarks": {"IFEval_non_thinking": 61.2},
+      "notes": "Too slow for the latency budget: ~27 (1 s) / ~54 (2 s) Russian words after stop on CPU even with prefix prefilled; Muesli's English cleanup fine-tune on this base is the strongest published prior art."
+    },
+    {
+      "id": "qwen3-0.6b",
+      "family": "qwen3",
+      "display_name": "Qwen3 0.6B (NPU-native)",
+      "role": "option",
+      "status": "available",
+      "base_repo": "Qwen/Qwen3-0.6B",
+      "release_date": "2025-04-27",
+      "params": 751632384,
+      "params_display": "0.6B",
+      "languages": ["multilingual (100+ languages claimed)", "ru", "en"],
+      "russian": "covered by broad claim; quality UNVERIFIED",
+      "license": {"id": "apache-2.0", "commercial": "yes", "url": "https://huggingface.co/Qwen/Qwen3-0.6B/blob/main/LICENSE"},
+      "context_length": 32768,
+      "vocab_size": 151936,
+      "template_id": "qwen3-chatml",
+      "thinking": {"default": "on", "disable": "enable_thinking=False -> '<think>\\n\\n</think>\\n\\n'"},
+      "runtime_format": "gguf|qairt",
+      "download_files": [
+        {"repo": "unsloth/Qwen3-0.6B-GGUF", "path": "Qwen3-0.6B-Q4_0.gguf", "bytes": 382156480, "sha256": "33bcc57074ec7b6eada5a90651ee546ec0c2b271002c22baf9f1b2dd1e8f75cb", "quant": "Q4_0", "default": false, "backends": ["cpu", "npu", "gpu"]}
+      ],
+      "npu_artifacts": [
+        {"runtime": "geniex-qairt", "precision": "w4a16", "chipset": "qualcomm-snapdragon-8-elite-for-galaxy", "url": "https://qaihub-public-assets.s3.us-west-2.amazonaws.com/qai-hub-models/models/qwen3_0_6b/releases/v0.66.0/qwen3_0_6b-geniex_qairt-w4a16-qualcomm_snapdragon_8_elite_for_galaxy.zip", "bytes": 640473082, "sha256": null, "default": true, "note": "context/KV baked in at compile time; redistribution terms UNVERIFIED"}
+      ],
+      "kv_cache_bytes_per_token_f16": 114688,
+      "perf_8elite_galaxy": {
+        "source": "https://github.com/qualcomm/ai-hub-models/blob/v0.66.0/src/qai_hub_models/models/qwen3_0_6b/perf.yaml",
+        "genie_w4a16_npu_ctx4096": {"prefill_tps": 2262.4, "decode_tps": 125.0},
+        "geniex_qairt_w4a16_npu_ctx512": {"prefill_tps": 6251.6, "decode_tps": 85.9},
+        "geniex_llamacpp_q4_0_cpu_ctx512": {"prefill_tps": 861.1, "decode_tps": 104.4}
+      },
+      "notes": "Outside the owner's list; closest model with a true pre-compiled Hexagon NPU artifact. Base of Spokenly cleanup-1, Superwhisper S1-mini, OpenWispr, Aawaaz fine-tunes."
+    },
+    {
+      "id": "qwen3-1.7b",
+      "family": "qwen3",
+      "display_name": "Qwen3 1.7B (NPU-native)",
+      "role": "experimental",
+      "status": "available",
+      "base_repo": "Qwen/Qwen3-1.7B",
+      "release_date": "2025-04-27",
+      "params": 2031739904,
+      "params_display": "1.7B",
+      "languages": ["multilingual (100+ languages claimed)", "ru", "en"],
+      "russian": "covered by broad claim; quality UNVERIFIED",
+      "license": {"id": "apache-2.0", "commercial": "yes", "url": "https://huggingface.co/Qwen/Qwen3-1.7B/blob/main/LICENSE"},
+      "context_length": 32768,
+      "template_id": "qwen3-chatml",
+      "thinking": {"default": "on", "disable": "enable_thinking=False"},
+      "runtime_format": "gguf|qairt",
+      "download_files": [
+        {"repo": "unsloth/Qwen3-1.7B-GGUF", "path": "Qwen3-1.7B-Q4_0.gguf", "bytes": 1056782912, "sha256": "c876f159707a4e4f70e045106c69db15bfc935a4981706fd4f65c6e7ea1e81c5", "quant": "Q4_0", "default": false, "backends": ["cpu", "npu", "gpu"]}
+      ],
+      "npu_artifacts": [
+        {"runtime": "geniex-qairt", "precision": "w4a16", "chipset": "qualcomm-snapdragon-8-elite-for-galaxy", "url": "https://qaihub-public-assets.s3.us-west-2.amazonaws.com/qai-hub-models/models/qwen3_1_7b/releases/v0.66.0/qwen3_1_7b-geniex_qairt-w4a16-qualcomm_snapdragon_8_elite_for_galaxy.zip", "bytes": 1534158813, "sha256": null, "default": true}
+      ],
+      "kv_cache_bytes_per_token_f16": 114688,
+      "perf_8elite_galaxy": {
+        "source": "https://github.com/qualcomm/ai-hub-models/blob/v0.66.0/src/qai_hub_models/models/qwen3_1_7b/perf.yaml",
+        "genie_w4a16_npu_ctx4096": {"prefill_tps": 1222.5, "decode_tps": 56.7},
+        "geniex_qairt_w4a16_npu_ctx512": {"prefill_tps": 3272.5, "decode_tps": 40.2},
+        "geniex_llamacpp_q4_0_cpu_ctx512": {"prefill_tps": 346.5, "decode_tps": 46.5}
+      },
+      "notes": "Comparison point; no advantage over LFM3-1.7B except a QAIRT bundle."
+    },
+    {
+      "id": "murmur-cleanup-lfm3-1.7b",
+      "family": "finetune",
+      "display_name": "Murmur Cleanup (LFM3 1.7B)",
+      "role": "planned-finetune",
+      "status": "planned",
+      "base_repo": "LiquidAI/LFM3-1.7B",
+      "params": 1728801536,
+      "languages": ["ru", "en"],
+      "license": {"id": "lfm-open-1.0 (derivative)", "commercial": "inherits US$10M revenue cap"},
+      "context_length": 4096,
+      "template_id": "lfm3-chatml",
+      "runtime_format": "gguf",
+      "download_files": [],
+      "notes": "TRL+PEFT LoRA r16/a32 on q,k,v,o,in_proj,out_proj,w1,w2,w3; prompt-completion data with enable_thinking=False; merge -> convert_hf_to_gguf -> llama-quantize Q4_0 (NPU) + Q4_K_M (CPU)."
+    },
+    {
+      "id": "murmur-cleanup-qwen3.5-0.8b",
+      "family": "finetune",
+      "display_name": "Murmur Cleanup (Qwen3.5 0.8B)",
+      "role": "planned-finetune",
+      "status": "planned",
+      "base_repo": "Qwen/Qwen3.5-0.8B",
+      "params": 873438784,
+      "languages": ["ru", "en"],
+      "license": {"id": "apache-2.0 (derivative)", "commercial": "yes"},
+      "context_length": 4096,
+      "template_id": "qwen3.5-chatml",
+      "runtime_format": "gguf",
+      "download_files": [],
+      "notes": "Unsloth bf16 LoRA (no QLoRA), transformers v5; text-only export with --no-mtp; Q4_0 GGUF, CPU-first."
+    },
+    {
+      "id": "murmur-cleanup-qwen3-0.6b",
+      "family": "finetune",
+      "display_name": "Murmur Cleanup (Qwen3 0.6B, NPU)",
+      "role": "planned-finetune-hedge",
+      "status": "planned",
+      "base_repo": "Qwen/Qwen3-0.6B",
+      "params": 751632384,
+      "languages": ["ru", "en"],
+      "license": {"id": "apache-2.0 (derivative)", "commercial": "yes"},
+      "context_length": 4096,
+      "template_id": "qwen3-chatml",
+      "runtime_format": "qairt|gguf",
+      "download_files": [],
+      "notes": "Only if strict NPU is required: qai_hub_models quantize --checkpoint <merged> --precision w4a16 (CUDA GPU) then qai-hub-models export (AI Hub token)."
+    }
+  ]
+}

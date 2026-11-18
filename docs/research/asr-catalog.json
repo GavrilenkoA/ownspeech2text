@@ -1,0 +1,1795 @@
+{
+  "schemaVersion": 1,
+  "generated": "2026-11-18",
+  "targetDevice": {
+    "name": "Samsung Galaxy Z Fold7",
+    "soc": "Snapdragon 8 Elite for Galaxy (SM8750)",
+    "ramGB": 12
+  },
+  "defaults": {
+    "ru+en": "nemotron-3.5-asr-streaming-0.6b@qnn-sm8750-560ms",
+    "ru+en_batchAlternative": "parakeet-tdt-0.6b-v3@qnn-sm8750-20s",
+    "en": "parakeet-tdt-0.6b-v3@qnn-sm8750-20s",
+    "ru_only_quality": "gigaam-v3-e2e-rnnt@onnx-int8",
+    "cpuFallback": {
+      "nemotron-3.5-asr-streaming-0.6b@qnn-sm8750-560ms": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms",
+      "parakeet-tdt-0.6b-v3@qnn-sm8750-20s": "parakeet-tdt-0.6b-v3@onnx-int8"
+    }
+  },
+  "fieldNotes": {
+    "files[].sha256": "Present only when the HF API (LFS) or GitHub release API exposed it. Small non-LFS files have no sha256 in the API; verify by size + pinned revision.",
+    "files[].revision": "HF commit sha the file list was read at; download with /resolve/<revision>/ to pin.",
+    "files[].archive": "Download is a tarball/zip that must be extracted; the runtime paths inside are listed in asr-models.md.",
+    "publishedWer": "Vendor/third-party numbers with different text normalization; not comparable across sources. Benchmark on device."
+  },
+  "models": [
+    {
+      "id": "nemotron-3.5-asr-streaming-0.6b@qnn-sm8750-560ms",
+      "family": "nvidia-nemotron-asr",
+      "displayName": "Nemotron 3.5 ASR Streaming 0.6B (NPU, 560 ms)",
+      "baseModel": "nvidia/nemotron-3.5-asr-streaming-0.6b",
+      "params": 600000000,
+      "paramsLabel": "0.6B",
+      "languages": {
+        "count": 40,
+        "transcriptionReady": [
+          "en",
+          "es",
+          "fr",
+          "it",
+          "pt",
+          "nl",
+          "de",
+          "tr",
+          "ru",
+          "ar",
+          "hi",
+          "ja",
+          "ko",
+          "vi",
+          "uk"
+        ],
+        "broadCoverage": [
+          "pl",
+          "sv",
+          "cs",
+          "nb",
+          "da",
+          "bg",
+          "fi",
+          "hr",
+          "sk",
+          "zh",
+          "hu",
+          "ro",
+          "et"
+        ],
+        "all": [
+          "en",
+          "es",
+          "de",
+          "fr",
+          "it",
+          "ar",
+          "ja",
+          "ko",
+          "pt",
+          "ru",
+          "hi",
+          "zh",
+          "vi",
+          "he",
+          "nl",
+          "cs",
+          "da",
+          "pl",
+          "no",
+          "sv",
+          "th",
+          "tr",
+          "bg",
+          "el",
+          "et",
+          "fi",
+          "hr",
+          "hu",
+          "lt",
+          "lv",
+          "ro",
+          "sk",
+          "uk",
+          "mt",
+          "sl"
+        ],
+        "auto": true,
+        "notes": "40 locales; 8 adaptation-ready locales need fine-tuning. Pass target language per stream (e.g. ru, en) or auto."
+      },
+      "license": "OpenMDW-1.1",
+      "licenseNotes": "Permissive; keep license + notices when redistributing; rights terminate if you sue over the model.",
+      "architecture": "cache-aware FastConformer encoder + RNN-T, language-ID prompt",
+      "streaming": true,
+      "punctuation": true,
+      "casing": true,
+      "maxAudio": "unbounded (cache-aware streaming)",
+      "runtime": "sherpa-onnx OnlineRecognizer, provider=qnn, QNN context binary (model.bin)",
+      "format": "qnn-context-binary",
+      "accelerator": "npu",
+      "socs": [
+        "SM8750"
+      ],
+      "files": [
+        {
+          "source": "github-release",
+          "repo": "k2-fsa/sherpa-onnx",
+          "release": "asr-models-qnn-binary-3",
+          "path": "sherpa-onnx-qnn-SM8750-binary-nemotron-3.5-asr-streaming-0.6b-560ms.tar.bz2",
+          "bytes": 442651414,
+          "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models-qnn-binary-3/sherpa-onnx-qnn-SM8750-binary-nemotron-3.5-asr-streaming-0.6b-560ms.tar.bz2",
+          "archive": "tar.bz2",
+          "sha256": "a5af6d03ebba0425074e38d0ebd819fff88ff404fd7340433de30bb515dbbd51"
+        }
+      ],
+      "alternativeFiles": {
+        "soc-independent libmodel.so build (slower first run, QNN-SDK independent)": [
+          {
+            "source": "github-release",
+            "repo": "k2-fsa/sherpa-onnx",
+            "release": "asr-models-qnn-3",
+            "path": "sherpa-onnx-qnn-nemotron-3.5-asr-streaming-0.6b-560s-android-aarch64.tar.bz2",
+            "bytes": 440285052,
+            "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models-qnn-3/sherpa-onnx-qnn-nemotron-3.5-asr-streaming-0.6b-560s-android-aarch64.tar.bz2",
+            "archive": "tar.bz2",
+            "sha256": "5bcb8bfd8ba29033360523c208e95ba23915701e84165a2d595f5f0950279448"
+          }
+        ],
+        "other chunk sizes (same release)": [
+          "sherpa-onnx-qnn-SM8750-binary-nemotron-3.5-asr-streaming-0.6b-{80ms,160ms,320ms,1120ms}.tar.bz2"
+        ]
+      },
+      "publishedWer": {
+        "en": {
+          "FLEURS (560 ms, LangID)": 7.99,
+          "FLEURS (1.12 s, LangID)": 7.91
+        },
+        "ru": {
+          "FLEURS (560 ms, LangID)": 9.6,
+          "FLEURS (1.12 s, LangID)": 9.17,
+          "FLEURS (560 ms, auto)": 10.57
+        },
+        "source": "https://huggingface.co/nvidia/nemotron-3.5-asr-streaming-0.6b"
+      },
+      "tier": "recommended",
+      "defaultFor": [
+        "ru+en"
+      ],
+      "notes": "Only true-streaming model with ru+en and punctuation. Hosted on GitHub releases, not HF: mirror to an owner HF repo or allow GitHub as a download source. QNN SDK version used to build model.bin is not documented: must match the QNN runtime libs bundled in the APK (validate on device). Code-switching inside one utterance with a fixed ru-RU prompt is UNVERIFIED."
+    },
+    {
+      "id": "parakeet-tdt-0.6b-v3@qnn-sm8750-20s",
+      "family": "nvidia-parakeet",
+      "displayName": "Parakeet TDT 0.6B v3 (NPU)",
+      "baseModel": "nvidia/parakeet-tdt-0.6b-v3",
+      "params": 627000000,
+      "paramsLabel": "0.6B",
+      "languages": {
+        "count": 25,
+        "all": [
+          "en",
+          "es",
+          "fr",
+          "de",
+          "bg",
+          "hr",
+          "cs",
+          "da",
+          "nl",
+          "et",
+          "fi",
+          "el",
+          "hu",
+          "it",
+          "lv",
+          "lt",
+          "mt",
+          "pl",
+          "pt",
+          "ro",
+          "sk",
+          "sl",
+          "sv",
+          "ru",
+          "uk"
+        ],
+        "auto": true,
+        "notes": "25 European languages incl. ru, uk, en; automatic language detection, no prompt"
+      },
+      "license": "CC-BY-4.0",
+      "licenseNotes": "Attribution required (credit NVIDIA, link license).",
+      "architecture": "FastConformer encoder + TDT (token-and-duration transducer)",
+      "streaming": false,
+      "punctuation": true,
+      "casing": true,
+      "maxAudio": "20 s per call (fixed QNN input; longer input is truncated) -> must be fed VAD segments <= 19.5 s",
+      "runtime": "sherpa-onnx OfflineRecognizer, provider=qnn, QNN context binary",
+      "format": "qnn-context-binary",
+      "accelerator": "npu",
+      "socs": [
+        "SM8750"
+      ],
+      "files": [
+        {
+          "source": "github-release",
+          "repo": "k2-fsa/sherpa-onnx",
+          "release": "asr-models-qnn-binary-2",
+          "path": "sherpa-onnx-qnn-SM8750-binary-parakeet-tdt-0.6b-v3-20s-transducer.tar.bz2",
+          "bytes": 446220152,
+          "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models-qnn-binary-2/sherpa-onnx-qnn-SM8750-binary-parakeet-tdt-0.6b-v3-20s-transducer.tar.bz2",
+          "archive": "tar.bz2",
+          "sha256": "5ea894cf8ca1448f35956da0924c37c55dc964d7458a99f505b17c6bcd95ec46"
+        }
+      ],
+      "alternativeFiles": {
+        "soc-independent libmodel.so build": [
+          {
+            "source": "github-release",
+            "repo": "k2-fsa/sherpa-onnx",
+            "release": "asr-models-qnn-2",
+            "path": "sherpa-onnx-qnn-parakeet-tdt-0.6b-v3-20s-android-aarch64.tar.bz2",
+            "bytes": 438119184,
+            "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models-qnn-2/sherpa-onnx-qnn-parakeet-tdt-0.6b-v3-20s-android-aarch64.tar.bz2",
+            "archive": "tar.bz2",
+            "sha256": "894bea4961e2fbfa86863a9c90d71d9f6c371fee560ae5bb62af20c49c090f9a"
+          }
+        ],
+        "other window lengths (same release)": [
+          "3s,5s,8s,10s,13s,15s,18s,23s,25s,28s,30s"
+        ]
+      },
+      "publishedWer": {
+        "en": {
+          "LibriSpeech test-clean": 1.93,
+          "LibriSpeech test-other": 3.59,
+          "Open ASR LB mean": 6.32,
+          "FLEURS": 4.85
+        },
+        "ru": {
+          "FLEURS": 5.51,
+          "CoVoST": 3.0
+        },
+        "source": "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3"
+      },
+      "reportedSpeed": {
+        "device": "Snapdragon 8 Elite for Galaxy (Qualcomm AI Hub, QNN_DLC float, 13.2 s encoder window)",
+        "encoderMs": 38.0,
+        "decoderStepMs": 0.237,
+        "jointStepMs": 0.224,
+        "source": "https://huggingface.co/qualcomm/Parakeet-TDT-0.6B-v3"
+      },
+      "tier": "recommended",
+      "defaultFor": [
+        "en",
+        "ru+en (batch alternative)"
+      ],
+      "notes": "Best accuracy/speed for ru+en among NPU-ready models. Not streaming: use VAD-segmented incremental mode. GitHub-hosted (see nemotron note)."
+    },
+    {
+      "id": "nemotron-speech-streaming-en-0.6b@qnn-sm8750-560ms",
+      "family": "nvidia-nemotron-asr",
+      "displayName": "Nemotron Speech Streaming EN 0.6B (NPU, 560 ms)",
+      "baseModel": "nvidia/nemotron-speech-streaming-en-0.6b",
+      "params": 600000000,
+      "paramsLabel": "0.6B",
+      "languages": {
+        "count": 1,
+        "all": [
+          "en"
+        ]
+      },
+      "license": "NVIDIA Open Model License",
+      "licenseNotes": "Commercial use allowed per model card; read agreement before shipping.",
+      "architecture": "cache-aware FastConformer + RNN-T",
+      "streaming": true,
+      "punctuation": true,
+      "casing": true,
+      "maxAudio": "unbounded (streaming)",
+      "runtime": "sherpa-onnx OnlineRecognizer, provider=qnn",
+      "format": "qnn-context-binary",
+      "accelerator": "npu",
+      "socs": [
+        "SM8750"
+      ],
+      "files": [
+        {
+          "source": "github-release",
+          "repo": "k2-fsa/sherpa-onnx",
+          "release": "asr-models-qnn-binary-2",
+          "path": "sherpa-onnx-qnn-SM8750-binary-nemotron-speech-streaming-en-0.6b-560ms.tar.bz2",
+          "bytes": 424330705,
+          "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models-qnn-binary-2/sherpa-onnx-qnn-SM8750-binary-nemotron-speech-streaming-en-0.6b-560ms.tar.bz2",
+          "archive": "tar.bz2",
+          "sha256": "ab9e37b6a2d691d05356483f1bdf2c9a39b870570af2c24bab2d22cd07b9f808"
+        }
+      ],
+      "publishedWer": {
+        "en": {
+          "LibriSpeech test-clean (1.12 s)": 2.32,
+          "LibriSpeech test-other (1.12 s)": 4.84
+        },
+        "source": "https://huggingface.co/nvidia/nemotron-speech-streaming-en-0.6b"
+      },
+      "tier": "optional",
+      "notes": "English-only streaming option; NVIDIA recommends it over the multilingual model for English-only use."
+    },
+    {
+      "id": "whisper-small@qnn-sm8750",
+      "family": "openai-whisper",
+      "displayName": "Whisper Small (NPU)",
+      "baseModel": "openai/whisper-small",
+      "params": 244000000,
+      "paramsLabel": "244M",
+      "languages": {
+        "count": 99,
+        "all": [
+          "en",
+          "zh",
+          "de",
+          "es",
+          "ru",
+          "ko",
+          "fr",
+          "ja",
+          "pt",
+          "tr",
+          "pl",
+          "ca",
+          "nl",
+          "ar",
+          "sv",
+          "it",
+          "id",
+          "hi",
+          "fi",
+          "vi",
+          "he",
+          "uk",
+          "el",
+          "ms",
+          "cs",
+          "ro",
+          "da",
+          "hu",
+          "ta",
+          "no",
+          "th",
+          "ur",
+          "hr",
+          "bg",
+          "lt",
+          "la",
+          "mi",
+          "ml",
+          "cy",
+          "sk",
+          "te",
+          "fa",
+          "lv",
+          "bn",
+          "sr",
+          "az",
+          "sl",
+          "kn",
+          "et",
+          "mk",
+          "br",
+          "eu",
+          "is",
+          "hy",
+          "ne",
+          "mn",
+          "bs",
+          "kk",
+          "sq",
+          "sw",
+          "gl",
+          "mr",
+          "pa",
+          "si",
+          "km",
+          "sn",
+          "yo",
+          "so",
+          "af",
+          "oc",
+          "ka",
+          "be",
+          "tg",
+          "sd",
+          "gu",
+          "am",
+          "yi",
+          "lo",
+          "uz",
+          "fo",
+          "ht",
+          "ps",
+          "tk",
+          "nn",
+          "mt",
+          "sa",
+          "lb",
+          "my",
+          "bo",
+          "tl",
+          "mg",
+          "as",
+          "tt",
+          "haw",
+          "ln",
+          "ha",
+          "ba",
+          "jw",
+          "su"
+        ],
+        "auto": true
+      },
+      "license": "Apache-2.0 (HF repo metadata); OpenAI code MIT",
+      "architecture": "encoder-decoder transformer",
+      "streaming": false,
+      "punctuation": true,
+      "casing": true,
+      "maxAudio": "30 s window per call; longer audio = VAD segments / sequential windows",
+      "runtime": "sherpa-onnx OfflineRecognizer (whisper), provider=qnn",
+      "format": "qnn-context-binary",
+      "accelerator": "npu",
+      "socs": [
+        "SM8750"
+      ],
+      "files": [
+        {
+          "source": "github-release",
+          "repo": "k2-fsa/sherpa-onnx",
+          "release": "asr-models-qnn-binary-2",
+          "path": "sherpa-onnx-qnn-SM8750-binary-whisper-small.tar.bz2",
+          "bytes": 507088655,
+          "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models-qnn-binary-2/sherpa-onnx-qnn-SM8750-binary-whisper-small.tar.bz2",
+          "archive": "tar.bz2",
+          "sha256": "a38ccc457e9c4c861bfc4b368641f72e8ded4ca381376bedf4d717dd7fc79aeb"
+        }
+      ],
+      "publishedWer": {
+        "note": "No per-size ru/en WER captured from a primary source in this research; benchmark on device."
+      },
+      "reportedSpeed": {
+        "device": "Snapdragon 8 Elite for Galaxy (Qualcomm AI Hub, whisper-small w8a16)",
+        "encoderMs": 34.4,
+        "decoderStepMs": 4.7,
+        "source": "https://huggingface.co/qualcomm/Whisper-Small-Quantized"
+      },
+      "tier": "optional",
+      "notes": "Speeds are Qualcomm AI Hub builds, not the sherpa-onnx binaries; same SoC, different export. Hallucination on silence is a known Whisper failure mode: gate with VAD."
+    },
+    {
+      "id": "whisper-medium@qnn-sm8750",
+      "family": "openai-whisper",
+      "displayName": "Whisper Medium (NPU)",
+      "baseModel": "openai/whisper-medium",
+      "params": 769000000,
+      "paramsLabel": "769M",
+      "languages": {
+        "count": 99,
+        "all": [
+          "en",
+          "zh",
+          "de",
+          "es",
+          "ru",
+          "ko",
+          "fr",
+          "ja",
+          "pt",
+          "tr",
+          "pl",
+          "ca",
+          "nl",
+          "ar",
+          "sv",
+          "it",
+          "id",
+          "hi",
+          "fi",
+          "vi",
+          "he",
+          "uk",
+          "el",
+          "ms",
+          "cs",
+          "ro",
+          "da",
+          "hu",
+          "ta",
+          "no",
+          "th",
+          "ur",
+          "hr",
+          "bg",
+          "lt",
+          "la",
+          "mi",
+          "ml",
+          "cy",
+          "sk",
+          "te",
+          "fa",
+          "lv",
+          "bn",
+          "sr",
+          "az",
+          "sl",
+          "kn",
+          "et",
+          "mk",
+          "br",
+          "eu",
+          "is",
+          "hy",
+          "ne",
+          "mn",
+          "bs",
+          "kk",
+          "sq",
+          "sw",
+          "gl",
+          "mr",
+          "pa",
+          "si",
+          "km",
+          "sn",
+          "yo",
+          "so",
+          "af",
+          "oc",
+          "ka",
+          "be",
+          "tg",
+          "sd",
+          "gu",
+          "am",
+          "yi",
+          "lo",
+          "uz",
+          "fo",
+          "ht",
+          "ps",
+          "tk",
+          "nn",
+          "mt",
+          "sa",
+          "lb",
+          "my",
+          "bo",
+          "tl",
+          "mg",
+          "as",
+          "tt",
+          "haw",
+          "ln",
+          "ha",
+          "ba",
+          "jw",
+          "su"
+        ],
+        "auto": true
+      },
+      "license": "Apache-2.0 (HF repo metadata); OpenAI code MIT",
+      "architecture": "encoder-decoder transformer",
+      "streaming": false,
+      "punctuation": true,
+      "casing": true,
+      "maxAudio": "30 s window per call; longer audio = VAD segments / sequential windows",
+      "runtime": "sherpa-onnx OfflineRecognizer (whisper), provider=qnn",
+      "format": "qnn-context-binary",
+      "accelerator": "npu",
+      "socs": [
+        "SM8750"
+      ],
+      "files": [
+        {
+          "source": "github-release",
+          "repo": "k2-fsa/sherpa-onnx",
+          "release": "asr-models-qnn-binary-2",
+          "path": "sherpa-onnx-qnn-SM8750-binary-whisper-medium.tar.bz2",
+          "bytes": 1477526214,
+          "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models-qnn-binary-2/sherpa-onnx-qnn-SM8750-binary-whisper-medium.tar.bz2",
+          "archive": "tar.bz2",
+          "sha256": "c4e3ce5707cb2b76aca8c256713add9c5c07d89599374c987879f27c8227cb85"
+        }
+      ],
+      "publishedWer": {
+        "note": "No per-size ru/en WER captured from a primary source in this research; benchmark on device."
+      },
+      "reportedSpeed": {
+        "device": "Snapdragon 8 Elite for Galaxy (Qualcomm AI Hub, whisper-medium w8a16)",
+        "encoderMs": 97.4,
+        "decoderStepMs": 13.4,
+        "source": "https://huggingface.co/qualcomm/Whisper-Medium-Quantized"
+      },
+      "tier": "optional",
+      "notes": "Speeds are Qualcomm AI Hub builds, not the sherpa-onnx binaries; same SoC, different export. Hallucination on silence is a known Whisper failure mode: gate with VAD."
+    },
+    {
+      "id": "whisper-large-v3-turbo@qaihub-sm8750-w8a16",
+      "family": "openai-whisper",
+      "displayName": "Whisper Large v3 Turbo (NPU, Qualcomm AI Hub)",
+      "baseModel": "openai/whisper-large-v3-turbo",
+      "params": 809000000,
+      "paramsLabel": "809M",
+      "languages": {
+        "count": 99,
+        "all": [
+          "en",
+          "zh",
+          "de",
+          "es",
+          "ru",
+          "ko",
+          "fr",
+          "ja",
+          "pt",
+          "tr",
+          "pl",
+          "ca",
+          "nl",
+          "ar",
+          "sv",
+          "it",
+          "id",
+          "hi",
+          "fi",
+          "vi",
+          "he",
+          "uk",
+          "el",
+          "ms",
+          "cs",
+          "ro",
+          "da",
+          "hu",
+          "ta",
+          "no",
+          "th",
+          "ur",
+          "hr",
+          "bg",
+          "lt",
+          "la",
+          "mi",
+          "ml",
+          "cy",
+          "sk",
+          "te",
+          "fa",
+          "lv",
+          "bn",
+          "sr",
+          "az",
+          "sl",
+          "kn",
+          "et",
+          "mk",
+          "br",
+          "eu",
+          "is",
+          "hy",
+          "ne",
+          "mn",
+          "bs",
+          "kk",
+          "sq",
+          "sw",
+          "gl",
+          "mr",
+          "pa",
+          "si",
+          "km",
+          "sn",
+          "yo",
+          "so",
+          "af",
+          "oc",
+          "ka",
+          "be",
+          "tg",
+          "sd",
+          "gu",
+          "am",
+          "yi",
+          "lo",
+          "uz",
+          "fo",
+          "ht",
+          "ps",
+          "tk",
+          "nn",
+          "mt",
+          "sa",
+          "lb",
+          "my",
+          "bo",
+          "tl",
+          "mg",
+          "as",
+          "tt",
+          "haw",
+          "ln",
+          "ha",
+          "ba",
+          "jw",
+          "su"
+        ],
+        "auto": true
+      },
+      "license": "MIT",
+      "architecture": "encoder-decoder transformer (32 enc / 4 dec layers)",
+      "streaming": false,
+      "punctuation": true,
+      "casing": true,
+      "maxAudio": "30 s window (128x3000 mel), max 200 decoded tokens per window",
+      "runtime": "QNN context binary from Qualcomm AI Hub Models v0.66.0 (needs app-side whisper glue: mel, KV-cache loop, tokenizer)",
+      "format": "qnn-context-binary",
+      "accelerator": "npu",
+      "socs": [
+        "SM8750"
+      ],
+      "files": [
+        {
+          "source": "qualcomm-ai-hub-s3",
+          "path": "whisper_large_v3_turbo_quantized-qnn_context_binary-w8a16-qualcomm_snapdragon_8_elite_for_galaxy.zip",
+          "bytes": 823682281,
+          "url": "https://qaihub-public-assets.s3.us-west-2.amazonaws.com/qai-hub-models/models/whisper_large_v3_turbo_quantized/releases/v0.66.0/whisper_large_v3_turbo_quantized-qnn_context_binary-w8a16-qualcomm_snapdragon_8_elite_for_galaxy.zip",
+          "archive": "zip",
+          "notes": "size from HTTP HEAD; sha256 not published"
+        }
+      ],
+      "reportedSpeed": {
+        "device": "Snapdragon 8 Elite for Galaxy (QNN_CONTEXT_BINARY w8a16)",
+        "encoderMs": 150.7,
+        "decoderStepMs": 3.54,
+        "source": "https://huggingface.co/qualcomm/Whisper-Large-V3-Turbo-Quantized"
+      },
+      "publishedWer": {
+        "en": {
+          "note": "Qwen3-ASR card reports whisper-large-v3 (not turbo) LibriSpeech 1.51/3.97"
+        },
+        "ru": {
+          "note": "UNVERIFIED for turbo"
+        }
+      },
+      "tier": "experimental",
+      "notes": "Not on HF and not a sherpa-onnx package: requires a custom QNN runner. Offer only after the sherpa path works."
+    },
+    {
+      "id": "parakeet-tdt-0.6b-v3@onnx-int8",
+      "family": "nvidia-parakeet",
+      "displayName": "Parakeet TDT 0.6B v3 (CPU int8)",
+      "baseModel": "nvidia/parakeet-tdt-0.6b-v3",
+      "params": 627000000,
+      "paramsLabel": "0.6B",
+      "languages": {
+        "count": 25,
+        "all": [
+          "en",
+          "es",
+          "fr",
+          "de",
+          "bg",
+          "hr",
+          "cs",
+          "da",
+          "nl",
+          "et",
+          "fi",
+          "el",
+          "hu",
+          "it",
+          "lv",
+          "lt",
+          "mt",
+          "pl",
+          "pt",
+          "ro",
+          "sk",
+          "sl",
+          "sv",
+          "ru",
+          "uk"
+        ],
+        "auto": true
+      },
+      "license": "CC-BY-4.0",
+      "architecture": "FastConformer + TDT",
+      "streaming": false,
+      "punctuation": true,
+      "casing": true,
+      "maxAudio": "24 min full attention (upstream, A100); on phone feed VAD segments",
+      "runtime": "sherpa-onnx OfflineRecognizer (nemo_transducer), ONNX Runtime CPU",
+      "format": "sherpa-onnx",
+      "accelerator": "cpu",
+      "files": [
+        {
+          "source": "huggingface",
+          "repo": "csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8",
+          "revision": "ed5d745623472f97cfc2e6c2916ee248798fc5a8",
+          "path": "encoder.int8.onnx",
+          "bytes": 652282294,
+          "url": "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8/resolve/ed5d745623472f97cfc2e6c2916ee248798fc5a8/encoder.int8.onnx",
+          "sha256": "1afbe69c1ffdabee94755f42e4daf1d93549131a3da11356bda84fcef0f2c479"
+        },
+        {
+          "source": "huggingface",
+          "repo": "csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8",
+          "revision": "ed5d745623472f97cfc2e6c2916ee248798fc5a8",
+          "path": "decoder.int8.onnx",
+          "bytes": 11845274,
+          "url": "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8/resolve/ed5d745623472f97cfc2e6c2916ee248798fc5a8/decoder.int8.onnx",
+          "sha256": "0222a86147299d4dee90edf95b6d13827edb42ad8b7c9cf0b2582f030937c0b5"
+        },
+        {
+          "source": "huggingface",
+          "repo": "csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8",
+          "revision": "ed5d745623472f97cfc2e6c2916ee248798fc5a8",
+          "path": "joiner.int8.onnx",
+          "bytes": 6355277,
+          "url": "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8/resolve/ed5d745623472f97cfc2e6c2916ee248798fc5a8/joiner.int8.onnx",
+          "sha256": "cbd02f3696e9944970111fb439d9c3fd365a80374565f13f2b9c7007d253fc98"
+        },
+        {
+          "source": "huggingface",
+          "repo": "csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8",
+          "revision": "ed5d745623472f97cfc2e6c2916ee248798fc5a8",
+          "path": "tokens.txt",
+          "bytes": 93939,
+          "url": "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8/resolve/ed5d745623472f97cfc2e6c2916ee248798fc5a8/tokens.txt"
+        }
+      ],
+      "reportedSpeed": {
+        "device": "Galaxy S24 Ultra CPU (LiteRT INT8 build, not sherpa-onnx)",
+        "rtf": "0.064-0.104",
+        "peakRamMB": "765-779",
+        "source": "https://huggingface.co/litert-community/parakeet-tdt-0.6b-v3"
+      },
+      "tier": "fallback",
+      "notes": "CPU fallback for the NPU entry; same weights family."
+    },
+    {
+      "id": "parakeet-ultra-0.6b@onnx-int8",
+      "family": "nvidia-parakeet",
+      "displayName": "Parakeet Ultra 0.6B (Moondream fine-tune, CPU int8)",
+      "baseModel": "moondream/parakeet-ultra",
+      "params": 627000000,
+      "paramsLabel": "0.6B",
+      "languages": {
+        "count": 25,
+        "all": [
+          "en",
+          "es",
+          "fr",
+          "de",
+          "bg",
+          "hr",
+          "cs",
+          "da",
+          "nl",
+          "et",
+          "fi",
+          "el",
+          "hu",
+          "it",
+          "lv",
+          "lt",
+          "mt",
+          "pl",
+          "pt",
+          "ro",
+          "sk",
+          "sl",
+          "sv",
+          "ru",
+          "uk"
+        ],
+        "auto": true
+      },
+      "license": "CC-BY-4.0",
+      "architecture": "FastConformer + TDT (post-trained parakeet-tdt-0.6b-v3)",
+      "streaming": false,
+      "punctuation": true,
+      "casing": true,
+      "maxAudio": "feed VAD segments",
+      "runtime": "sherpa-onnx OfflineRecognizer (nemo_transducer), CPU",
+      "format": "sherpa-onnx",
+      "accelerator": "cpu",
+      "files": [
+        {
+          "source": "huggingface",
+          "repo": "csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-ultra-int8",
+          "revision": "402e1190ce85b9793118ee223db21fb0d12f52db",
+          "path": "encoder.int8.onnx",
+          "bytes": 652282345,
+          "url": "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-ultra-int8/resolve/402e1190ce85b9793118ee223db21fb0d12f52db/encoder.int8.onnx",
+          "sha256": "b43072e1b721f18a3df03fcfeb763ff7c4debdf29843598a3aba2f703e2780a3"
+        },
+        {
+          "source": "huggingface",
+          "repo": "csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-ultra-int8",
+          "revision": "402e1190ce85b9793118ee223db21fb0d12f52db",
+          "path": "decoder.int8.onnx",
+          "bytes": 11845274,
+          "url": "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-ultra-int8/resolve/402e1190ce85b9793118ee223db21fb0d12f52db/decoder.int8.onnx",
+          "sha256": "1fab98fe6c12aded87d2da66272cc9e148d0a0044ce3850a12fe56302ec4a922"
+        },
+        {
+          "source": "huggingface",
+          "repo": "csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-ultra-int8",
+          "revision": "402e1190ce85b9793118ee223db21fb0d12f52db",
+          "path": "joiner.int8.onnx",
+          "bytes": 6355277,
+          "url": "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-ultra-int8/resolve/402e1190ce85b9793118ee223db21fb0d12f52db/joiner.int8.onnx",
+          "sha256": "8a71aaccfdba3d451775507a889afd2257d2e754463fd81095a8c8f290f924c2"
+        },
+        {
+          "source": "huggingface",
+          "repo": "csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-ultra-int8",
+          "revision": "402e1190ce85b9793118ee223db21fb0d12f52db",
+          "path": "tokens.txt",
+          "bytes": 93939,
+          "url": "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-ultra-int8/resolve/402e1190ce85b9793118ee223db21fb0d12f52db/tokens.txt"
+        }
+      ],
+      "publishedWer": {
+        "en": {
+          "Open ASR LB 7 sets": 5.8,
+          "LibriSpeech test-clean": 1.41,
+          "LibriSpeech test-other": 2.98,
+          "FLEURS": 3.55
+        },
+        "ru": {
+          "FLEURS": 5.21
+        },
+        "note": "Moondream measurements; same table gives v3 ru FLEURS 5.91 under their normalization",
+        "source": "https://huggingface.co/moondream/parakeet-ultra"
+      },
+      "tier": "optional",
+      "notes": "Third-party (Moondream) post-train of v3, same arch: no SM8750 QNN binary published yet; could be compiled with the same sherpa-onnx QNN export as v3 (UNVERIFIED)."
+    },
+    {
+      "id": "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms",
+      "family": "nvidia-nemotron-asr",
+      "displayName": "Nemotron 3.5 ASR Streaming 0.6B (CPU int8, 560 ms)",
+      "baseModel": "nvidia/nemotron-3.5-asr-streaming-0.6b",
+      "params": 600000000,
+      "paramsLabel": "0.6B",
+      "languages": {
+        "count": 40,
+        "all": [
+          "en",
+          "es",
+          "de",
+          "fr",
+          "it",
+          "ar",
+          "ja",
+          "ko",
+          "pt",
+          "ru",
+          "hi",
+          "zh",
+          "vi",
+          "he",
+          "nl",
+          "cs",
+          "da",
+          "pl",
+          "no",
+          "sv",
+          "th",
+          "tr",
+          "bg",
+          "el",
+          "et",
+          "fi",
+          "hr",
+          "hu",
+          "lt",
+          "lv",
+          "ro",
+          "sk",
+          "uk",
+          "mt",
+          "sl"
+        ],
+        "auto": true
+      },
+      "license": "OpenMDW-1.1",
+      "architecture": "cache-aware FastConformer + RNN-T, language prompt",
+      "streaming": true,
+      "punctuation": true,
+      "casing": true,
+      "maxAudio": "unbounded (streaming)",
+      "runtime": "sherpa-onnx OnlineRecognizer (transducer), CPU",
+      "format": "sherpa-onnx",
+      "accelerator": "cpu",
+      "files": [
+        {
+          "source": "huggingface",
+          "repo": "csukuangfj2/sherpa-onnx-nemotron-3.5-asr-streaming-0.6b-560ms-int8-2026-06-11",
+          "revision": "ab43d895f5985b1bbab8b6eac8607fcdc05343f3",
+          "path": "encoder.int8.onnx",
+          "bytes": 657601403,
+          "url": "https://huggingface.co/csukuangfj2/sherpa-onnx-nemotron-3.5-asr-streaming-0.6b-560ms-int8-2026-06-11/resolve/ab43d895f5985b1bbab8b6eac8607fcdc05343f3/encoder.int8.onnx",
+          "sha256": "012e9321373af99021415e0b0eb3ec827b4be3153be6f30d9b448fe65e896e68"
+        },
+        {
+          "source": "huggingface",
+          "repo": "csukuangfj2/sherpa-onnx-nemotron-3.5-asr-streaming-0.6b-560ms-int8-2026-06-11",
+          "revision": "ab43d895f5985b1bbab8b6eac8607fcdc05343f3",
+          "path": "decoder.int8.onnx",
+          "bytes": 14978075,
+          "url": "https://huggingface.co/csukuangfj2/sherpa-onnx-nemotron-3.5-asr-streaming-0.6b-560ms-int8-2026-06-11/resolve/ab43d895f5985b1bbab8b6eac8607fcdc05343f3/decoder.int8.onnx",
+          "sha256": "19f9c98fc6d0a2c33a65a43b36fdb2e914c26c0aa9764be3aebc502a1e982fb0"
+        },
+        {
+          "source": "huggingface",
+          "repo": "csukuangfj2/sherpa-onnx-nemotron-3.5-asr-streaming-0.6b-560ms-int8-2026-06-11",
+          "revision": "ab43d895f5985b1bbab8b6eac8607fcdc05343f3",
+          "path": "joiner.int8.onnx",
+          "bytes": 9504438,
+          "url": "https://huggingface.co/csukuangfj2/sherpa-onnx-nemotron-3.5-asr-streaming-0.6b-560ms-int8-2026-06-11/resolve/ab43d895f5985b1bbab8b6eac8607fcdc05343f3/joiner.int8.onnx",
+          "sha256": "4101c7c679a0bc30483794b27a059e34e79232aa2068d78d51231a22c8b0d7ce"
+        },
+        {
+          "source": "huggingface",
+          "repo": "csukuangfj2/sherpa-onnx-nemotron-3.5-asr-streaming-0.6b-560ms-int8-2026-06-11",
+          "revision": "ab43d895f5985b1bbab8b6eac8607fcdc05343f3",
+          "path": "tokens.txt",
+          "bytes": 131440,
+          "url": "https://huggingface.co/csukuangfj2/sherpa-onnx-nemotron-3.5-asr-streaming-0.6b-560ms-int8-2026-06-11/resolve/ab43d895f5985b1bbab8b6eac8607fcdc05343f3/tokens.txt"
+        }
+      ],
+      "tier": "fallback",
+      "notes": "CPU fallback of the default model. Other chunk sizes: csukuangfj2/sherpa-onnx-nemotron-3.5-asr-streaming-0.6b-{80,160,320,1120}ms-int8-2026-06-11."
+    },
+    {
+      "id": "gigaam-v3-e2e-rnnt@onnx-int8",
+      "family": "sber-gigaam",
+      "displayName": "GigaAM v3 E2E RNN-T (Russian, punctuated)",
+      "baseModel": "ai-sage/GigaAM-v3 (revision e2e_rnnt)",
+      "params": null,
+      "paramsLabel": "220-240M (card gives a range)",
+      "languages": {
+        "count": 1,
+        "all": [
+          "ru"
+        ],
+        "notes": "Russian-only training; vocabulary contains Latin letters and digits, English words possible but not a supported language"
+      },
+      "license": "MIT",
+      "architecture": "Conformer (HuBERT-CTC pretrain) + RNN-T",
+      "streaming": false,
+      "punctuation": true,
+      "casing": true,
+      "maxAudio": "~25 s per call (upstream transcribe() limit); longer via VAD (upstream uses pyannote)",
+      "runtime": "sherpa-onnx OfflineRecognizer (nemo_transducer), CPU",
+      "format": "sherpa-onnx",
+      "accelerator": "cpu",
+      "files": [
+        {
+          "source": "huggingface",
+          "repo": "csukuangfj/sherpa-onnx-nemo-transducer-punct-giga-am-v3-russian-2025-12-16",
+          "revision": "a6039be7cee829a9044a69ac0ebaf1c191217c97",
+          "path": "encoder.int8.onnx",
+          "bytes": 224570820,
+          "url": "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-transducer-punct-giga-am-v3-russian-2025-12-16/resolve/a6039be7cee829a9044a69ac0ebaf1c191217c97/encoder.int8.onnx",
+          "sha256": "369f35a71bf288d3b8e0391fabd8dba5f2314088d440bca474056b7b4b6e66bf"
+        },
+        {
+          "source": "huggingface",
+          "repo": "csukuangfj/sherpa-onnx-nemo-transducer-punct-giga-am-v3-russian-2025-12-16",
+          "revision": "a6039be7cee829a9044a69ac0ebaf1c191217c97",
+          "path": "decoder.onnx",
+          "bytes": 4600132,
+          "url": "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-transducer-punct-giga-am-v3-russian-2025-12-16/resolve/a6039be7cee829a9044a69ac0ebaf1c191217c97/decoder.onnx",
+          "sha256": "38fc7475443ea2a26f63211ca350f73ac50fff824ab7a3876ee2bd610c53bbc4"
+        },
+        {
+          "source": "huggingface",
+          "repo": "csukuangfj/sherpa-onnx-nemo-transducer-punct-giga-am-v3-russian-2025-12-16",
+          "revision": "a6039be7cee829a9044a69ac0ebaf1c191217c97",
+          "path": "joiner.onnx",
+          "bytes": 2712896,
+          "url": "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-transducer-punct-giga-am-v3-russian-2025-12-16/resolve/a6039be7cee829a9044a69ac0ebaf1c191217c97/joiner.onnx",
+          "sha256": "602ff7017a93311aad34df1437c8d7f49911353c13d6eae7a6ee7b041339465c"
+        },
+        {
+          "source": "huggingface",
+          "repo": "csukuangfj/sherpa-onnx-nemo-transducer-punct-giga-am-v3-russian-2025-12-16",
+          "revision": "a6039be7cee829a9044a69ac0ebaf1c191217c97",
+          "path": "tokens.txt",
+          "bytes": 13354,
+          "url": "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-transducer-punct-giga-am-v3-russian-2025-12-16/resolve/a6039be7cee829a9044a69ac0ebaf1c191217c97/tokens.txt"
+        }
+      ],
+      "publishedWer": {
+        "ru": {
+          "average of 10 sets (punct removed)": 11.2,
+          "Mozilla CV19": 3.0,
+          "Golos Farfield": 5.5,
+          "Russian LibriSpeech": 6.4
+        },
+        "en": {
+          "note": "not published"
+        },
+        "source": "https://github.com/salute-developers/GigaAM/blob/main/evaluation.md"
+      },
+      "tier": "recommended",
+      "defaultFor": [
+        "ru-only (quality)"
+      ],
+      "notes": "Best Russian quality with punctuation + normalization (numerals as digits). No NPU build published: needs own QNN export (Conformer, static 25 s shape) - see doc."
+    },
+    {
+      "id": "gigaam-v3-e2e-ctc@onnx-int8",
+      "family": "sber-gigaam",
+      "displayName": "GigaAM v3 E2E CTC (Russian, punctuated, fastest)",
+      "baseModel": "ai-sage/GigaAM-v3 (revision e2e_ctc)",
+      "params": null,
+      "paramsLabel": "220-240M",
+      "languages": {
+        "count": 1,
+        "all": [
+          "ru"
+        ]
+      },
+      "license": "MIT",
+      "architecture": "Conformer + CTC",
+      "streaming": false,
+      "punctuation": true,
+      "casing": true,
+      "maxAudio": "~25 s per call",
+      "runtime": "sherpa-onnx OfflineRecognizer (nemo_ctc), CPU",
+      "format": "sherpa-onnx",
+      "accelerator": "cpu",
+      "files": [
+        {
+          "source": "huggingface",
+          "repo": "csukuangfj/sherpa-onnx-nemo-ctc-punct-giga-am-v3-russian-2025-12-16",
+          "revision": "4fb5407ff028a69fec516cdf4c10fac9ddea7c16",
+          "path": "model.int8.onnx",
+          "bytes": 224893661,
+          "url": "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-ctc-punct-giga-am-v3-russian-2025-12-16/resolve/4fb5407ff028a69fec516cdf4c10fac9ddea7c16/model.int8.onnx",
+          "sha256": "d5fea8df94263c285e54b21e5774b707c707192d3bdbeffd7b1eb07fb6743b35"
+        },
+        {
+          "source": "huggingface",
+          "repo": "csukuangfj/sherpa-onnx-nemo-ctc-punct-giga-am-v3-russian-2025-12-16",
+          "revision": "4fb5407ff028a69fec516cdf4c10fac9ddea7c16",
+          "path": "tokens.txt",
+          "bytes": 2007,
+          "url": "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-ctc-punct-giga-am-v3-russian-2025-12-16/resolve/4fb5407ff028a69fec516cdf4c10fac9ddea7c16/tokens.txt"
+        }
+      ],
+      "publishedWer": {
+        "ru": {
+          "average of 10 sets (punct removed)": 12.0
+        },
+        "source": "https://github.com/salute-developers/GigaAM/blob/main/evaluation.md"
+      },
+      "tier": "optional",
+      "notes": "CTC = single encoder pass, no autoregressive loop: cheapest to port to NPU later."
+    },
+    {
+      "id": "t-one@onnx",
+      "family": "tbank-t-one",
+      "displayName": "T-one 71M (Russian, streaming)",
+      "baseModel": "t-tech/T-one",
+      "params": 71000000,
+      "paramsLabel": "71M",
+      "languages": {
+        "count": 1,
+        "all": [
+          "ru"
+        ],
+        "notes": "vocabulary = 33 lowercase Cyrillic letters + space: cannot emit Latin, digits or punctuation"
+      },
+      "license": "Apache-2.0",
+      "architecture": "streaming Conformer + CTC (300 ms chunks), 8 kHz input",
+      "streaming": true,
+      "punctuation": false,
+      "casing": false,
+      "maxAudio": "unbounded (streaming)",
+      "runtime": "sherpa-onnx OnlineRecognizer (t-one CTC), CPU",
+      "format": "sherpa-onnx",
+      "accelerator": "cpu",
+      "files": [
+        {
+          "source": "huggingface",
+          "repo": "csukuangfj/sherpa-onnx-streaming-t-one-russian-2025-09-08",
+          "revision": "9d63341e0f2d8a8b2edaa825aa1fcfe3c5283b47",
+          "path": "model.onnx",
+          "bytes": 144193702,
+          "url": "https://huggingface.co/csukuangfj/sherpa-onnx-streaming-t-one-russian-2025-09-08/resolve/9d63341e0f2d8a8b2edaa825aa1fcfe3c5283b47/model.onnx",
+          "sha256": "5ded080e2a6c86ecc11bcb0902d77524eb3e8b0844cb0c0754347f5aafb4dabc"
+        },
+        {
+          "source": "huggingface",
+          "repo": "csukuangfj/sherpa-onnx-streaming-t-one-russian-2025-09-08",
+          "revision": "9d63341e0f2d8a8b2edaa825aa1fcfe3c5283b47",
+          "path": "tokens.txt",
+          "bytes": 202,
+          "url": "https://huggingface.co/csukuangfj/sherpa-onnx-streaming-t-one-russian-2025-09-08/resolve/9d63341e0f2d8a8b2edaa825aa1fcfe3c5283b47/tokens.txt"
+        }
+      ],
+      "publishedWer": {
+        "ru": {
+          "CommonVoice 19 test": 5.32,
+          "Call-center": 8.63
+        },
+        "source": "https://huggingface.co/t-tech/T-one"
+      },
+      "tier": "optional",
+      "notes": "Telephony-tuned, tiny, fast. Lowercase text without punctuation: the LLM must restore everything. Upstream KenLM (kenlm.bin, 5.46 GB) is not offered."
+    },
+    {
+      "id": "qwen3-asr-0.6b@onnx-int8",
+      "family": "qwen3-asr",
+      "displayName": "Qwen3-ASR 0.6B (CPU int8)",
+      "baseModel": "Qwen/Qwen3-ASR-0.6B",
+      "params": null,
+      "paramsLabel": "0.6B (repo name); model.safetensors 1.88 GB bf16",
+      "languages": {
+        "count": 30,
+        "all": [
+          "zh",
+          "en",
+          "yue",
+          "ar",
+          "de",
+          "fr",
+          "es",
+          "pt",
+          "id",
+          "it",
+          "ko",
+          "ru",
+          "th",
+          "vi",
+          "ja",
+          "tr",
+          "hi",
+          "ms",
+          "nl",
+          "sv",
+          "da",
+          "fi",
+          "pl",
+          "cs",
+          "fil",
+          "fa",
+          "el",
+          "hu",
+          "mk",
+          "ro"
+        ],
+        "dialects": 22,
+        "auto": true
+      },
+      "license": "Apache-2.0",
+      "architecture": "audio-LLM (audio encoder + Qwen3 decoder)",
+      "streaming": false,
+      "punctuation": true,
+      "casing": true,
+      "maxAudio": "upstream 1200 s per call (MAX_ASR_INPUT_SECONDS); on phone feed VAD segments",
+      "runtime": "sherpa-onnx OfflineRecognizer (qwen3_asr), CPU",
+      "format": "sherpa-onnx",
+      "accelerator": "cpu",
+      "files": [
+        {
+          "source": "huggingface",
+          "repo": "csukuangfj2/sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25",
+          "revision": "68818b2313fe77bd06f6a7c5068ff3ef59d02b8a",
+          "path": "conv_frontend.onnx",
+          "bytes": 44148281,
+          "url": "https://huggingface.co/csukuangfj2/sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25/resolve/68818b2313fe77bd06f6a7c5068ff3ef59d02b8a/conv_frontend.onnx",
+          "sha256": "d22dc4423e0940e49884e903d2ea2f7e5567c14fc1aed97e4e26d6b8f208ef9e"
+        },
+        {
+          "source": "huggingface",
+          "repo": "csukuangfj2/sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25",
+          "revision": "68818b2313fe77bd06f6a7c5068ff3ef59d02b8a",
+          "path": "encoder.int8.onnx",
+          "bytes": 182491662,
+          "url": "https://huggingface.co/csukuangfj2/sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25/resolve/68818b2313fe77bd06f6a7c5068ff3ef59d02b8a/encoder.int8.onnx",
+          "sha256": "60748d3e6744a57c9c91e1b17424a6c2990567e8adceb0783940c03ed98fa9d9"
+        },
+        {
+          "source": "huggingface",
+          "repo": "csukuangfj2/sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25",
+          "revision": "68818b2313fe77bd06f6a7c5068ff3ef59d02b8a",
+          "path": "decoder.int8.onnx",
+          "bytes": 755914231,
+          "url": "https://huggingface.co/csukuangfj2/sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25/resolve/68818b2313fe77bd06f6a7c5068ff3ef59d02b8a/decoder.int8.onnx",
+          "sha256": "4f6885be5959ae26af3089d38ee7972c5fafbeeb1cf8d5e76eab6d8b61ca5771"
+        },
+        {
+          "source": "huggingface",
+          "repo": "csukuangfj2/sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25",
+          "revision": "68818b2313fe77bd06f6a7c5068ff3ef59d02b8a",
+          "path": "tokenizer/merges.txt",
+          "bytes": 1671853,
+          "url": "https://huggingface.co/csukuangfj2/sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25/resolve/68818b2313fe77bd06f6a7c5068ff3ef59d02b8a/tokenizer/merges.txt"
+        },
+        {
+          "source": "huggingface",
+          "repo": "csukuangfj2/sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25",
+          "revision": "68818b2313fe77bd06f6a7c5068ff3ef59d02b8a",
+          "path": "tokenizer/tokenizer_config.json",
+          "bytes": 12487,
+          "url": "https://huggingface.co/csukuangfj2/sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25/resolve/68818b2313fe77bd06f6a7c5068ff3ef59d02b8a/tokenizer/tokenizer_config.json",
+          "sha256": "4942d005604266809309cabc9f4e9cb89ce855d59b14681fdc0e1cc62ea26c4c"
+        },
+        {
+          "source": "huggingface",
+          "repo": "csukuangfj2/sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25",
+          "revision": "68818b2313fe77bd06f6a7c5068ff3ef59d02b8a",
+          "path": "tokenizer/vocab.json",
+          "bytes": 2776833,
+          "url": "https://huggingface.co/csukuangfj2/sherpa-onnx-qwen3-asr-0.6B-int8-2026-03-25/resolve/68818b2313fe77bd06f6a7c5068ff3ef59d02b8a/tokenizer/vocab.json",
+          "sha256": "ca10d7e9fb3ed18575dd1e277a2579c16d108e32f27439684afa0e10b1440910"
+        }
+      ],
+      "publishedWer": {
+        "en": {
+          "LibriSpeech clean": 2.11,
+          "LibriSpeech other": 4.55,
+          "FLEURS-en": 4.39
+        },
+        "ru": {
+          "FLEURS": 9.91,
+          "CommonVoice": 14.07,
+          "MLC-SLM": 19.24
+        },
+        "source": "https://huggingface.co/Qwen/Qwen3-ASR-0.6B ; arXiv 2601.21337 Table A.2"
+      },
+      "tier": "optional",
+      "notes": "Weaker on Russian than Parakeet/GigaAM per published numbers. Autoregressive decoder: latency grows with transcript length."
+    },
+    {
+      "id": "qwen3-asr-0.6b@litert-npu-sm8750",
+      "family": "qwen3-asr",
+      "displayName": "Qwen3-ASR 0.6B (NPU, LiteRT, experimental)",
+      "baseModel": "Qwen/Qwen3-ASR-0.6B",
+      "params": null,
+      "paramsLabel": "0.6B",
+      "languages": {
+        "count": 30,
+        "all": [
+          "zh",
+          "en",
+          "yue",
+          "ar",
+          "de",
+          "fr",
+          "es",
+          "pt",
+          "id",
+          "it",
+          "ko",
+          "ru",
+          "th",
+          "vi",
+          "ja",
+          "tr",
+          "hi",
+          "ms",
+          "nl",
+          "sv",
+          "da",
+          "fi",
+          "pl",
+          "cs",
+          "fil",
+          "fa",
+          "el",
+          "hu",
+          "mk",
+          "ro"
+        ],
+        "dialects": 22,
+        "auto": true
+      },
+      "license": "Apache-2.0",
+      "architecture": "audio-LLM",
+      "streaming": false,
+      "punctuation": true,
+      "casing": true,
+      "maxAudio": "5 s windows with overlap (LiteRT export)",
+      "runtime": "LiteRT NPU (AOT-compiled for SM8750) + app-side mel/tokenizer/decode loop",
+      "format": "litert-tflite-npu",
+      "accelerator": "npu",
+      "socs": [
+        "SM8750"
+      ],
+      "files": [
+        {
+          "source": "huggingface",
+          "repo": "litert-community/Qwen3-ASR-0.6B",
+          "revision": "5028edc410addd0f9cf0b35a58a38aeb8bea4604",
+          "path": "qwen3_asr_0.6b_5s_f32_Qualcomm_SM8750.tflite",
+          "bytes": 1896782144,
+          "url": "https://huggingface.co/litert-community/Qwen3-ASR-0.6B/resolve/5028edc410addd0f9cf0b35a58a38aeb8bea4604/qwen3_asr_0.6b_5s_f32_Qualcomm_SM8750.tflite",
+          "sha256": "dd2f2d2debc670025f2a31afa9fca7e7536ecd50ff03fa58e53798b5cb2b2fca"
+        },
+        {
+          "source": "huggingface",
+          "repo": "Qwen/Qwen3-ASR-0.6B",
+          "revision": "5eb144179a02acc5e5ba31e748d22b0cf3e303b0",
+          "path": "vocab.json",
+          "bytes": 2776833,
+          "url": "https://huggingface.co/Qwen/Qwen3-ASR-0.6B/resolve/5eb144179a02acc5e5ba31e748d22b0cf3e303b0/vocab.json"
+        },
+        {
+          "source": "huggingface",
+          "repo": "Qwen/Qwen3-ASR-0.6B",
+          "revision": "5eb144179a02acc5e5ba31e748d22b0cf3e303b0",
+          "path": "merges.txt",
+          "bytes": 1671853,
+          "url": "https://huggingface.co/Qwen/Qwen3-ASR-0.6B/resolve/5eb144179a02acc5e5ba31e748d22b0cf3e303b0/merges.txt"
+        },
+        {
+          "source": "huggingface",
+          "repo": "Qwen/Qwen3-ASR-0.6B",
+          "revision": "5eb144179a02acc5e5ba31e748d22b0cf3e303b0",
+          "path": "tokenizer_config.json",
+          "bytes": 12487,
+          "url": "https://huggingface.co/Qwen/Qwen3-ASR-0.6B/resolve/5eb144179a02acc5e5ba31e748d22b0cf3e303b0/tokenizer_config.json"
+        }
+      ],
+      "tier": "experimental",
+      "notes": "Second runtime stack (LiteRT) besides sherpa-onnx; adopt only if Qwen3-ASR on NPU is a hard requirement. No published mobile NPU speed."
+    },
+    {
+      "id": "qwen3-asr-1.7b@litert-gpu-15s",
+      "family": "qwen3-asr",
+      "displayName": "Qwen3-ASR 1.7B (GPU, LiteRT-LM, heavy)",
+      "baseModel": "Qwen/Qwen3-ASR-1.7B",
+      "params": 2040000000,
+      "paramsLabel": "1.7B (2.04B total per LiteRT card)",
+      "languages": {
+        "count": 30,
+        "all": [
+          "zh",
+          "en",
+          "yue",
+          "ar",
+          "de",
+          "fr",
+          "es",
+          "pt",
+          "id",
+          "it",
+          "ko",
+          "ru",
+          "th",
+          "vi",
+          "ja",
+          "tr",
+          "hi",
+          "ms",
+          "nl",
+          "sv",
+          "da",
+          "fi",
+          "pl",
+          "cs",
+          "fil",
+          "fa",
+          "el",
+          "hu",
+          "mk",
+          "ro"
+        ],
+        "dialects": 22,
+        "auto": true
+      },
+      "license": "Apache-2.0",
+      "architecture": "audio-LLM",
+      "streaming": false,
+      "punctuation": true,
+      "casing": true,
+      "maxAudio": "15 s window per message (longer = 2 windows)",
+      "runtime": "LiteRT-LM (litertlm-android), LM on GPU (OpenCL), audio encoder CPU",
+      "format": "litert-lm",
+      "accelerator": "gpu",
+      "files": [
+        {
+          "source": "huggingface",
+          "repo": "litert-community/Qwen3-ASR-1.7B",
+          "revision": "398e9abab9caf80b0dbe3ca08bc08a6a532f1038",
+          "path": "Qwen3-ASR-1.7B-15s.litertlm",
+          "bytes": 2701459456,
+          "url": "https://huggingface.co/litert-community/Qwen3-ASR-1.7B/resolve/398e9abab9caf80b0dbe3ca08bc08a6a532f1038/Qwen3-ASR-1.7B-15s.litertlm",
+          "sha256": "a09247d57de44dfda5e2a8a570944733608c675d349284f819d674b1de25273f"
+        }
+      ],
+      "publishedWer": {
+        "ru": {
+          "FLEURS": 5.99,
+          "CommonVoice": 8.28
+        },
+        "en": {
+          "LibriSpeech clean": 1.63,
+          "LibriSpeech other": 3.38
+        },
+        "source": "https://huggingface.co/Qwen/Qwen3-ASR-1.7B ; arXiv 2601.21337 Table A.2"
+      },
+      "reportedSpeed": {
+        "device": "Galaxy S26 (SM-S942Q)",
+        "clip6_4sSeconds": "1.40-1.51 (GPU)",
+        "decodeTokPerSec": "23.5-26.0",
+        "peakFootprintGB": "2.41 (GPU) / 4.10 (CPU)",
+        "source": "https://huggingface.co/litert-community/Qwen3-ASR-1.7B"
+      },
+      "tier": "experimental",
+      "notes": "Not NPU. 2.7 GB download, 2.4-4.1 GB RAM: conflicts with keeping the LLM resident on a 12 GB device."
+    },
+    {
+      "id": "whisper-large-v3-turbo@onnx-int8",
+      "family": "openai-whisper",
+      "displayName": "Whisper Large v3 Turbo (CPU int8)",
+      "baseModel": "openai/whisper-large-v3-turbo",
+      "params": 809000000,
+      "paramsLabel": "809M",
+      "languages": {
+        "count": 99,
+        "all": [
+          "en",
+          "zh",
+          "de",
+          "es",
+          "ru",
+          "ko",
+          "fr",
+          "ja",
+          "pt",
+          "tr",
+          "pl",
+          "ca",
+          "nl",
+          "ar",
+          "sv",
+          "it",
+          "id",
+          "hi",
+          "fi",
+          "vi",
+          "he",
+          "uk",
+          "el",
+          "ms",
+          "cs",
+          "ro",
+          "da",
+          "hu",
+          "ta",
+          "no",
+          "th",
+          "ur",
+          "hr",
+          "bg",
+          "lt",
+          "la",
+          "mi",
+          "ml",
+          "cy",
+          "sk",
+          "te",
+          "fa",
+          "lv",
+          "bn",
+          "sr",
+          "az",
+          "sl",
+          "kn",
+          "et",
+          "mk",
+          "br",
+          "eu",
+          "is",
+          "hy",
+          "ne",
+          "mn",
+          "bs",
+          "kk",
+          "sq",
+          "sw",
+          "gl",
+          "mr",
+          "pa",
+          "si",
+          "km",
+          "sn",
+          "yo",
+          "so",
+          "af",
+          "oc",
+          "ka",
+          "be",
+          "tg",
+          "sd",
+          "gu",
+          "am",
+          "yi",
+          "lo",
+          "uz",
+          "fo",
+          "ht",
+          "ps",
+          "tk",
+          "nn",
+          "mt",
+          "sa",
+          "lb",
+          "my",
+          "bo",
+          "tl",
+          "mg",
+          "as",
+          "tt",
+          "haw",
+          "ln",
+          "ha",
+          "ba",
+          "jw",
+          "su"
+        ],
+        "auto": true
+      },
+      "license": "MIT",
+      "architecture": "encoder-decoder transformer",
+      "streaming": false,
+      "punctuation": true,
+      "casing": true,
+      "maxAudio": "30 s window",
+      "runtime": "sherpa-onnx OfflineRecognizer (whisper), CPU",
+      "format": "sherpa-onnx",
+      "accelerator": "cpu",
+      "files": [
+        {
+          "source": "huggingface",
+          "repo": "csukuangfj/sherpa-onnx-whisper-turbo",
+          "revision": "2ca6ff69fc878651b770880507669577ac41c2ff",
+          "path": "turbo-encoder.int8.onnx",
+          "bytes": 674716297,
+          "url": "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-turbo/resolve/2ca6ff69fc878651b770880507669577ac41c2ff/turbo-encoder.int8.onnx",
+          "sha256": "b02dcdf54f348741e93fe732b67d933c8dcb6735655f710640143081db38878b"
+        },
+        {
+          "source": "huggingface",
+          "repo": "csukuangfj/sherpa-onnx-whisper-turbo",
+          "revision": "2ca6ff69fc878651b770880507669577ac41c2ff",
+          "path": "turbo-decoder.int8.onnx",
+          "bytes": 361080764,
+          "url": "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-turbo/resolve/2ca6ff69fc878651b770880507669577ac41c2ff/turbo-decoder.int8.onnx",
+          "sha256": "20accd02388482eb3a46bd615631adfdc85e1eb2c7db9ea3f02a40ffe6b81547"
+        },
+        {
+          "source": "huggingface",
+          "repo": "csukuangfj/sherpa-onnx-whisper-turbo",
+          "revision": "2ca6ff69fc878651b770880507669577ac41c2ff",
+          "path": "turbo-tokens.txt",
+          "bytes": 816730,
+          "url": "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-turbo/resolve/2ca6ff69fc878651b770880507669577ac41c2ff/turbo-tokens.txt"
+        }
+      ],
+      "tier": "optional",
+      "notes": "Most languages (99). Slow on CPU because the encoder always processes a padded 30 s window."
+    },
+    {
+      "id": "distil-large-v3.5@onnx-int8",
+      "family": "openai-whisper",
+      "displayName": "Distil-Whisper Large v3.5 (English, CPU int8)",
+      "baseModel": "distil-whisper/distil-large-v3.5",
+      "params": 756000000,
+      "paramsLabel": "756M",
+      "languages": {
+        "count": 1,
+        "all": [
+          "en"
+        ]
+      },
+      "license": "MIT",
+      "architecture": "encoder-decoder (2 decoder layers)",
+      "streaming": false,
+      "punctuation": true,
+      "casing": true,
+      "maxAudio": "30 s window",
+      "runtime": "sherpa-onnx OfflineRecognizer (whisper), CPU",
+      "format": "sherpa-onnx",
+      "accelerator": "cpu",
+      "files": [
+        {
+          "source": "huggingface",
+          "repo": "csukuangfj/sherpa-onnx-whisper-distil-large-v3.5",
+          "revision": "2933155a51e982b9ebd9ca3b7fb80fc78162fa64",
+          "path": "distil-large-v3.5-encoder.int8.onnx",
+          "bytes": 668147593,
+          "url": "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-distil-large-v3.5/resolve/2933155a51e982b9ebd9ca3b7fb80fc78162fa64/distil-large-v3.5-encoder.int8.onnx",
+          "sha256": "c30727100ba2dfbe64f2309a2ec44a5049b005d8a6c0acce49952f635083cbdb"
+        },
+        {
+          "source": "huggingface",
+          "repo": "csukuangfj/sherpa-onnx-whisper-distil-large-v3.5",
+          "revision": "2933155a51e982b9ebd9ca3b7fb80fc78162fa64",
+          "path": "distil-large-v3.5-decoder.int8.onnx",
+          "bytes": 314871757,
+          "url": "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-distil-large-v3.5/resolve/2933155a51e982b9ebd9ca3b7fb80fc78162fa64/distil-large-v3.5-decoder.int8.onnx",
+          "sha256": "7cef98c7b5491ba52a520fd61da957a62e6e64c702c6c8aeac8cdfb146cbdb6a"
+        },
+        {
+          "source": "huggingface",
+          "repo": "csukuangfj/sherpa-onnx-whisper-distil-large-v3.5",
+          "revision": "2933155a51e982b9ebd9ca3b7fb80fc78162fa64",
+          "path": "distil-large-v3.5-tokens.txt",
+          "bytes": 816730,
+          "url": "https://huggingface.co/csukuangfj/sherpa-onnx-whisper-distil-large-v3.5/resolve/2933155a51e982b9ebd9ca3b7fb80fc78162fa64/distil-large-v3.5-tokens.txt"
+        }
+      ],
+      "publishedWer": {
+        "en": {
+          "Open ASR LB mean": 7.21,
+          "LibriSpeech clean": 2.37,
+          "LibriSpeech other": 5.04
+        },
+        "source": "https://huggingface.co/distil-whisper/distil-large-v3.5"
+      },
+      "tier": "optional",
+      "notes": "English only; Parakeet v3 is both more accurate and NPU-ready, so this is low priority."
+    }
+  ],
+  "auxiliary": [
+    {
+      "id": "silero-vad@onnx",
+      "role": "vad",
+      "displayName": "Silero VAD (sherpa-onnx package)",
+      "license": "MIT",
+      "files": [
+        {
+          "source": "github-release",
+          "repo": "k2-fsa/sherpa-onnx",
+          "release": "asr-models",
+          "path": "silero_vad.onnx",
+          "bytes": 643854,
+          "url": "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx",
+          "sha256": "9e2449e1087496d8d4caba907f23e0bd3f78d91fa552479bb9c23ac09cbb1fd6"
+        }
+      ],
+      "notes": "Used by sherpa-onnx Vad API: 512-sample (32 ms) frames at 16 kHz. Ships inside the APK (2 MB) rather than via the hub. Upstream latest is snakers4/silero-vad v6.2.3; which version this sherpa asset is was not verified."
+    },
+    {
+      "id": "silero-vad@onnx-hf",
+      "role": "vad",
+      "displayName": "Silero VAD (HF mirror)",
+      "license": "MIT",
+      "files": [
+        {
+          "source": "huggingface",
+          "repo": "onnx-community/silero-vad",
+          "revision": "e71cae966052b992a7eca6b17738916ce0eca4ec",
+          "path": "onnx/model.onnx",
+          "bytes": 2243022,
+          "url": "https://huggingface.co/onnx-community/silero-vad/resolve/e71cae966052b992a7eca6b17738916ce0eca4ec/onnx/model.onnx",
+          "sha256": "a4a068cd6cf1ea8355b84327595838ca748ec29a25bc91fc82e6c299ccdc5808"
+        }
+      ],
+      "notes": "HF-hosted alternative; compatibility with sherpa-onnx Vad input/state layout UNVERIFIED."
+    }
+  ]
+}

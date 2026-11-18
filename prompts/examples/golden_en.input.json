@@ -1,0 +1,55 @@
+{
+  "context": {
+    "app": {
+      "package": "com.google.android.gm",
+      "label": "Gmail",
+      "category": "email"
+    },
+    "field": {
+      "kind": "email_body",
+      "before_cursor": "Hi Priya,",
+      "after_cursor": "Best,\nAlex"
+    },
+    "conversation": {
+      "title": "Q3 roadmap: Kubernetes autoscaling",
+      "messages": [
+        {
+          "author": "Priya Raghunathan",
+          "text": "Hi team, attaching the draft for review. Jürgen will cover the Karpenter part."
+        }
+      ],
+      "kind": "email_thread"
+    },
+    "terms": [
+      {
+        "text": "Priya Raghunathan",
+        "score": 0.9
+      },
+      {
+        "text": "Jürgen Weiß",
+        "score": 0.8
+      },
+      {
+        "text": "Karpenter",
+        "score": 0.8
+      },
+      {
+        "text": "Kubernetes",
+        "score": 0.7
+      },
+      {
+        "text": "INV-0093",
+        "score": 0.3
+      }
+    ],
+    "language": {
+      "asr": "en"
+    },
+    "privacy": {
+      "level": "full",
+      "ocr": false
+    }
+  },
+  "transcript": "thanks priya ragunathan i think yurgen should also look at the carpenter config before we merge",
+  "preferences": "Use British spelling. Never use exclamation marks."
+}

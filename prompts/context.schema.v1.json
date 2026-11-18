@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "murmur/context.schema.v1.json",
+  "title": "Murmur ContextPacket v1",
+  "description": "What the Android side hands to the prompt renderer after capture, filtering, ranking and privacy redaction (docs/ml/CONTEXT_AND_PROMPT.md §4-§6). All strings are already redacted. The renderer (prompts/render.py) applies sanitising and the character budget; producers should still respect the per-field limits below to avoid wasted work.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["v", "app", "field", "privacy"],
+  "properties": {
+    "v": {"const": 1},
+    "captured_at_ms": {"type": "integer", "description": "Epoch ms of the accessibility snapshot. Not rendered."},
+    "app": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["package", "label", "category"],
+      "properties": {
+        "package": {"type": "string", "maxLength": 200},
+        "label": {"type": "string", "maxLength": 60, "description": "User-visible app name from PackageManager."},
+        "category": {"enum": ["messaging", "work_chat", "email", "notes", "code", "search", "social", "address", "default"],
+                     "description": "Style key into prompts/tones/tones.v1.json (after user overrides)."}
+      }
+    },
+    "field": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": {"enum": ["message", "email_body", "email_subject", "search", "address", "note", "code", "generic", "none"]},
+        "hint": {"type": ["string", "null"], "maxLength": 80, "description": "getHintText() (API 26+). Not rendered in v1; used to derive kind."},
+        "input_type_variation": {"type": ["string", "null"], "description": "Name of the android.text.InputType variation of the focused field, e.g. TYPE_TEXT_VARIATION_EMAIL_ADDRESS."},
+        "before_cursor": {"type": "string", "maxLength": 2000, "description": "Field text before getTextSelectionStart(); renderer keeps the last 300 chars. Empty when the field shows its hint (isShowingHintText())."},
+        "after_cursor": {"type": "string", "maxLength": 2000, "description": "Field text after getTextSelectionEnd(); renderer keeps the first 100 chars."}
+      }
+    },
+    "conversation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "kind": {"enum": ["chat", "email_thread", "document", "page"]},
+        "title": {"type": ["string", "null"], "maxLength": 120, "description": "Chat partner / thread subject / document title (toolbar title, getPaneTitle(), window title)."},
+        "messages": {
+          "type": "array", "maxItems": 6,
+          "description": "Most recent visible messages, oldest first. Renderer keeps the last 3, 160 chars each.",
+          "items": {
+            "type": "object", "additionalProperties": false, "required": ["text"],
+            "properties": {
+              "author": {"type": ["string", "null"], "maxLength": 60},
+              "is_me": {"type": ["boolean", "null"]},
+              "text": {"type": "string", "maxLength": 1000},
+              "src": {"enum": ["a11y", "ocr"]}
+            }
+          }
+        }
+      }
+    },
+    "terms": {
+      "type": "array", "maxItems": 80,
+      "description": "Candidate names/terms ranked by the device (§4.5). Renderer keeps the top 40 / 400 chars by score.",
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["text", "score"],
+        "properties": {
+          "text": {"type": "string", "maxLength": 60},
+          "score": {"type": "number"},
+          "src": {"enum": ["a11y", "ocr", "both", "history"]},
+          "matched_transcript": {"type": "boolean", "description": "True if fuzzy/transliteration match to a transcript span (strongest signal)."}
+        }
+      }
+    },
+    "screen_snippets": {
+      "type": "array", "maxItems": 6,
+      "items": {"type": "string", "maxLength": 300},
+      "description": "Short high-value lines that are not messages (e.g. a page heading, a document line near the cursor). Renderer keeps 3 x 120 chars."
+    },
+    "language": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "asr": {"type": ["string", "null"], "description": "ISO 639-1 language of the transcript: ASR language id (Whisper/Qwen3-ASR) or the model's fixed language (GigaAM, T-one => ru)."},
+        "asr_confidence": {"type": ["number", "null"]},
+        "field": {"type": ["string", "null"], "description": "Script-based guess from before_cursor. Not rendered in v1."},
+        "ui": {"type": ["string", "null"], "description": "Dominant language of screen text. Not rendered in v1."}
+      }
+    },
+    "user": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "dictionary": {"type": "array", "maxItems": 20, "items": {"type": "string", "maxLength": 60},
+                       "description": "Entries of the user's personal dictionary that fuzzy-match the transcript (not the whole dictionary)."}
+      }
+    },
+    "privacy": {
+      "type": "object", "additionalProperties": false, "required": ["level"],
+      "properties": {
+        "level": {"enum": ["full", "terms_only", "app_only", "none"],
+                  "description": "full: everything; terms_only: app line + names/terms + dictionary (no messages, no field text, no snippets); app_only: app line only; none: post-processing still runs but with an empty context."},
+        "ocr": {"type": "boolean", "description": "Whether OCR contributed. Not rendered."},
+        "reason": {"type": ["string", "null"], "description": "Why the level was lowered (secure_window, denylisted_app, password_field, user_setting). Not rendered; logged locally."}
+      }
+    }
+  }
+}

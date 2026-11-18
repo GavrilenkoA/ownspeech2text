@@ -1,0 +1,1274 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Murmur Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* ===================================================================
+   Murmur design prototype. One file, no build step.
+   Layout concept: a gallery of device frames at 1 CSS px = 1 dp.
+   Cover display 412 x 960 dp, inner display 750 x 832 dp (see DESIGN.md §2).
+   Token values mirror docs/design/tokens.json.
+   =================================================================== */
+
+/* Gallery chrome (not part of the app) */
+:root{
+  --g-bg:#E9EBEF; --g-fg:#14161B; --g-mute:#596070; --g-line:#D3D7DE; --g-card:#F6F7F9;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){ --g-bg:#0B0C0F; --g-fg:#E9EBEF; --g-mute:#9AA1AE; --g-line:#2A2D35; --g-card:#15171B; color-scheme:dark; }
+}
+:root[data-theme="dark"]{ --g-bg:#0B0C0F; --g-fg:#E9EBEF; --g-mute:#9AA1AE; --g-line:#2A2D35; --g-card:#15171B; color-scheme:dark; }
+
+/* App tokens: light (default) */
+.screen{
+  --bg:#F6F7F9; --surface:#FFFFFF; --surface-2:#EEF0F4; --surface-3:#E2E5EB;
+  --ink:#14161B; --ink-2:#464C59; --ink-3:#6B7280; --ink-4:#A3A9B5;
+  --line:#E4E7EC; --line-2:#D0D4DC;
+  --accent:#2F4BE8; --accent-press:#2539C4; --on-accent:#FFFFFF; --accent-soft:#E8ECFF; --accent-ink:#2238C9;
+  --ok:#167A49; --ok-soft:#E3F4EA; --warn:#9A5B00; --warn-soft:#FFF1D6; --err:#C2341F; --err-soft:#FDE9E5;
+  --inverse:#14161B; --on-inverse:#F3F4F6; --inverse-2:#A3A9B5; --inverse-accent:#A9B8FF;
+  --scrim:rgba(20,22,27,.40);
+  --sh-1:0 1px 2px rgba(20,22,27,.06),0 1px 1px rgba(20,22,27,.04);
+  --sh-2:0 2px 6px rgba(20,22,27,.08),0 8px 24px rgba(20,22,27,.10);
+  --sh-3:0 6px 16px rgba(20,22,27,.12),0 18px 40px rgba(20,22,27,.16);
+  --kb:#E6E8EC; --key:#FFFFFF; --key-2:#D3D7DE;
+  --font:"Onest",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+  --r-xs:6px; --r-sm:10px; --r-md:14px; --r-lg:20px; --r-xl:28px;
+  color-scheme:light;
+}
+/* App tokens: dark */
+.screen.dark{
+  --bg:#0F1013; --surface:#17191D; --surface-2:#1F2227; --surface-3:#2A2E35;
+  --ink:#ECEEF2; --ink-2:#B9BFCA; --ink-3:#9AA1AE; --ink-4:#646B78;
+  --line:#25282F; --line-2:#343843;
+  --accent:#8296FF; --accent-press:#9CABFF; --on-accent:#0B1033; --accent-soft:#1D2347; --accent-ink:#B4C1FF;
+  --ok:#5FD08F; --ok-soft:#13261B; --warn:#F2B54A; --warn-soft:#2B2110; --err:#FF8A75; --err-soft:#2E1612;
+  --inverse:#ECEEF2; --on-inverse:#14161B; --inverse-2:#596070; --inverse-accent:#2F4BE8;
+  --scrim:rgba(0,0,0,.56);
+  --sh-1:0 1px 2px rgba(0,0,0,.4);
+  --sh-2:0 2px 6px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.45);
+  --sh-3:0 6px 16px rgba(0,0,0,.5),0 18px 40px rgba(0,0,0,.55);
+  --kb:#1B1D22; --key:#2C3038; --key-2:#3A3F49;
+  color-scheme:dark;
+}
+
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--g-bg);color:var(--g-fg);font-family:"Onest",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent,#2F4BE8);outline-offset:2px}
+
+/* ---------- Gallery ---------- */
+.g-wrap{padding-inline:clamp(16px,4vw,56px);padding-block:40px 80px;max-width:2400px;margin:0 auto}
+.g-head{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:24px;margin-bottom:24px}
+.g-head h1{font:600 32px/38px "Onest",sans-serif;letter-spacing:-.6px;margin:0}
+.g-head p{margin:6px 0 0;color:var(--g-mute);max-width:70ch;font-size:15px;line-height:22px}
+.g-ctrl{display:flex;gap:8px;flex-wrap:wrap}
+.g-ctrl button{height:36px;padding:0 14px;border:1px solid var(--g-line);border-radius:999px;font-size:13px;font-weight:500;color:var(--g-fg)}
+.g-ctrl button[aria-pressed="true"]{background:var(--g-fg);color:var(--g-bg);border-color:var(--g-fg)}
+.g-toc{display:flex;flex-wrap:wrap;gap:6px 18px;margin:0 0 40px;padding:14px 0;border-block:1px solid var(--g-line);font-size:14px}
+.g-toc a{color:var(--g-fg);text-decoration:none;font-weight:500}
+.g-toc a:hover{text-decoration:underline}
+.g-sec{margin-top:64px}
+.g-sec>h2{font:600 22px/28px "Onest",sans-serif;margin:0;letter-spacing:-.3px}
+.g-sec>p{color:var(--g-mute);margin:6px 0 24px;max-width:80ch;font-size:14px;line-height:21px}
+.g-row{display:flex;flex-wrap:wrap;gap:40px 32px;align-items:flex-start}
+.g-item{display:flex;flex-direction:column;gap:10px;min-width:0;max-width:100%}
+.g-cap{font-size:13px;line-height:18px;color:var(--g-mute);display:flex;gap:8px;align-items:baseline}
+.g-cap b{color:var(--g-fg);font-weight:600}
+.g-cap code{font-family:"JetBrains Mono",monospace;font-size:11px}
+.g-scroll{max-width:100%;overflow-x:auto}
+.frame{border-radius:30px;overflow:hidden;box-shadow:0 0 0 1px var(--g-line),0 20px 50px rgba(20,22,27,.12);flex:none}
+.frame.inner{border-radius:22px}
+.frame.board{border-radius:20px}
+body.solo{background:#fff}
+body.solo .g-wrap{padding:0;max-width:none}
+body.solo .frame{border-radius:0;box-shadow:none}
+
+/* ---------- Device screen ---------- */
+.screen{position:relative;background:var(--bg);color:var(--ink);font-family:var(--font);overflow:hidden;display:flex;flex-direction:column;font-size:14px;line-height:20px}
+.screen.cover{width:412px;height:960px}
+.screen.inner{width:750px;height:832px}
+.screen.board{width:max-content;height:auto;padding:32px;background:var(--surface)}
+.sb{height:36px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 22px 0 26px;font:500 14px/20px var(--font);color:var(--ink);position:relative;z-index:5}
+.sb .punch{position:absolute;left:50%;top:10px;width:14px;height:14px;margin-left:-7px;border-radius:50%;background:#0A0B0D}
+.sb-r{display:flex;gap:6px;align-items:center}
+.gb{height:20px;flex:none;display:flex;align-items:center;justify-content:center;position:relative;z-index:5}
+.gb span{width:108px;height:4px;border-radius:2px;background:var(--ink);opacity:.85}
+.tnum{font-variant-numeric:tabular-nums}
+.mono{font-family:var(--mono);font-feature-settings:"zero" 0}
+
+/* Icons */
+.i{fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;flex:none;display:block}
+.i .f{fill:currentColor;stroke:none}
+.i.b2{stroke-width:2.25}
+
+/* Type */
+.t-display{font:600 44px/48px var(--font);letter-spacing:-1.2px}
+.t-h1{font:600 28px/34px var(--font);letter-spacing:-.5px}
+.t-h2{font:600 20px/26px var(--font);letter-spacing:-.25px}
+.t-h3{font:600 16px/22px var(--font);letter-spacing:-.1px}
+.t-bl{font:400 16px/24px var(--font)}
+.t-b{font:400 14px/20px var(--font)}
+.t-l{font:500 14px/20px var(--font)}
+.t-ls{font:500 12px/16px var(--font);letter-spacing:.1px}
+.t-cap{font:400 12px/16px var(--font)}
+.t-over{font:600 11px/16px var(--font);letter-spacing:.8px;text-transform:uppercase;color:var(--ink-3)}
+.t-mono{font:400 12px/16px var(--mono)}
+.c2{color:var(--ink-2)} .c3{color:var(--ink-3)} .ca{color:var(--accent-ink)}
+h1,h2,h3,p{margin:0}
+.bal{text-wrap:balance}
+
+/* App shell */
+.app{flex:1;display:flex;flex-direction:column;min-height:0}
+.app-row{flex:1;display:flex;min-height:0}
+.main{flex:1;display:flex;flex-direction:column;min-height:0;min-width:0;position:relative}
+.scroll{flex:1;min-height:0;overflow:hidden;position:relative}
+.hdr{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 12px 8px 20px;min-height:64px;flex:none}
+.hdr h1{font:600 28px/34px var(--font);letter-spacing:-.5px}
+.hdr .acts{display:flex;gap:4px}
+.ib{width:48px;height:48px;border-radius:999px;display:grid;place-items:center;color:var(--ink);flex:none}
+.ib.sm{width:40px;height:40px}
+.ib.tonal{background:var(--surface-2)}
+.topbar{display:flex;align-items:center;gap:4px;padding:4px 8px;min-height:56px;flex:none}
+.topbar .ttl{flex:1;min-width:0;font:600 17px/22px var(--font);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.topbar .sub{font:400 12px/16px var(--font);color:var(--ink-3)}
+
+/* Bottom navigation (cover) */
+.nav{flex:none;display:grid;grid-template-columns:repeat(4,1fr);height:72px;padding:6px 8px 0;background:var(--surface);border-top:1px solid var(--line)}
+.nav button{display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--ink-3);font:500 12px/16px var(--font);min-height:56px}
+.nav .pill{width:56px;height:32px;border-radius:999px;display:grid;place-items:center}
+.nav button.on{color:var(--ink)}
+.nav button.on .pill{background:var(--ink);color:var(--bg)}
+/* Navigation rail (inner) */
+.rail{flex:none;width:88px;display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 0;background:var(--surface);border-right:1px solid var(--line)}
+.rail .logo{width:48px;height:48px;display:grid;place-items:center;margin-bottom:18px;color:var(--ink)}
+.rail button{display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--ink-3);font:500 12px/16px var(--font);width:80px;padding:4px 0 6px}
+.rail .pill{width:56px;height:32px;border-radius:999px;display:grid;place-items:center}
+.rail button.on{color:var(--ink)}
+.rail button.on .pill{background:var(--ink);color:var(--bg)}
+
+/* Buttons */
+.btn{height:52px;padding:0 24px;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;gap:8px;font:600 15px/20px var(--font);letter-spacing:-.1px;white-space:nowrap}
+.btn.p{background:var(--accent);color:var(--on-accent)}
+.btn.s{background:var(--surface-2);color:var(--ink)}
+.btn.o{border:1px solid var(--line-2);color:var(--ink)}
+.btn.t{height:48px;padding:0 12px;color:var(--accent-ink)}
+.btn.d{color:var(--err)}
+.btn.sm{height:40px;padding:0 16px;font-size:14px}
+.btn.full{width:100%}
+.btn[disabled]{opacity:.38}
+
+/* Chips & badges */
+.chip{height:32px;padding:0 12px;border-radius:999px;border:1px solid var(--line-2);display:inline-flex;align-items:center;gap:6px;font:500 13px/16px var(--font);color:var(--ink-2);white-space:nowrap;flex:none}
+.chip.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.badge{height:20px;padding:0 6px;border-radius:var(--r-xs);display:inline-flex;align-items:center;font:500 11px/14px var(--mono);letter-spacing:.3px;white-space:nowrap;flex:none;background:var(--surface-2);color:var(--ink-2)}
+.badge.npu{background:var(--accent-soft);color:var(--accent-ink)}
+.badge.ok{background:var(--ok-soft);color:var(--ok)}
+.badge.warn{background:var(--warn-soft);color:var(--warn)}
+.badge.err{background:var(--err-soft);color:var(--err)}
+.badge.line{background:none;border:1px solid var(--line-2);color:var(--ink-2)}
+.status{display:inline-flex;align-items:center;gap:4px;font:500 12px/16px var(--font);white-space:nowrap}
+.status.copied{color:var(--warn)} .status.failed{color:var(--err)} .status.ok{color:var(--ok)}
+
+/* Surfaces & lists */
+.card{background:var(--surface);border-radius:var(--r-lg);box-shadow:var(--sh-1)}
+.group{background:var(--surface);border-radius:var(--r-lg);overflow:hidden}
+.row{display:flex;align-items:center;gap:14px;min-height:56px;padding:10px 16px;position:relative}
+.group .row+.row::before{content:"";position:absolute;left:16px;right:0;top:0;height:1px;background:var(--line)}
+.group .row.ind+.row.ind::before{left:54px}
+.row .tx{flex:1;min-width:0}
+.row .tx .a{font:500 15px/20px var(--font)}
+.row .tx .b{font:400 13px/18px var(--font);color:var(--ink-3);margin-top:2px}
+.row .val{font:400 14px/20px var(--font);color:var(--ink-3);white-space:nowrap}
+.row .lead{width:24px;color:var(--ink-2);display:grid;place-items:center}
+.sec-l{padding:20px 20px 8px;font:600 13px/18px var(--font);color:var(--ink-3)}
+.pad{padding-inline:20px}
+.hr{height:1px;background:var(--line)}
+
+/* Toggle */
+.tg{width:52px;height:32px;border-radius:999px;background:var(--surface-3);position:relative;flex:none;border:2px solid var(--line-2)}
+.tg::after{content:"";position:absolute;top:4px;left:4px;width:20px;height:20px;border-radius:50%;background:var(--ink-3)}
+.tg.on{background:var(--accent);border-color:var(--accent)}
+.tg.on::after{left:24px;background:var(--on-accent)}
+.radio{width:22px;height:22px;border-radius:50%;border:2px solid var(--line-2);flex:none;position:relative}
+.radio.on{border-color:var(--accent)}
+.radio.on::after{content:"";position:absolute;inset:4px;border-radius:50%;background:var(--accent)}
+
+/* Progress */
+.prog{height:4px;border-radius:999px;background:var(--surface-3);overflow:hidden}
+.prog>i{display:block;height:100%;background:var(--accent);border-radius:999px}
+.ring{--p:62;width:36px;height:36px;border-radius:50%;background:conic-gradient(var(--accent) calc(var(--p)*1%),var(--surface-3) 0);display:grid;place-items:center;flex:none}
+.ring::before{content:"";grid-area:1/1;width:30px;height:30px;border-radius:50%;background:var(--surface)}
+.ring>*{grid-area:1/1;position:relative;color:var(--ink)}
+
+/* Segmented control */
+.seg{display:flex;background:var(--surface-2);border-radius:999px;padding:3px;gap:2px}
+.seg button{flex:1;height:34px;border-radius:999px;font:500 14px/18px var(--font);color:var(--ink-2);white-space:nowrap;padding:0 12px}
+.seg button.on{background:var(--surface);color:var(--ink);box-shadow:var(--sh-1)}
+
+/* Search */
+.search{height:48px;border-radius:999px;background:var(--surface-2);display:flex;align-items:center;gap:10px;padding:0 6px 0 16px;color:var(--ink-3);font:400 15px/20px var(--font)}
+.search.act{background:var(--surface);box-shadow:0 0 0 2px var(--ink)}
+.search .q{flex:1;color:var(--ink);min-width:0}
+.caret{display:inline-block;width:2px;height:20px;background:var(--accent);vertical-align:-4px;margin-left:1px}
+
+/* Snackbar & sheet */
+.snack{position:absolute;left:12px;right:12px;bottom:84px;background:var(--inverse);color:var(--on-inverse);border-radius:var(--r-md);min-height:52px;display:flex;align-items:center;gap:12px;padding:6px 6px 6px 16px;box-shadow:var(--sh-2);z-index:20;font:400 14px/20px var(--font)}
+.snack .btn{color:var(--inverse-accent);height:40px;padding:0 12px}
+.scrim{position:absolute;inset:0;background:var(--scrim);z-index:30}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:var(--surface);border-radius:var(--r-xl) var(--r-xl) 0 0;z-index:31;padding:8px 0 20px;box-shadow:var(--sh-3)}
+.sheet .hd{width:32px;height:4px;border-radius:2px;background:var(--line-2);margin:4px auto 12px}
+.inner .sheet.side{left:auto;top:36px;bottom:20px;width:420px;border-radius:var(--r-xl) 0 0 var(--r-xl)}
+.dialog{position:absolute;left:28px;right:28px;top:50%;transform:translateY(-50%);background:var(--surface);border-radius:var(--r-xl);padding:24px;z-index:31;box-shadow:var(--sh-3)}
+.inner .dialog{left:50%;right:auto;width:400px;transform:translate(-50%,-50%)}
+
+/* App tiles (host app identity in History). Real build uses the app's launcher icon. */
+.tile{width:20px;height:20px;border-radius:6px;display:grid;place-items:center;font:600 10px/1 var(--font);color:#fff;flex:none}
+.tile.lg{width:36px;height:36px;border-radius:10px;font-size:15px}
+
+/* History */
+.hist-note{display:flex;gap:10px;align-items:flex-start;padding:4px 20px 12px;color:var(--ink-3);font:400 13px/18px var(--font)}
+.day{display:flex;align-items:baseline;justify-content:space-between;padding:18px 20px 8px;gap:12px}
+.day .d{font:600 15px/20px var(--font);color:var(--ink)}
+.day .n{font:400 13px/18px var(--font);color:var(--ink-3);white-space:nowrap}
+.day .exp{font:500 12px/16px var(--font);color:var(--warn);display:inline-flex;gap:4px;align-items:center;white-space:nowrap}
+.ent{display:block;padding:12px 20px 14px;position:relative;text-align:left;width:100%}
+.ent+.ent::before{content:"";position:absolute;left:20px;right:20px;top:0;height:1px;background:var(--line)}
+.ent .m{display:flex;align-items:center;gap:8px;font:500 13px/18px var(--font);color:var(--ink-2)}
+.ent .m .tm{font:400 12px/16px var(--mono);color:var(--ink-3)}
+.ent .m .sp{flex:1}
+.ent .x{font:400 15px/22px var(--font);color:var(--ink);margin-top:6px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.ent .x.muted{color:var(--ink-3)}
+.ent.sel{background:var(--accent-soft)}
+.ent.sel::before,.ent.sel+.ent::before{display:none}
+mark{background:var(--accent-soft);color:var(--accent-ink);border-radius:3px;padding:0 1px}
+.diff-del{color:var(--ink-3);text-decoration:line-through;text-decoration-color:var(--err)}
+.diff-ins{color:var(--accent-ink);background:var(--accent-soft);border-radius:3px;padding:0 1px}
+
+/* Audio player */
+.player{display:flex;min-width:0;align-items:center;gap:12px;padding:10px 14px 10px 10px;background:var(--surface-2);border-radius:var(--r-md)}
+.player .pb{width:44px;height:44px;border-radius:50%;background:var(--ink);color:var(--bg);display:grid;place-items:center;flex:none}
+.wave{flex:1;display:flex;align-items:center;justify-content:space-between;gap:2px;height:32px;min-width:0;overflow:hidden}
+.wave i{flex:none;width:2.5px;border-radius:2px;background:var(--ink-4)}
+.wave i.p{background:var(--ink)}
+
+/* Dashboard */
+.chart{display:grid;grid-template-columns:repeat(7,1fr);gap:10px;align-items:end;height:140px}
+.chart .c{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:8px;height:100%}
+.chart .bar{width:100%;max-width:34px;border-radius:8px 8px 3px 3px;background:var(--surface-3)}
+.chart .bar.t{background:var(--accent)}
+.chart .lb{font:500 12px/16px var(--font);color:var(--ink-3)}
+.chart .lb.t{color:var(--ink)}
+.metric{display:flex;align-items:baseline;justify-content:space-between;gap:16px;padding:14px 0}
+.metric+.metric{border-top:1px solid var(--line)}
+.metric .k{font:500 15px/20px var(--font)}
+.metric .e{font:400 13px/18px var(--font);color:var(--ink-3);margin-top:2px}
+.metric .v{font:600 20px/24px var(--font);letter-spacing:-.3px;white-space:nowrap;text-align:right}
+.metric .v small{font:500 13px/16px var(--font);color:var(--ink-3);letter-spacing:0;margin-left:2px}
+.stack{display:flex;height:10px;border-radius:999px;overflow:hidden;gap:2px}
+.stack i{display:block;height:100%}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:10px;font:400 13px/18px var(--font);color:var(--ink-2)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:8px;height:8px;border-radius:2px;display:inline-block}
+.approw{display:grid;grid-template-columns:20px minmax(0,1fr) auto;gap:4px 10px;align-items:center;padding:8px 0}
+.approw .nm{font:500 14px/20px var(--font)}
+.approw .w{font:400 13px/18px var(--mono);color:var(--ink-3)}
+.approw .br{grid-column:2/4;height:4px;border-radius:999px;background:var(--surface-2);overflow:hidden}
+.approw .br i{display:block;height:100%;background:var(--ink-2);border-radius:999px}
+.skel{background:var(--surface-2);border-radius:8px;position:relative;overflow:hidden}
+.skel::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.55),transparent);transform:translateX(-100%);animation:sh 1.4s infinite}
+.dark .skel::after{background:linear-gradient(90deg,transparent,rgba(255,255,255,.06),transparent)}
+@keyframes sh{to{transform:translateX(100%)}}
+
+/* Models */
+.mrow{display:flex;gap:12px;padding:16px;align-items:flex-start;position:relative;text-align:left;width:100%}
+.group .mrow+.mrow::before{content:"";position:absolute;left:16px;right:16px;top:0;height:1px;background:var(--line)}
+.mrow .tx{flex:1;min-width:0}
+.mrow .nm{display:flex;align-items:center;gap:8px;font:600 16px/22px var(--font);letter-spacing:-.1px}
+.mrow .by{font:400 12px/16px var(--font);color:var(--ink-3);margin-top:1px}
+.mrow .spec{font:400 12px/16px var(--mono);color:var(--ink-2);margin-top:8px;display:flex;flex-wrap:wrap;gap:4px 10px}
+.mrow .tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.mrow .side{display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex:none}
+.mrow.sel{background:var(--accent-soft)}
+.mrow.sel::before,.mrow.sel+.mrow::before{display:none}
+.mrow .dl{margin-top:12px}
+.mrow .dl .meta{display:flex;justify-content:space-between;font:400 12px/16px var(--mono);color:var(--ink-3);margin-top:6px}
+.dlbtn{height:36px;padding:0 12px 0 10px;border-radius:999px;border:1px solid var(--line-2);display:inline-flex;align-items:center;gap:6px;font:500 13px/16px var(--font);color:var(--ink)}
+.inuse{height:24px;padding:0 8px;border-radius:999px;background:var(--accent);color:var(--on-accent);display:inline-flex;align-items:center;gap:4px;font:600 11px/14px var(--font);letter-spacing:.2px}
+.kv{display:grid;grid-template-columns:auto minmax(0,1fr);gap:0 16px}
+.kv>div{padding:12px 0;border-top:1px solid var(--line);font:400 14px/20px var(--font)}
+.kv>div:nth-child(-n+2){border-top:0}
+.kv .k{color:var(--ink-3)}
+.kv .v{text-align:right}
+.big4{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);border-radius:var(--r-md);overflow:hidden}
+.big4>div{background:var(--surface);padding:14px 16px}
+.big4 .n{font:600 26px/30px var(--font);letter-spacing:-.6px}
+.big4 .n small{font:500 14px/18px var(--font);color:var(--ink-3);letter-spacing:0;margin-left:3px}
+.big4 .l{font:400 12px/16px var(--font);color:var(--ink-3);margin-top:4px}
+.steps{display:flex;flex-direction:column;gap:0}
+.step{display:flex;gap:12px;align-items:center;min-height:44px;font:400 14px/20px var(--font)}
+.step .ic{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;flex:none}
+.step.done .ic{background:var(--ok-soft);color:var(--ok)}
+.step.now .ic{background:var(--accent-soft);color:var(--accent-ink)}
+.step.todo .ic{border:1.5px solid var(--line-2)}
+.step.todo{color:var(--ink-3)}
+.step .t{flex:1}
+.step .r{font:400 12px/16px var(--mono);color:var(--ink-3)}
+.spin{width:16px;height:16px;border-radius:50%;border:2px solid currentColor;border-right-color:transparent;animation:rot .9s linear infinite}
+@keyframes rot{to{transform:rotate(360deg)}}
+
+/* Banner */
+.banner{display:flex;gap:12px;align-items:flex-start;padding:14px 16px;border-radius:var(--r-md);font:400 14px/20px var(--font)}
+.banner.err{background:var(--err-soft);color:var(--ink)}
+.banner.err .bi{color:var(--err)}
+.banner.warn{background:var(--warn-soft);color:var(--ink)}
+.banner.warn .bi{color:var(--warn)}
+.banner.info{background:var(--surface-2)}
+.banner b{font-weight:600}
+.banner .acts{display:flex;gap:4px;margin:6px 0 -6px -12px}
+
+/* Editor */
+.editor{background:var(--surface);border:1px solid var(--line-2);border-radius:var(--r-md);padding:14px 14px 10px;font:400 13px/20px var(--mono);color:var(--ink);white-space:pre-wrap}
+.editor.err{border-color:var(--err);box-shadow:0 0 0 1px var(--err)}
+.var{font:500 12px/18px var(--mono);color:var(--accent-ink);background:var(--accent-soft);border-radius:4px;padding:0 3px}
+
+/* Onboarding */
+.ob{flex:1;display:flex;flex-direction:column;padding:8px 24px 16px;min-height:0}
+.ob .ill{width:64px;height:64px;border-radius:20px;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent-ink);margin:28px 0 24px}
+.ob .kicker{font:500 13px/18px var(--font);color:var(--ink-3);margin-bottom:8px}
+.ob h1{font:600 30px/36px var(--font);letter-spacing:-.6px;text-wrap:balance}
+.ob .lead{font:400 16px/24px var(--font);color:var(--ink-2);margin-top:12px;text-wrap:pretty}
+.ob .why{display:flex;flex-direction:column;gap:14px;margin-top:24px}
+.ob .why>div{display:flex;gap:12px;font:400 15px/22px var(--font);color:var(--ink)}
+.ob .why .i{color:var(--ink-2);margin-top:-1px}
+.ob .foot{margin-top:auto;display:flex;flex-direction:column;gap:4px;padding-top:16px}
+.ob .fine{font:400 13px/18px var(--font);color:var(--ink-3);text-align:center;padding:8px 8px 0}
+.dots{display:flex;gap:6px;align-items:center}
+.dots i{width:6px;height:6px;border-radius:3px;background:var(--line-2)}
+.dots i.on{width:20px;background:var(--ink)}
+.dots i.done{background:var(--ink-3)}
+.sysbox{border:1px solid var(--line);border-radius:var(--r-md);padding:14px 16px;background:var(--surface);display:flex;flex-direction:column;gap:10px}
+.sysbox .h{font:500 12px/16px var(--font);color:var(--ink-3)}
+.ob-l{width:300px;flex:none;background:var(--surface);border-right:1px solid var(--line);padding:28px 24px;display:flex;flex-direction:column;gap:28px}
+.vstep{display:flex;gap:14px;align-items:flex-start;padding:10px 0}
+.vstep .ic{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;flex:none;font:600 13px/1 var(--font)}
+.vstep.done .ic{background:var(--ok-soft);color:var(--ok)}
+.vstep.now .ic{background:var(--ink);color:var(--bg)}
+.vstep.todo .ic{border:1.5px solid var(--line-2);color:var(--ink-3)}
+.vstep .a{font:500 15px/20px var(--font)}
+.vstep.todo .a{color:var(--ink-3)}
+.vstep .b{font:400 13px/18px var(--font);color:var(--ink-3);margin-top:2px}
+
+/* ---------- Host apps (for the bubble) ---------- */
+.host{flex:1;display:flex;flex-direction:column;min-height:0;background:var(--surface);position:relative}
+.h-top{display:flex;align-items:center;gap:10px;padding:6px 12px 8px 8px;border-bottom:1px solid var(--line);flex:none}
+.h-av{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;font:600 14px/1 var(--font);color:#fff;background:#5B7C99;flex:none}
+.h-msgs{flex:1;min-height:0;display:flex;flex-direction:column;justify-content:flex-end;gap:8px;padding:12px 12px 12px;background:var(--bg);overflow:hidden}
+.msg{max-width:78%;padding:9px 12px 8px;border-radius:18px;font:400 15px/21px var(--font);position:relative}
+.msg.in{background:var(--surface);align-self:flex-start;border-bottom-left-radius:6px;box-shadow:var(--sh-1)}
+.msg.out{background:var(--surface-3);align-self:flex-end;border-bottom-right-radius:6px}
+.msg .tm{font:400 11px/14px var(--font);color:var(--ink-3);float:right;margin:6px 0 -2px 10px}
+.h-input{display:flex;align-items:flex-end;gap:8px;padding:8px 8px 8px 12px;background:var(--surface);border-top:1px solid var(--line);flex:none}
+.h-field{flex:1;min-height:44px;border-radius:22px;background:var(--surface-2);padding:11px 16px;font:400 15px/22px var(--font);color:var(--ink);min-width:0}
+.h-field .ph{color:var(--ink-3)}
+.h-send{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;color:var(--ink-2);flex:none}
+.kb{flex:none;background:var(--kb);padding:6px 4px 4px;display:flex;flex-direction:column;gap:8px}
+.kb .sug{display:flex;justify-content:space-around;height:32px;align-items:center;font:400 15px/20px var(--font);color:var(--ink-2)}
+.kb .sug span+span{border-left:1px solid var(--key-2);padding-left:24px}
+.kb .r{display:flex;gap:4px;justify-content:center}
+.kb .k{height:44px;flex:1;max-width:36px;background:var(--key);border-radius:6px;display:grid;place-items:center;font:400 18px/1 var(--font);color:var(--ink);box-shadow:0 1px 0 var(--key-2)}
+.kb .k.w{max-width:52px;flex:1.5;font-size:13px;background:var(--key-2)}
+.kb .k.sp{max-width:none;flex:5;font-size:13px;color:var(--ink-3)}
+.inner .kb{padding:6px 24px 6px}.inner .kb .k{max-width:64px;height:44px}.inner .kb .k.sp{flex:9;max-width:none}.inner .kb .k.w{max-width:96px}
+.inner .kb .k.w{max-width:84px}
+
+/* Notes-like host on inner display */
+.n-list{width:280px;flex:none;border-right:1px solid var(--line);background:var(--bg);padding:8px 0;overflow:hidden}
+.n-item{padding:12px 20px;border-bottom:1px solid var(--line)}
+.n-item .a{font:600 14px/20px var(--font)}
+.n-item .b{font:400 13px/18px var(--font);color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.n-item.on{background:var(--surface)}
+.n-doc{flex:1;padding:24px 32px;min-width:0;font:400 16px/26px var(--font)}
+.n-doc h2{font:600 24px/30px var(--font);letter-spacing:-.3px;margin-bottom:12px}
+
+/* ---------- The bubble ---------- */
+.bub-layer{position:absolute;inset:0;pointer-events:none;z-index:40}
+.bub-layer>*{pointer-events:auto}
+.bub{position:absolute;height:52px;border-radius:26px;display:flex;align-items:center;gap:10px;font:600 14px/18px var(--font);white-space:nowrap;transition:width .28s cubic-bezier(.2,0,0,1),background-color .2s}
+.bub.circle{width:52px;justify-content:center;padding:0}
+.bub.ready{background:var(--surface);color:var(--ink);box-shadow:var(--sh-2),0 0 0 1px var(--line)}
+.dark .bub.ready{box-shadow:var(--sh-2),0 0 0 1px var(--line-2)}
+.bub.listen{background:var(--accent);color:var(--on-accent);box-shadow:var(--sh-2);padding:0 6px 0 16px;width:164px}
+.bub.work{background:var(--inverse);color:var(--on-inverse);box-shadow:var(--sh-2);padding:0 18px 0 16px}
+.bub.done{background:var(--surface);color:var(--ink);box-shadow:var(--sh-2),0 0 0 1px var(--line);padding:0 18px 0 14px}
+.bub.err{background:var(--surface);color:var(--ink);box-shadow:var(--sh-2),0 0 0 1px var(--line);padding:0 6px 0 14px}
+.bub.tab{width:22px;height:60px;border-radius:12px 0 0 12px;background:var(--inverse);color:var(--on-inverse);justify-content:center;box-shadow:var(--sh-1);opacity:.92}
+.bub.tab.left{border-radius:0 12px 12px 0}
+.bub.lift{transform:scale(1.08);box-shadow:var(--sh-3),0 0 0 1px var(--line)}
+.bub .lvl{display:flex;align-items:center;gap:3px;height:24px}
+.bub .lvl i{width:3px;border-radius:2px;background:currentColor;display:block}
+.bub .tmr{font:500 14px/18px var(--mono);font-variant-numeric:tabular-nums;flex:1}
+.bub .stop{width:40px;height:40px;border-radius:50%;background:rgba(255,255,255,.18);display:grid;place-items:center;flex:none}
+.dark .bub .stop{background:rgba(11,16,51,.16)}
+.bub .act{height:40px;padding:0 14px;border-radius:999px;background:var(--surface-2);display:grid;place-items:center;font:600 13px/16px var(--font);color:var(--ink)}
+.bub-x{position:absolute;width:40px;height:40px;border-radius:50%;background:var(--surface);color:var(--ink-2);display:grid;place-items:center;box-shadow:var(--sh-2),0 0 0 1px var(--line)}
+.dots3{display:flex;gap:4px}
+.dots3 i{width:5px;height:5px;border-radius:50%;background:currentColor;opacity:.35;animation:d3 1.2s infinite}
+.dots3 i:nth-child(2){animation-delay:.15s}.dots3 i:nth-child(3){animation-delay:.3s}
+@keyframes d3{30%{opacity:1}60%{opacity:.35}}
+.lvl.live i{animation:lv .9s ease-in-out infinite alternate}
+.lvl.live i:nth-child(2){animation-duration:.7s}.lvl.live i:nth-child(3){animation-duration:.55s}.lvl.live i:nth-child(4){animation-duration:.8s}.lvl.live i:nth-child(5){animation-duration:.65s}
+@keyframes lv{from{transform:scaleY(.35)}to{transform:scaleY(1)}}
+.prog-line{width:52px;height:3px;border-radius:2px;background:rgba(255,255,255,.2);overflow:hidden;position:relative}
+.dark .prog-line{background:rgba(0,0,0,.15)}
+.prog-line i{position:absolute;inset:0 auto 0 0;background:currentColor;border-radius:2px}
+.target{position:absolute;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:10px}
+.target .c{width:64px;height:64px;border-radius:50%;display:grid;place-items:center;background:var(--surface);color:var(--ink);box-shadow:var(--sh-2),0 0 0 1px var(--line-2)}
+.target .c.hot{background:var(--ink);color:var(--bg);transform:scale(1.12)}
+.target .lbl{background:var(--inverse);color:var(--on-inverse);font:500 13px/16px var(--font);padding:6px 12px;border-radius:999px}
+.guide{position:absolute;top:60px;bottom:340px;width:0;border-left:2px dashed var(--accent);opacity:.55}
+.ghost{position:absolute;width:52px;height:52px;border-radius:50%;border:2px dashed var(--accent);opacity:.8}
+.trail{position:absolute;height:2px;background:repeating-linear-gradient(90deg,var(--accent) 0 6px,transparent 6px 12px);opacity:.6;transform-origin:left center}
+.note{position:absolute;background:var(--inverse);color:var(--on-inverse);font:500 12px/16px var(--font);padding:6px 10px;border-radius:8px;white-space:nowrap}
+
+/* Bubble state board */
+.bboard{display:grid;grid-template-columns:repeat(4,minmax(220px,1fr));gap:0;border:1px solid var(--line);border-radius:var(--r-lg);overflow:hidden;background:var(--line)}
+.bcell{background:var(--bg);padding:20px 20px 18px;display:flex;flex-direction:column;gap:14px;min-height:200px;position:relative;margin:0 1px 1px 0}
+.bcell .stage{height:84px;position:relative;border-radius:14px;background:var(--surface);box-shadow:inset 0 0 0 1px var(--line)}
+.bcell .stage .bub{right:12px;top:16px}
+.bcell .stage .bub.tab{right:0;top:12px}
+.bcell .nm{font:600 15px/20px var(--font)}
+.bcell .ds{font:400 13px/18px var(--font);color:var(--ink-2)}
+.bcell .mx{font:400 11px/16px var(--mono);color:var(--ink-3);margin-top:auto}
+
+@media (prefers-reduced-motion: reduce){ *,*::before,*::after{animation:none!important;transition:none!important} }
+</style>
+</head>
+<body>
+<div class="g-wrap" id="root"></div>
+<script>
+"use strict";
+/* ================= Icons (24dp grid, 1.75 stroke, round caps) ================= */
+const ICONS = {
+  mark:'<path d="M5 17.5V9.5M5 12.25a3.25 3.25 0 0 1 6.5 0v5.25M11.5 12.25a3.25 3.25 0 0 1 6.5 0v5.25"/>',
+  mic:'<rect x="9" y="3" width="6" height="11.5" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3"/>',
+  stop:'<rect class="f" x="7" y="7" width="10" height="10" rx="2.5"/>',
+  dash:'<path d="M4 20h16M6.5 16.5v-5M12 16.5V5.5M17.5 16.5v-8"/>',
+  hist:'<path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4.5v3.8h3.8"/><path d="M12 8v4.2l2.8 1.8"/>',
+  models:'<path d="M12 3.2l7.6 4.3v9L12 20.8l-7.6-4.3v-9z"/><path d="M4.6 7.6L12 11.8l7.4-4.2M12 11.8v8.8"/>',
+  sliders:'<path d="M4 7h8.5M17.5 7H20M4 17h2.5M11.5 17H20"/><circle cx="15" cy="7" r="2.5"/><circle cx="9" cy="17" r="2.5"/>',
+  search:'<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.3-4.3"/>',
+  copy:'<rect x="8.5" y="8.5" width="11" height="11" rx="2.5"/><path d="M15.5 8.5V6.5a2 2 0 0 0-2-2h-7a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h2"/>',
+  share:'<path d="M12 14.5V4M8 7.8L12 4l4 3.8"/><path d="M8 10.5H6.5a2 2 0 0 0-2 2V18a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-5.5a2 2 0 0 0-2-2H16"/>',
+  trash:'<path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l.9 11.6a2 2 0 0 0 2 1.9h5.2a2 2 0 0 0 2-1.9L17.5 7"/><path d="M10.2 11v5.5M13.8 11v5.5"/>',
+  play:'<path class="f" d="M8.5 5.8v12.4a1 1 0 0 0 1.5.86l10-6.2a1 1 0 0 0 0-1.72l-10-6.2a1 1 0 0 0-1.5.86z"/>',
+  pause:'<rect class="f" x="6.5" y="5" width="4" height="14" rx="1.2"/><rect class="f" x="13.5" y="5" width="4" height="14" rx="1.2"/>',
+  check:'<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+  x:'<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>',
+  chevR:'<path d="M9.5 6l6 6-6 6"/>',
+  chevL:'<path d="M14.5 6l-6 6 6 6"/>',
+  chevD:'<path d="M6 9.5l6 6 6-6"/>',
+  back:'<path d="M19.5 12h-15M10.5 6l-6 6 6 6"/>',
+  dl:'<path d="M12 4v10.5M7.5 10l4.5 4.5 4.5-4.5"/><path d="M5 19.5h14"/>',
+  alert:'<path d="M10.3 4.6L3.2 17a2 2 0 0 0 1.7 3h14.2a2 2 0 0 0 1.7-3L13.7 4.6a2 2 0 0 0-3.4 0z"/><path d="M12 9.5v4M12 16.8v.2"/>',
+  info:'<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 7.8v.2"/>',
+  lock:'<rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"/>',
+  batt:'<rect x="3" y="7.5" width="15.5" height="9" rx="2.5"/><path d="M21 10.8v2.4"/><rect class="f" x="5" y="9.5" width="9" height="5" rx="1"/>',
+  battO:'<rect x="3" y="7.5" width="15.5" height="9" rx="2.5"/><path d="M21 10.8v2.4M7 12h4.5M9.25 9.75v4.5"/>',
+  bell:'<path d="M6 16.5v-5a6 6 0 0 1 12 0v5l1.5 1.8h-15z"/><path d="M10 21h4"/>',
+  a11y:'<circle cx="12" cy="4.6" r="1.7"/><path d="M5 8.5c2.3.7 4.6 1 7 1s4.7-.3 7-1M12 9.5v4.5M12 14l-3 6.5M12 14l3 6.5"/>',
+  edit:'<path d="M4.5 19.5l1-4.2L15.8 5a1.8 1.8 0 0 1 2.6 0l.6.6a1.8 1.8 0 0 1 0 2.6L8.7 18.5z"/><path d="M13.8 7l3.2 3.2"/>',
+  refresh:'<path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3"/><path d="M19.5 4.5v3.8h-3.8"/>',
+  more:'<circle class="f" cx="12" cy="5.5" r="1.6"/><circle class="f" cx="12" cy="12" r="1.6"/><circle class="f" cx="12" cy="18.5" r="1.6"/>',
+  gauge:'<path d="M4.4 17.5a8.5 8.5 0 1 1 15.2 0"/><path d="M12 13.5l3.8-4"/><circle class="f" cx="12" cy="13.5" r="1.6"/>',
+  chip:'<rect x="6" y="6" width="12" height="12" rx="2.5"/><rect x="9.5" y="9.5" width="5" height="5" rx="1"/><path d="M9.5 3v3M14.5 3v3M9.5 18v3M14.5 18v3M3 9.5h3M3 14.5h3M18 9.5h3M18 14.5h3"/>',
+  globe:'<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.3 2.4 3.4 5.2 3.4 8.5s-1.1 6.1-3.4 8.5c-2.3-2.4-3.4-5.2-3.4-8.5S9.7 5.9 12 3.5z"/>',
+  shield:'<path d="M12 3.5l7 2.8v5.4c0 4.3-2.9 7.6-7 8.8-4.1-1.2-7-4.5-7-8.8V6.3z"/><path d="M9 12l2.2 2.2L15.2 10"/>',
+  polish:'<path d="M4 6.5h11M4 11.5h7M4 16.5h5"/><path d="M13.5 16l2.2 2.2 4.3-4.7"/>',
+  clip:'<rect x="5.5" y="5" width="13" height="16" rx="2.5"/><path d="M9 5V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1"/><path d="M9 11h6M9 15h4"/>',
+  storage:'<ellipse cx="12" cy="6.5" rx="7.5" ry="3"/><path d="M4.5 6.5v11c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3v-11"/><path d="M4.5 12c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3"/>',
+  wifiOff:'<path d="M4 4l16 16"/><path d="M8.6 13.2a5 5 0 0 1 6.1-.6M5.4 10a9.4 9.4 0 0 1 4.3-2.3M14.5 7.8a9.5 9.5 0 0 1 4.1 2.2"/><circle class="f" cx="12" cy="17.5" r="1.4"/>',
+  clock:'<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+  plus:'<path d="M12 5v14M5 12h14"/>',
+  bubble:'<circle cx="12" cy="12" r="8.5"/><path d="M8.8 15V11.6M8.8 12.4a1.6 1.6 0 0 1 3.2 0V15M12 12.4a1.6 1.6 0 0 1 3.2 0V15"/>',
+  eyeOff:'<path d="M4 4l16 16"/><path d="M10.6 6.1A9.6 9.6 0 0 1 12 6c4.6 0 7.7 3.6 8.5 6-.3.9-.9 2-1.8 3M6.6 7.7C5 8.8 4 10.4 3.5 12c.8 2.4 3.9 6 8.5 6 1.5 0 2.8-.4 4-1"/><path d="M10 10.2a2.5 2.5 0 0 0 3.6 3.5"/>',
+  text:'<path d="M5 6.5h14M5 11.5h14M5 16.5h9"/>',
+  hand:'<path d="M8.5 12.5V6a1.5 1.5 0 0 1 3 0v5.5M11.5 11V4.8a1.5 1.5 0 0 1 3 0V11M14.5 11V6.3a1.5 1.5 0 0 1 3 0v7.2c0 4-2.4 7-6 7-2.4 0-3.8-1-5.3-3.2l-2.3-3.5a1.5 1.5 0 0 1 2.4-1.8l1.7 1.9"/>',
+  signal:'<path class="f" d="M3 19h3v-4H3zM8.5 19h3v-8h-3zM14 19h3V7h-3zM19.5 19h1.5V4h-1.5z" opacity=".95"/>',
+  wifi:'<path d="M3.5 9.5a12 12 0 0 1 17 0M6.5 12.6a7.8 7.8 0 0 1 11 0M9.4 15.6a3.7 3.7 0 0 1 5.2 0"/><circle class="f" cx="12" cy="18.6" r="1.3"/>',
+  keyboard:'<rect x="3" y="6" width="18" height="12" rx="2.5"/><path d="M7 10h.01M10.3 10h.01M13.7 10h.01M17 10h.01M8 14h8"/>',
+  sun:'<circle cx="12" cy="12" r="4"/><path d="M12 3v1.8M12 19.2V21M3 12h1.8M19.2 12H21M5.6 5.6l1.3 1.3M17.1 17.1l1.3 1.3M5.6 18.4l1.3-1.3M17.1 6.9l1.3-1.3"/>',
+  undo:'<path d="M9 14L4.5 9.5 9 5"/><path d="M4.5 9.5h10a5 5 0 0 1 0 10H11"/>',
+  ext:'<path d="M14 4.5h5.5V10M19.5 4.5l-8 8"/><path d="M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4"/>',
+  sound:'<path d="M4.5 9.5h3L12 5.5v13l-4.5-4h-3z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/>',
+  shift:'<path d="M12 4.5l7 7.5h-3.8v6.5H8.8V12H5z"/>',
+  bksp:'<path d="M8.5 5.5H19a1.5 1.5 0 0 1 1.5 1.5v10a1.5 1.5 0 0 1-1.5 1.5H8.5L3 12z"/><path d="M11.5 9.5l5 5M16.5 9.5l-5 5"/>',
+  enter:'<path d="M19 5.5v5a3 3 0 0 1-3 3H5.5"/><path d="M9 9.5l-4 4 4 4"/>',
+  vib:'<rect x="8" y="4" width="8" height="16" rx="2"/><path d="M4.5 9v6M19.5 9v6"/>',
+};
+const I=(n,s=24,c='')=>`<svg class="i ${c}" width="${s}" height="${s}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n]||''}</svg>`;
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+
+/* ================= Sample content ================= */
+const APPS={
+  Telegram:{c:'#3C7EBF',l:'T'}, Gmail:{c:'#B4473C',l:'G'}, Slack:{c:'#5E3E63',l:'S'}, Notes:{c:'#B9861E',l:'N'},
+  Chrome:{c:'#4F7F52',l:'C'}, Termux:{c:'#2A2D33',l:'>_'}, Messages:{c:'#3D6E8F',l:'M'}, 'Google Docs':{c:'#3E64B0',l:'D'}
+};
+const tile=(a,lg)=>`<span class="tile${lg?' lg':''}" style="background:${APPS[a].c}">${APPS[a].l}</span>`;
+const HIST=[
+ {day:'Today', n:'6 dictations', items:[
+  {id:'h1',app:'Telegram',who:'Дима Соколов',t:'14:32',dur:'0:12',lang:'RU',st:'ok',
+   text:'Привет! Буду в офисе к 11, созвон с Сашей переносим на четверг. Скинь, пожалуйста, ссылку на документ.',
+   raw:'привет э буду в офисе к одиннадцати созвон с сашей ну переносим на четверг скинь пожалуйста ссылку на документ',
+   diff:'<span class="diff-ins">П</span>ривет<span class="diff-ins">!</span> <span class="diff-del">э</span> <span class="diff-ins">Б</span>уду в офисе к <span class="diff-del">одиннадцати</span> <span class="diff-ins">11,</span> созвон с <span class="diff-ins">С</span>ашей <span class="diff-del">ну</span> переносим на четверг<span class="diff-ins">.</span> <span class="diff-ins">С</span>кинь<span class="diff-ins">,</span> пожалуйста<span class="diff-ins">,</span> ссылку на документ<span class="diff-ins">.</span>'},
+  {id:'h2',app:'Gmail',t:'13:05',dur:'0:18',lang:'EN',st:'ok',
+   text:'Hi Laura, thanks for the quick turnaround. The numbers look right to me. Let’s send the Q4 report on Friday and go through the open questions on Monday.'},
+  {id:'h3',app:'Slack',t:'12:41',dur:'0:15',lang:'RU+EN',st:'ok',
+   text:'Деплой на staging прошёл, но тесты на payments падают. Посмотрю после обеда; если кто-то уже копал, напишите в тред.'},
+  {id:'h4',app:'Termux',t:'11:20',dur:'0:05',lang:'EN',st:'copied',
+   text:'grep -rn "TODO" app/src'},
+  {id:'h5',app:'Notes',t:'09:58',dur:'0:16',lang:'RU',st:'ok',
+   text:'Список на выходные: купить фильтры для воды, забрать куртку из химчистки, записаться к стоматологу на следующую неделю.'},
+  {id:'h6',app:'Chrome',t:'09:12',dur:'0:03',lang:'',st:'failed',text:'No speech detected. The recording is kept, so you can try again.'},
+ ]},
+ {day:'Yesterday', n:'3 dictations', items:[
+  {id:'h7',app:'Telegram',who:'Мама',t:'22:47',dur:'0:09',lang:'RU',st:'ok',text:'Да, в субботу приедем к обеду. Возьмём пирог, ничего специально не готовь.'},
+  {id:'h8',app:'Gmail',t:'18:30',dur:'0:21',lang:'EN',st:'ok',text:'Following up on the contract draft: section 4.2 still says 30 days, and it should be 45, as we agreed on the call. Could you send a corrected version by Thursday?'},
+  {id:'h9',app:'Slack',t:'16:02',dur:'0:11',lang:'EN',st:'ok',text:'Quick update: the speech model now loads in under a second on the NPU build. Next up is the cleanup model.'},
+ ]},
+ {day:'Monday, 16 November', n:'2 dictations', items:[
+  {id:'h10',app:'Google Docs',t:'19:14',dur:'0:47',lang:'RU',st:'ok',text:'Во втором разделе стоит сократить вступление и сразу перейти к цифрам: читателю важнее, сколько времени экономит диктовка, чем как она устроена.'},
+  {id:'h11',app:'Telegram',who:'Аня',t:'08:40',dur:'0:06',lang:'RU',st:'ok',text:'Выхожу, буду минут через двадцать.'},
+ ]},
+ {day:'Thursday, 12 November', n:'1 dictation', exp:true, items:[
+  {id:'h12',app:'Notes',t:'15:10',dur:'0:32',lang:'RU',st:'ok',text:'Идея для заметки: почему локальные модели для диктовки уже достаточно хороши и где они всё ещё ошибаются — имена, термины, смешанный русский и английский.'},
+ ]},
+];
+const SPEECH=[
+ {id:'qasr',nm:'Qwen3-ASR 0.6B',by:'Qwen',repo:'Qwen/Qwen3-ASR-0.6B',params:'938M',size:'590 MB',quant:'Q4_K_M',langs:['RU','EN'],more:'+28 · 22 dialects',run:'NPU',stream:true,st:'inuse',
+  desc:'Multilingual speech recognition with a streaming mode, so most of the text is ready by the time you stop.',lic:'Apache-2.0',langLong:'30 languages and 22 Chinese dialects, including Russian and English'},
+ {id:'giga',nm:'GigaAM v3',by:'SberDevices · RNN-T',repo:'ai-sage/GigaAM-v3',params:'~240M',size:'184 MB',quant:'Q4_K_M',langs:['RU'],more:'',run:'NPU',stream:false,st:'ready',
+  desc:'Russian-first recognizer with punctuation and number formatting built in.',lic:'MIT',langLong:'Russian'},
+ {id:'tone',nm:'T-one',by:'T-Bank',repo:'t-tech/T-one',params:'72M',size:'144 MB',quant:'FP32 ONNX',langs:['RU'],more:'',run:'NPU',stream:true,st:'downloading',pct:62,got:'89 MB',spd:'12.3 MB/s',
+  desc:'Small streaming model for Russian, trained for telephony audio.',lic:'Apache-2.0',langLong:'Russian'},
+ {id:'para',nm:'Parakeet TDT 0.6B v3',by:'NVIDIA',repo:'nvidia/parakeet-tdt-0.6b-v3',params:'627M',size:'485 MB',quant:'Q4_K_M',langs:['RU','EN'],more:'+23',run:'GPU',stream:false,st:'none',
+  desc:'Fast recognizer for 25 European languages.',lic:'CC-BY-4.0',langLong:'25 European languages'},
+ {id:'wsm',nm:'Whisper Small',by:'OpenAI',repo:'openai/whisper-small',params:'242M',size:'190 MB',quant:'Q5_1',langs:['RU','EN'],more:'+97',run:'NPU',stream:false,st:'none',
+  desc:'Compact Whisper. Broad language coverage, lower accuracy than larger models.',lic:'Apache-2.0',langLong:'99 languages'},
+ {id:'wtu',nm:'Whisper Large v3 Turbo',by:'OpenAI',repo:'openai/whisper-large-v3-turbo',params:'809M',size:'574 MB',quant:'Q5_0',langs:['RU','EN'],more:'+97',run:'GPU',stream:false,st:'paused',pct:23,got:'132 MB',
+  desc:'Highest-accuracy Whisper that fits on a phone.',lic:'MIT',langLong:'99 languages'},
+];
+const LLM=[
+ {id:'none',none:true,nm:'None',desc:'Insert the transcript as recognized. Fastest, no cleanup.',st:'ready'},
+ {id:'lfm3',nm:'LFM3 1.7B',by:'Liquid AI',repo:'LiquidAI/LFM3-1.7B',params:'1.73B',size:'1.10 GB',quant:'Q4_K_M',langs:['RU','EN'],more:'+14',run:'NPU',st:'inuse',
+  desc:'Small general model. Removes filler words, fixes punctuation and casing, adapts tone to the app.',lic:'LFM Open License',langLong:'16 languages, including Russian and English'},
+ {id:'q08',nm:'Qwen3.5 0.8B',by:'Qwen',repo:'Qwen/Qwen3.5-0.8B',params:'873M',size:'533 MB',quant:'Q4_K_M',langs:['RU','EN'],more:'+199',run:'NPU',st:'ready',
+  desc:'Smallest Qwen3.5. Quick, good at light cleanup.',lic:'Apache-2.0',langLong:'201 languages and dialects'},
+ {id:'q2',nm:'Qwen3.5 2B',by:'Qwen',repo:'Qwen/Qwen3.5-2B',params:'2.27B',size:'1.28 GB',quant:'Q4_K_M',langs:['RU','EN'],more:'+199',run:'NPU',st:'none',
+  desc:'Better rewrites and tone control, about twice the load time.',lic:'Apache-2.0',langLong:'201 languages and dialects'},
+ {id:'lfm25',nm:'LFM2.5 1.2B Instruct',by:'Liquid AI',repo:'LiquidAI/LFM2.5-1.2B-Instruct',params:'1.17B',size:'731 MB',quant:'Q4_K_M',langs:['EN'],more:'+7',noRu:true,run:'NPU',st:'none',
+  desc:'Fast and small. Russian is not listed in the model card.',lic:'LFM Open License',langLong:'8 languages; Russian not listed'},
+ {id:'mft',nm:'Murmur Cleanup 1.7B',by:'Murmur · fine-tuned LFM3',repo:'(not published yet)',params:'1.73B',size:'≈1.1 GB',quant:'Q4',langs:['RU','EN'],more:'',run:'NPU',st:'soon',
+  desc:'LFM3 tuned on dictation cleanup in Russian and English.',lic:'—',langLong:'Russian, English'},
+];
+
+/* ================= Shell ================= */
+const statusBar=(d,dark)=>`<div class="sb"><span class="tnum">14:32</span>${d==='cover'?'<span class="punch"></span>':''}<span class="sb-r">${I('signal',15)}${I('wifi',16)}${I('batt',18)}</span></div>`;
+const gesture=()=>`<div class="gb"><span></span></div>`;
+const TABS=[['dash','Dashboard','dash'],['hist','History','hist'],['models','Models','models'],['settings','Settings','sliders']];
+const navBar=tab=>`<nav class="nav" aria-label="Main">${TABS.map(([k,l,ic])=>`<button class="${k===tab?'on':''}" data-nav="${k}" aria-current="${k===tab?'page':'false'}"><span class="pill">${I(ic)}</span>${l}</button>`).join('')}</nav>`;
+const rail=tab=>`<nav class="rail" aria-label="Main"><div class="logo">${I('mark',28,'b2')}</div>${TABS.map(([k,l,ic])=>`<button class="${k===tab?'on':''}" data-nav="${k}"><span class="pill">${I(ic)}</span>${l}</button>`).join('')}</nav>`;
+function shell(d,tab,body,overlay=''){
+  if(d==='cover') return `${statusBar(d)}<div class="app"><div class="main">${body}</div>${navBar(tab)}</div>${gesture()}${overlay}`;
+  return `${statusBar(d)}<div class="app-row">${rail(tab)}<div class="main">${body}</div></div>${gesture()}${overlay}`;
+}
+const hdr=(title,acts='')=>`<header class="hdr"><h1>${title}</h1><div class="acts">${acts}</div></header>`;
+
+/* ================= History ================= */
+function entry(e,sel){
+  const st=e.st==='copied'?`<span class="status copied">${I('clip',14)}Copied</span>`:e.st==='failed'?`<span class="status failed">${I('alert',14)}Failed</span>`:'';
+  return `<button class="ent${sel?' sel':''}" data-go="hist-detail">
+   <div class="m">${tile(e.app)}<span>${e.app}${e.who?` · ${e.who}`:''}</span><span class="sp"></span>${st}<span class="tm">${e.t}</span></div>
+   <div class="x${e.st==='failed'?' muted':''}">${esc(e.text)}</div></button>`;
+}
+function dayHead(g){
+  return `<div class="day"><span class="d">${g.day}</span>${g.exp?`<span class="exp">${I('clock',14)}Deletes tonight</span>`:`<span class="n">${g.n}</span>`}</div>`;
+}
+function histList(d,opt={}){
+  const groups=opt.groups||HIST;
+  return `<div class="hist-note">${I('clock',16)}<span>Dictations stay on this phone for 7 days, then delete automatically.</span></div>`+
+   groups.map(g=>dayHead(g)+`<div>${g.items.map(e=>entry(e,opt.sel===e.id)).join('')}</div>`).join('');
+}
+function histScreen(d,{search=false,empty=false,snack=false,noResults=false}={}){
+  const acts=`<button class="ib" aria-label="Search history">${I('search')}</button>`;
+  let body;
+  if(empty){
+    body=hdr('History')+`<div class="scroll"><div style="display:flex;flex-direction:column;align-items:flex-start;padding:48px 24px 0;max-width:420px">
+     <div style="width:56px;height:56px;border-radius:18px;background:var(--surface-2);display:grid;place-items:center;color:var(--ink-2)">${I('hist',26)}</div>
+     <h2 class="t-h2" style="margin-top:20px">Nothing here yet</h2>
+     <p class="t-bl c2" style="margin-top:8px">Tap the bubble in any app and speak. Each dictation shows up here with its audio for 7 days.</p>
+     <button class="btn s" style="margin-top:24px">${I('mic',20)}Try a dictation</button></div></div>`;
+  } else if(search){
+    const q='созвон';
+    const res=[{day:'Today',n:'1 result',items:[{...HIST[0].items[0],text:HIST[0].items[0].text.replace('созвон','<mark>созвон</mark>')}]},
+               {day:'Monday, 16 November',n:'1 result',items:[{id:'s2',app:'Telegram',who:'Аня',t:'08:12',dur:'0:08',st:'ok',text:'Давай <mark>созвон</mark> в 12, у меня до этого встреча.'}]}];
+    body=`<div style="padding:10px 16px 6px;display:flex;gap:8px;align-items:center"><button class="ib sm" aria-label="Close search">${I('back')}</button><div class="search act" style="flex:1"><span class="q">${noResults?'созвон с юристом':q}<span class="caret"></span></span><button class="ib sm" aria-label="Clear">${I('x',20)}</button></div></div>
+     <div style="display:flex;gap:8px;padding:8px 20px 4px;overflow:hidden">${['All apps','Telegram','Gmail','Slack','Notes'].map((c,i)=>`<span class="chip${i===0?' on':''}">${c}</span>`).join('')}</div>
+     <div class="scroll">${noResults?`<div style="padding:40px 24px"><h2 class="t-h3">No matches in the last 7 days</h2><p class="t-b c2" style="margin-top:6px">Search looks through the final text and the original transcript. Older dictations are already deleted.</p></div>`:
+       `<div class="t-cap c3" style="padding:12px 20px 0">2 results · final text and original transcripts</div>`+res.map(g=>dayHead(g)+`<div>${g.items.map(e=>{const h=entry(e);return h.replace(esc(e.text),e.text)}).join('')}</div>`).join('')}</div>`;
+  } else {
+    body=hdr('History',acts)+`<div class="scroll">${histList(d)}</div>`;
+  }
+  const ov=snack?`<div class="snack"><span style="flex:1">Dictation deleted, with its audio</span><button class="btn">Undo</button></div>`:'';
+  return shell(d,'hist',body,ov);
+}
+function detailBody(e,d,{mode='final'}={}){
+  const segs=['Final','Original','Changes'];
+  const idx={final:0,raw:1,diff:2}[mode];
+  const txt=mode==='final'?esc(e.text):mode==='raw'?esc(e.raw):e.diff;
+  const wave=Array.from({length:d==='cover'?44:34},(_,i)=>{const h=6+Math.round(22*Math.abs(Math.sin(i*1.7)*Math.cos(i*.37)));return `<i class="${i<20?'p':''}" style="height:${h}px"></i>`}).join('');
+  return `
+   <div style="padding:4px 20px 0">
+     <div class="seg" role="tablist">${segs.map((s,i)=>`<button class="${i===idx?'on':''}">${s}</button>`).join('')}</div>
+     <p style="font:400 18px/28px var(--font);margin-top:18px;letter-spacing:-.1px">${txt}</p>
+     ${mode==='diff'?`<div class="legend" style="margin-top:12px"><span><span class="diff-ins">abc</span>added</span><span><span class="diff-del">abc</span>removed</span></div>`:''}
+     <div class="player" style="margin-top:20px"><button class="pb" aria-label="Play recording">${I('play',20)}</button><div class="wave">${wave.replace(/class="p"/g,'class="p"')}</div><span class="t-mono c2 tnum" style="flex:none">0:04 / 0:12</span></div>
+   </div>
+   <div style="padding:24px 20px 0">
+     <div class="t-over" style="margin-bottom:4px">Context used</div>
+     <div class="kv">
+       <div class="k">App</div><div class="v">${e.app}${e.who?' · chat with '+e.who:''}</div>
+       <div class="k">Screen text</div><div class="v" style="padding:2px 0"><button class="ca t-l" style="min-height:44px;display:inline-flex;align-items:center;gap:2px;margin:-10px -8px -10px 0;padding:0 8px">182 words ${I('chevR',16)}</button></div>
+       <div class="k">Tone</div><div class="v">Casual</div>
+       <div class="k">Models</div><div class="v mono" style="font-size:12px">Qwen3-ASR 0.6B → LFM3 1.7B</div>
+       <div class="k">Timing</div><div class="v mono" style="font-size:12px">0.4 s + 0.9 s after stop</div>
+     </div>
+     <p class="t-cap c3" style="margin-top:14px;display:flex;gap:6px;align-items:center">${I('clock',14)}Deletes with its audio on Wed 25 Nov at 00:00</p>
+   </div>`;
+}
+function histDetail(d,opt={}){
+  const e=HIST[0].items[0];
+  const actions=`<div style="display:flex;gap:8px;padding:12px 20px 14px;border-top:1px solid var(--line);background:var(--surface)">
+     <button class="btn p" style="flex:1">${I('copy',20)}Copy</button>
+     <button class="btn s" aria-label="Polish again">${I('refresh',20)}Re-polish</button></div>`;
+  if(d==='cover'){
+    const body=`<div class="topbar"><button class="ib" aria-label="Back">${I('back')}</button><div style="flex:1;min-width:0;display:flex;align-items:center;gap:10px">${tile(e.app,true)}<div style="min-width:0"><div class="ttl">${e.who}</div><div class="sub">${e.app} · Today, ${e.t} · ${e.dur}</div></div></div><button class="ib" aria-label="Share">${I('share')}</button><button class="ib" aria-label="Delete">${I('trash')}</button></div>
+      <div class="scroll">${detailBody(e,d,opt)}</div>${actions}`;
+    return `${statusBar(d)}<div class="app"><div class="main">${body}</div></div>${gesture()}${opt.confirm?confirmDel():''}`;
+  }
+  // inner: list-detail
+  const list=`<div style="width:300px;flex:none;border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0">${hdr('History',`<button class="ib" aria-label="Search history">${I('search')}</button>`)}<div class="scroll">${histList(d,{sel:'h1'})}</div></div>`;
+  const det=`<div style="flex:1;min-width:0;display:flex;flex-direction:column;background:var(--surface)"><div class="topbar" style="padding:8px 8px 4px 20px">${tile(e.app,true)}<div style="flex:1;min-width:0;margin-left:8px"><div class="ttl">${e.who}</div><div class="sub">${e.app} · Today, ${e.t} · ${e.dur}</div></div><button class="ib" aria-label="Share">${I('share')}</button><button class="ib" aria-label="Delete">${I('trash')}</button></div><div class="scroll">${detailBody(e,d,opt)}</div>${actions}</div>`;
+  return `${statusBar(d)}<div class="app-row">${rail('hist')}<div class="main" style="flex-direction:row">${list}${det}</div></div>${gesture()}${opt.confirm?confirmDel():''}`;
+}
+const confirmDel=()=>`<div class="scrim"></div><div class="dialog" role="dialog"><h2 class="t-h2">Delete this dictation?</h2><p class="t-b c2" style="margin-top:8px">The text and the recording are removed from this phone. Text already pasted into Telegram stays there.</p><div style="display:flex;justify-content:flex-end;gap:4px;margin-top:20px"><button class="btn t">Cancel</button><button class="btn t" style="color:var(--err)">Delete</button></div></div>`;
+
+/* ================= Dashboard ================= */
+const WEEK=[['Th',2140],['Fr',1860],['Sa',420],['Su',310],['Mo',2950],['Tu',2410],['We',1284]];
+function dashToday(){
+  return `<section class="card" style="padding:20px">
+    <div class="t-over">Today</div>
+    <div style="display:flex;align-items:baseline;gap:8px;margin-top:8px"><span class="t-display tnum">1,284</span><span class="t-h3 c2">words</span></div>
+    <p class="t-b c2" style="margin-top:6px">9 min of speaking. Typing this at 40 wpm would take about 32 min, so roughly <b style="color:var(--ink);font-weight:600">23 min saved</b>.</p>
+  </section>`;
+}
+function dashWeek(){
+  const max=3000;
+  return `<section style="padding:4px 0 0">
+    <div style="display:flex;justify-content:space-between;align-items:baseline"><h2 class="t-h3">Last 7 days</h2><span class="t-mono c3 tnum">11,374 words</span></div>
+    <div class="chart" style="margin-top:16px" role="img" aria-label="Words per day: Thursday 2140, Friday 1860, Saturday 420, Sunday 310, Monday 2950, Tuesday 2410, today 1284">
+     ${WEEK.map(([l,v],i)=>`<div class="c">${i===4?`<span class="t-mono c2 tnum" style="font-size:11px">${v.toLocaleString('en')}</span>`:''}<div class="bar${i===6?' t':''}" style="height:${Math.max(4,Math.round(v/max*104))}px"></div><span class="lb${i===6?' t':''}">${l}</span></div>`).join('')}
+    </div></section>`;
+}
+function dashMetrics(){
+  return `<section><h2 class="t-h3" style="margin-bottom:2px">How it's going</h2>
+   <div class="metric"><div><div class="k">Speaking pace</div><div class="e">Median of 7 days, pauses excluded</div></div><div class="v tnum">142<small>wpm</small></div></div>
+   <div class="metric"><div><div class="k">Ready after you stop</div><div class="e">Median. 9 in 10 under 2.6 s</div></div><div class="v tnum">1.4<small>s</small></div></div>
+   <div class="metric"><div><div class="k">Typed into the app</div><div class="e">4 copied only, all in Termux</div></div><div class="v tnum">94<small>%</small></div></div>
+   <div class="metric"><div><div class="k">Changed by cleanup</div><div class="e">286 filler words removed, 54 fixes</div></div><div class="v tnum">9<small>% of words</small></div></div>
+  </section>`;
+}
+function dashLang(){
+  return `<section><h2 class="t-h3">Languages</h2>
+   <div class="stack" style="margin-top:12px"><i style="width:62%;background:var(--ink)"></i><i style="width:31%;background:var(--ink-4)"></i><i style="width:7%;background:var(--accent)"></i></div>
+   <div class="legend"><span><i style="background:var(--ink)"></i>Russian 62%</span><span><i style="background:var(--ink-4)"></i>English 31%</span><span><i style="background:var(--accent)"></i>Mixed 7%</span></div></section>`;
+}
+function dashApps(){
+  const A=[['Telegram',4120],['Gmail',2060],['Slack',1580],['Notes',920],['Chrome',610]];
+  return `<section><div style="display:flex;justify-content:space-between;align-items:baseline"><h2 class="t-h3">Where you dictate</h2><span class="t-cap c3">words, 7 days</span></div>
+   <div style="margin-top:6px">${A.map(([a,v])=>`<div class="approw">${tile(a)}<span class="nm">${a}</span><span class="w tnum">${v.toLocaleString('en')}</span><span class="br"><i style="width:${Math.round(v/4120*100)}%"></i></span></div>`).join('')}
+   <div class="t-cap c3" style="padding:6px 0 0 30px">8 other apps · 2,084 words</div></div></section>`;
+}
+function dashScreen(d,{state='full'}={}){
+  const acts=`<span class="chip" style="margin-right:8px">Last 7 days</span>`;
+  let content;
+  if(state==='empty'){
+    content=`<div style="padding:8px 20px 0;display:flex;flex-direction:column;gap:28px;max-width:560px">
+      <section class="card" style="padding:20px"><div class="t-over">Today</div><div style="display:flex;align-items:baseline;gap:8px;margin-top:8px"><span class="t-display c3">0</span><span class="t-h3 c3">words</span></div>
+      <p class="t-b c2" style="margin-top:6px">Your numbers appear after the first dictation. They are counted on this phone and never sent anywhere.</p>
+      <button class="btn p" style="margin-top:18px">${I('mic',20)}Try a dictation</button></section>
+      <section><h2 class="t-h3">What you'll see here</h2>
+       <div class="metric"><div><div class="k">Speaking pace</div><div class="e">Words per minute while you talk</div></div><div class="v c3">—</div></div>
+       <div class="metric"><div><div class="k">Ready after you stop</div><div class="e">How long until the text appears</div></div><div class="v c3">—</div></div>
+       <div class="metric"><div><div class="k">Typed into the app</div><div class="e">Inserted directly vs. copied only</div></div><div class="v c3">—</div></div></section></div>`;
+  } else if(state==='loading'){
+    const sk=(w,h,m='')=>`<div class="skel" style="width:${w};height:${h}px;${m}"></div>`;
+    content=`<div style="padding:8px 20px 0;display:flex;flex-direction:column;gap:28px">
+     <div class="card" style="padding:20px;display:flex;flex-direction:column;gap:12px">${sk('60px',12)}${sk('180px',44)}${sk('100%',14)}${sk('70%',14)}</div>
+     <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:10px;align-items:end;height:120px">${[60,52,20,16,80,70,40].map(h=>sk('100%',h)).join('')}</div>
+     <div style="display:flex;flex-direction:column;gap:18px">${[1,2,3].map(()=>`<div style="display:flex;justify-content:space-between">${sk('55%',16)}${sk('48px',20)}</div>`).join('')}</div></div>`;
+  } else if(d==='inner'){
+    content=`<div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:28px;padding:4px 28px 0">
+      <div style="display:flex;flex-direction:column;gap:28px">${dashToday()}${dashWeek()}${dashLang()}</div>
+      <div style="display:flex;flex-direction:column;gap:28px">${dashMetrics()}${dashApps()}</div></div>`;
+  } else {
+    content=`<div style="padding:4px 20px 24px;display:flex;flex-direction:column;gap:28px">${state==='off'?accOffBanner():''}${dashToday()}${dashWeek()}${dashMetrics()}${dashLang()}${dashApps()}</div>`;
+  }
+  return shell(d,'dash',hdr('Dashboard',acts)+`<div class="scroll">${content}</div>`);
+}
+const accOffBanner=()=>`<div class="banner err"><span class="bi">${I('alert',22)}</span><div style="flex:1"><b>The bubble is off.</b> Android turned off Murmur's accessibility service, usually after an update or a crash. Turn it on again to dictate.<div class="acts"><button class="btn t sm">Open Accessibility settings</button></div></div></div>`;
+
+/* ================= Models ================= */
+function langTags(m){return `<div class="tags">${m.langs.map(l=>`<span class="badge line">${l}</span>`).join('')}${m.more?`<span class="badge line">${m.more}</span>`:''}${m.noRu?`<span class="badge warn">No RU</span>`:''}</div>`}
+function modelRow(m,sel){
+  if(m.none) return `<div role="button" tabindex="0" class="mrow${m.st==='inuse'?' sel':''}" data-go="model-detail"><div class="tx"><div class="nm">None</div><div class="by" style="margin-top:4px;font-size:13px;line-height:18px">${m.desc}</div></div><div class="side"><span class="radio"></span></div></div>`;
+  let side='',extra='';
+  if(m.st==='inuse') side=`<span class="inuse">${I('check',14,'b2')}In use</span>`;
+  else if(m.st==='ready') side=`<span class="radio" aria-label="Select"></span>`;
+  else if(m.st==='none') side=`<span class="dlbtn">${I('dl',18)}${m.size}</span>`;
+  else if(m.st==='soon') side=`<span class="badge">In training</span>`;
+  else if(m.st==='downloading'){ side=`<button class="ib sm tonal" aria-label="Pause download">${I('pause',18)}</button>`; extra=`<div class="dl"><div class="prog"><i style="width:${m.pct}%"></i></div><div class="meta tnum"><span>${m.got} of ${m.size}</span><span>${m.spd}</span></div></div>`; }
+  else if(m.st==='paused'){ side=`<button class="ib sm tonal" aria-label="Resume download">${I('refresh',18)}</button>`; extra=`<div class="dl"><div class="prog"><i style="width:${m.pct}%;background:var(--ink-4)"></i></div><div class="meta" style="color:var(--warn)"><span style="display:flex;gap:4px;align-items:center;font-family:var(--font)">${I('wifiOff',14)}Paused, no connection</span><span class="tnum">${m.got} of ${m.size}</span></div></div>`; }
+  const run=`<span class="badge ${m.run==='NPU'?'npu':''}">${m.run}</span>`;
+  return `<div role="button" tabindex="0" class="mrow${m.st==='inuse'?' sel':''}"${m.st==='soon'?' style="opacity:.62"':''} data-go="model-detail">
+    <div class="tx"><div class="nm">${m.nm}</div><div class="by">${m.by}</div>
+    <div class="spec tnum"><span>${m.params} params</span><span>${m.size}</span>${m.stream?'<span>streaming</span>':''}</div>
+    <div class="tags">${run}${m.langs.map(l=>`<span class="badge line">${l}</span>`).join('')}${m.more?`<span class="badge line">${m.more}</span>`:''}${m.noRu?`<span class="badge warn">No Russian</span>`:''}</div>${extra}</div>
+    <div class="side">${side}</div></div>`;
+}
+function modelsList(kind,{err}={}){
+  const list=kind==='speech'?SPEECH:LLM;
+  const intro=kind==='speech'?'Turns your voice into text. Loaded only while you dictate.':'Cleans up the transcript before it is typed. Loaded only while you dictate.';
+  return `<div style="padding:4px 16px 0"><div class="seg"><button class="${kind==='speech'?'on':''}" data-go="${kind==='speech'?'':'models'}">Speech</button><button class="${kind==='llm'?'on':''}" data-go="models-llm">Cleanup</button></div></div>
+    <p class="t-cap c3" style="padding:12px 20px 0">${intro}</p>
+    ${err==='storage'?`<div style="padding:12px 16px 0"><div class="banner warn"><span class="bi">${I('storage',22)}</span><div><b>Not enough space for Qwen3.5 2B.</b> It needs 1.28 GB and 0.9 GB is free. Delete a model you don't use or free up storage.</div></div></div>`:''}
+    <div style="padding:12px 16px 24px"><div class="group">${list.map(m=>modelRow(m)).join('')}</div>
+    <p class="t-cap c3" style="padding:14px 4px 0;display:flex;gap:6px;align-items:center">${I('storage',14)}<span class="tnum">Models use 2.4 GB · ${err==='storage'?'0.9':'181'} GB free</span></p></div>`;
+}
+function modelDetailBody(m,{bench='done'}={}){
+  const isLLM=!!LLM.find(x=>x.id===m.id);
+  const res=isLLM?[['31','tok/s','Writing speed'],['520','tok/s','Reading speed'],['1.4','s','Load time'],['1.5','GB','Peak memory']]
+                  :[['14×','','Faster than real time'],['0.8','s','Load time'],['720','MB','Peak memory'],['0.4','s','Ready after stop']];
+  return `<div style="padding:4px 20px 0">
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">${m.st==='inuse'?`<span class="inuse">${I('check',14,'b2')}In use</span>`:''}<span class="badge npu">${m.run}</span><span class="badge">${m.quant}</span></div>
+    <h1 class="t-h1" style="margin-top:12px">${m.nm}</h1>
+    <p class="t-bl c2" style="margin-top:8px">${m.desc}</p>
+    <div class="kv" style="margin-top:20px">
+     <div class="k">Parameters</div><div class="v tnum">${m.params}</div>
+     <div class="k">Languages</div><div class="v">${m.langLong}</div>
+     <div class="k">Download</div><div class="v tnum">${m.size} · ${m.quant}</div>
+     <div class="k">Runs on</div><div class="v">${m.run==='NPU'?'NPU (Hexagon)':m.run}${m.run!=='NPU'?' · NPU not supported yet':''}</div>
+     ${m.stream!==undefined?`<div class="k">Streaming</div><div class="v">${m.stream?'Yes':'No, transcribes after you stop'}</div>`:''}
+     <div class="k">License</div><div class="v">${m.lic}</div>
+     <div class="k">Source</div><div class="v mono" style="font-size:12px;word-break:break-all">${m.repo}</div>
+    </div></div>
+    <div style="padding:24px 20px 24px">
+     <h2 class="t-h3">Benchmark on this phone</h2>${bench==='done'?'<div class="t-cap c3" style="margin-top:2px">Last run today, 14:05</div>':''}
+     ${bench==='done'?`<div class="big4" style="margin-top:12px">${res.map(([n,u,l])=>`<div><div class="n tnum">${n}<small>${u}</small></div><div class="l">${l}</div></div>`).join('')}</div>
+       <button class="btn o full" style="margin-top:12px">${I('gauge',20)}Run again</button>`:
+      `<p class="t-b c2" style="margin-top:6px">Takes about 30 seconds. Uses two short sample recordings, in Russian and English.</p><button class="btn o full" style="margin-top:12px">${I('gauge',20)}Run benchmark</button>`}
+    </div>`;
+}
+function modelsScreen(d,{kind='speech',err}={}){
+  if(d==='cover') return shell(d,'models',hdr('Models')+`<div class="scroll">${modelsList(kind,{err})}</div>`);
+  const m=kind==='speech'?SPEECH[0]:LLM[1];
+  const list=`<div style="width:316px;flex:none;border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0">${hdr('Models')}<div class="scroll">${modelsList(kind,{err})}</div></div>`;
+  const det=`<div style="flex:1;min-width:0;background:var(--surface);display:flex;flex-direction:column;min-height:0"><div style="height:16px"></div><div class="scroll">${modelDetailBody(m)}</div>${detailActions(m)}</div>`;
+  return `${statusBar(d)}<div class="app-row">${rail('models')}<div class="main" style="flex-direction:row">${list}${det}</div></div>${gesture()}`;
+}
+const detailActions=m=>`<div style="display:flex;gap:8px;padding:12px 20px 14px;border-top:1px solid var(--line);background:var(--surface)">${m.st==='inuse'?`<div style="flex:1;display:flex;align-items:center;gap:8px;font:500 14px/20px var(--font);color:var(--ink-2)"><span style="color:var(--accent-ink)">${I('check',20,'b2')}</span>In use</div>`:`<button class="btn p" style="flex:1">Use this model</button>`}<button class="btn o" aria-label="Delete download">${I('trash',20)}Delete</button></div>`;
+function modelDetail(d,{bench='done',kind='speech'}={}){
+  const m=kind==='speech'?SPEECH[0]:LLM[1];
+  if(d==='inner') return modelsScreen(d,{kind});
+  const body=`<div class="topbar"><button class="ib" aria-label="Back">${I('back')}</button><div class="ttl"></div><button class="ib" aria-label="Open model page">${I('ext')}</button></div><div class="scroll">${modelDetailBody(m,{bench})}</div>${detailActions(m)}`;
+  return `${statusBar(d)}<div class="app"><div class="main">${body}</div></div>${gesture()}`;
+}
+function benchSheet(d,{running=false,kind='speech'}={}){
+  const m=kind==='speech'?SPEECH[0]:LLM[1];
+  const base=d==='cover'?modelDetail(d,{bench:'none',kind}):modelsScreen(d,{kind});
+  const isLLM=kind!=='speech';
+  let inner;
+  if(running){
+    inner=`<div style="padding:0 24px"><div class="t-over">Benchmark</div><h2 class="t-h2" style="margin-top:6px">${m.nm}</h2>
+     <p class="t-b c2" style="margin-top:6px">Keep Murmur open. Other apps may feel slower for a few seconds.</p>
+     <div class="steps" style="margin-top:16px">
+      <div class="step done"><span class="ic">${I('check',14,'b2')}</span><span class="t">Load model into memory</span><span class="r tnum">0.8 s</span></div>
+      <div class="step done"><span class="ic">${I('check',14,'b2')}</span><span class="t">Russian sample, 30 s of audio</span><span class="r tnum">2.1 s</span></div>
+      <div class="step now"><span class="ic"><span class="spin"></span></span><span class="t">English sample, 30 s of audio</span><span class="r"></span></div>
+      <div class="step todo"><span class="ic"></span><span class="t">Unload and measure memory</span><span class="r"></span></div>
+     </div>
+     <div class="prog" style="margin-top:16px"><i style="width:58%"></i></div>
+     <button class="btn s full" style="margin-top:20px">Stop</button></div>`;
+  } else {
+    const res=isLLM?[['31','tok/s','Writing speed'],['520','tok/s','Reading speed'],['0.21','s','First word'],['1.5','GB','Peak memory']]
+                   :[['14×','','Faster than real time'],['0.8','s','Load time'],['720','MB','Peak memory'],['NPU','','Ran on']];
+    inner=`<div style="padding:0 24px"><div class="t-over">Benchmark result</div><h2 class="t-h2" style="margin-top:6px">${m.nm}</h2>
+     <p class="t-b c2" style="margin-top:6px">${isLLM?'A 60-word dictation is cleaned up in about 1.3 s.':'A 30-second dictation is ready about 0.4 s after you stop.'}</p>
+     <div class="big4" style="margin-top:16px">${res.map(([n,u,l])=>`<div><div class="n tnum">${n}<small>${u}</small></div><div class="l">${l}</div></div>`).join('')}</div>
+     <div class="kv" style="margin-top:12px">
+      <div class="k">Russian, 30 s</div><div class="v mono tnum" style="font-size:13px">2.1 s</div>
+      <div class="k">English, 30 s</div><div class="v mono tnum" style="font-size:13px">1.9 s</div>
+      <div class="k">Device</div><div class="v">Galaxy Z Fold7 · 12 GB</div>
+     </div>
+     <div style="display:flex;gap:8px;margin-top:16px"><button class="btn s" style="flex:1">${I('copy',20)}Copy results</button><button class="btn p" style="flex:1">Done</button></div></div>`;
+  }
+  const sheet=`<div class="scrim"></div><div class="sheet${d==='inner'?' side':''}" role="dialog"><div class="hd"></div>${inner}</div>`;
+  return base+sheet;
+}
+
+/* ================= Settings ================= */
+const tg=(on)=>`<span class="tg${on?' on':''}" role="switch" aria-checked="${on}"></span>`;
+const srow=(ic,a,b,right,cls='')=>`<div class="row ind ${cls}">${ic?`<span class="lead">${I(ic,22)}</span>`:''}<div class="tx"><div class="a">${a}</div>${b?`<div class="b">${b}</div>`:''}</div>${right||''}</div>`;
+const chev=v=>`${v?`<span class="val">${v}</span>`:''}${I('chevR',20,'c3')}`;
+function settingsGroups(only){
+  const G={
+   dict:`<div class="sec-l">Dictation</div><div class="group" style="margin:0 16px">
+     ${srow('globe','Languages','Russian and English, detected per dictation',chev())}
+     ${srow('hand','Hold to talk','Press and hold the bubble, release to finish',tg(true))}
+     ${srow('vib','Sound and vibration','Short tick on start and stop',chev('Vibration'))}</div>`,
+   bub:`<div class="sec-l">Bubble</div><div class="group" style="margin:0 16px">
+     ${srow('bubble','Show the bubble','',chev('When typing'))}
+     ${srow('eyeOff','Tuck in when idle','Shrinks to an edge tab after 4 s',tg(true))}
+     ${srow(null,'Size','',chev('Standard'))}
+     ${srow(null,'Hidden in','Banking apps and password fields are always excluded',chev('3 apps'))}</div>`,
+   post:`<div class="sec-l">Cleanup</div><div class="group" style="margin:0 16px">
+     ${srow('polish','Cleanup prompt','The instructions given to the cleanup model',chev('Edited'))}
+     ${srow('text','Tone per app','Casual in messengers, formal in email',chev('6 apps'))}
+     ${srow('search','Use what\'s on screen','Reads visible text to spell names and terms right',tg(true))}</div>`,
+   priv:`<div class="sec-l">History and privacy</div><div class="group" style="margin:0 16px">
+     ${srow('hist','Keep history','',chev('7 days'))}
+     ${srow('mic','Keep recordings','Needed to replay and re-polish',tg(true))}
+     ${srow('shield','Works offline','Only model downloads use the internet',`<span class="val" style="color:var(--ok)">On</span>`)}
+     <button class="row" style="width:100%;text-align:left"><div class="tx"><div class="a" style="color:var(--err)">Delete all history</div></div></button></div>`,
+   perm:`<div class="sec-l">Permissions</div><div class="group" style="margin:0 16px">
+     ${srow('mic','Microphone','',`<span class="status ok">${I('check',16)}Allowed</span>`)}
+     ${srow('a11y','Accessibility service','',`<span class="status ok">${I('check',16)}On</span>`)}
+     ${srow('bell','Notifications','',`<span class="status ok">${I('check',16)}Allowed</span>`)}
+     ${srow('battO','Background use','',`<span class="status copied">Restricted</span>`)}</div>`,
+  };
+  return (only||Object.keys(G)).map(k=>G[k]).join('');
+}
+function settingsScreen(d,{banner}={}){
+  if(d==='cover') return shell(d,'settings',hdr('Settings')+`<div class="scroll">${banner?`<div style="padding:0 16px 4px">${accOffBanner()}</div>`:''}${settingsGroups()}<div style="height:24px"></div></div>`);
+  return settingsInner(d,{banner});
+}
+const CATS=[['dict','Dictation','mic'],['bub','Bubble','bubble'],['post','Cleanup','polish'],['priv','History and privacy','shield'],['perm','Permissions','lock']];
+function settingsCats(sel){
+  return `<div style="width:260px;flex:none;border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0">${hdr('Settings')}<div style="padding:4px 12px;display:flex;flex-direction:column;gap:2px">${CATS.map(([k,l,ic])=>`<button class="row" style="width:100%;border-radius:14px;min-height:52px;${k===sel?'background:var(--surface-3);':''}"><span class="lead">${I(ic,22)}</span><div class="tx" style="text-align:left"><div class="a">${l}</div></div></button>`).join('')}</div>
+    <p class="t-cap c3" style="margin-top:auto;padding:16px 20px">Murmur 0.1.0<br>Models and history stay on this phone.</p></div>`;
+}
+function settingsInner(d,{banner,sel='post'}={}){
+  const label=CATS.find(c=>c[0]===sel)[1];
+  const right=`<div style="flex:1;min-width:0;overflow:hidden;padding:0 4px 0 0">
+     <div style="padding:22px 24px 6px"><h2 class="t-h2">${label}</h2></div>
+     ${banner?`<div style="padding:8px 16px 4px">${accOffBanner()}</div>`:''}
+     ${settingsGroups([sel]).replace(/<div class="sec-l">[^<]*<\/div>/,'')}
+     ${sel==='post'?`<div style="padding:20px 16px 0"><div class="t-over" style="padding:0 4px 8px">Prompt preview</div><div class="editor" style="max-height:236px;overflow:hidden;position:relative">${esc(DEFAULT_PROMPT).replace(/\{(\w+)\}/g,'<span class="var">{$1}</span>')}</div></div>`:''}
+    </div>`;
+  return `${statusBar(d)}<div class="app-row">${rail('settings')}<div class="main" style="flex-direction:row">${settingsCats(sel)}${right}</div></div>${gesture()}`;
+}
+const DEFAULT_PROMPT=`You clean up dictated text. Return only the cleaned text.
+
+- Keep the speaker's words and meaning. Do not add facts.
+- Remove filler words, false starts and repetitions.
+- Fix punctuation, casing and obvious recognition errors.
+- Keep the original language. Keep mixed Russian and English as spoken.
+- Write numbers, dates and times as digits.
+- Tone: {tone}.
+
+App: {app}
+Text on screen (for names and terms only):
+{screen_text}
+
+Dictation:
+{transcript}`;
+function promptBody(err){
+  const p=esc(err?DEFAULT_PROMPT.replace('\n\nDictation:\n{transcript}',''):DEFAULT_PROMPT).replace(/\{(\w+)\}/g,'<span class="var">{$1}</span>');
+  return `<div style="padding:4px 20px 20px">
+    <p class="t-b c2">Murmur sends this to the cleanup model after each dictation. Words in blue are filled in for you.</p>
+    <div class="editor${err?' err':''}" style="margin-top:14px">${p}${err?'<span class="caret"></span>':''}</div>
+    ${err?`<p class="t-b" style="color:var(--err);margin-top:8px;display:flex;gap:6px">${I('alert',18)}Add {transcript} so the model gets your dictation.</p>`:''}
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:12px">${['transcript','app','screen_text','tone','language'].map(v=>`<button class="chip">${I('plus',16)}{${v}}</button>`).join('')}</div>
+    <div class="t-over" style="margin-top:24px">Try it</div>
+    <div class="card" style="margin-top:8px;padding:14px 16px">
+     <div class="t-cap c3">Spoken</div><p class="t-b c2" style="margin-top:2px">ну короче скинь мне э отчёт до пятницы и созвонимся в понедельник в десять</p>
+     <div class="hr" style="margin:12px 0"></div>
+     <div class="t-cap c3">Result · Telegram, casual</div><p class="t-b" style="margin-top:2px">Скинь мне отчёт до пятницы, и созвонимся в понедельник в 10:00.</p>
+    </div></div>`;
+}
+function promptScreen(d,{err=false,reset=false}={}){
+  const bar=`<div class="topbar"><button class="ib" aria-label="Back">${I('back')}</button><div class="ttl">Cleanup prompt</div><button class="btn t">Reset</button></div>`;
+  const foot=`<div style="display:flex;gap:8px;padding:12px 20px 14px;border-top:1px solid var(--line);background:var(--surface)"><button class="btn s" style="flex:1">${I('refresh',20)}Test again</button><button class="btn p" style="flex:1"${err?' disabled':''}>Save</button></div>`;
+  const dlg=reset?`<div class="scrim"></div><div class="dialog" role="dialog"><h2 class="t-h2">Reset to the default prompt?</h2><p class="t-b c2" style="margin-top:8px">Your edits will be replaced. Tone per app is kept.</p><div style="display:flex;justify-content:flex-end;gap:4px;margin-top:20px"><button class="btn t">Cancel</button><button class="btn t">Reset</button></div></div>`:'';
+  if(d==='cover') return `${statusBar(d)}<div class="app"><div class="main">${bar}<div class="scroll">${promptBody(err)}</div>${foot}</div></div>${gesture()}${dlg}`;
+  const left=settingsCats('post');
+  return `${statusBar(d)}<div class="app-row">${rail('settings')}<div class="main" style="flex-direction:row">${left}<div style="flex:1;min-width:0;display:flex;flex-direction:column;background:var(--surface)">${bar.replace(I('back'),I('x'))}<div class="scroll">${promptBody(err)}</div>${foot}</div></div></div>${gesture()}${dlg}`;
+}
+function toneScreen(d){
+  const T=[['Telegram','Casual'],['Messages','Casual'],['Slack','Neutral'],['Gmail','Formal'],['Google Docs','Neutral'],['Termux','Verbatim']];
+  const body=`<div style="padding:4px 20px 0"><p class="t-b c2">Tone tells the cleanup model how to phrase the text. Verbatim only fixes recognition errors and punctuation.</p></div>
+   <div class="group" style="margin:16px 16px 0">${T.map(([a,t])=>`<div class="row">${tile(a,true)}<div class="tx"><div class="a">${a}</div></div><span class="chip" style="height:36px">${t}${I('chevD',16)}</span></div>`).join('')}
+    <div class="row"><span class="lead" style="width:36px">${I('plus',22)}</span><div class="tx"><div class="a ca">Add an app</div></div></div></div>
+   <div class="group" style="margin:16px"><div class="row"><div class="tx"><div class="a">All other apps</div><div class="b">Used when an app isn't listed</div></div><span class="chip" style="height:36px">Neutral${I('chevD',16)}</span></div></div>
+   <div style="padding:0 20px"><div class="t-over" style="margin:8px 0">What the tones do</div>
+   ${[['Casual','Short, friendly, keeps your slang'],['Neutral','Clear and plain, as spoken'],['Formal','Full sentences, polite forms, no slang'],['Verbatim','Your exact words, punctuation fixed']].map(([a,b])=>`<div style="display:flex;gap:12px;padding:6px 0"><span class="t-l" style="width:72px;flex:none">${a}</span><span class="t-b c2">${b}</span></div>`).join('')}</div>`;
+  const bar=`<div class="topbar"><button class="ib" aria-label="Back">${I(d==='inner'?'x':'back')}</button><div class="ttl">Tone per app</div></div>`;
+  if(d==='cover') return `${statusBar(d)}<div class="app"><div class="main">${bar}<div class="scroll">${body}</div></div></div>${gesture()}`;
+  const left=settingsCats('post');
+  return `${statusBar(d)}<div class="app-row">${rail('settings')}<div class="main" style="flex-direction:row">${left}<div style="flex:1;min-width:0;background:var(--bg)">${bar}${body}</div></div></div>${gesture()}`;
+}
+function retentionSheet(d){
+  const base=d==='inner'?settingsInner(d,{sel:'priv'}):settingsScreen(d);
+  const opts=[['1 day',''],['3 days',''],['7 days','Default'],["Don't keep history",'Text is copied and inserted, nothing is saved']];
+  return base+`<div class="scrim"></div><div class="sheet${d==='inner'?' side':''}" role="dialog"><div class="hd"></div><div style="padding:0 24px 4px"><h2 class="t-h2">Keep history for</h2><p class="t-b c2" style="margin-top:6px">Text and recordings are deleted at midnight once they are older than this. Dashboard numbers are kept.</p></div>
+   <div style="padding:8px 8px 0">${opts.map(([a,b],i)=>`<div class="row" style="min-height:60px"><span class="radio${i===2?' on':''}"></span><div class="tx"><div class="a">${a}</div>${b?`<div class="b">${b}</div>`:''}</div></div>`).join('')}</div>
+   <div style="padding:8px 24px 0"><p class="t-cap c3">Choosing a shorter period deletes older dictations right away.</p></div></div>`;
+}
+
+/* ================= Onboarding ================= */
+const OB_STEPS=[['mic','Microphone','Hear you while the bubble listens'],['a11y','Accessibility','Show the bubble and type for you'],['bell','Notifications','A quiet status notification'],['batt','Background use','Stay ready in other apps'],['models','Models','Download speech and cleanup models']];
+function obFrame(d,stepIdx,content,{noSteps=false}={}){
+  const dots=`<div class="dots" aria-label="Step ${stepIdx+1} of 5">${OB_STEPS.map((_,i)=>`<i class="${i===stepIdx?'on':i<stepIdx?'done':''}"></i>`).join('')}</div>`;
+  if(d==='cover') return `${statusBar(d)}<div class="app"><div class="ob">${noSteps?'':`<div style="display:flex;justify-content:space-between;align-items:center;height:40px">${dots}<span class="t-cap c3 tnum">${stepIdx>4?'Done':`${stepIdx+1} of 5`}</span></div>`}${content}</div></div>${gesture()}`;
+  const left=`<aside class="ob-l"><div style="display:flex;align-items:center;gap:10px">${I('mark',30,'b2')}<span class="t-h2">Murmur</span></div>
+     <div>${OB_STEPS.map(([ic,a,b],i)=>`<div class="vstep ${noSteps?'todo':i<stepIdx?'done':i===stepIdx?'now':'todo'}"><span class="ic">${(!noSteps&&i<stepIdx)?I('check',16,'b2'):i+1}</span><div><div class="a">${a}</div><div class="b">${b}</div></div></div>`).join('')}</div>
+     <p class="t-cap c3" style="margin-top:auto">Everything runs on this phone. You can change each of these later in Settings.</p></aside>`;
+  return `${statusBar(d)}<div class="app-row">${left}<div class="main" style="align-items:center"><div class="ob" style="width:100%;max-width:470px;padding-top:40px">${content}</div></div></div>${gesture()}`;
+}
+const obIll=ic=>`<div class="ill">${I(ic,32)}</div>`;
+const SCREENS_OB={
+ welcome:d=>obFrame(d,0,`
+   <div style="margin-top:${d==='cover'?72:48}px;color:var(--ink)">${I('mark',56,'b2')}</div>
+   <h1 style="margin-top:28px;font-size:${d==='cover'?36:34}px;line-height:${d==='cover'?42:40}px">Speak in any app.<br>Murmur types it.</h1>
+   <p class="lead">Recognition and cleanup run on this phone, in Russian and English. Your voice is never uploaded.</p>
+   <div style="position:relative;margin-top:28px;height:112px" aria-hidden="true">
+     <div class="h-field" style="position:absolute;left:0;right:0;top:0;border-radius:18px;background:var(--surface);box-shadow:0 0 0 1px var(--line);min-height:64px;padding:12px 16px;color:var(--ink)">Созвон в 10 с Laura по Q4 report<span class="caret"></span></div>
+     <div class="bub listen" style="right:0;top:56px;position:absolute">${lvl([8,18,24,14,20,10,6],true)}<span class="tmr">0:04</span><span class="stop">${I('stop',18)}</span></div>
+   </div>
+   <div class="why" style="margin-top:12px">
+    <div>${I('bubble',22)}<span>A small bubble appears when you're typing. Tap it, talk, tap again.</span></div>
+    <div>${I('polish',22)}<span>Filler words go, punctuation and names come out right.</span></div>
+    <div>${I('hist',22)}<span>Everything you say is kept for 7 days, then deleted.</span></div>
+   </div>
+   <div class="foot"><button class="btn p full">Set up Murmur</button><p class="fine">Takes about 2 minutes plus the model download</p></div>`,{noSteps:true}),
+ mic:d=>obFrame(d,0,`${obIll('mic')}<div class="kicker">Step 1 · Microphone</div><h1>Let Murmur hear you</h1>
+   <p class="lead">The microphone is used only while the bubble is listening. You always see when that happens.</p>
+   <div class="why"><div>${I('check',22)}<span>Recording starts only when you tap or hold the bubble</span></div><div>${I('check',22)}<span>Audio is processed on this phone and kept with your history for 7 days</span></div></div>
+   <div class="foot"><button class="btn p full">Allow microphone</button><p class="fine">Android will ask. Choose “While using the app”.</p></div>`),
+ access:d=>obFrame(d,1,`${obIll('a11y')}<div class="kicker">Step 2 · Accessibility</div><h1>Turn on Murmur in Accessibility</h1>
+   <p class="lead">Android lets only accessibility services draw over other apps and type into them. Murmur uses it for three things:</p>
+   <div class="why"><div>${I('bubble',22)}<span>Show the bubble when a text field is focused</span></div><div>${I('keyboard',22)}<span>Type the finished text into that field</span></div><div>${I('search',22)}<span>Read the screen while you dictate, to get names and terms right</span></div></div>
+   <div class="sysbox" style="margin-top:24px"><div class="h">On the next screen</div><div class="t-b">Installed apps → <b>Murmur</b> → turn on <b>Use Murmur</b></div></div>
+   <div class="foot"><button class="btn p full">Open Accessibility settings</button><p class="fine">Murmur never sends screen text or keystrokes anywhere.</p></div>`),
+ restricted:d=>obFrame(d,1,`${obIll('lock')}<div class="kicker">Step 2 · Accessibility</div><h1>Android blocked this setting</h1>
+   <p class="lead">Apps installed outside an app store need one extra approval before they can use Accessibility.</p>
+   <div class="sysbox" style="margin-top:24px"><div class="h">Do this once</div>
+    <div class="t-b" style="display:flex;gap:10px"><span class="t-l" style="width:16px">1</span><span>Open <b>App info</b> for Murmur</span></div>
+    <div class="t-b" style="display:flex;gap:10px"><span class="t-l" style="width:16px">2</span><span>Tap <b>⋮</b> in the top corner → <b>Allow restricted settings</b></span></div>
+    <div class="t-b" style="display:flex;gap:10px"><span class="t-l" style="width:16px">3</span><span>Come back here and turn on <b>Use Murmur</b></span></div></div>
+   <div class="foot"><button class="btn p full">Open App info</button><button class="btn t full">I've done this</button></div>`),
+ overlay:d=>obFrame(d,1,`${obIll('bubble')}<div class="kicker">Step 2 · Accessibility, continued</div><h1>Allow the bubble to start the microphone</h1>
+   <p class="lead">On this phone, Android only lets Murmur start recording from another app if it may also display over other apps.</p>
+   <div class="why"><div>${I('check',22)}<span>Used only for the bubble. Murmur shows nothing else on top of your apps.</span></div></div>
+   <div class="sysbox" style="margin-top:24px"><div class="h">On the next screen</div><div class="t-b">Turn on <b>Allow display over other apps</b></div></div>
+   <div class="foot"><button class="btn p full">Open setting</button><p class="fine">You can turn this off in Android settings at any time.</p></div>`),
+ notif:d=>obFrame(d,2,`${obIll('bell')}<div class="kicker">Step 3 · Notifications</div><h1>Keep one quiet notification</h1>
+   <p class="lead">Android requires a visible notification while an app can use the microphone in the background. It's silent and lets you hide the bubble for an hour.</p>
+   <div class="sysbox" style="margin-top:24px"><div class="h">It looks like this</div>
+    <div style="display:flex;gap:12px;align-items:center"><div style="width:32px;height:32px;border-radius:50%;background:var(--ink);color:var(--bg);display:grid;place-items:center">${I('mark',18,'b2')}</div><div style="flex:1;min-width:0"><div class="t-l">Murmur is ready</div><div class="t-cap c3">Qwen3-ASR 0.6B · LFM3 1.7B</div></div><span class="t-ls ca">Hide 1 h</span></div></div>
+   <div class="foot"><button class="btn p full">Allow notifications</button><button class="btn t full">Not now</button></div>`),
+ battery:d=>obFrame(d,3,`${obIll('batt')}<div class="kicker">Step 4 · Background use</div><h1>Let Murmur stay ready</h1>
+   <p class="lead">Samsung puts unused apps to sleep. When that happens, the bubble disappears until you open Murmur again.</p>
+   <div class="why"><div>${I('check',22)}<span>Models load only while you dictate and are unloaded right after, so idle battery use stays near zero</span></div></div>
+   <div class="sysbox" style="margin-top:24px"><div class="h">On the next screen</div><div class="t-b">Battery → choose <b>Unrestricted</b></div></div>
+   <div class="foot"><button class="btn p full">Allow background use</button><button class="btn t full">Skip for now</button></div>`),
+ model:d=>obFrame(d,4,`<div class="kicker" style="margin-top:20px">Step 5 · Models</div><h1>Download the models</h1>
+   <p class="lead">They run on this phone, so they need to be downloaded once. This is the only time Murmur uses the internet.</p>
+   <div class="group" style="margin-top:20px;box-shadow:0 0 0 1px var(--line)">
+    <div class="row" style="align-items:flex-start;padding:14px 16px"><span class="radio on" style="margin-top:2px"></span><div class="tx"><div class="a">Russian and English</div><div class="b">Qwen3-ASR 0.6B + LFM3 1.7B cleanup</div></div><span class="val tnum">1.7 GB</span></div>
+    <div class="row" style="align-items:flex-start;padding:14px 16px"><span class="radio" style="margin-top:2px"></span><div class="tx"><div class="a">Russian only, smallest</div><div class="b">GigaAM v3 + Qwen3.5 0.8B cleanup</div></div><span class="val tnum">0.7 GB</span></div>
+    <div class="row" style="align-items:flex-start;padding:14px 16px"><span class="radio" style="margin-top:2px"></span><div class="tx"><div class="a">Speech only, no cleanup</div><div class="b">Qwen3-ASR 0.6B</div></div><span class="val tnum">0.6 GB</span></div>
+   </div>
+   <div class="row" style="padding:12px 4px"><div class="tx"><div class="a">Download on Wi-Fi only</div></div>${tg(true)}</div>
+   <div class="foot"><button class="btn p full">${I('dl',20)}Download 1.7 GB</button><p class="fine">181 GB free. You can switch models any time in Models.</p></div>`),
+ downloading:d=>obFrame(d,4,`<div class="kicker" style="margin-top:20px">Step 5 · Models</div><h1>Downloading</h1>
+   <p class="lead">You can leave this screen. The download continues and we'll notify you when it's done.</p>
+   <div style="margin-top:28px"><div style="display:flex;justify-content:space-between;align-items:baseline"><span class="t-display tnum" style="font-size:40px">46%</span><span class="t-mono c3 tnum">0.78 of 1.69 GB</span></div>
+    <div class="prog" style="margin-top:12px;height:6px"><i style="width:46%"></i></div>
+    <div class="t-mono c3 tnum" style="margin-top:8px">18.4 MB/s · about 50 s left</div></div>
+   <div class="steps" style="margin-top:24px">
+    <div class="step done"><span class="ic">${I('check',14,'b2')}</span><span class="t">Qwen3-ASR 0.6B</span><span class="r tnum">590 MB</span></div>
+    <div class="step now"><span class="ic"><span class="spin"></span></span><span class="t">LFM3 1.7B</span><span class="r tnum">190 of 1,100 MB</span></div>
+    <div class="step todo"><span class="ic"></span><span class="t">Check files and prepare for the NPU</span><span class="r"></span></div></div>
+   <div class="foot"><button class="btn s full">Continue while downloading</button><button class="btn t full">Pause</button></div>`),
+ dlerror:d=>obFrame(d,4,`<div class="kicker" style="margin-top:20px">Step 5 · Models</div><h1>Download paused</h1>
+   <div class="banner err" style="margin-top:20px"><span class="bi">${I('wifiOff',22)}</span><div><b>No internet connection.</b> 0.78 of 1.69 GB is saved. The download resumes from there when you're back on Wi-Fi.</div></div>
+   <div class="steps" style="margin-top:20px">
+    <div class="step done"><span class="ic">${I('check',14,'b2')}</span><span class="t">Qwen3-ASR 0.6B</span><span class="r tnum">590 MB</span></div>
+    <div class="step todo"><span class="ic"></span><span class="t">LFM3 1.7B</span><span class="r tnum">190 of 1,100 MB</span></div></div>
+   <p class="t-b c2" style="margin-top:16px">Speech recognition already works. Cleanup turns on when LFM3 finishes.</p>
+   <div class="foot"><button class="btn p full">${I('refresh',20)}Try again</button><button class="btn t full">Continue without cleanup</button></div>`),
+ ready:d=>obFrame(d,5,`<div class="kicker" style="margin-top:20px">All set</div><h1>Try it here</h1>
+   <p class="lead">Tap the bubble, say a sentence, tap again. Mixing Russian and English is fine.</p>
+   <div style="margin-top:24px;position:relative"><div class="h-field" style="min-height:120px;border-radius:18px;background:var(--surface);box-shadow:0 0 0 2px var(--ink);padding-right:56px">Завтра в 10 созвон с Laura по Q4 report, напомни Диме прислать цифры.<span class="caret"></span></div>
+    <div class="bub ready circle" style="position:absolute;right:-6px;top:84px" aria-hidden="true">${I('mark',26,'b2')}</div>
+    <div class="t-cap c3" style="margin-top:8px;display:flex;gap:6px;align-items:center">${I('check',14)}Inserted in 1.3 s · Qwen3-ASR 0.6B → LFM3 1.7B</div></div>
+   <div class="foot"><button class="btn p full">Done</button><p class="fine">The bubble appears whenever you focus a text field.</p></div>`),
+};
+
+/* ================= Bubble in context ================= */
+const KB_RU=['йцукенгшщзх','фывапролджэ','ячсмитьбю'];
+function keyboard(d){
+  return `<div class="kb"><div class="sug"><span>созвон</span><span>созвонимся</span><span>созвоны</span></div>
+   <div class="r">${[...KB_RU[0]].map(k=>`<span class="k">${k}</span>`).join('')}</div>
+   <div class="r">${[...KB_RU[1]].map(k=>`<span class="k">${k}</span>`).join('')}</div>
+   <div class="r"><span class="k w">${I('shift',20)}</span>${[...KB_RU[2]].map(k=>`<span class="k">${k}</span>`).join('')}<span class="k w">${I('bksp',20)}</span></div>
+   <div class="r"><span class="k w">?123</span><span class="k">,</span><span class="k sp">Русский</span><span class="k">.</span><span class="k w">${I('enter',20)}</span></div></div>`;
+}
+function chatHost(d,{field='',kb=true,focused=true}={}){
+  const fieldHtml=field?`${field}${focused?'<span class="caret"></span>':''}`:`${focused?'<span class="caret" style="margin:0 2px 0 0"></span>':''}<span class="ph">Сообщение</span>`;
+  return `<div class="host"><div class="h-top"><button class="ib" aria-label="Back">${I('back')}</button><span class="h-av">ДС</span><div style="flex:1;min-width:0"><div class="t-l">Дима Соколов</div><div class="t-cap c3">в сети</div></div><button class="ib">${I('more')}</button></div>
+   <div class="h-msgs">
+    <div class="msg in">Ты сегодня в офисе? Саша спрашивает про созвон<span class="tm">14:21</span></div>
+    <div class="msg out">Да, но позже. Сейчас уточню<span class="tm">14:24</span></div>
+    <div class="msg in">Ок. И скинь ссылку на документ, плиз<span class="tm">14:30</span></div>
+   </div>
+   <div class="h-input"><button class="h-send" aria-label="Attach">${I('plus')}</button><div class="h-field">${fieldHtml}</div><button class="h-send" aria-label="Send">${I('share')}</button></div>
+   ${kb?keyboard(d):''}</div>`;
+}
+function notesHost(d,{text='',focused=true,kb=false}={}){
+  return `<div class="host"><div style="flex:1;display:flex;min-height:0"><div class="n-list"><div class="t-h2" style="padding:12px 20px 12px">Заметки</div>
+    ${[['Планы на неделю','Созвон с Сашей, отчёт Q4…',true],['Список покупок','Фильтры для воды, батарейки'],['Идеи для статьи','Почему локальные модели…'],['Книги','Дэниел Канеман, «Шум»'],['Отпуск','Билеты до 1 декабря']].map(([a,b,on])=>`<div class="n-item${on?' on':''}"><div class="a">${a}</div><div class="b">${b}</div></div>`).join('')}</div>
+   <div style="flex:1;display:flex;flex-direction:column;min-width:0"><div class="n-doc"><h2>Планы на неделю</h2><p>Созвон с Сашей перенесли на четверг, 11:00.</p><p style="margin-top:12px">${text}${focused?'<span class="caret"></span>':''}</p></div></div></div>${kb?keyboard(d):''}</div>`;
+}
+/* bubble markup: x,y are left/top within the screen */
+const lvl=(hs,live)=>`<span class="lvl${live?' live':''}">${hs.map(h=>`<i style="height:${h}px"></i>`).join('')}</span>`;
+function bubbleHTML(state,pos,{side='right'}={}){
+  const S=`style="${pos}"`;
+  switch(state){
+   case 'tab': return `<button class="bub tab${side==='left'?' left':''}" ${S} aria-label="Murmur, tap to expand">${I('mark',14,'b2')}</button>`;
+   case 'ready': return `<button class="bub ready circle" ${S} aria-label="Start dictation">${I('mark',26,'b2')}</button>`;
+   case 'lift': return `<button class="bub ready circle lift" ${S} aria-label="Murmur bubble, dragging">${I('mark',26,'b2')}</button>`;
+   case 'listen': return `<button class="bub listen" ${S} aria-label="Listening. Tap to finish">${lvl([8,18,24,14,20,10,6],true)}<span class="tmr">0:07</span><span class="stop">${I('stop',18)}</span></button>`;
+   case 'hold': return `<button class="bub listen" aria-label="Listening, release to finish" style="${pos};width:auto;padding-right:18px">${lvl([8,18,24,14,20,10,6],true)}<span class="tmr" style="font-family:var(--font);font-weight:600">Release to finish</span></button>`;
+   case 'trans': return `<div class="bub work" ${S} role="status">${lvl([6,10,14,10,6],false).replace('class="lvl"','class="lvl" style="opacity:.6"')}<span>Transcribing</span></div>`;
+   case 'polish': return `<div class="bub work" ${S} role="status"><span class="dots3"><i></i><i></i><i></i></span><span>Polishing</span></div>`;
+   case 'ok': return `<div class="bub done" ${S} role="status"><span style="color:var(--ok)">${I('check',20,'b2')}</span><span>Inserted</span></div>`;
+   case 'copied': return `<div class="bub done" ${S} role="status"><span style="color:var(--accent-ink)">${I('clip',20)}</span><span>Copied. Paste it anywhere</span></div>`;
+   case 'err': return `<div class="bub err" ${S} role="alert"><span style="color:var(--err)">${I('alert',20)}</span><span>Didn't catch that</span><span class="act">Retry</span></div>`;
+  }
+}
+// cover coordinates: bubble 52px; screen 412 wide; right margin 8
+function bubbleScene(d,state){
+  const W=d==='cover'?412:750;
+  const fieldMap={listen:'Привет! Буду в офисе к 11,',ok:'Привет! Буду в офисе к 11, созвон с Сашей переносим на четверг. Скинь, пожалуйста, ссылку на документ.'};
+  const width={ready:52,lift:52,listen:164,hold:212,trans:166,polish:146,ok:132,copied:252,err:244,tab:22}[state];
+  const right=state==='tab'?0:8;
+  const x=W-right-width;
+  const host=state==='copied'?readerHost(d):d==='cover'?chatHost(d,{field:fieldMap[state]||'',kb:true}):notesHost(d,{text:fieldMap[state]||'',kb:true});
+  /* data-dock: vertical position is computed after render, 12 dp above the focused field
+     (cover) or above the keyboard (inner). Copied-only has no field: it keeps its last y. */
+  const dock=state==='copied'?'data-dock-y="520"':'data-dock="1"';
+  const extra=(state==='listen')?`<button class="bub-x" data-dock="1" data-dy="-50" style="right:${right+4}px" aria-label="Cancel and discard">${I('x',20)}</button>`:'';
+  const b=bubbleHTML(state,`right:${right}px`).replace(/^<(\w+) /,`<$1 ${dock} `);
+  return `${statusBar(d)}<div class="app" style="position:relative">${host}</div>${gesture()}<div class="bub-layer">${extra}${b}</div>`;
+}
+function placeBubbles(scope){
+  scope.querySelectorAll('[data-screen]').forEach(scr=>{
+    const sr=scr.getBoundingClientRect();
+    const anchor=scr.querySelector('.h-input')||scr.querySelector('.kb');
+    scr.querySelectorAll('[data-dock],[data-dock-y]').forEach(el=>{
+      const h=el.classList.contains('tab')?60:52;
+      let top;
+      if(el.dataset.dockY) top=+el.dataset.dockY;
+      else if(anchor) top=(anchor.getBoundingClientRect().top-sr.top)/1-12-h;
+      else top=500;
+      // gallery frames are 1:1, so client px == dp
+      el.style.top=(top+(+(el.dataset.dy||0)))+'px';
+    });
+  });
+}
+function readerHost(d){
+  return `<div class="host"><div class="h-top"><button class="ib">${I('back')}</button><div style="flex:1;min-width:0;height:40px;border-radius:20px;background:var(--surface-2);display:flex;align-items:center;padding:0 14px;gap:8px" class="t-b c2">${I('lock',16)}<span style="overflow:hidden;white-space:nowrap;text-overflow:ellipsis">habr.com/ru/articles/on-device-asr</span></div><button class="ib">${I('more')}</button></div>
+   <div style="padding:20px 20px;flex:1;overflow:hidden;background:var(--surface)"><div class="t-over">Статья · 8 мин</div><h2 style="font:700 26px/32px var(--font);margin-top:10px;letter-spacing:-.4px">Распознавание речи на телефоне: что изменилось за год</h2>
+   <p class="t-bl c2" style="margin-top:14px">Ещё недавно для качественной диктовки нужен был облачный сервис. Сейчас модели на 0,6–1 млрд параметров работают на NPU телефона быстрее реального времени.</p>
+   <p class="t-bl c2" style="margin-top:12px">Главный вопрос теперь не скорость, а память: модель должна загружаться за доли секунды и освобождать RAM сразу после использования.</p>
+   <p class="t-bl c2" style="margin-top:12px">Мы сравнили пять моделей на русском и английском…</p></div></div>`;
+}
+function dragScene(d){
+  const W=d==='cover'?412:750, H=d==='cover'?960:832;
+  const bx=d==='cover'?190:360, by=d==='cover'?520:430;
+  const snapX=W-8-52;
+  const host=d==='cover'?chatHost(d,{kb:false}):notesHost(d,{focused:false});
+  return `${statusBar(d)}<div class="app" style="position:relative">${host}</div>${gesture()}<div class="bub-layer">
+    <div style="position:absolute;inset:0;background:var(--scrim);opacity:.35"></div>
+    <div class="guide" style="left:8px;top:80px;bottom:200px"></div><div class="guide" style="left:${W-10}px;top:80px;bottom:200px"></div>
+    <div class="ghost" style="left:${snapX}px;top:${by}px"></div>
+    <div class="trail" style="left:${bx+60}px;top:${by+26}px;width:${snapX-bx-64}px"></div>
+    <div class="note" style="left:${snapX-150}px;top:${by-40}px">Snaps to the nearer edge</div>
+    ${bubbleHTML('lift',`left:${bx}px;top:${by}px`)}
+    <div class="target" style="bottom:56px"><div class="c">${I('x',28)}</div><span class="lbl">Drag here to hide for 1 hour</span></div>
+  </div>`;
+}
+function hideToastScene(d){
+  const host=d==='cover'?chatHost(d,{kb:true}):notesHost(d,{kb:true});
+  return `${statusBar(d)}<div class="app" style="position:relative">${host}</div>${gesture()}<div class="bub-layer"><div class="snack" style="bottom:${d==='cover'?320:330}px;left:${d==='inner'?'auto':'12px'};right:12px;${d==='inner'?'width:380px':''}"><span style="flex:1">Bubble hidden until 15:32</span><button class="btn">Undo</button></div></div>`;
+}
+
+/* ================= Bubble state board ================= */
+function bubbleBoard(){
+  const cells=[
+   ['tab','Rest','Field focused, idle for 4 s. Tucks into an edge tab so it never covers text.','22 × 60 dp · hit area 48 × 60'],
+   ['ready','Ready','A text field is focused. Tap to start, hold for push-to-talk, drag to move.','52 dp · hit area 56 dp'],
+   ['listen','Listening','Live level from the mic, elapsed time. Tap anywhere on it to finish.','164 × 52 dp · cancel 40 dp above'],
+   ['hold','Hold to talk','While the finger is down. Lifting finishes, sliding off cancels.','auto width, 52 dp'],
+   ['trans','Transcribing','Shown only if text isn\'t ready within 300 ms of stop.','auto width, 52 dp'],
+   ['polish','Polishing','Cleanup model is rewriting. Skipped when cleanup is None.','auto width, 52 dp'],
+   ['ok','Inserted','Text is in the field and on the clipboard. Collapses after 1.2 s.','auto width · success tick haptic'],
+   ['copied','Copied only','No editable field to type into. Stays 4 s, tap opens the entry.','auto width · max 280 dp'],
+   ['err','Error','Plain reason plus one action. See DESIGN.md for every error.','auto width · max 280 dp'],
+   ['lift','Dragging','Lifts 1.08×, shows the hide target at the bottom. Snaps to an edge on release.','spring 400 / 0.8'],
+  ];
+  return `<div style="display:flex;justify-content:space-between;align-items:flex-end;gap:24px;margin-bottom:20px"><div><div class="t-over">Component</div><h2 class="t-h1" style="margin-top:4px">Bubble states</h2></div><p class="t-b c2" style="max-width:52ch">The bubble is the product. It shows exactly one thing at a time, grows from the edge it is docked to, and never shows a spinner without a word next to it.</p></div>
+   <div class="bboard" style="grid-template-columns:repeat(5,300px);width:max-content">${cells.map(([s,n,dsc,mx])=>`<div class="bcell"><div class="stage">${bubbleHTML(s,s==='tab'?'right:0;top:12px':'right:12px;top:16px')}${s==='listen'?'':''}</div><div><div class="nm">${n}</div><div class="ds" style="margin-top:4px">${dsc}</div></div><div class="mx">${mx}</div></div>`).join('')}</div>`;
+}
+
+/* ================= Frame registry ================= */
+const F=[]; const add=(sec,id,title,devs,render,opt={})=>F.push({sec,id,title,devs,render,...opt});
+const BOTH=['cover','inner'];
+add('Onboarding','ob-welcome','Welcome',BOTH,d=>SCREENS_OB.welcome(d));
+add('Onboarding','ob-mic','Microphone',BOTH,d=>SCREENS_OB.mic(d));
+add('Onboarding','ob-access','Accessibility',BOTH,d=>SCREENS_OB.access(d));
+add('Onboarding','ob-restricted','Accessibility blocked (sideloaded APK)',BOTH,d=>SCREENS_OB.restricted(d));
+add('Onboarding','ob-overlay','Display over apps (conditional)',BOTH,d=>SCREENS_OB.overlay(d));
+add('Onboarding','ob-notif','Notifications',BOTH,d=>SCREENS_OB.notif(d));
+add('Onboarding','ob-battery','Background use',BOTH,d=>SCREENS_OB.battery(d));
+add('Onboarding','ob-model','Model choice',BOTH,d=>SCREENS_OB.model(d));
+add('Onboarding','ob-downloading','Downloading',BOTH,d=>SCREENS_OB.downloading(d));
+add('Onboarding','ob-dlerror','Download error',BOTH,d=>SCREENS_OB.dlerror(d));
+add('Onboarding','ob-ready','First dictation',BOTH,d=>SCREENS_OB.ready(d));
+add('Bubble','bubble-board','All states',['board'],()=>bubbleBoard());
+add('Bubble','b-tab','Rest (edge tab)',BOTH,d=>bubbleScene(d,'tab'));
+add('Bubble','b-ready','Ready',BOTH,d=>bubbleScene(d,'ready'));
+add('Bubble','b-listen','Listening',BOTH,d=>bubbleScene(d,'listen'));
+add('Bubble','b-hold','Hold to talk',BOTH,d=>bubbleScene(d,'hold'));
+add('Bubble','b-trans','Transcribing',BOTH,d=>bubbleScene(d,'trans'));
+add('Bubble','b-polish','Polishing',BOTH,d=>bubbleScene(d,'polish'));
+add('Bubble','b-ok','Inserted',BOTH,d=>bubbleScene(d,'ok'));
+add('Bubble','b-copied','Copied only (no text field)',BOTH,d=>bubbleScene(d,'copied'));
+add('Bubble','b-err','Error',BOTH,d=>bubbleScene(d,'err'));
+add('Bubble','b-drag','Drag, snap and hide target',BOTH,d=>dragScene(d));
+add('Bubble','b-hidden','Hidden, with undo',BOTH,d=>hideToastScene(d));
+add('Bubble','b-listen-dark','Listening, dark',BOTH,d=>bubbleScene(d,'listen'),{dark:true});
+add('Dashboard','dash','Dashboard',BOTH,d=>dashScreen(d));
+add('Dashboard','dash-empty','Empty',BOTH,d=>dashScreen(d,{state:'empty'}));
+add('Dashboard','dash-loading','Loading',BOTH,d=>dashScreen(d,{state:'loading'}));
+add('Dashboard','dash-off','Bubble turned off by Android',['cover'],d=>dashScreen(d,{state:'off'}));
+add('Dashboard','dash-dark','Dashboard, dark',BOTH,d=>dashScreen(d),{dark:true});
+add('History','hist','History',BOTH,d=>d==='inner'?histDetail(d):histScreen(d));
+add('History','hist-detail','Entry: final text',['cover'],d=>histDetail(d));
+add('History','hist-raw','Entry: original transcript',BOTH,d=>histDetail(d,{mode:'raw'}));
+add('History','hist-diff','Entry: changes',BOTH,d=>histDetail(d,{mode:'diff'}));
+add('History','hist-search','Search',BOTH,d=>histScreen(d,{search:true}));
+add('History','hist-noresults','Search, no results',['cover'],d=>histScreen(d,{search:true,noResults:true}));
+add('History','hist-delete','Delete confirmation',BOTH,d=>histDetail(d,{confirm:true}));
+add('History','hist-undo','Deleted, with undo',['cover'],d=>histScreen(d,{snack:true}));
+add('History','hist-empty','Empty',BOTH,d=>histScreen(d,{empty:true}));
+add('History','hist-dark','History, dark',BOTH,d=>d==='inner'?histDetail(d):histScreen(d),{dark:true});
+add('Models','models','Speech models',BOTH,d=>modelsScreen(d,{kind:'speech'}));
+add('Models','models-llm','Cleanup models',BOTH,d=>modelsScreen(d,{kind:'llm'}));
+add('Models','model-detail','Model detail',['cover'],d=>modelDetail(d));
+add('Models','bench-run','Benchmark running',BOTH,d=>benchSheet(d,{running:true}));
+add('Models','bench-result','Benchmark result (speech)',BOTH,d=>benchSheet(d));
+add('Models','bench-result-llm','Benchmark result (cleanup)',BOTH,d=>benchSheet(d,{kind:'llm'}));
+add('Models','models-storage','Not enough storage',BOTH,d=>modelsScreen(d,{kind:'llm',err:'storage'}));
+add('Settings','settings','Settings',BOTH,d=>settingsScreen(d));
+add('Settings','settings-off','Permission lost',BOTH,d=>settingsScreen(d,{banner:true}));
+add('Settings','prompt','Cleanup prompt editor',BOTH,d=>promptScreen(d));
+add('Settings','prompt-err','Prompt missing {transcript}',BOTH,d=>promptScreen(d,{err:true}));
+add('Settings','prompt-reset','Reset to default',BOTH,d=>promptScreen(d,{reset:true}));
+add('Settings','tone','Tone per app',BOTH,d=>toneScreen(d));
+add('Settings','retention','Retention',BOTH,d=>retentionSheet(d));
+add('Settings','settings-dark','Settings, dark',BOTH,d=>settingsScreen(d),{dark:true});
+
+const NAV_TARGET={dash:'dash',hist:'hist',models:'models',settings:'settings'};
+const byId=Object.fromEntries(F.map(f=>[f.id,f]));
+const SEC_NOTE={
+ Onboarding:'Five permission steps and a model download. Each step says what the permission is for, what it is not used for, and what Android will show next. The inner display keeps the whole checklist visible on the left.',
+ Bubble:'The floating bubble over real apps, at 1:1 dp. Cover display shows a messenger with the Samsung keyboard open; the inner display shows a two-pane notes app. Tap the bubble in “Ready” to run the live demo.',
+ Dashboard:'Numbers that change behaviour: how much you dictate, how fast text arrives, where insertion fails. All computed on the phone.',
+ History:'The main tab. Grouped by day, with the retention rule stated once at the top and the day that is about to be deleted marked. Inner display uses list-detail.',
+ Models:'Speech and cleanup models. Parameters, languages and sizes come from the Hugging Face model cards; benchmark numbers are sample values, not measurements.',
+ Settings:'Retention, bubble behaviour, the cleanup prompt with reset, tone per app, privacy and permission health.',
+};
+
+/* ================= Render ================= */
+function frameHTML(f,d,dark){
+  const cls=`screen ${d}${dark?' dark':''}`;
+  return `<div class="frame ${d}" data-frame="${f.id}" data-dev="${d}"><div class="${cls}" data-screen>${f.render(d)}</div></div>`;
+}
+const params=new URLSearchParams(location.search);
+const root=document.getElementById('root');
+function renderGallery(){
+  const secs=[...new Set(F.map(f=>f.sec))];
+  const forceDark=document.documentElement.dataset.devtheme==='dark';
+  root.innerHTML=`<header class="g-head"><div><h1>Murmur prototype</h1><p>On-device dictation for Galaxy Z Fold7. Every screen at both sizes: cover display 412 × 960 dp and inner display 750 × 832 dp, shown at 1 px = 1 dp. Spec in <code>DESIGN.md</code>, tokens in <code>tokens.json</code>.</p></div>
+   <div class="g-ctrl"><button id="tLight" aria-pressed="${!forceDark}">Light app</button><button id="tDark" aria-pressed="${forceDark}">Dark app</button></div></header>
+   <nav class="g-toc">${secs.map(s=>`<a href="#${s.toLowerCase()}">${s}</a>`).join('')}</nav>`+
+   secs.map(s=>`<section class="g-sec" id="${s.toLowerCase()}"><h2>${s}</h2><p>${SEC_NOTE[s]||''}</p>`+
+     F.filter(f=>f.sec===s).map(f=>`<div class="g-scroll" style="margin-bottom:40px"><div class="g-cap"><b>${f.title}</b><code>${f.id}</code></div><div class="g-row" style="margin-top:10px">${f.devs.map(d=>`<div class="g-item">${frameHTML(f,d,forceDark||f.dark)}<div class="g-cap">${d==='cover'?'Cover display':d==='inner'?'Inner display':''}</div></div>`).join('')}</div></div>`).join('')+`</section>`).join('');
+  document.getElementById('tLight').onclick=()=>{document.documentElement.dataset.devtheme='light';renderGallery();placeBubbles(root)};
+  document.getElementById('tDark').onclick=()=>{document.documentElement.dataset.devtheme='dark';renderGallery();placeBubbles(root)};
+}
+function renderSolo(id,dev,dark){
+  document.body.classList.add('solo');
+  const f=byId[id];
+  root.innerHTML=frameHTML(f,dev,dark||f.dark);
+}
+if(params.get('frame')) renderSolo(params.get('frame'),params.get('dev')||'cover',params.get('theme')==='dark');
+else renderGallery();
+const replace=()=>placeBubbles(root);
+replace(); if(document.fonts) document.fonts.ready.then(replace);
+
+/* ================= Interactions ================= */
+root.addEventListener('click',ev=>{
+  const nav=ev.target.closest('[data-nav]'), go=ev.target.closest('[data-go]');
+  const frame=ev.target.closest('[data-frame]'); if(!frame) return;
+  const scr=frame.querySelector('[data-screen]'); const d=frame.dataset.dev;
+  let id=null;
+  if(nav) id=NAV_TARGET[nav.dataset.nav];
+  else if(go&&go.dataset.go) id=go.dataset.go;
+  if(id&&byId[id]&&byId[id].devs.includes(d)){ scr.innerHTML=byId[id].render(d); placeBubbles(frame); return; }
+  if(id==='hist-detail'&&d==='inner'){ scr.innerHTML=byId['hist'].render(d); return; }
+  if(id==='model-detail'&&d==='inner'){ scr.innerHTML=byId['models'].render(d); return; }
+  // Live bubble demo: tap the Ready bubble
+  const b=ev.target.closest('.bub.ready.circle');
+  if(b&&frame.dataset.frame==='b-ready') runDemo(scr,d);
+});
+let demoTimer=[];
+function runDemo(scr,d){
+  demoTimer.forEach(clearTimeout); demoTimer=[];
+  const seq=[['listen',0],['trans',2600],['polish',3300],['ok',4300],['ready',5600]];
+  seq.forEach(([s,t])=>demoTimer.push(setTimeout(()=>{scr.innerHTML=bubbleScene(d,s); placeBubbles(scr.parentElement);},t)));
+}
+</script>
+</body>
+</html>

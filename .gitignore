@@ -1,0 +1,35 @@
+# Gradle / AGP
+.gradle/
+.kotlin/
+build/
+/captures/
+.externalNativeBuild/
+.cxx/
+local.properties
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.DS_Store
+
+# Signing material and secrets -- never commit
+*.jks
+*.keystore
+keystore.properties
+secrets.properties
+.env
+
+# Model weights are downloaded at runtime, never committed
+*.gguf
+*.tflite
+*.onnx
+*.bin
+*.safetensors
+
+# Local research/download caches written by other tooling in this repo
+.cache/
+
+# Emulator / test output
+/screenshots-local/
+*.hprof

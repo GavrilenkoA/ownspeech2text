@@ -1,0 +1,67 @@
+{
+  "context": {
+    "app": {
+      "package": "org.telegram.messenger",
+      "label": "Telegram",
+      "category": "messaging"
+    },
+    "field": {
+      "kind": "message",
+      "hint": "Сообщение",
+      "before_cursor": "",
+      "after_cursor": ""
+    },
+    "conversation": {
+      "title": "Лёша Козлов",
+      "messages": [
+        {
+          "author": "Лёша Козлов",
+          "text": "Привет! Скинь ссылку на дашборд в Grafana по kube-prometheus"
+        },
+        {
+          "is_me": true,
+          "text": "Ещё нужен доступ к ClickHouse кластеру prod-eu-2?"
+        }
+      ],
+      "kind": "chat"
+    },
+    "terms": [
+      {
+        "text": "Grafana",
+        "score": 0.9
+      },
+      {
+        "text": "kube-prometheus",
+        "score": 0.9
+      },
+      {
+        "text": "ClickHouse",
+        "score": 0.9
+      },
+      {
+        "text": "prod-eu-2",
+        "score": 0.8
+      },
+      {
+        "text": "Тимур Галиев",
+        "score": 0.9
+      },
+      {
+        "text": "Airflow",
+        "score": 0.7
+      },
+      {
+        "text": "PostgreSQL 17",
+        "score": 0.6
+      }
+    ],
+    "language": {
+      "asr": "ru"
+    },
+    "privacy": {
+      "level": "full",
+      "ocr": true
+    }
+  },
+  "transcript": "да тимур галеев уже выдал доступ к клик хаусу а дашборд в графане скину вечером"
+}
