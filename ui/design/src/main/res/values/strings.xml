@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Strings used inside :ui:design components (DESIGN 7 copy deck where it has the key). Prefix design_ keeps them
+     apart from the feature modules' keys after resource merging. -->
+<resources>
+    <string name="design_in_use">In use</string>
+    <string name="design_no_russian">No Russian</string>
+    <string name="design_in_training">In training</string>
+    <string name="design_back">Back</string>
+    <string name="design_clear_search">Clear</string>
+    <string name="design_close_search">Close search</string>
+    <string name="design_play_recording">Play recording</string>
+    <string name="design_pause_recording">Pause playback</string>
+    <string name="design_recording_position">Recording position</string>
+    <string name="design_loading">Loading</string>
+    <string name="design_dismiss">Dismiss</string>
+    <string name="design_selected">Selected</string>
+    <string name="design_not_selected">Not selected</string>
+    <string name="design_paused">Paused</string>
+    <!-- %1$d = percent -->
+    <string name="design_percent">%1$d%%</string>
+</resources>

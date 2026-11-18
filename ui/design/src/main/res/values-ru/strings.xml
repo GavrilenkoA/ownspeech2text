@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="design_in_use">Используется</string>
+    <string name="design_no_russian">Без русского</string>
+    <string name="design_in_training">В обучении</string>
+    <string name="design_back">Назад</string>
+    <string name="design_clear_search">Очистить</string>
+    <string name="design_close_search">Закрыть поиск</string>
+    <string name="design_play_recording">Воспроизвести запись</string>
+    <string name="design_pause_recording">Пауза воспроизведения</string>
+    <string name="design_recording_position">Позиция в записи</string>
+    <string name="design_loading">Загрузка</string>
+    <string name="design_dismiss">Закрыть</string>
+    <string name="design_selected">Выбрано</string>
+    <string name="design_not_selected">Не выбрано</string>
+    <string name="design_paused">Пауза</string>
+    <string name="design_percent">%1$d%%</string>
+</resources>
