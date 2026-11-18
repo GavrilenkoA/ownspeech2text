@@ -16,8 +16,9 @@ PY=.cache/ml/train/venv/bin/python
 export PYTHONPATH="$PWD" OMP_NUM_THREADS="${OMP_NUM_THREADS:-6}"
 LLAMA_BIN="${MURMUR_LLAMA_BIN:-.cache/ml/llm/bin/llama-b12503}"
 STEPS="${STEPS:-sync ship judge stock cards}"
-PROFILES="${PROFILES:-default default.v2}"
-read -r -a TEST <<<"${EVAL_TEST:-$R/data/test.jsonl prompts/eval/sets/test.v1.jsonl}"
+PROFILES="${PROFILES:-default.v4 default.v4s}"   # what the app ships for stock models; reports carry raw + guarded
+STOCK_P="${PROFILES%% *}"
+read -r -a TEST <<<"${EVAL_TEST:-$R/data/test.jsonl prompts/eval/sets/test.v2.jsonl}"
 has() { [[ " $STEPS " == *" $1 "* ]]; }
 log() { echo "[$(date -u +%FT%TZ)] $*" >&2; }
 heavy_eval() { tools/heavy "$PY" -m ml.eval.run_eval "$@"; }
@@ -31,9 +32,10 @@ if has ship; then
     g=$(ls "$R/runs/$run/gguf/"*-Q4_0.gguf 2>/dev/null | head -1) || true
     [[ -n "$g" ]] || { log "no Q4_0 GGUF for $run (sync with WITH_GGUF=1)"; continue; }
     out="$R/runs/$run/eval/Q4_0-test-cpu"
+    ftsys=$("$PY" -c "import json;print(json.load(open('$R/runs/$run/config.resolved.json')).get('prompt',{}).get('system','finetuned.v2'))")
     [[ -f "$out/report.json" ]] && { log "ship eval $run: done"; continue; }
     log "ship eval $run on CPU -> $out"
-    heavy_eval --model "$g" --data "${TEST[@]}" --out "$out" --system finetuned --label "$run Q4_0 test cpu" \
+    heavy_eval --model "$g" --data "${TEST[@]}" --out "$out" --system "$ftsys" --label "$run Q4_0 test cpu" \
       --llama-bin "$LLAMA_BIN" --ngl 0 --threads 6 >/dev/null
   done
 fi
@@ -67,7 +69,7 @@ if has cards; then
     name=$("$PY" -c "import json;print(json.load(open('$man'))['name'])")
     ev="$dir/eval/Q4_0-test-cpu/report.json"; [[ -f "$ev" ]] || ev="$dir/eval/Q4_0-test/report.json"
     case "$run" in lfm3*|full*) st=LFM3-1.7B-QAD-Q4_0;; q08*) st=Qwen3.5-0.8B-Q4_0;; *) st=Qwen3.5-2B-Q4_0;; esac
-    stock="$R/eval/stock/$st/default-test-cpu/report.json"
+    stock="$R/eval/stock/$st/$STOCK_P-test-cpu/report.json"
     "$PY" -m ml.train.card --run "$dir" --name "$name" --repo "${HF_OWNER:-OWNER}/$name-gguf" --eval "$ev" \
       $([[ -f "$dir/eval/quant_loss.json" ]] && echo --qloss-json "$dir/eval/quant_loss.json") \
       $([[ -f "$stock" ]] && echo --stock-eval "$stock") >/dev/null && log "card: $dir/gguf/README.md"

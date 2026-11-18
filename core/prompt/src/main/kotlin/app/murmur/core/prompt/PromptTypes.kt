@@ -23,8 +23,14 @@ data class PromptProfile(
 data class Shot(val ctx: CtxV2? = null, val transcript: String, val target: String)
 
 /**
- * Everything the renderer needs for one request. [systemOverride] = the user's edited instructions
- * (Settings -> Cleanup prompt); null = the profile's shipped system prompt (D8 "default restorable").
+ * Everything the renderer needs for one request.
+ *
+ * [systemOverride] = the user's edited instructions (Settings -> Cleanup prompt); null = the profile's shipped
+ * system prompt (D8 "default restorable"). Exact semantics (ADR-046), mirrored in the golden generator
+ * (core/prompt/tools/make_goldens.py, helper `system_prompt_with_override`): in render.system_prompt the text of
+ * `system/<stem>.md` after `.rstrip("\n")` is replaced by `override.replace("\r\n", "\n").rstrip("\n")`; the
+ * preferences block is appended after it exactly as for the shipped text. The caller passes an override only when
+ * [PromptEditRules.overrideApplies] is true (stock profiles only, never finetuned.*).
  */
 data class RenderInput(
     val profile: PromptProfile,
@@ -40,6 +46,8 @@ data class RenderInput(
 /**
  * [prefix] = render.cache_prefix (request-independent: its KV state is cached per model load, ADR-011);
  * [suffix] = the rest; prefix + suffix == render.render_prompt byte-for-byte.
+ * [prefixKey] = lowercase hex sha256 of the UTF-8 [prefix] only; :main combines it with the model sha, unit, native
+ * build and context parameters into the snapshot key (core:engine PrefixCacheKey).
  */
 data class RenderedPrompt(val prefix: String, val suffix: String, val prefixKey: String) {
     val full: String get() = prefix + suffix

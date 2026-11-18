@@ -3,7 +3,7 @@ package app.murmur.core.model
 import kotlinx.serialization.Serializable
 
 /**
- * Error taxonomy (ARCHITECTURE.md section 13). Every failure that crosses a module boundary is one of
+ * Error taxonomy (ARCHITECTURE.md section "Error taxonomy"). Every failure that crosses a module boundary is one of
  * these. [code] is stable: it is stored in history rows ("failure_code"), counted on the dashboard and
  * sent across binder. Never put user text, screen text or paths into [detail] (privacy, D9).
  */
@@ -17,6 +17,8 @@ sealed class MurmurError {
     @Serializable data object MicPermissionMissing : MurmurError() { override val code = "perm.mic"; override val retryable = false }
     @Serializable data object AccessibilityOff : MurmurError() { override val code = "perm.a11y"; override val retryable = false }
     @Serializable data object NoAsrModel : MurmurError() { override val code = "model.asr_missing"; override val retryable = false }
+    /** A batch (VAD-segmented) ASR model is selected but no VAD artifact is installed. Failed with audio kept. */
+    @Serializable data object NoVadModel : MurmurError() { override val code = "model.vad_missing"; override val retryable = false }
     @Serializable data object PasswordField : MurmurError() { override val code = "ctx.password"; override val retryable = false }
     @Serializable data object AppExcluded : MurmurError() { override val code = "ctx.excluded"; override val retryable = false }
     @Serializable data object LowStorage : MurmurError() { override val code = "sys.storage"; override val retryable = false }
@@ -37,6 +39,12 @@ sealed class MurmurError {
     @Serializable data class OutOfMemory(val kind: ModelKind) : MurmurError() { override val code = "engine.oom.${kind.name.lowercase()}"; override val retryable = true }
     @Serializable data class AsrFailed(override val detail: String?) : MurmurError() { override val code = "asr.failed"; override val retryable = true }
     @Serializable data class LlmFailed(override val detail: String?) : MurmurError() { override val code = "llm.failed"; override val retryable = true }
+    /**
+     * The request does not fit the model's context window (prefix + suffix + minimum output > n_ctx), detected in
+     * :main by CleanupBudget or in :llm after exact tokenisation (murmur_llm MLLM_E_OVERFLOW). Cleanup is skipped,
+     * the raw transcript is inserted ("skipped:too_long"). Numbers are token counts, never text.
+     */
+    @Serializable data class LlmContextOverflow(val neededTokens: Int, val nCtx: Int) : MurmurError() { override val code = "llm.too_long"; override val retryable = false; override val detail get() = "$neededTokens>$nCtx" }
     @Serializable data class GuardRejected(val reason: String) : MurmurError() { override val code = "llm.guard.$reason"; override val retryable = false }
     @Serializable data class OcrFailed(override val detail: String?) : MurmurError() { override val code = "ocr.failed"; override val retryable = true }
 
@@ -61,7 +69,7 @@ sealed class MurmurError {
 
 /** Pipeline stage, used by [MurmurError.Timeout] and latency records. */
 @Serializable
-enum class Stage { PREFLIGHT, MIC_START, ASR_LOAD, LLM_LOAD, OCR, ASR_FINAL, LLM, INSERT, DOWNLOAD }
+enum class Stage { PREFLIGHT, MIC_START, ASR_LOAD, LLM_LOAD, LLM_PREFIX, LLM_READY, OCR, ASR_FINAL, LLM, INSERT, DOWNLOAD, BENCH, CALL }
 
 /** Minimal result type for cross-module APIs (no exceptions across module boundaries). */
 sealed interface Outcome<out T> {

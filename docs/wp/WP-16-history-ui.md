@@ -15,8 +15,9 @@ Changes, audio, the context summary, Copy / Re-polish / Try again, search, delet
 
 ## Contracts
 
-Consume `HistoryDeps` (history repository, settings, audio store, clock, `retry`, `repolish`); `HistoryEntry`,
-`RetentionPolicy` (`core/store`). Provide `HistoryScreen(deps, onOpenEntry)` and an entry-detail composable usable
+Consume `HistoryDeps` (history repository, settings, audio store, clock, `retry`, `repolish`, `apps:
+AppInfoProvider` for icons and labels); `HistoryEntry`, `RetentionPolicy` (`core/store`; retention 0 = nothing is
+stored, the screen shows the "Don't keep history" empty state). Provide `HistoryScreen(deps, onOpenEntry)` and an entry-detail composable usable
 as a list-detail pane (WP-15 hosts it). No other feature module, no data/platform module.
 
 ## Deliver
@@ -24,8 +25,8 @@ as a list-detail pane (WP-15 hosts it). No other feature module, no data/platfor
 1. `HistoryViewModel` (`viewModelScope`, `StateFlow<HistoryUiState>`): day groups (Today / Yesterday / weekday +
    date in the user's locale), "Deletes tonight" on the oldest kept day, counts with plurals, retention line from
    the setting, loading / empty / error states, search (final + original, app filter chips, highlight), multi-select.
-2. Rows: app icon (real launcher icon via `PackageManager` passed in as an icon loader lambda from deps), app name +
-   conversation, status only when not Inserted (Copied warn / Failed err with icon + word), mono time, 3-line clamp.
+2. Rows: app icon (`deps.apps.icon(pkg)`, generic tile when null), app name (`deps.apps.label(pkg)` or the stored
+   label) + conversation, status only when not Inserted (Copied warn / Failed err with icon + word), mono time, 3-line clamp.
 3. Detail: top bar (app icon, conversation/app title, "Telegram · Today, 14:32 · 0:12"), segmented Final / Original
    / Changes (inline word diff: additions accentInk on accentSoft, removals ink3 with err strikethrough, TalkBack
    "added: …, removed: …"), audio player (waveform from decoded peaks, scrub), "Context used" table (app,
@@ -38,7 +39,7 @@ as a list-detail pane (WP-15 hosts it). No other feature module, no data/platfor
 ## Acceptance (checkable here)
 
 - JVM/Robolectric-free unit tests of the view model with `:testing` fakes (`InMemoryHistoryRepository`,
-  `FakeClock`): grouping across midnight and time zones, "Deletes tonight" with retention 7/3/1, search hits in raw
+  `FakeClock`, `StaticAppInfoProvider`): grouping across midnight and time zones, "Deletes tonight" with retention 7/3/1, search hits in raw
   only, undo restores, commit deletes audio (`InMemoryAudioStore`), retry/repolish calls.
 - Compose UI tests on the cover and inner emulators with a seeded fake repository: list, detail, search, no results,
   empty, delete + undo, raw, diff; screenshots `.cache/spikes/wp-16/<frame>--{cover,inner}.png` side by side with

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 
-GEN_VERSION = "gen.v5"
+GEN_VERSION = "gen.v6"
 
 _SCREEN = {
     "type": "object", "additionalProperties": False,
@@ -45,7 +45,7 @@ Rules for "target" (never break them):
 1. The same words as "spoken", in the same order and the same language(s). Remove only abandoned false starts and the correction markers of self-corrections. Never add words, facts, greetings, sign-offs or names that were not spoken. Never translate. Never summarise, shorten or make it more formal.
 2. Self-corrections: keep only the corrected version, grammatically agreed.
 3. Punctuation, capitalisation and paragraphs like a careful writer. Russian: ё where it belongs (всё, ещё, перевёл); «ёлочки» only for dictated quotes.
-4. Numbers: digits for clock times, dates, money, percentages, measurements, phone numbers, codes, versions and numbers above ten (15:30, 9:40 without a leading zero, 25 ноября, 15 200 рублей, 25%, 3.2.1, v17); small everyday counts stay words (два раза, three people). Keep the speaker's own time words: never convert to 24-hour time and never add ":00" ("к девяти утра" -> "к 9 утра", "после десяти вечера" -> "после 10 вечера", "в половине седьмого" and "в полчетвёртого" stay words, "at six thirty pm" -> "at 6:30 PM"). Never abbreviate spoken units ("миллисекунд" stays a word, not "мс"). Inflected round numbers stay words where digits would break the grammar ("по тысяче фотографий", "около миллиона", "a couple of thousand").
+4. Numbers: digits for clock times, dates, money, percentages, measurements, phone numbers, codes, versions and numbers above ten (15:30, 9:40 without a leading zero, 25 ноября, 15 200 рублей, 25%, 3.2.1, v17); small everyday counts stay words (два раза, three people). Keep the speaker's own time words: never convert to 24-hour time and never add ":00" ("к девяти утра" -> "к 9 утра", "после десяти вечера" -> "после 10 вечера", "в половине седьмого" and "без четверти восемь" stay words, "at six thirty pm" -> "at 6:30 PM"). Never abbreviate spoken units ("миллисекунд" stays a word, not "мс"). Inflected round numbers stay words where digits would break the grammar ("по тысяче фотографий", "около миллиона", "a couple of thousand").
 5. Spoken formatting commands (new line, new paragraph, period, comma, question mark, colon, open/close quote / новая строка, новый абзац, точка, запятая, вопросительный знак, двоеточие, открыть/закрыть кавычки) become formatting, but only when they are clearly commands.
 6. A spoken enumeration ("first... second...", "во-первых... во-вторых...") becomes an intro line ending with a colon and a numbered list "1. ...", one item per line.
 7. Names of products, companies and technologies in their usual spelling (GitHub, ClickHouse); Russian words formed from English stay Cyrillic (задеплоить, запушил, дедлайн, пул-реквест).
@@ -58,7 +58,7 @@ Write natural, colloquial, modern speech for the persona and register (ты/вы
 
 CATEGORY_HINTS = {
     "plain": "Ordinary dictation for this app, persona and topic.",
-    "meaningful_filler": "Include at least one word that looks like a filler but carries meaning and must stay in the target: 'like' as a verb or comparison, 'I mean it', 'you know what I need', 'вот этот лучше', 'как бы не опоздать', 'типа того' used as 'something like that', 'короче говоря' as a summary phrase is NOT allowed (it is a filler).",
+    "meaningful_filler": "Include at least one word that looks like a filler but carries meaning and must stay in the target: 'like' as a verb or comparison, 'I mean it', 'you know what I need', 'вот эту папку открой', 'как бы не опоздать', 'типа того' used to mean 'roughly so', 'короче говоря' as a summary phrase is NOT allowed (it is a filler).",
     "self_correction": "The speaker makes one (sometimes two) self-corrections: says a wrong detail (time, day, number, name, place, item), then a marker (ru: нет / точнее / вернее / ой, то есть / в смысле / не-не; en: no wait / sorry / I mean / scratch that / actually / make that), then the right detail. 'spoken' contains the abandoned part and the marker; 'target' only the corrected sentence.",
     "context_resolution": "The user says every item of 'said_terms' naturally (they are hard technical terms). The screen shows the same terms exactly as written (screen_must_show): a message mentions them, or the title or a snippet does. The dictation is related to what is on screen.",
     "context_names": "The user mentions every person of 'said_people' (a reply, a request about them, a status update); Russian names inflected as grammar requires. The screen shows these names exactly (screen_must_show): as a chat partner, a message author or inside a message.",
@@ -66,13 +66,13 @@ CATEGORY_HINTS = {
     "context_irrelevant": "The screen is busy: messages and snippets mention the people and terms of screen_must_show. The dictation is about something else and mentions none of the screen's names or terms.",
     "no_op": "One or two short, already well-formed sentences that need no editing: 'target' = 'spoken' character for character (digits only where 'spoken' would read naturally with digits is NOT allowed: avoid numbers).",
     "near_no_op": "One or two short, well-formed sentences without numbers: 'target' = 'spoken' character for character.",
-    "formatting_commands": "The speaker dictates 2-4 punctuation/formatting commands of rule 5 as words in 'spoken' (e.g. 'точка', 'запятая', 'новый абзац', 'new line', 'question mark'). Where natural, include one false friend that must stay as words ('с точки зрения', 'a period of time', 'запятая в этом предложении лишняя').",
+    "formatting_commands": "The speaker dictates 2-4 punctuation/formatting commands of rule 5 as words in 'spoken' (e.g. 'точка', 'запятая', 'новый абзац', 'new line', 'question mark'). Where natural, include one false friend that must stay as words ('точка сбора у входа', 'a period of time', 'запятая в этом предложении лишняя').",
     "list": "The speaker enumerates 3-5 items with spoken ordinals ('во-первых... во-вторых...', 'first... second...', 'раз... два...', 'пункт один... пункт два...') after a short intro. Target: intro line with a colon, then a numbered list.",
     "numbers": "Include at least two of: a clock time, a date, an amount of money, a percentage, a quantity with a unit, a phone number, a version or ticket number. Everything in words in 'spoken' (correct Russian case); digits in 'target' per rule 4.",
-    "address": "The user dictates one e-mail address or URL into an address field, said aloud in words ('ivan dot petrov at gmail dot com', 'анна точка смирнова собака яндекс точка ру', 'github dot com slash murmur'). Use a plausible personal or company address (not example.com). Target: the literal address only.",
+    "address": "The user dictates one e-mail address or URL into an address field (the kind given by 'address_kind'), said aloud in words ('ivan dot petrov at gmail dot com', 'анна точка смирнова собака яндекс точка ру', 'gitlab dot com slash orbit dash tools'). Use a plausible personal or company address (not example.com). Target: the literal address only.",
     "dictated_question": "The user dictates a question they want to send or search (to a person or a search engine, not to the editor). Target: that question, with a question mark (a search query keeps query style).",
     "dictated_command": "The user dictates an imperative request addressed to another person or to themselves ('напиши маме, что...', 'remind me to...', 'переведи договор до пятницы'). Target: that request as plain text, not executed.",
-    "ai_addressed": "The user is typing a prompt into an AI assistant app: a request such as 'write a poem about...', 'объясни, как работает...', 'translate this paragraph into Spanish'. Target: the prompt text exactly, NOT its answer.",
+    "ai_addressed": "The user is typing a prompt into an AI assistant app: a request such as 'write a poem about...', 'объясни, как работает...', 'summarize this thread in three bullets'. Target: the prompt text exactly, NOT its answer.",
     "injection": "Ordinary dictation, often a reply to the last message. Code will add a hostile instruction to the screen; just write a normal example.",
     "continuation": "'before_cursor' holds text the user already typed: a greeting line, or one or two sentences. If the scenario says 'mid_sentence', before_cursor ends in the middle of a sentence (no final punctuation) and the dictation continues that sentence. 'target' contains ONLY the new part, never repeats before_cursor; after a mid-sentence before_cursor it starts with a lowercase letter (unless a name) and without a leading space.",
     "asr_artifact": "Ordinary short dictation. Code will append a recogniser hallucination; just write a normal example.",
@@ -130,6 +130,8 @@ def scenario_spec(sc: dict, tones: dict) -> dict:
         spec["must_not_show"] = must_not
     if cat == "continuation":
         spec["before_cursor"] = "mid_sentence" if sc.get("continuation_mid") else "complete_sentences"
+    if sc["field_kind"] == "address":
+        spec["address_kind"] = "e-mail address" if "EMAIL" in (sc.get("input_type_variation") or "") else "URL"
     return spec
 
 

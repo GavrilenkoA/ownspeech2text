@@ -10,6 +10,7 @@ import app.murmur.core.model.MurmurClock
 import app.murmur.core.store.MetricsRepository
 import app.murmur.core.store.SettingsRepository
 import app.murmur.core.store.StatsCalculator
+import app.murmur.ui.design.AppInfoProvider
 import kotlinx.coroutines.flow.StateFlow
 
 class DashboardDeps(
@@ -19,6 +20,8 @@ class DashboardDeps(
     val clock: MurmurClock,
     /** false -> red "The bubble is off" banner (dash-off). */
     val serviceConnected: StateFlow<Boolean>,
+    /** "Where you dictate": metrics store package names only; labels and icons come from here. */
+    val apps: AppInfoProvider,
 )
 
 /** WP-17. */

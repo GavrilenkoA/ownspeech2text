@@ -5,10 +5,31 @@ Owner: prompt engineer (ML post-processing). Date: 2026-11-19. Everything below 
 on a phone. Run files: `.cache/ml/prompt/runs/<model>.<profile>[_tag].<set>.jsonl` (+ `.meta.json`, `.server.log`).
 Every table is reproducible with `python3 prompts/eval/report.py <runs…>` (current guard applied on re-score).
 
+## R. Review round 2026-11-19 — protocol (written before any run on the rebuilt sets)
+
+Review findings: the v2 sets were built with an older ml/ocr + ml/screens (68 of 98 dev and 44 of 66 test cases have
+different OCR lines under the current producer), `default.v4` was chosen on dev although it only ties `default.v1`
+on test, and the guard was checked against stored test runs while it was being changed. Protocol for this round:
+
+1. Rebuild every v2 set, shot file and smoke file with the current producer once ml/ocr and ml/screens have
+   stopped changing; the producer hash is stored in each case (`meta.render.producer`) and `run_eval.py` refuses
+   stale sets.
+2. Guard frozen at `guard.v1.1` (no rule change in this round; rule changes are decided on dev only from now on).
+3. Runs: {`default.v1`, `default.v4s`, `default.v4`} × {Qwen3.5-2B, LFM3-1.7B, Qwen3.5-0.8B}, once each on dev.v2
+   and once on test.v2, no prompt or shot edit in between.
+4. **Ship rule (fixed now):** profiles ordered by prefix cost v1 (~1.05 K tokens) < v4s (~2.0 K) < v4 (~3.1 K).
+   The cheapest profile ships unless a more expensive one, after the guard on test.v2, (a) passes at least 3 more
+   cases (≥ 0.045) with Qwen3.5-2B, (b) passes no more than 2 cases fewer with LFM3-1.7B and with Qwen3.5-0.8B,
+   and (c) answers no more than 1 extra dictated question/command with any of the three models. Dev numbers are
+   reported but do not decide.
+
 ## 0. Decisions
 
-1. **Default stock model (nothing fine-tuned): Qwen3.5-2B Q4_0 with profile `default.v4` + `prompts/guard.py`.**
-   It is the best stock model on every split: dev 0.48 pass raw / **0.56 after the guard**, held-out test
+1. **Default stock model (nothing fine-tuned): Qwen3.5-2B Q4_0 with profile `default.v4` + `prompts/guard.py`,
+   provided the app restores the prefix KV state per dictation** (the 3,129-token prefix then costs only a state
+   restore; prefilling it took 12.7 s even for Qwen3.5-0.8B on the host CPU). Without state restore use `default.v4s` (2,008 tokens, dev −2 points).
+   On the held-out test v4 only ties the old v1 prompt (0.50 vs 0.52), see §4.1 — the dev gain did not transfer.
+   Qwen3.5-2B is the best stock model on every split: dev 0.48 pass raw / **0.56 after the guard**, held-out test
    0.42 / **0.50** (real-OCR contexts). Next best: LFM3-1.7B 0.43 / 0.32, Qwen3.5-0.8B 0.40 / 0.30 (dev / test, after the guard).
    The no-LLM baseline (raw transcript + the guard's pre-LLM noise check) is 0.26 / 0.23.
 2. **One prompt for all stock models: `default.v4`** (system `default.v4.md` + 15 few-shot turns with real OCR contexts).
@@ -85,14 +106,17 @@ prompts (batch composition differs): 1 of 45 outputs changed (q2b dense, 1400 vs
 
 | model | v1 prompt, v1 ctx (dev / test) | **v4 prompt, real OCR ctx (dev / test)** | v1 prompt, real OCR ctx (dev / test) |
 |---|---|---|---|
-| Qwen3.5-2B | 0.40 / 0.55 · 0.45 / 0.55 | **0.48 / 0.56 · 0.42 / 0.50** | ⟨V1Q2B⟩ |
-| LFM3-1.7B | 0.26 / 0.39 · 0.32 / 0.41 | **0.21 / 0.43 · 0.18 / 0.32** | ⟨V1LFM⟩ |
-| Qwen3.5-0.8B | 0.22 / 0.33 · 0.24 / 0.32 | **0.30 / 0.40 · 0.20 / 0.30** | ⟨V1Q08⟩ |
+| Qwen3.5-2B | 0.40 / 0.55 · 0.45 / 0.55 | **0.48 / 0.56 · 0.42 / 0.50** | 0.40 / 0.53 · 0.42 / 0.52 |
+| LFM3-1.7B | 0.26 / 0.39 · 0.32 / 0.41 | **0.21 / 0.43 · 0.18 / 0.32** | 0.23 / 0.39 · 0.21 / 0.32 |
+| Qwen3.5-0.8B | 0.22 / 0.33 · 0.24 / 0.32 | **0.30 / 0.40 · 0.20 / 0.30** | 0.21 / 0.32 · 0.23 / 0.30 |
 | no LLM (transcript + precheck) | 0.19 / 0.26 · 0.17 / 0.23 | same | same |
 
-Dev numbers improved with the prompt work; on the held-out test the v4 + real-OCR setting is 2–9 points below v1 + clean
-structured context. Two causes are separable on dev (§4.3): real OCR context costs 1–4 points by itself, and test
-categories hold 4–5 cases, so ±1 case = ±20 points per category (aggregate noise ≈ ±3 points).
+**Honest reading.** Under the binding real-OCR context, v4 beats v1 on dev by 3–8 points (after the guard) but **ties it on
+the held-out test** (0.50 vs 0.52, 0.32 vs 0.32, 0.30 vs 0.30): most of the dev gain is fit to dev (its shots target dev
+failure classes). The prompt work that does transfer: few-shot turns (§4.2: 0 shots → 15 shots is +25 points on dev),
+the no-translation rule (language preservation), and the guard (+8–14 points everywhere). Against v1 with clean structured
+context (phase-1 design, no longer possible), real OCR costs 1–4 points on dev with the same prompt (§4.3); test categories
+hold 4–5 cases, so ±1 case = ±20 points per category (aggregate noise ≈ ±3 points). Only v1 and v4 were run on `test.v2`.
 
 ### 4.2 Prompt iterations (dev; v1–v3 on dev.v1, v4/v5 on dev.v2; pass raw / after guard; prefix tokens Qwen / LFM)
 
@@ -105,6 +129,8 @@ categories hold 4–5 cases, so ±1 case = ±20 points per category (aggregate n
 | v3x2 (dev.v2) | v3 with OCR contexts | 0.49 / 0.57 | 0.19 / 0.34 | 0.27 / 0.37 | 2,796 / 2,891 |
 | **default.v4 (dev.v2)** | no-translation first, OCR paragraph, 15 turns | **0.48 / 0.56** | **0.21 / 0.43** | **0.30 / 0.40** | 3,129 / 3,240 |
 | default.v4s (dev.v2) | v4 with 8 turns | 0.46 / 0.54 | — | 0.21 / 0.32 | 2,008 / — |
+| default.v4z (dev.v2) | v4 rules, no shots | 0.23 / 0.31 | — | 0.15 / 0.24 | 709 / — |
+| default.v1 (dev.v2) | v1 prompt on OCR contexts | 0.40 / 0.53 | 0.23 / 0.39 | 0.21 / 0.32 | 1,047 / 1,072 |
 | default.v5 (dev.v2) | v4 + "spell heard terms as on screen" | 0.45 / 0.53 | 0.21 / 0.39 | 0.29 / 0.39 | 3,184 / 3,296 |
 
 Findings: few-shot demonstrations as real chat turns in the exact request format beat the same examples inline in the
@@ -184,7 +210,10 @@ transcript, which the scorer still counts as a language/length miss against the 
    screen content leaking into the output; the stock models do not learn this from instructions (v5).
 7. **Transliterated tech terms without context (0.50 / 0.25):** "ноушен" → Notion, "эслинт" → ESLint.
 8. **Terminal/shell dictation (tone 0.43 / 0.20):** "эл эс минус эл эй" → `ls -la`.
-9. **Dictated questions on small models:** Qwen3.5-0.8B answers 36 % of the test's dictated questions under v4.
+9. **Dictated questions on small models:** Qwen3.5-0.8B answers 36 % of the test's dictated questions/commands under v4
+   (0 % under v1): the longer few-shot prefix makes the 0.8B model more "chatty".
+11. **A runaway address output on test** (Qwen3.5-2B + v4: category WER 3.5, v1: 0.71) passes the guard. Not inspected
+    (held-out); the guard's R4 length rule does not cover it — re-check once a new dev case of the same kind exists.
 10. **LFM3 rambling:** answer followed by meta-commentary ("Wait, the transcript says…"); the guard's length rule
     removes it, but the model text is lost (falls back to the raw transcript).
 Noise-only input is solved outside the model (precheck).
@@ -205,7 +234,12 @@ Queues actually run: `.cache/ml/prompt/queue_v{6,7,9}.sh` (logs next to them).
 ## 8. Not verified / open
 
 * Phone: prefill time of the 3.1 K-token prefix and its state save/restore, and greedy parity of the phone build with the
-  host outputs (`prompts/eval/device_prompt_bench.py`; host run in §9).
+  host outputs (`prompts/eval/device_prompt_bench.py`; host run below).
+* Host run of the bench (`tools/heavy python3 prompts/eval/device_prompt_bench.py --local --m q08 --profiles default.v4,default.v4s --n 4`,
+  `.cache/device-reports/prompt_bench-20261119-005713/`, contended 16-core server, 6 threads, Qwen3.5-0.8B): prefix 3,128 tokens
+  prefilled in 12.7 s (v4s: 2,007 in 7.7 s); a full uncached request ~13.4 s / 8.0 s; generation 19–21 tok/s. Greedy outputs of
+  `llama-completion` (one-shot prefill) equal the `llama-server` runs (restored prefix, 6-slot batches) in 3/4 (v4) and 2/4 (v4s)
+  cases: near-ties flip between code paths, so phone/host parity is approximate unless the app uses the same path.
 * `build_ctx` emits no `field.box`; the eval adds it from the render's `visible` field box (on the phone:
   `getBoundsInScreen`). Without it the anchor falls back to the screen bottom (right for chats, wrong for browsers).
 * Small categories (4–7 cases): category-level differences below ~2 cases are noise.

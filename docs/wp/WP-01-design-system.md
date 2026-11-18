@@ -20,6 +20,8 @@ and dark.
   `Radius`, `Motion` durations and bubble timings. Extend the generator (elevation shadows, sizes, springs) rather
   than hand-copying values.
 - `Theme.kt`: `MurmurTheme` maps tokens onto `MaterialTheme.colorScheme` (DESIGN §9 table); dynamic colour off.
+- `AppInfo.kt`: the `AppInfoProvider` contract (app labels/icons for History, Dashboard, Settings) + `StaticAppInfoProvider`
+  for previews. Keep the interface; you may add members (contract change note). The real implementation is WP-15's.
 
 ## Deliver
 
@@ -36,7 +38,8 @@ and dark.
    rows (title/subtitle/leading icon/trailing switch/radio/chevron, inset dividers, pressed overlay), switch, radio,
    linear + ring progress (+paused), banner (err/warn/info), snackbar host (inverse, action), dialog, sheet (bottom
    on compact, 420 dp right side sheet on medium+), audio player (waveform from peaks, scrub), app tile (real launcher
-   icon via a `Painter` parameter), skeleton shimmer, empty state block, top bar for pushed screens.
+   icon via a `Painter` parameter, generic tile when `AppInfoProvider.icon` is null), skeleton shimmer, empty state
+   block, top bar for pushed screens.
    Minimum touch target 48 dp everywhere (hit area padded where the visual is smaller).
 5. **Adaptive helpers**: `rememberIsWide()` (= `currentWindowAdaptiveInfoV2().windowSizeClass` width ≥ 600 dp),
    gutters per size class (20 dp cover, 24-28 dp inner panes), reduced-motion check
@@ -61,6 +64,9 @@ and dark.
 ## Out of scope
 
 Screens (WP-15..19), the bubble (WP-03 builds it from your tokens), launcher icon artwork (not designed yet).
+Pieces without a frame (ARCHITECTURE 3: unit picker, Add-a-model sheet, Support-models rows, "What the model also
+receives" panel, tone "preview" mark) are composed by the screen packages from your components; you add a component
+only if two screens need it.
 
 ## Build/test
 

@@ -2,6 +2,7 @@
 # Boot a Murmur AVD headless and block until Android reports boot completed.
 # Usage: tools/emulator/boot.sh <avd-name> [console-port]
 #   e.g. tools/emulator/boot.sh murmur_fold7_cover 5560   -> adb serial emulator-5560
+#   env: MURMUR_EMU_READ_ONLY=1, MURMUR_EMU_CPU_HOST=1, MURMUR_EMU_GPU
 # Ports default to 5560+ to stay away from emulators other users may run on 5554.
 set -euo pipefail
 
@@ -17,6 +18,11 @@ mkdir -p "$LOG_DIR"
 cmd=("$ANDROID_HOME/emulator/emulator" -avd "$AVD" -port "$PORT"
      -no-window -no-audio -no-boot-anim -no-snapshot-save
      -gpu "${MURMUR_EMU_GPU:-swiftshader}" -accel on)
+# MURMUR_EMU_READ_ONLY=1: second instance of an AVD that is already running.
+if [ "${MURMUR_EMU_READ_ONLY:-0}" = "1" ]; then cmd+=(-read-only); fi
+# MURMUR_EMU_CPU_HOST=1: expose the host CPU (AVX2) to the guest; LLM tests run 3-4x faster (ADR-038).
+# -qemu must stay the last option.
+if [ "${MURMUR_EMU_CPU_HOST:-0}" = "1" ]; then cmd+=(-qemu -cpu host); fi
 
 # /dev/kvm is group kvm; a login shell started before `usermod -aG kvm` lacks the group.
 if [ -r /dev/kvm ] && [ -w /dev/kvm ]; then

@@ -4,6 +4,7 @@ import app.murmur.core.audio.PcmChunk
 import app.murmur.core.catalog.AsrTraits
 import app.murmur.core.context.A11ySnapshot
 import app.murmur.core.engine.LoadSpec
+import app.murmur.core.model.ArtifactId
 import app.murmur.core.model.MurmurError
 import app.murmur.core.model.Outcome
 import app.murmur.core.model.SessionId
@@ -16,7 +17,8 @@ import kotlinx.coroutines.flow.StateFlow
 
 /** :platform:audio. Mic FGS + AudioRecord in :main (platform spike), PCM also encoded to the history file. */
 interface AudioCapture {
-    suspend fun start(session: SessionId, keepRecording: Boolean): Outcome<CaptureHandle>
+    /** [audioKey] = AudioKey.of(createdAt, session).value: the history audio file name (never the bare session). */
+    suspend fun start(session: SessionId, keepRecording: Boolean, audioKey: String): Outcome<CaptureHandle>
 }
 
 interface CaptureHandle {
@@ -24,8 +26,19 @@ interface CaptureHandle {
     val chunks: Flow<PcmChunk>
     /** 7 bar heights 0..1 at ~30 Hz for the bubble (LevelMeter). */
     val levels: StateFlow<FloatArray>
+    /** Mid-recording problems (WP-09); WP-11 maps them to DictationEvent.ExternalStop. */
+    val signals: Flow<CaptureSignal>
     suspend fun stop(): CaptureResult
     fun cancel()
+}
+
+sealed interface CaptureSignal {
+    /** AudioRecordingCallback / isClientSilenced became true (another app took the mic). */
+    data object Silenced : CaptureSignal
+    /** AudioRecord.read error or the input device disappeared. */
+    data class Lost(val error: MurmurError) : CaptureSignal
+    /** AudioManager mode changed to IN_CALL / IN_COMMUNICATION (incoming or outgoing call). */
+    data object CallStarted : CaptureSignal
 }
 
 data class CaptureResult(val durationMs: Long, val audio: AudioRef?, val peakAbs: Int, val silenced: Boolean)
@@ -33,6 +46,11 @@ data class CaptureResult(val durationMs: Long, val audio: AudioRef?, val peakAbs
 /** :platform:a11y. Reads the target at press time, captures the window screenshot, re-checks before delivery. */
 interface TargetReader {
     suspend fun snapshot(): A11ySnapshot?
+    /**
+     * NOTIFICATION start (ARCHITECTURE 5.2): wait until the notification shade has collapsed (first WINDOWS_CHANGED with
+     * a focused TYPE_APPLICATION window that is not SystemUI), at most [timeoutMs], then [snapshot]. null = no app window.
+     */
+    suspend fun snapshotAfterShade(timeoutMs: Long): A11ySnapshot?
     /** takeScreenshotOfWindow(target) with the fallbacks of ARCHITECTURE.md 9.1; Err(SecureWindow) for FLAG_SECURE. */
     suspend fun screenshot(target: A11ySnapshot): Outcome<ScreenImage>
     /** Current focus right before insertion (focus may have moved or become a password field). */
@@ -51,13 +69,22 @@ sealed interface InsertResult {
     data class Failed(val error: MurmurError) : InsertResult
 }
 
-fun interface Feedback {
+/**
+ * Bubble feedback (WP-03, from the overlay view): haptics per Settings.feedback (VIBRATION/BOTH) and earcons
+ * (SOUND/BOTH). The start earcon plays before the microphone opens; earcon sounds are an open design question
+ * (DESIGN 6.5 lists the setting, no asset exists): until decided, [sound] is a no-op and Settings shows the option.
+ */
+interface Feedback {
     fun haptic(kind: HapticKind)
+    fun sound(kind: HapticKind)
 }
 
 /**
- * Resolves the selected models into load specs (catalog + install state + unit choice + benchmark).
- * Implemented in :data:models.
+ * Resolves the selected models into load specs (catalog + install state + device profile + unit choice + unit
+ * health + benchmark). Implemented in :data:models (WP-13). Never throws: a missing device profile resolves with
+ * DeviceProfile.cpuOnly; errors are Err(NoAsrModel) (no installed artifact of a selectable ASR model; previewOnly
+ * models are never selected, ADR-047) and Err(NoVadModel) (batch ASR without an installed VAD). A missing LLM is not
+ * an error: ActiveModels.llm = null with [ActiveModels.llmUnavailable] = "none" / "no_model".
  */
 interface ModelResolver {
     suspend fun resolve(settings: Settings): Outcome<ActiveModels>
@@ -65,26 +92,110 @@ interface ModelResolver {
 
 data class ActiveModels(
     val asr: LoadSpec,
+    /**
+     * Next usable installed candidate after [asr] (ArtifactSelector.ranked), loaded by the executor when [asr] fails
+     * (ARCHITECTURE 4.4); null = none installed -> UnitUnavailable / "Download the CPU version".
+     */
+    val asrFallback: LoadSpec?,
     val asrTraits: AsrTraits,
     val vad: LoadSpec?,
     val ocrDet: LoadSpec?,
     val ocrRec: LoadSpec?,
     val llm: ActiveLlm?,
+    /** cleanup_outcome code when [llm] is null: "none" (user chose None) or "no_model" (selected model not installed). */
+    val llmUnavailable: String? = null,
 )
 
 data class ActiveLlm(
     val spec: LoadSpec,
-    /** render.py TEMPLATES key and prompt profile from the catalog. */
+    /** Same artifact on the next usable unit (NPU -> GPU -> CPU), then other installed artifacts; no download needed. */
+    val fallback: LoadSpec?,
+    /** render.py TEMPLATES key and prompt profile from the catalog (custom: from GgufTemplates). */
     val template: String,
     val profile: String,
     val memoryMb: Int,
-    /** Expected prefill+decode ms for a typical dictation from the benchmark, for the adaptive timeout. */
-    val expectedMsPer100Words: Long?,
+    /** Catalog LlmTraits.nCtx (passed as LoadSpec option n_ctx). */
+    val nCtx: Int,
+    /** Catalog LlmTraits.prefixTokens (custom: from the Preparing PrefixInfo); PrefixInfo.tokens wins at runtime. */
+    val prefixTokens: Int?,
+    /** sha256 of the GGUF (catalog FileSpec), part of the prefix cache key. */
+    val modelSha256: String,
+    /** Latest VALID benchmark of (artifact, unit); null -> DictationConfig.defaultSpeed[unit]. */
+    val speed: LlmSpeed?,
 )
 
 /** ActivityManager.MemoryInfo in :main; decides whether the LLM can load next to the ASR (ARCHITECTURE.md 7). */
 fun interface MemoryGate {
     fun availableMb(): Long
+}
+
+/** Opens app screens from the bubble (WP-20: Intent to MainActivity with WP-15's deep-link extras). */
+fun interface AppNavigator {
+    fun open(target: OpenTarget)
+}
+
+/** Permission and service status for preflight, onboarding and Settings > Permissions (WP-20 implements in :app). */
+data class PermissionState(
+    val micGranted: Boolean,
+    val notificationsGranted: Boolean,
+    val a11yEnabled: Boolean,
+    val a11yConnected: Boolean,
+    /** onServiceConnected ran at least once since install (RestrictedSettingsProbe input). */
+    val a11yEverConnected: Boolean,
+    val batteryUnrestricted: Boolean,
+    /** RestrictedSettingsProbe.likelyBlocked (DESIGN 6.1 ob-restricted). */
+    val restrictedLikely: Boolean,
+)
+
+interface PermissionMonitor {
+    val state: StateFlow<PermissionState>
+    /** Re-read everything (on resume, on return from a system screen). */
+    fun refresh()
+}
+
+/**
+ * The persistent idle notification of DESIGN 5.1 ("Murmur is ready", models as subtitle, "Hide 1 h", "Start
+ * dictation", "Show now" while hidden). Separate from the microphone FGS notification (I3). WP-09 implements; :app
+ * (WP-20) shows it while the service is connected and notifications are allowed, and updates the subtitle from
+ * the resolver and the hidden state from Settings.hiddenUntilEpochMs.
+ */
+interface StatusNotifier {
+    fun show(modelsLine: String, hiddenUntilEpochMs: Long?)
+    fun hide()
+}
+
+/**
+ * Install-time and change-time preparation (ARCHITECTURE 8.5, review 2026-11-19). Implemented by the
+ * orchestrator (it shares the inference processes and must never run during a dictation: a press cancels it).
+ */
+interface EnginePreparer {
+    /**
+     * After an artifact is installed (WP-13 calls it while InstallState = Preparing): load it on every usable unit;
+     * ASR: decode a bundled 1 s clip; LLM: build and persist the prefix snapshot. Marks UnitHealth proven / failed.
+     * An NPU failure with no CPU artifact installed reports [PrepareReport.needsCpuArtifact] (WP-13 queues it).
+     */
+    suspend fun prepareArtifact(artifact: ArtifactId, onProgress: (Float) -> Unit): Outcome<PrepareReport>
+    /**
+     * The prefix of the active LLM changed (prompt edit, preferences edit, unit or model change): rebuild the snapshot
+     * in the background (debounced 5 s, only while no dictation runs). Called by the settings observer in WP-11.
+     */
+    fun invalidatePrefix()
+}
+
+data class PrepareReport(
+    val artifact: ArtifactId,
+    val proven: Set<app.murmur.core.model.ComputeUnit>,
+    val failed: Map<app.murmur.core.model.ComputeUnit, MurmurError>,
+    val needsCpuArtifact: ArtifactId?,
+)
+
+/**
+ * In-app dictation target (onboarding practice field ob-ready, DESIGN 6.1): the orchestrator runs the normal pipeline
+ * but reads the target from here and inserts here; no screenshot (privacy app_only), nothing stored in history.
+ */
+interface InAppTarget {
+    val snapshot: A11ySnapshot
+    fun insert(text: String)
 }
 
 /**

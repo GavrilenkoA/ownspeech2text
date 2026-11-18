@@ -35,7 +35,7 @@ GATES: tuple[Gate, ...] = (
     Gate("Judge mean", "judge_mean", ">=", 4.3, "judge_n", 20, "LLM judge 1-5 (ml/eval/judge.py)"),
     Gate("Empty output", "empty_ok", ">=", 0.90, "empty_n", 3, "noise-only input -> empty output (Murmur addition)"),
     Gate("Eval-set integrity", "ctx_unsupported_items", "<=", 0, "n", 1,
-         "context-support items whose gold term is not in ctx.screen.lines (a FAIL means the SET is broken)"),
+         "items breaking a CONTEXT_V2 category rule on ctx.screen.lines (a FAIL means the SET is broken)"),
 )
 NWER_FACTOR = 0.8
 

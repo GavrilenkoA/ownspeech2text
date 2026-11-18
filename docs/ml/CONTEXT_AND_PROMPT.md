@@ -185,6 +185,13 @@ Drop order when over budget (implemented in `render.py`): other screen snippets 
 
 ## 5. Privacy rules **[V APIs, I policy]**
 
+> **ctx v2 (2026-11-19, binding for app, training data and eval; `prompts/render.py NO_SCREEN_LEVEL`,
+> `prompts/context.schema.v2.json`):** without a screen the phone sends `privacy.reason` and the level fixed for it —
+> `secure_window`, `denylisted_app`, `password_field` → `app_only` (app, field kind and hint; no text before the
+> cursor, no screen); `screenshot_error`, `ocr_empty` → `full` (text before the cursor kept); `user_setting` →
+> `app_only` or `none` as the user chose. `terms_only` no longer exists (no tree terms in v2); the password row's
+> "do not run the LLM" still holds in the app. The "Action" column below is v1 history where it differs.
+
 | Situation | Detection | Action (`privacy.level`) |
 |---|---|---|
 | Focused field is a password | `isPassword()` or password `inputType` variation | Do **not** run the LLM on screen context; do not screenshot; recommend not even inserting (owner decision) → `none` |

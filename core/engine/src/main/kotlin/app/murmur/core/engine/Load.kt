@@ -24,7 +24,7 @@ data class LoadSpec(
     /** Role -> relative path (catalog Artifact.layout). */
     val layout: Map<String, String>,
     val maxWindowSec: Double? = null,
-    /** Runtime knobs (threads, n_ctx, use_mmap, power mode...). Keys documented per runtime in ARCHITECTURE 6.4. */
+    /** Runtime knobs (threads, n_ctx, use_mmap, power mode...). Keys: [LoadOptions]. */
     val options: Map<String, String> = emptyMap(),
 )
 
@@ -53,9 +53,16 @@ data class ProcessProbe(
     val process: InferProcess,
     val runtimes: Set<String>,
     val units: Set<ComputeUnit>,
-    /** Free text facts for the device report (HTP arch, QNN build, OpenCL device...). Never user data. */
+    /**
+     * Free text facts for the device report (HTP arch, QNN build, OpenCL device...). Never user data. Key
+     * [FACT_NATIVE_BUILD] is mandatory once the native runtime is packaged (prefix cache key, ADR-011).
+     */
     val facts: Map<String, String> = emptyMap(),
-)
+) {
+    companion object {
+        const val FACT_NATIVE_BUILD = "native.build"
+    }
+}
 
 @Serializable
 data class ProcessMemory(
@@ -83,4 +90,16 @@ interface InferenceHost {
     fun scheduleIdleExit(ms: Long)
     /** Unload everything and exit now (benchmark cold start, memory pressure, settings change). */
     suspend fun shutdown()
+}
+
+/** LoadSpec.options keys (ARCHITECTURE 8.2 / WP-10, WP-06). */
+object LoadOptions {
+    /** LLM context window = catalog LlmTraits.nCtx (ADR-045). */
+    const val N_CTX = "n_ctx"
+    const val THREADS = "threads"
+    /** "0" for CPU LLMs (ADR-031). */
+    const val USE_MMAP = "use_mmap"
+    const val POWER_MODE = "power_mode"
+    const val KV_TYPE = "kv_type"
+    const val N_BATCH = "n_batch"
 }

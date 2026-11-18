@@ -11,15 +11,18 @@ The Android OCR produces what the Python reference produces (D11), fast enough t
 
 ## Owns
 
-`core/ocr/**`; `infer/asr/src/{main,androidTest}/kotlin/app/murmur/infer/asr/ocr/**` (ORT sessions + the OCR
-handler that `AsrService` calls; agree on the `OcrHandler` seam with WP-06 on day 1).
+`core/ocr/**`; `infer/asr/src/{main,androidTest}/kotlin/app/murmur/infer/asr/ocr/**` (ORT sessions + the
+`OcrHandler` that `AsrService` already delegates to); `infer/asr/src/androidTest/assets/ocr/**` (golden PNGs for the
+emulator test). The androidTest manifest and `infer/asr/build.gradle.kts` are WP-06's: ask for what you need.
 
 ## Contracts
 
 Implement `OcrPipeline.run`, `OcrPipeline.detTargetSize`, `OcrPostProcess.process`, `repairHomoglyphs` (pure,
 `core/ocr`), `OcrModels` (`OrtOcrModels`: ORT 1.32 Java API, default CPU EP, `intra_op_num_threads` from
-`OcrConfig.threads`, graph optimisation ALL), and the `:asr` side of `loadOcr` / `recognizeScreen` (SharedMemory →
-`ScreenImage` → `ScreenText` JSON). `OcrConfig` defaults must stay equal to `ml/ocr/config.py`
+`OcrConfig.threads`, graph optimisation ALL), and the `:asr` side through the seam that exists in your package:
+`OcrHandler` (`load(detJson, recJson, cb)`, `recognize(SharedMemory, w, h, excludeJson, cb)`, `unload()`) and
+`OcrHandlers.create(context)` (replace `StubOcrHandler` with your handler: SharedMemory → `ScreenImage` → `OcrPipeline`
+→ `ScreenText` JSON on your own OCR thread; close the SharedMemory in every path). `OcrConfig` defaults must stay equal to `ml/ocr/config.py`
 (`OcrConfigParityTest`; extend it to every field).
 
 ## Deliver
@@ -45,11 +48,12 @@ Implement `OcrPipeline.run`, `OcrPipeline.detTargetSize`, `OcrPostProcess.proces
 - x86_64 emulator: instrumented test sends a golden PNG decoded to ARGB through the real `recognizeScreen` binder
   path (SharedMemory) and meets the same tolerances; report det ms at 960 and total ms for the cover and inner
   goldens (the spike measured det 453 ms at 960×864 on a loaded host).
-- No XNNPACK, no QNN in this WP (NPU OCR is a catalog follow-up decided by DEVICE_CHECKLIST D4).
+- No XNNPACK, no QNN in this WP (NPU OCR is WP-21's, adopted only after DEVICE_CHECKLIST DC4). Keep the ORT session
+  creation in one function (`OrtOcrModels.session(spec, options)`) so that WP-21 can add the QNN EP options there.
 
 ## Out of scope
 
-Screenshot capture (WP-02), ctx assembly and budgets (WP-08/WP-04), OCR quality on real Fold7 screens (D7).
+Screenshot capture (WP-02), ctx assembly and budgets (WP-08/WP-04), OCR quality on real Fold7 screens (DC7).
 
 ## Build/test
 

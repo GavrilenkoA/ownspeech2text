@@ -5,13 +5,34 @@ Changing a value here changes the golden files: re-run `make -C ml/ocr golden` a
 from __future__ import annotations
 
 import os
+from functools import lru_cache
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 MODEL_DIR = Path(os.environ.get("MURMUR_OCR_MODELS", REPO / ".cache" / "ml" / "ocr"))
 
-PIPELINE_VERSION = "ocr.v1"
+# History: ocr.v1 = 2026-11-18 (det_limit 1600, later 960; homoglyph rules changed in place: contexts labelled
+# ocr.v1 are NOT reproducible). ocr.v2 = 2026-11-19 (the constants below). Bump on ANY change that can change
+# the output; SOURCE_FILES' hash (source_hash()) catches the bumps that were forgotten.
+PIPELINE_VERSION = "ocr.v2"
+SOURCE_FILES = ("config.py", "pipeline.py", "postprocess.py")   # everything that decides the output
+
+
+def src_hash(root: Path, rels) -> str:
+    """sha1 over (relative path, bytes) of the given files, 12 hex chars. Shared by ml/screens."""
+    import hashlib
+    h = hashlib.sha1()
+    for rel in sorted(rels):
+        h.update(str(rel).encode())
+        h.update(b"\0")
+        h.update((root / rel).read_bytes())
+    return h.hexdigest()[:12]
+
+
+@lru_cache(maxsize=1)
+def source_hash() -> str:
+    return src_hash(Path(__file__).resolve().parent, SOURCE_FILES)
 
 # Latin letters that are visually identical to a Cyrillic letter ("strong" twins) and Latin letters that the
 # recogniser confuses with a Cyrillic letter in UI fonts ("weak" twins). Values are the Cyrillic twin.

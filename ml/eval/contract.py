@@ -109,7 +109,7 @@ def render_prompt(ex: dict, system: str = "finetuned", template: str = "qwen3.5"
     prefs = meta.get("preferences") or preferences
     prof = render.load_profile(system)
     sysmsg = render.system_prompt(prof["system"], prefs, prof.get("preferences_block", "preferences_block"))
-    user = render.user_message(ex.get("ctx") or {}, ex["transcript"], meta.get("style_override"))
+    user = render.user_message(ex.get("ctx") or {}, ex["transcript"], meta.get("style_override"), ctx2=prof.get("ctx2"))
     return render.chat_turns(sysmsg, render.profile_turns(prof), user, template) + prof.get("answer_prefix", "")
 
 
@@ -121,7 +121,7 @@ def render_messages(ex: dict, system: str = "finetuned", preferences: str | None
     prefs = meta.get("preferences") or preferences
     prof = render.load_profile(system)
     sysmsg = render.system_prompt(prof["system"], prefs, prof.get("preferences_block", "preferences_block"))
-    user = render.user_message(ex.get("ctx") or {}, ex["transcript"], meta.get("style_override"))
+    user = render.user_message(ex.get("ctx") or {}, ex["transcript"], meta.get("style_override"), ctx2=prof.get("ctx2"))
     return sysmsg, render.profile_turns(prof), user
 
 

@@ -1,4 +1,6 @@
-package app.murmur
+package app.murmur.shell
+
+import app.murmur.MainActivity
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule

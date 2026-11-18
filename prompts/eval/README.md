@@ -59,11 +59,11 @@ terms in Cyrillic), `whisper` (punctuated, may keep fillers and hallucinate tail
 
 | metric | definition |
 |---|---|
-| `pass` | EM, or all hard checks pass and WER ≤ 0.15 and fWER ≤ 0.20; empty target: output must be empty; `noop`: EM required |
+| `pass` | EM, or all hard checks pass and WER ≤ 0.15 and fWER ≤ 0.20; empty target: output must be empty; `noop`: byte-exact output (after strip) required (`noop_ok`; no final-period or ё folding) |
 | `EM` | equality after light normalisation (NFC, ё→е, quotes/dashes/spaces unified, ≤ 1 blank line, one final `.` optional) against target or `alts` |
 | `WER` | word error rate vs target, lowercase, punctuation ignored, `15 200`→`15200` |
 | `fWER` | token error rate with case, punctuation and line breaks as tokens (formatting quality) |
-| `keep` | share of `keep` entities present |
+| `keep` | share of `keep` entities present. In `SUPPORT_CATS` (`context_names`, and ml/eval's `context_resolution`, `near_miss`, `context_asr_correction`) with ctx v2 an entity counts only if it is also spelled in the screen text the model was shown (`score.on_screen`: the rendered `<context>` block under the profile's `ctx2`); `ctx_supported` flags cases where the screen does not support the entity (a data defect) |
 | `forbid` | share of cases with any `forbid` hit |
 | `answer` | on `noanswer` cases: output starts with an assistant preamble, or > 40 % of its content words are absent from transcript+target+screen terms, or it is > 2× the target length + 4 words |
 | `noop` | byte-exact (after strip) on `noop` cases |
@@ -89,3 +89,16 @@ message (~80–150 tokens, ~250–600 for long dictations). This also works for 
 (Qwen3.5, LFM), whose cache cannot be truncated. Decoding: temperature 0, top-k 1, no repetition/presence penalty,
 `n_predict = min(1024, 2·transcript_tokens + 64)`, stop at `<|im_end|>`. With 3 parallel slots batch composition
 varies between runs, so a rerun can differ in a few greedy outputs (measured: see PROMPT_EVAL.md).
+
+## Stale-set check
+
+Every v2 case stores `meta.render.producer`, a hash of the ml/ocr and ml/screens sources that built its context
+(`cases/fingerprint.py`). `run_eval.py` refuses a set built by another producer (`--allow-stale` overrides); rebuild with
+`make -C prompts sets`. Runs record `producer`, `guard_version` and `ctx2` in their `.meta.json`.
+
+## No-screen contexts
+
+Eval cases without a screenshot carry the privacy level the phone sends for the reason (`render.NO_SCREEN_LEVEL`,
+`context.schema.v2.json`): `secure_window`, `denylisted_app`, `password_field` → `app_only` (text before the cursor hidden);
+`screenshot_error`, `ocr_empty` → `full`. The no-screen dev/test cases cycle through `secure_window`, `screenshot_error`,
+`denylisted_app`, `ocr_empty` (`cases/to_v2.py NO_SCREEN_REASONS`).

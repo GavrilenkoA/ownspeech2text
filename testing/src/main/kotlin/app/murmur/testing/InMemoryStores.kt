@@ -92,18 +92,20 @@ class InMemoryBenchmarkRepository : BenchmarkRepository {
 
 class InMemoryAudioStore : AudioStore {
     val files = mutableMapOf<String, ShortArray>()
-    override fun newWriter(sessionId: Long): AudioWriter = object : AudioWriter {
+    private val refs = mutableMapOf<String, AudioRef>()
+    override fun newWriter(key: String): AudioWriter = object : AudioWriter {
         private val buf = ArrayList<Short>()
         override fun write(samples: ShortArray, count: Int) { for (i in 0 until count) buf += samples[i] }
         override suspend fun close(): AudioRef? {
             if (buf.isEmpty()) return null
-            val path = "mem://audio/$sessionId.ogg"
+            val path = "mem://audio/$key.ogg"
             files[path] = buf.toShortArray()
-            return AudioRef(path, buf.size * 1000L / 16_000, buf.size * 2L / 10, "opus")
+            return AudioRef(path, buf.size * 1000L / 16_000, buf.size * 2L / 10, "opus").also { refs[path] = it }
         }
         override fun discard() { buf.clear() }
     }
-    override suspend fun delete(ref: AudioRef) { files.remove(ref.path) }
+    override suspend fun delete(ref: AudioRef) { files.remove(ref.path); refs.remove(ref.path) }
+    override suspend fun listAll(): List<AudioRef> = refs.values.toList()
     override suspend fun readPcm(ref: AudioRef): ShortArray? = files[ref.path]
     override suspend fun exists(ref: AudioRef) = ref.path in files
 }

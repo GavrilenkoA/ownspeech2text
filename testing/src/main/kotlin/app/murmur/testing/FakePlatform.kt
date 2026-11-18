@@ -7,6 +7,8 @@ import app.murmur.core.context.FieldSnapshot
 import app.murmur.core.dictation.AudioCapture
 import app.murmur.core.dictation.CaptureHandle
 import app.murmur.core.dictation.CaptureResult
+import app.murmur.core.dictation.CaptureSignal
+import app.murmur.core.dictation.InAppTarget
 import app.murmur.core.dictation.Feedback
 import app.murmur.core.dictation.HapticKind
 import app.murmur.core.dictation.InsertResult
@@ -19,6 +21,7 @@ import app.murmur.core.model.SessionId
 import app.murmur.core.ocr.ScreenImage
 import app.murmur.core.store.InsertMethod
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asFlow
@@ -31,23 +34,38 @@ fun syntheticSpeech(totalMs: Long = 3_000, speechMs: Long = 2_000): ShortArray {
     return ShortArray(n) { i -> if (i in s0 until s1) (3000 * kotlin.math.sin(i * 2 * Math.PI * 220 / 16000)).toInt().toShort() else 0 }
 }
 
-/** Plays [pcm] as 20 ms chunks. [startError] simulates a busy/blocked microphone. */
+/**
+ * Plays [pcm] as 20 ms chunks. [startError] simulates a busy/blocked microphone; [signal] injects a mid-recording
+ * CaptureSignal (call, mic lost) into the running handle (ExternalStop tests); [audioKeys] records the file names.
+ */
 class FakeAudioCapture(var pcm: ShortArray = syntheticSpeech(), var startError: MurmurError? = null) : AudioCapture {
     var starts = 0; private set
-    override suspend fun start(session: SessionId, keepRecording: Boolean): Outcome<CaptureHandle> {
+    val audioKeys = mutableListOf<String>()
+    var current: Handle? = null; private set
+
+    override suspend fun start(session: SessionId, keepRecording: Boolean, audioKey: String): Outcome<CaptureHandle> {
         starts++
+        audioKeys += audioKey
         startError?.let { return Outcome.Err(it) }
-        return Outcome.Ok(Handle(pcm))
+        return Outcome.Ok(Handle(pcm).also { current = it })
     }
 
-    private class Handle(private val pcm: ShortArray) : CaptureHandle {
+    fun signal(s: CaptureSignal) { current?.signalsFlow?.tryEmit(s) }
+
+    class Handle(private val pcm: ShortArray) : CaptureHandle {
         override val chunks: Flow<PcmChunk> =
             (pcm.indices step PcmFormat.FRAME_SAMPLES).map { i ->
                 PcmChunk(pcm.copyOfRange(i, minOf(i + PcmFormat.FRAME_SAMPLES, pcm.size)), i.toLong())
             }.asFlow()
         override val levels: StateFlow<FloatArray> = MutableStateFlow(FloatArray(7))
-        var cancelled = false
-        override suspend fun stop() = CaptureResult(PcmFormat.samplesToMs(pcm.size.toLong()), null, pcm.maxOfOrNull { kotlin.math.abs(it.toInt()) } ?: 0, false)
+        internal val signalsFlow = MutableSharedFlow<CaptureSignal>(extraBufferCapacity = 8)
+        override val signals: Flow<CaptureSignal> = signalsFlow
+        var cancelled = false; private set
+        var stopped = false; private set
+        override suspend fun stop(): CaptureResult {
+            stopped = true
+            return CaptureResult(PcmFormat.samplesToMs(pcm.size.toLong()), null, pcm.maxOfOrNull { kotlin.math.abs(it.toInt()) } ?: 0, false)
+        }
         override fun cancel() { cancelled = true }
     }
 }
@@ -58,7 +76,9 @@ class FakeTargetReader(
     var currentOverride: A11ySnapshot? = null,
 ) : TargetReader {
     var screenshots = 0; private set
+    var shadeWaits = 0; private set
     override suspend fun snapshot(): A11ySnapshot? = target
+    override suspend fun snapshotAfterShade(timeoutMs: Long): A11ySnapshot? { shadeWaits++; return target }
     override suspend fun screenshot(target: A11ySnapshot): Outcome<ScreenImage> {
         screenshots++
         screenshotError?.let { return Outcome.Err(it) }
@@ -86,7 +106,15 @@ class RecordingInserter(var result: InsertResult = InsertResult.Inserted(InsertM
 
 class RecordingFeedback : Feedback {
     val haptics = mutableListOf<HapticKind>()
+    val sounds = mutableListOf<HapticKind>()
     override fun haptic(kind: HapticKind) { haptics += kind }
+    override fun sound(kind: HapticKind) { sounds += kind }
+}
+
+/** Onboarding practice field (StartMode.IN_APP). */
+class FakeInAppTarget(override val snapshot: A11ySnapshot = FakeTargetReader.defaultTarget("app.murmur")) : InAppTarget {
+    val inserted = mutableListOf<String>()
+    override fun insert(text: String) { inserted += text }
 }
 
 class FixedMemoryGate(var mb: Long = 6_000) : MemoryGate { override fun availableMb() = mb }

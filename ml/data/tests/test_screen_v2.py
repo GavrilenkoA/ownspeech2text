@@ -137,7 +137,10 @@ def test_recoverability_does_not_borrow_an_exact_target_word():
 
 def test_implausible_substitutions():
     assert B.implausible_subs(["sub:Sunday->Utxpyri", "sub:по->свенство"]) == ["sub:Sunday->Utxpyri", "sub:по->свенство"]
-    assert B.implausible_subs(["sub:a->the", "sub:file->fila", "sub:Муравьёва->Мурафьёва", "ins:jid"]) == []
+    assert B.implausible_subs(["sub:a->the", "sub:file->fila", "sub:Муравьёва->Мурафьёва", "ins:и"]) == []
+    # inserted content words and low-similarity swaps of short words are not acoustic (review 2026-11-19)
+    assert B.implausible_subs(["ins:jid", "ins:папы", "sub:на->аж", "sub:стенде->съем"]) == \
+        ["ins:jid", "ins:папы", "sub:на->аж", "sub:стенде->съем"]
 
 
 def test_symbol_word_is_content_outside_address_categories():

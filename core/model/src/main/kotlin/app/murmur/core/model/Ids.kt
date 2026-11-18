@@ -23,8 +23,18 @@ value class EntryId(val value: Long)
 
 /**
  * One dictation attempt. Monotonic per :main process start; every async callback carries it and is
- * dropped when stale (ARCHITECTURE.md section 5, invariant I2).
+ * dropped when stale (ARCHITECTURE.md section 5, invariant I2). It restarts at 1 after a :main restart, so it is
+ * NEVER used as a persistent key: history audio files are keyed by [AudioKey] (creation time + session).
  */
 @Serializable
 @JvmInline
 value class SessionId(val value: Long)
+
+/** Persistent, collision-free name of one dictation's history audio file: "<createdAtEpochMs>-<session>". */
+@Serializable
+@JvmInline
+value class AudioKey(val value: String) {
+    companion object {
+        fun of(createdAtEpochMs: Long, session: SessionId) = AudioKey("$createdAtEpochMs-${session.value}")
+    }
+}

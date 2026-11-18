@@ -12,7 +12,10 @@ import app.murmur.core.store.SettingsRepository
 interface A11yServiceHost {
     val dictation: DictationOrchestrator
     val settings: SettingsRepository
-    /** Called when the service connects/disconnects (Dashboard/Settings "The bubble is off" banner). */
+    /**
+     * Called when the service connects/disconnects (Dashboard/Settings "The bubble is off" banner). On disconnect the
+     * host also calls DictationOrchestrator.onAccessibilityLost() (ExternalStop(A11Y_OFF) for a running dictation).
+     */
     fun onServiceState(connected: Boolean)
 }
 

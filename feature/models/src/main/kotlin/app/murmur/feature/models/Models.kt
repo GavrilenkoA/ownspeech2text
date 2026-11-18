@@ -10,6 +10,7 @@ import app.murmur.core.benchmark.BenchmarkRunner
 import app.murmur.core.catalog.CatalogRepository
 import app.murmur.core.catalog.CustomModelResolver
 import app.murmur.core.catalog.DeviceProfile
+import app.murmur.core.catalog.UnitHealth
 import app.murmur.core.model.ModelId
 import app.murmur.core.store.BenchmarkRepository
 import app.murmur.core.store.InstalledModelsRepository
@@ -28,6 +29,8 @@ class ModelsDeps(
     val settings: SettingsRepository,
     val custom: CustomModelResolver,
     val device: StateFlow<DeviceProfile?>,
+    /** Units that failed to load on this phone ("Failed to load on NPU, using CPU"; Blocker.UNIT_FAILED). */
+    val health: UnitHealth,
 )
 
 /** WP-18. */

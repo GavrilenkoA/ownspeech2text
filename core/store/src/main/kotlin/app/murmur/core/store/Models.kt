@@ -15,7 +15,10 @@ sealed interface InstallState {
     data class Paused(val bytesDone: Long, val bytesTotal: Long, val reason: MurmurError) : InstallState
     data object Verifying : InstallState
     data object Extracting : InstallState
-    /** First load after download: QNN context / prefix snapshot preparation ("Preparing for NPU"). */
+    /**
+     * After extraction: EnginePreparer proves a real load on each usable unit (+ a 1 s decode for ASR) and builds the
+     * LLM prefix snapshot (ARCHITECTURE 8.5). DESIGN "Preparing for NPU".
+     */
     data class Preparing(val progress: Float) : InstallState
     data class Installed(val dir: String, val bytesOnDisk: Long) : InstallState
     data class Failed(val error: MurmurError) : InstallState
@@ -43,16 +46,28 @@ data class BenchmarkRecord(
     val result: BenchmarkResultData,
 )
 
+/**
+ * [valid] = the correctness gate of ARCHITECTURE 10 passed (ASR: WER <= 20 % and <= CPU WER + 5 pp when a CPU record
+ * exists; LLM: guard ACCEPT, non-empty, expected script, stop reason EOG). Invalid records are stored and shown
+ * ("Results look wrong on NPU") but never used for unit selection (BenchLookup returns null).
+ */
 @Serializable
 sealed interface BenchmarkResultData {
+    val valid: Boolean
+    /** Machine code when invalid ("wer_high", "empty", "early_stop", "guard_fallback", "wrong_script"). */
+    val invalidReason: String?
+
     @Serializable @kotlinx.serialization.SerialName("asr")
     data class Asr(
-        val rtfx: Double,            // audio s / processing s ("14x faster than real time")
+        val rtfx: Double,            // audio ms / sum of decode ms; clips pushed as fast as accept() allows (not real time)
+        val tailMs: Long,            // finish() latency of the last segment (what the user waits for)
         val loadMsCold: Long,
         val loadMsWarm: Long?,
         val peakMemMb: Long,
         val ranOn: String,           // unit actually used (may differ from the badge)
         val perClip: List<ClipResult>,
+        override val valid: Boolean = true,
+        override val invalidReason: String? = null,
     ) : BenchmarkResultData
 
     @Serializable @kotlinx.serialization.SerialName("llm")
@@ -65,10 +80,19 @@ sealed interface BenchmarkResultData {
         val peakMemMb: Long,
         val ranOn: String,
         val unitShare: Double?,
+        /** Fixed-case guard action ("accept"/"fallback") and LlmStats.stopReason, inputs of the validity gate. */
+        val guardAction: String = "accept",
+        val stopReason: Int = 0,
+        override val valid: Boolean = true,
+        override val invalidReason: String? = null,
     ) : BenchmarkResultData
 
     @Serializable @kotlinx.serialization.SerialName("ocr")
-    data class Ocr(val msPerScreenshot: Long, val boxes: Int, val loadMsCold: Long, val peakMemMb: Long, val ranOn: String) : BenchmarkResultData
+    data class Ocr(
+        val msPerScreenshot: Long, val boxes: Int, val loadMsCold: Long, val peakMemMb: Long, val ranOn: String,
+        override val valid: Boolean = true,
+        override val invalidReason: String? = null,
+    ) : BenchmarkResultData
 }
 
 @Serializable

@@ -3,7 +3,8 @@
     python -m ml.ocr.golden make     # render the suite and write the expected outputs (needs Chrome)
     python -m ml.ocr.golden check    # re-run the Python reference on every PNG, byte-compare `ocr`
 
-NNN.json = {"pipeline", "spec", "exclude_rects", "exclude_kinds", "visible",            (inputs / ground truth)
+NNN.json = {"pipeline", "spec", "exclude_rects", "exclude_kinds", "field_box", "visible", (inputs / ground truth;
+                                                       field_box = the focused field, ctx.field.box)
             "stages": {"det_input": [w, h], "det_boxes": [[x0,y0,x1,y1,score]],          (after DB post-processing,
                        "rec": [{"box", "text", "conf"}]},                                 before exclusion / after recognition)
             "ocr": {"size", "lines"}}                                                     (the final output)
@@ -88,7 +89,7 @@ def make() -> None:
         png.write_bytes(buf.getvalue())
         exp = expected(png, res["exclude_rects"])
         doc = {"pipeline": PIPELINE_VERSION, "spec": spec, "exclude_rects": res["exclude_rects"],
-               "exclude_kinds": res["exclude_kinds"], "visible": res["visible"], **exp}
+               "exclude_kinds": res["exclude_kinds"], "field_box": res["field_box"], "visible": res["visible"], **exp}
         png.with_suffix(".json").write_text(json.dumps(doc, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
         total += png.stat().st_size + png.with_suffix(".json").stat().st_size
         print(f"{png.name} {tpl} {dev} {theme} fs={fs} kb={kb} lines={len(exp['ocr']['lines'])}", flush=True)

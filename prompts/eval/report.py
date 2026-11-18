@@ -38,12 +38,15 @@ def analyse(run_path: Path) -> dict:
     cases = score.load_jsonl(HERE / "sets" / set_name)
     res = {r["id"]: r for r in score.load_jsonl(run_path)}
     cases = [c for c in cases if c["id"] in res]
+    ctx2 = meta.get("ctx2")
+    if ctx2 is None and "+{" in (meta.get("profile") or ""):  # older runs: ablation options only in the profile name
+        ctx2 = json.loads(meta["profile"][meta["profile"].index("+{") + 1:])
     raw_rows, final_rows, reasons, fired, right = [], [], Counter(), 0, 0
     fixed, broke, pre = [], [], 0
     for c in cases:
         out = res[c["id"]]["out"]
         v = guard.guard(c["transcript"], out, c["ctx"])
-        rr, fr = score.score_case(c, out), score.score_case(c, v.text)
+        rr, fr = score.score_case(c, out, ctx2), score.score_case(c, v.text, ctx2)
         raw_rows.append(rr)
         final_rows.append(fr)
         if v.action != "accept":

@@ -13,4 +13,5 @@ class RenderPyPort(private val assets: PromptAssets) : PromptRenderer {
 class GuardPyPort : OutputGuard {
     override fun precheck(transcript: String): Precheck = TODO("WP-04: port prompts/guard.py precheck")
     override fun guard(transcript: String, output: String, ctx: CtxV2?): GuardVerdict = TODO("WP-04: port prompts/guard.py guard")
+    override val fillers: Set<String> get() = TODO("WP-04: port prompts/guard.py FILLERS")
 }

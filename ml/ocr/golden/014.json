@@ -1,5 +1,5 @@
 {
- "pipeline": "ocr.v1",
+ "pipeline": "ocr.v2",
  "spec": {
   "template": "notes",
   "device": "fold7_inner",
@@ -45,6 +45,12 @@
  ],
  "exclude_kinds": [
   "status_bar"
+ ],
+ "field_box": [
+  835,
+  340,
+  1920,
+  656
  ],
  "visible": [
   {

@@ -7,8 +7,11 @@ import kotlinx.coroutines.flow.Flow
 
 /**
  * Benchmark button (BRIEF "Every model has a Benchmark button", D2, ARCHITECTURE.md section 10).
- * Runs through the production processes and code paths (same services, same JNI), never a harness:
- *   cold load (process killed first) -> warm-up -> 3 measured runs -> median/min/max -> unload -> memory.
+ * Runs through the production processes and code paths (same services, same JNI), never a harness. Per unit:
+ *   cold load (process killed first) -> warm-up -> measured pass(es) -> unload -> memory -> validity gate.
+ * ASR clips are pushed through AsrSession as fast as accept() allows (not in real time) so RTFx shows processing
+ * speed; one warm-up + one measured pass per clip; clips chosen by the model's language codes (review 2026-11-19).
+ * Target: under 60 s per unit on the phone. A valid record clears UnitHealth for that unit.
  */
 interface BenchmarkRunner {
     /** Runs every usable unit of [entry] when [candidates] has several (the "measure the available units" rule). */
@@ -25,8 +28,35 @@ sealed interface BenchProgress {
 
 enum class BenchStep { LOAD, SAMPLE_RU, SAMPLE_EN, SAMPLE_MIXED, CLEANUP_CASE, OCR_PAGE, UNLOAD_MEMORY }
 
-/** Bundled benchmark inputs (resources /bench/...): CC-BY FLEURS clips + references, one OCR page, one cleanup case. */
-data class BenchClip(val id: String, val language: String, val pcm16k: ShortArray, val reference: String)
+/**
+ * Bundled benchmark inputs (resources /bench/...): CC-BY FLEURS clips (about 10-12 s each) + references, one OCR
+ * page per display size, one cleanup case. [languages] = codes the clip needs ("ru", "en", or both for mixed); a
+ * clip runs only when every code is in the model's Languages.codes. 8 kHz models (T-one) get the clip resampled.
+ */
+data class BenchClip(val id: String, val languages: Set<String>, val pcm16k: ShortArray, val reference: String)
+
+/** The correctness gate (ARCHITECTURE 10): a fast unit with broken numerics must never win. Pure. */
+object BenchValidity {
+    const val MAX_WER = 0.20
+    /** An accelerator may be at most this much worse than the same model's CPU record. */
+    const val MAX_WER_OVER_CPU = 0.05
+
+    /** null = valid, else the invalidReason code. */
+    fun asr(medianWer: Double, cpuWer: Double?): String? = when {
+        medianWer > MAX_WER -> "wer_high"
+        cpuWer != null && medianWer > cpuWer + MAX_WER_OVER_CPU -> "wer_above_cpu"
+        else -> null
+    }
+
+    /** [expectCyrillic] from the fixed case (a Russian transcript). stopReason per LlmStats. */
+    fun llm(output: String, guardAccepted: Boolean, stopReason: Int, expectCyrillic: Boolean): String? = when {
+        output.isBlank() -> "empty"
+        stopReason != 0 -> "early_stop"
+        !guardAccepted -> "guard_fallback"
+        expectCyrillic && output.count { it in '\u0400'..'\u04FF' } < output.count { it.isLetter() } / 2 -> "wrong_script"
+        else -> null
+    }
+}
 
 /** WER/CER with one normaliser (lowercase, strip punctuation, numerals as-is), the same as the asr-ocr spike. */
 object WordErrorRate {

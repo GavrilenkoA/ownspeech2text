@@ -7,7 +7,9 @@
 
 Writes OUT/{train,dev,test}.jsonl (shared contract), OUT/scenarios.jsonl, OUT/teacher/*.jsonl (resumable
 shards: re-running the same command continues), OUT/rejects.jsonl (every rejected example with reasons),
-OUT/stats.json and OUT/REPORT.md. Each (split, category) keeps exactly the target count of
+OUT/review.jsonl (kept records whose target has a content word found in none of spoken / transcript / screen:
+for a human pass), OUT/stats.json and OUT/REPORT.md. Records that near-duplicate a held-out eval item
+(prompts/eval, ml/data/contam.py) are dropped. Each (split, category) keeps exactly the target count of
 sampler.CATEGORY_TARGETS when enough examples survive (shortfalls are reported, never padded).
 """
 from __future__ import annotations
@@ -19,10 +21,13 @@ import time
 from collections import Counter, defaultdict
 from pathlib import Path
 
+from ml.common import text as T
 from ml.common.render_bridge import REPO
 from ml.common.schema import write_jsonl
 from ml.common.util import stable_id
+from ml.data.contam import contaminated
 from ml.data.synth import build as B
+from ml.data.synth import disfluency as D
 from ml.data.synth import filters as F
 from ml.data.synth import sampler as S
 from ml.data.synth import screen as SCR
@@ -170,6 +175,17 @@ def run(a) -> dict:
     recs, dups = F.dedup(recs)
     for rid, why, other in dups:
         reasons["dedup:" + why] += 1
+    # held-out eval sets (prompts/eval) must not leak into the synthetic data, in any split
+    clean = []
+    for r in recs:
+        hit = contaminated(r)
+        if hit:
+            reasons["dedup:eval_contamination"] += 1
+            rejects.append({"sid": r["meta"]["scenario"], "category": r["category"],
+                            "reasons": ["eval_contamination:" + hit], "record": r})
+        else:
+            clean.append(r)
+    recs = clean
     # exact counts per (split, category): first survivors in plan order
     final, short = [], {}
     by_cell = defaultdict(list)
@@ -188,6 +204,10 @@ def run(a) -> dict:
     for split in ("train", "dev", "test"):
         write_jsonl(out / f"{split}.jsonl", [r for r in final if r["split"] == split])
     write_jsonl(out / "rejects.jsonl", rejects, key_order=False)
+    review = [{"id": r["id"], "split": r["split"], "category": r["category"], "words": fl,
+               "transcript": r["transcript"], "target": r["target"], "spoken": r["meta"].get("spoken", "")}
+              for r in final if (fl := F.review_flags(r))]
+    write_jsonl(out / "review.jsonl", review, key_order=False)
     stats = {
         "args": {k: v for k, v in vars(a).items()}, "teacher": getattr(getattr(teacher, "cfg", None), "public", lambda: {"name": "stub"})(),
         "noise_source": channel.source, "scenarios_planned": len(plan), "teacher_scenarios": len(teach),
@@ -198,6 +218,8 @@ def run(a) -> dict:
         "final_by_category": dict(Counter(r["category"] for r in final).most_common()),
         "final_by_lang": dict(Counter(r["lang"] for r in final)),
         "final_by_asr": dict(Counter(r["meta"].get("asr_model", "-") for r in final).most_common()),
+        "review_flagged": len(review),
+        "asr_disfluency": asr_disfluency(final, channel),
         "final_by_app": dict(Counter(r["ctx"]["app"]["category"] for r in final).most_common()),
         "final_with_screen": sum(1 for r in final if r["ctx"].get("screen")),
         "final_without_screen": dict(Counter(r["ctx"].get("privacy", {}).get("reason") or "-" for r in final
@@ -215,6 +237,31 @@ def run(a) -> dict:
     (out / "stats.json").write_text(json.dumps(stats, ensure_ascii=False, indent=1), encoding="utf-8")
     (out / "REPORT.md").write_text(report(stats), encoding="utf-8")
     return stats
+
+
+def asr_disfluency(final: list[dict], channel: Channel) -> dict:
+    """Per ASR model: hesitation tokens per 100 transcript words in the final set, next to the model's render
+    profile (probe-measured survival of hesitation sounds and repeats) and the mined profile's WER."""
+    out: dict = {}
+    for r in final:
+        m = r["meta"].get("asr_model")
+        if not m:
+            continue
+        o = out.setdefault(m, {"records": 0, "words": 0, "hesitation_tokens": 0, "hesitations_said": 0,
+                               "hesitations_written": 0})
+        o["records"] += 1
+        o["words"] += len(r["transcript"].split())
+        o["hesitation_tokens"] += D.hesitation_tokens(r["transcript"])
+        for op in r["meta"].get("disfluency") or []:
+            if op["op"] in ("filler", "hesitation") and T.norm_word(op["text"]) in T.HESITATION:
+                o["hesitations_said"] += 1
+                o["hesitations_written"] += 0 if op.get("suppressed") else 1
+    for m, o in out.items():
+        o["hesitation_per_100w"] = round(100 * o["hesitation_tokens"] / max(1, o["words"]), 2)
+        o["render"] = channel.disfluency_render(m)
+        if channel.nm is not None and m in channel.nm.profiles:
+            o["mined_wer"] = channel.nm.profiles[m].get("wer")
+    return dict(sorted(out.items()))
 
 
 # ------------------------------------------------------------------ parallel build
@@ -296,7 +343,15 @@ def report(st: dict) -> str:
              f"without field {st['final_without_field']}, re-rendered once {st['final_rerendered']}, "
              f"devices {json.dumps(st['final_by_device'])}.", "",
              f"OCR-rule drops: {json.dumps(st['ocr_drops'], ensure_ascii=False)}", "",
-             f"Timing: {json.dumps(st['timing'])}", ""]
+             f"Timing: {json.dumps(st['timing'])}", "",
+             f"Review list (target words found in none of spoken/transcript/screen): {st['review_flagged']} records "
+             "in review.jsonl.", "",
+             "## ASR disfluency rendering per model", "",
+             "| model | records | hesitation tokens / 100 words | hesitations said -> written | render (hes/rep keep, source) |",
+             "|---|---:|---:|---|---|"] + [
+             f"| {m} | {o['records']} | {o['hesitation_per_100w']} | {o['hesitations_said']} -> {o['hesitations_written']} | "
+             f"{o['render']['hesitation_keep']}/{o['render']['repeat_keep']} {o['render']['source']} |"
+             for m, o in st["asr_disfluency"].items()] + [""]
     return "\n".join(lines)
 
 

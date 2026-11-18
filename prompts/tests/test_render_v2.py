@@ -143,6 +143,29 @@ class V2Sets(unittest.TestCase):
             r = json.loads(l)
             self.assertEqual(validate(r["ctx"], sch), [], r["id"])
 
+    def test_no_screen_privacy_matches_phone(self):
+        """No-screen eval contexts carry the level the phone sends for the reason (render.NO_SCREEN_LEVEL)."""
+        n = 0
+        for name in ("dev.v2", "test.v2"):
+            for l in (HERE / "eval" / "sets" / f"{name}.jsonl").read_text(encoding="utf-8").splitlines():
+                ctx = json.loads(l)["ctx"]
+                pv = ctx.get("privacy") or {}
+                if "screen" not in ctx and pv.get("reason") in render.NO_SCREEN_LEVEL:
+                    n += 1
+                    self.assertEqual(pv["level"], render.NO_SCREEN_LEVEL[pv["reason"]], l[:60])
+                self.assertNotEqual(pv.get("level"), "no_screenshot")
+        self.assertGreaterEqual(n, 10)
+
+    def test_app_only_hides_field_text(self):
+        ctx = {"v": 2, "app": {"package": "p", "label": "Bank"}, "field": {"kind": "message", "hint": "Комментарий",
+                                                                            "before_cursor": "секрет"},
+               "privacy": {"level": render.NO_SCREEN_LEVEL["secure_window"], "reason": "secure_window"}}
+        out = render.render_context(ctx)
+        self.assertIn("Комментарий", out)
+        self.assertNotIn("секрет", out)
+        ctx["privacy"] = {"level": render.NO_SCREEN_LEVEL["screenshot_error"], "reason": "screenshot_error"}
+        self.assertIn("секрет", render.render_context(ctx))
+
 
 if __name__ == "__main__":
     unittest.main()

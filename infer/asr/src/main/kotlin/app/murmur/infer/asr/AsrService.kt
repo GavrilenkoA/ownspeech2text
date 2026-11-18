@@ -15,15 +15,22 @@ import app.murmur.infer.api.IAsrSessionCallback
 import app.murmur.infer.api.IResultCallback
 import app.murmur.infer.api.InferApi
 import app.murmur.infer.api.InferProcessLifecycle
+import app.murmur.infer.asr.ocr.OcrHandler
+import app.murmur.infer.asr.ocr.OcrHandlers
 
 /**
- * The :asr process (WP-06 ASR, WP-07 OCR, WP-06 VAD/segmenter). Threads: one ASR engine thread, one OCR
- * thread, one pipe-reader thread per session (ARCHITECTURE.md 12). Never touches UI or the database.
+ * The :asr process (WP-06 ASR, WP-07 OCR through [OcrHandler], WP-06 VAD/segmenter). Threads: one ASR engine thread,
+ * one OCR thread, one pipe-reader thread per session (ARCHITECTURE.md 14). Never touches UI or the database.
+ * Before the first QNN recognizer: OfflineRecognizer.prependAdspLibraryPath(applicationInfo.nativeLibraryDir)
+ * (sherpa 2.0.1 API; keeps the vendor DSP paths, WP-06).
  */
 class AsrService : Service() {
+    private lateinit var ocr: OcrHandler
+
     override fun onCreate() {
         super.onCreate()
         InferProcessLifecycle.installQuietCrashHandler("murmur-asr")
+        ocr = OcrHandlers.create(this)
     }
 
     override fun onBind(intent: Intent?): IBinder = binder
@@ -47,9 +54,14 @@ class AsrService : Service() {
 
         override fun memory(): String = TODO("WP-06: /proc/self/status VmHWM + Debug.getMemoryInfo")
         override fun loadAsr(asrSpecJson: String?, vadSpecJson: String?, cb: IResultCallback?) = TODO("WP-06")
-        override fun loadOcr(detSpecJson: String?, recSpecJson: String?, cb: IResultCallback?) = TODO("WP-07")
+        override fun loadOcr(detSpecJson: String?, recSpecJson: String?, cb: IResultCallback?) =
+            ocr.load(detSpecJson.orEmpty(), recSpecJson.orEmpty(), requireNotNull(cb))
         override fun startSession(optionsJson: String?, pcmRead: ParcelFileDescriptor?, cb: IAsrSessionCallback?): IAsrSession = TODO("WP-06")
-        override fun recognizeScreen(pixels: SharedMemory?, width: Int, height: Int, excludeJson: String?, cb: IResultCallback?) = TODO("WP-07")
-        override fun unloadAll() { /* WP-06/07: release sherpa recognizers, VAD and ORT sessions */ }
+        override fun recognizeScreen(pixels: SharedMemory?, width: Int, height: Int, excludeJson: String?, cb: IResultCallback?) =
+            ocr.recognize(requireNotNull(pixels), width, height, excludeJson ?: "[]", requireNotNull(cb))
+        override fun unloadAll() {
+            ocr.unload()
+            /* WP-06: release sherpa recognizers and VAD */
+        }
     }
 }

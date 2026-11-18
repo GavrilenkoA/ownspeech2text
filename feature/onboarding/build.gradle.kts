@@ -8,6 +8,7 @@ dependencies {
     implementation(project(":core:model"))
     implementation(project(":core:store"))
     implementation(project(":core:catalog"))
+    implementation(project(":core:dictation"))
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.material3.adaptive.layout)

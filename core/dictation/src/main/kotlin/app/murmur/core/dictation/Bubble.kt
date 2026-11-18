@@ -9,7 +9,8 @@ import app.murmur.core.model.MurmurError
  */
 sealed interface DictationBubble {
     data object Idle : DictationBubble
-    data class Listening(val startedAtMs: Long, val hold: Boolean, val warn: Boolean) : DictationBubble
+    /** [frozenAtMs] != null: stop received, the timer shows frozenAt - startedAt (first 300 ms of Finishing). */
+    data class Listening(val startedAtMs: Long, val hold: Boolean, val warn: Boolean, val frozenAtMs: Long? = null) : DictationBubble
     data object Transcribing : DictationBubble
     data object Polishing : DictationBubble
     data class Inserted(val noCleanup: Boolean) : DictationBubble
@@ -29,9 +30,10 @@ object BubbleMapping {
         is DictationState.Arming -> DictationBubble.Listening(state.pressedAtMs, state.mode == StartMode.HOLD, warn = false)
         is DictationState.Listening -> DictationBubble.Listening(state.startedAtMs, state.mode == StartMode.HOLD, state.warn)
         is DictationState.Finishing -> if (state.showTranscribing) DictationBubble.Transcribing
-            else DictationBubble.Listening(state.stoppedAtMs, hold = false, warn = false)
+            else DictationBubble.Listening(state.startedAtMs, state.mode == StartMode.HOLD, warn = false, frozenAtMs = state.stoppedAtMs)
         is DictationState.Polishing -> DictationBubble.Polishing
-        is DictationState.Delivering -> if (state.cleaned) DictationBubble.Polishing else DictationBubble.Transcribing
+        // ARCHITECTURE 5.1: Delivering keeps whatever the previous working state showed (no Transcribing flash).
+        is DictationState.Delivering -> state.shownAs
         is DictationState.Done -> when (val o = state.outcome) {
             is DictationOutcome.Inserted -> DictationBubble.Inserted(o.noCleanup)
             is DictationOutcome.Copied -> DictationBubble.Copied(o.entry)
@@ -43,10 +45,13 @@ object BubbleMapping {
     fun errorBubble(e: MurmurError): DictationBubble.Error = when (e) {
         MurmurError.NoSpeech -> DictationBubble.Error(BubbleError.NO_SPEECH, BubbleAction.RETRY)
         MurmurError.MicBusy, MurmurError.MicSilenced, is MurmurError.MicStartFailed -> DictationBubble.Error(BubbleError.MIC_BUSY, null)
-        MurmurError.NoAsrModel -> DictationBubble.Error(BubbleError.NO_MODEL, BubbleAction.OPEN_MODELS)
-        is MurmurError.EngineLoadFailed, is MurmurError.OutOfMemory, is MurmurError.EngineRuntimeMissing, is MurmurError.UnitUnavailable ->
+        MurmurError.NoAsrModel, MurmurError.NoVadModel -> DictationBubble.Error(BubbleError.NO_MODEL, BubbleAction.OPEN_MODELS)
+        // NPU load failed and no CPU artifact installed: the hub offers "Download the CPU version" (ARCHITECTURE 4.4).
+        is MurmurError.UnitUnavailable -> DictationBubble.Error(BubbleError.LOAD_FAILED, BubbleAction.OPEN_MODELS)
+        is MurmurError.EngineLoadFailed, is MurmurError.OutOfMemory, is MurmurError.EngineRuntimeMissing ->
             DictationBubble.Error(BubbleError.LOAD_FAILED, BubbleAction.RETRY)
         is MurmurError.AsrFailed, is MurmurError.ProcessDied, is MurmurError.Timeout -> DictationBubble.Error(BubbleError.TRANSCRIPTION_FAILED, BubbleAction.OPEN_ENTRY)
+        // AccessibilityOff: the overlay is gone with the service, so nothing is drawn; Dashboard/Settings show the banner.
         else -> DictationBubble.Error(BubbleError.GENERIC, null)
     }
 }

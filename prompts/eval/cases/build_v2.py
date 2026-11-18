@@ -22,6 +22,9 @@ sys.path.insert(0, str(ROOT))
 import render  # noqa: E402
 
 from . import dev_v1, shots_v3, shots_v4, test_v1, to_v2  # noqa: E402
+from .fingerprint import producer_fingerprint  # noqa: E402
+
+PRODUCER = producer_fingerprint()
 
 SETS = ROOT / "prompts" / "eval" / "sets"
 
@@ -61,7 +64,7 @@ def _attach(item: dict, res: dict, src: str) -> None:
     """Result of the producer -> item["c2"] (case with ctx v2)."""
     if "error" in res:
         raise RuntimeError(f"{item['key']}: {res['error']}")
-    ctx = res["ctx"]
+    ctx = to_v2.privacy_fix(res["ctx"], item["spec"])
     fb = [v["box"] for v in res.get("visible") or [] if v.get("role") == "field"]
     if "field" in ctx and fb and "box" not in ctx["field"]:
         # the phone knows the focused node's bounds (getBoundsInScreen); build_ctx does not emit them (yet)
@@ -79,6 +82,7 @@ def _attach(item: dict, res: dict, src: str) -> None:
     if res.get("meta"):
         c2["meta"]["render"] = {k: res["meta"][k] for k in ("template", "device", "theme", "font_scale", "keyboard", "ocr")
                                 if k in res["meta"]}
+        c2["meta"]["render"]["producer"] = PRODUCER
     item["c2"] = c2
 
 

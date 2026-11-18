@@ -7,4 +7,6 @@ dependencies {
     api(project(":core:engine"))
     api(project(":core:store"))
     api(project(":core:catalog"))
+    // The LLM fixed case renders the real prompt and runs the guard (validity gate, ADR-051).
+    api(project(":core:prompt"))
 }

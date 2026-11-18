@@ -3,12 +3,13 @@
 Wave 1 (against fakes; real numbers on the emulator once WP-06/07/10 land). Read first: `docs/wp/README.md`;
 ARCHITECTURE.md §10, §8.2; DESIGN.md §6.4 "Benchmark flow" and frames `bench-run`, `bench-result`,
 `bench-result-llm`; `docs/research/npu-runtime.md` §8 (metric definitions); `docs/research/llm-models.md` §10;
-`docs/research/asr-models.md` §7.3.
+`docs/research/asr-models.md` §7.3; DECISIONS ADR-051.
 
 ## Goal
 
-"Every model has a Benchmark button" (BRIEF): a short, honest measurement of each usable compute unit of a model on
-this phone, through the production processes, stored and used for the default unit (D2).
+"Every model has a Benchmark button" (BRIEF): a short (< 60 s per unit on the phone), honest measurement of each
+usable compute unit of a model on this phone, through the production processes, with a correctness gate, stored and
+used for the default unit and the cleanup budget (D2).
 
 ## Owns
 
@@ -18,39 +19,50 @@ this phone, through the production processes, stored and used for the default un
 
 Implement `BenchmarkRunner.run(entry, candidates): Flow<BenchProgress>` and `stop()` over `Engines`
 (`asr`, `llm`, `ocr`, `asrHost`, `llmHost` for `shutdown()` cold starts and `memory()`), `BenchmarkRepository`
-(save), `MurmurClock`. Results are `BenchmarkRecord` / `BenchmarkResultData` (`core/store/.../Models.kt`).
-`WordErrorRate` and `BenchSummary` exist.
+(save), `UnitHealthRepository` (`clear` after a valid record), `MurmurClock`. Results are `BenchmarkRecord` /
+`BenchmarkResultData` (`core/store/.../Models.kt`; `valid`, `invalidReason`, ASR `tailMs`, LLM `guardAction`,
+`stopReason`). `WordErrorRate`, `BenchSummary`, `BenchValidity` (thresholds, tested) and `BenchClip(languages)` exist.
+For the LLM fixed case you need the renderer and the guard: take `PromptRenderer`, `OutputGuard`, `PromptAssets` as
+constructor parameters.
 
 ## Deliver
 
-1. Inputs: 3 ASR clips (ru, en, mixed ru/en, ≈ 30 s each) from FLEURS dev (CC-BY-4.0; record source ids, licence,
+1. Inputs: ASR clips of ≈ 10-12 s each — ru, en, mixed ru/en — from FLEURS dev (CC-BY-4.0; record source ids, licence,
    sha256 in `core/benchmark/src/main/resources/bench/SOURCES.md`) as 16 kHz PCM16 + reference text; one OCR page per
-   display size (take two of `ml/ocr/golden` PNGs — they are synthetic renders, licence-free; record which); one
-   fixed LLM cleanup case (the real profile prefix + a 60-word ru transcript + a 200-token ctx v2 from
-   `prompts/examples/ctxv2_chat_ru.input.json`). Keep the resources < 4 MB.
-2. Protocol per (artifact, unit): `host.shutdown()` → load (cold, timed) → warm-up → 3 runs → median/min/max →
-   unload → `memory()` peak (VmHWM, PSS, availMem drop) → record with `appVersion` (injected) + build fingerprint
-   (injected) + thermal note (injected provider).
-   - ASR: feed each clip in real time through `AsrSession` (as the app does), processing time = finish time − audio
-     end + decode time during the clip; RTF×; WER vs reference; `LoadInfo.deviceName` → "Ran on".
+   display size (two of `ml/ocr/golden` PNGs — synthetic renders, licence-free; record which) with their golden texts;
+   one fixed LLM cleanup case (the real profile prefix + a 60-word ru transcript + a 200-token ctx v2 from
+   `prompts/examples/ctxv2_chat_ru.input.json`). Keep the resources < 3 MB.
+2. Protocol per (artifact, unit) (ADR-051): `host.shutdown()` → load (cold, timed) → warm-up → measured pass →
+   unload → `memory()` peak (VmHWM, PSS, availMem drop) → validity gate → record with `appVersion` (injected) + build
+   fingerprint (injected) + thermal note (injected provider).
+   - ASR: only clips whose `languages` are all in `entry.languages.codes`; resample to 8 kHz for `sampleRate = 8000`;
+     push the PCM through `AsrSession.accept` **as fast as it accepts** (not real time), one warm-up + one measured
+     pass per clip; RTF× = audio ms / Σ decode ms; `tailMs` = `finish()` latency; WER vs reference;
+     `LoadInfo.deviceName` → "Ran on"; `valid` by `BenchValidity.asr(medianWer, cpuWer of the latest CPU record)`.
    - LLM: fixed case TTFT / prefill tok/s / decode tok/s / end-to-end ms from `LlmStats`; synthetic pp512/tg128 via
-     `LlmEngine.bench` (`ILlmService.bench` → `mllm_bench`, implemented by WP-05/WP-10).
-   - OCR: ms per page, boxes, load ms.
-3. `stop()` cancels between steps and leaves no process loaded.
-4. Score function for `ArtifactSelector` (`BenchLookup`): ASR = processing ms per audio second; LLM = e2e ms.
+     `LlmEngine.bench`; `valid` by `BenchValidity.llm(output, guard ACCEPT, stopReason, expectCyrillic = true)`.
+   - OCR: ms per page, boxes, load ms; valid when boxes > 0 and texts match the golden within the ml/ocr tolerance.
+3. `stop()` cancels between steps and leaves no process loaded. A valid record → `UnitHealth.clear(artifact, unit)`.
+4. Score function for `ArtifactSelector` (`BenchLookup`, put it here as `BenchScores.lookup(records)`): ASR =
+   processing ms per audio second; LLM = e2e ms; **null for invalid records**. `LlmSpeed` for `ActiveLlm.speed` =
+   (prefill tok/s, decode tok/s) of the latest valid record.
 
 ## Acceptance (checkable here)
 
 - `tools/gw :core:benchmark:test` green: runner on `FakeEngines` produces the step sequence of DESIGN `bench-run`
-  (Load model / Russian sample / English sample / Unload and measure memory), medians from scripted timings, a
-  stopped run emits no `Finished`, records saved, cold start calls `shutdown()` before each unit.
+  (Load model / Russian sample / English sample / Unload and measure memory) for a ru+en model and skips the English
+  clip for a ru-only catalog entry (GigaAM); medians from scripted timings with virtual time; the fast path does not
+  wait in real time (a 12 s clip finishes in < 1 s of virtual time with a zero-delay fake); a stopped run emits no
+  `Finished`; records saved; cold start calls `shutdown()` before each unit; a fake ASR that returns garbage gives
+  `valid = false, invalidReason = "wer_high"` and `BenchScores.lookup` returns null for it; a valid record clears
+  `FakeUnitHealth`.
 - On the emulator once WP-06/10 land: a debug entry point (instrumented test) benchmarks
-  `gigaam-v3-e2e-rnnt@onnx-int8` (CPU) and `qwen3.5-0.8b@q4_0` (CPU) end to end; report the records (numbers are
-  emulator numbers, labelled as such, never shown as phone numbers).
+  `gigaam-v3-e2e-rnnt@onnx-int8` (CPU) and `qwen3.5-0.8b@q4_0` (CPU) end to end; report the records and the wall time
+  per unit (numbers are emulator numbers, labelled as such, never shown as phone numbers).
 
 ## Out of scope
 
-The bench sheet UI (WP-18), device numbers (DEVICE_CHECKLIST D9).
+The bench sheet UI (WP-18), device numbers (DEVICE_CHECKLIST DC9).
 
 ## Build/test
 

@@ -308,7 +308,11 @@
       "joiner": "joiner.int8.onnx",
       "tokens": "tokens.txt"
      },
-     "quant": "int8"
+     "quant": "int8",
+     "memoryMb": {
+      "cpu": 960
+     },
+     "notes": "memoryMb estimated (download bytes x 1.5)."
     }
    ],
    "evidence": "docs/research/verify/asr-ocr.md",
@@ -786,7 +790,11 @@
      },
      "socs": [
       "SM8750"
-     ]
+     ],
+     "memoryMb": {
+      "npu": 608
+     },
+     "notes": "memoryMb estimated (download bytes x 1.5)."
     }
    ],
    "evidence": "docs/research/verify/asr-ocr.md"
@@ -945,7 +953,11 @@
      "socs": [
       "SM8750"
      ],
-     "maxWindowSec": 30.0
+     "maxWindowSec": 30.0,
+     "memoryMb": {
+      "npu": 726
+     },
+     "notes": "memoryMb estimated (download bytes x 1.5)."
     },
     {
      "id": "whisper-small@onnx-int8",
@@ -1154,7 +1166,11 @@
      "socs": [
       "SM8750"
      ],
-     "maxWindowSec": 30.0
+     "maxWindowSec": 30.0,
+     "memoryMb": {
+      "npu": 2114
+     },
+     "notes": "memoryMb estimated (download bytes x 1.5)."
     }
    ],
    "evidence": "docs/research/verify/asr-ocr.md"
@@ -1416,7 +1432,11 @@
       "tokens": "distil-large-v3.5-tokens.txt"
      },
      "quant": "int8",
-     "maxWindowSec": 30.0
+     "maxWindowSec": 30.0,
+     "memoryMb": {
+      "cpu": 1408
+     },
+     "notes": "memoryMb estimated (download bytes x 1.5)."
     }
    ],
    "evidence": "docs/research/verify/asr-ocr.md",
@@ -1618,7 +1638,10 @@
      "socs": [
       "SM8750"
      ],
-     "notes": "LiteRT NPU artifact exists (HEAD 200); LiteRT is not shipped in this version."
+     "memoryMb": {
+      "npu": 2720
+     },
+     "notes": "LiteRT NPU artifact exists (HEAD 200); LiteRT is not shipped in this version. memoryMb estimated (download bytes x 1.5)."
     }
    ],
    "evidence": "docs/research/verify/asr-ocr.md"
@@ -1700,7 +1723,10 @@
      ],
      "layout": {},
      "maxWindowSec": 15.0,
-     "notes": "LiteRT-LM GPU build; runtime not shipped in this version."
+     "memoryMb": {
+      "gpu": 3865
+     },
+     "notes": "LiteRT-LM GPU build; runtime not shipped in this version. memoryMb estimated (download bytes x 1.5)."
     }
    ],
    "evidence": "docs/research/verify/asr-ocr.md",
@@ -1766,7 +1792,7 @@
    "tier": "recommended",
    "ocr": {
     "stage": "det",
-    "pipelineVersion": "ocr.v1"
+    "pipelineVersion": "ocr.v2"
    },
    "artifacts": [
     {
@@ -1830,7 +1856,7 @@
    },
    "ocr": {
     "stage": "rec",
-    "pipelineVersion": "ocr.v1"
+    "pipelineVersion": "ocr.v2"
    },
    "artifacts": [
     {
@@ -1921,7 +1947,9 @@
    "llm": {
     "template": "lfm3",
     "promptProfile": "default.v4",
-    "nCtx": 4096,
+    "nCtx": 9216,
+    "prefixTokens": 3240,
+    "kvBytesPerToken": 12288,
     "note": "vendor: disabling 'can be inconsistent'"
    },
    "artifacts": [
@@ -1951,9 +1979,9 @@
       "model": "model.gguf"
      },
      "memoryMb": {
-      "npu": 1100,
-      "gpu": 1100,
-      "cpu": 1250
+      "npu": 1160,
+      "gpu": 1160,
+      "cpu": 1310
      },
      "preferredUnit": "npu"
     },
@@ -1963,6 +1991,7 @@
      "format": "gguf",
      "quant": "Q4_K_M",
      "units": [
+      "npu",
       "gpu",
       "cpu"
      ],
@@ -1982,8 +2011,9 @@
       "model": "model.gguf"
      },
      "memoryMb": {
-      "gpu": 1100,
-      "cpu": 1250
+      "npu": 1160,
+      "gpu": 1160,
+      "cpu": 1310
      }
     }
    ],
@@ -2024,7 +2054,9 @@
    "llm": {
     "template": "lfm2.5",
     "promptProfile": "default.v4",
-    "nCtx": 4096
+    "nCtx": 9216,
+    "prefixTokens": 3269,
+    "kvBytesPerToken": 12288
    },
    "artifacts": [
     {
@@ -2053,9 +2085,9 @@
       "model": "model.gguf"
      },
      "memoryMb": {
-      "npu": 800,
-      "gpu": 800,
-      "cpu": 800
+      "npu": 860,
+      "gpu": 860,
+      "cpu": 860
      },
      "preferredUnit": "npu"
     },
@@ -2085,9 +2117,9 @@
       "model": "model.gguf"
      },
      "memoryMb": {
-      "npu": 800,
-      "gpu": 800,
-      "cpu": 800
+      "npu": 860,
+      "gpu": 860,
+      "cpu": 860
      },
      "preferredUnit": "npu"
     },
@@ -2097,6 +2129,7 @@
      "format": "gguf",
      "quant": "Q4_K_M",
      "units": [
+      "npu",
       "gpu",
       "cpu"
      ],
@@ -2116,8 +2149,9 @@
       "model": "model.gguf"
      },
      "memoryMb": {
-      "gpu": 800,
-      "cpu": 800
+      "npu": 860,
+      "gpu": 860,
+      "cpu": 860
      }
     }
    ],
@@ -2159,7 +2193,8 @@
    "llm": {
     "template": "lfm2.5",
     "promptProfile": "default.v4",
-    "nCtx": 4096
+    "nCtx": 9216,
+    "prefixTokens": 3269
    },
    "artifacts": [
     {
@@ -2188,9 +2223,9 @@
       "model": "model.gguf"
      },
      "memoryMb": {
-      "npu": 425,
-      "gpu": 425,
-      "cpu": 425
+      "npu": 485,
+      "gpu": 485,
+      "cpu": 485
      },
      "preferredUnit": "npu"
     }
@@ -2240,7 +2275,8 @@
    "llm": {
     "template": "lfm2.5",
     "promptProfile": "default.v4",
-    "nCtx": 4096
+    "nCtx": 9216,
+    "prefixTokens": 3269
    },
    "artifacts": [
     {
@@ -2269,9 +2305,9 @@
       "model": "model.gguf"
      },
      "memoryMb": {
-      "npu": 2450,
-      "gpu": 2450,
-      "cpu": 2450
+      "npu": 2510,
+      "gpu": 2510,
+      "cpu": 2510
      },
      "preferredUnit": "npu"
     }
@@ -2308,7 +2344,9 @@
    "llm": {
     "template": "qwen3.5",
     "promptProfile": "default.v4",
-    "nCtx": 4096
+    "nCtx": 9216,
+    "prefixTokens": 3129,
+    "kvBytesPerToken": 12288
    },
    "artifacts": [
     {
@@ -2337,9 +2375,9 @@
       "model": "model.gguf"
      },
      "memoryMb": {
-      "npu": 1000,
-      "gpu": 1000,
-      "cpu": 710
+      "npu": 1060,
+      "gpu": 1060,
+      "cpu": 770
      },
      "preferredUnit": "cpu"
     },
@@ -2349,6 +2387,7 @@
      "format": "gguf",
      "quant": "Q4_K_M",
      "units": [
+      "npu",
       "gpu",
       "cpu"
      ],
@@ -2368,8 +2407,9 @@
       "model": "model.gguf"
      },
      "memoryMb": {
-      "gpu": 1000,
-      "cpu": 710
+      "npu": 1060,
+      "gpu": 1060,
+      "cpu": 770
      },
      "preferredUnit": "cpu"
     },
@@ -2399,9 +2439,9 @@
       "model": "model.gguf"
      },
      "memoryMb": {
-      "npu": 1000,
-      "gpu": 1000,
-      "cpu": 710
+      "npu": 1060,
+      "gpu": 1060,
+      "cpu": 770
      },
      "preferredUnit": "cpu"
     }
@@ -2437,7 +2477,9 @@
    "llm": {
     "template": "qwen3.5",
     "promptProfile": "default.v4",
-    "nCtx": 4096
+    "nCtx": 9216,
+    "prefixTokens": 3129,
+    "kvBytesPerToken": 12288
    },
    "artifacts": [
     {
@@ -2466,9 +2508,9 @@
       "model": "model.gguf"
      },
      "memoryMb": {
-      "npu": 1500,
-      "gpu": 1500,
-      "cpu": 1500
+      "npu": 1560,
+      "gpu": 1560,
+      "cpu": 1560
      },
      "preferredUnit": "cpu"
     },
@@ -2478,6 +2520,7 @@
      "format": "gguf",
      "quant": "Q4_K_M",
      "units": [
+      "npu",
       "gpu",
       "cpu"
      ],
@@ -2497,8 +2540,9 @@
       "model": "model.gguf"
      },
      "memoryMb": {
-      "gpu": 1500,
-      "cpu": 1500
+      "npu": 1560,
+      "gpu": 1560,
+      "cpu": 1560
      },
      "preferredUnit": "cpu"
     }
@@ -2534,7 +2578,9 @@
    "llm": {
     "template": "qwen3",
     "promptProfile": "default.v4",
-    "nCtx": 4096
+    "nCtx": 9216,
+    "prefixTokens": 3161,
+    "kvBytesPerToken": 114688
    },
    "artifacts": [
     {
@@ -2563,9 +2609,9 @@
       "model": "model.gguf"
      },
      "memoryMb": {
-      "npu": 1200,
-      "gpu": 1200,
-      "cpu": 1200
+      "npu": 1760,
+      "gpu": 1760,
+      "cpu": 1760
      },
      "preferredUnit": "npu"
     }
@@ -2601,7 +2647,9 @@
    "llm": {
     "template": "qwen3",
     "promptProfile": "default.v4",
-    "nCtx": 4096
+    "nCtx": 9216,
+    "prefixTokens": 3161,
+    "kvBytesPerToken": 114688
    },
    "artifacts": [
     {
@@ -2630,9 +2678,9 @@
       "model": "model.gguf"
      },
      "memoryMb": {
-      "npu": 1200,
-      "gpu": 1200,
-      "cpu": 1200
+      "npu": 1760,
+      "gpu": 1760,
+      "cpu": 1760
      },
      "preferredUnit": "npu"
     }
@@ -2666,7 +2714,8 @@
    "llm": {
     "template": "lfm3",
     "promptProfile": "finetuned.v1",
-    "nCtx": 4096
+    "nCtx": 6144,
+    "prefixTokens": 102
    },
    "artifacts": [],
    "evidence": "docs/research/verify/llm-npu.md",
@@ -2698,20 +2747,21 @@
    "llm": {
     "template": "qwen3.5",
     "promptProfile": "finetuned.v1",
-    "nCtx": 4096
+    "nCtx": 6144,
+    "prefixTokens": 97
    },
    "artifacts": [],
    "evidence": "docs/research/verify/llm-npu.md",
    "description": "Murmur's own cleanup fine-tune. Appears here when training is done."
   },
   {
-   "id": "murmur-cleanup-qwen3-0.6b",
+   "id": "murmur-cleanup-qwen3.5-2b",
    "kind": "llm",
-   "displayName": "Murmur Cleanup (Qwen3 0.6B, NPU)",
+   "displayName": "Murmur Cleanup (Qwen3.5 2B)",
    "publisher": "Murmur",
    "family": "murmur-cleanup",
-   "baseRepo": "Qwen/Qwen3-0.6B",
-   "params": 751632384,
+   "baseRepo": "Qwen/Qwen3.5-2B",
+   "params": 2274069824,
    "paramsLabel": null,
    "languages": {
     "codes": [
@@ -2728,9 +2778,10 @@
    "tier": "planned",
    "status": "in_training",
    "llm": {
-    "template": "qwen3",
+    "template": "qwen3.5",
     "promptProfile": "finetuned.v1",
-    "nCtx": 4096
+    "nCtx": 6144,
+    "prefixTokens": 97
    },
    "artifacts": [],
    "evidence": "docs/research/verify/llm-npu.md",

@@ -1,0 +1,155 @@
+#!/usr/bin/env python3
+"""Shared, verified model download for emulator/host tests (architect-owned; docs/wp/README.md rule 5).
+
+  tools/models/fetch <artifactId> [<artifactId> ...]      e.g. tools/models/fetch silero-vad-v5@onnx
+  tools/models/fetch --list                               artifact ids and download sizes
+
+Reads the bundled catalog (core/catalog/src/main/resources/catalog/catalog.json of the checkout it runs from) and
+writes <models>/<artifactId>/<file> where <models> = $MURMUR_MODELS or <main checkout>/.cache/models (shared by
+every git worktree). Per artifact: an exclusive flock, HTTP Range resume from <file>.part, redirect hosts checked
+against the catalog allowlist, streamed SHA-256 compared with the catalog, fsync + atomic rename, safe extraction of
+tar.bz2/zip archives (no absolute paths, no "..", no links), every catalog `layout` path checked, then a
+`fetch.ok` marker. Idempotent: a verified artifact is not downloaded again. Python stdlib only; run as is.
+"""
+import fcntl, hashlib, json, os, pathlib, socket, subprocess, sys, tarfile, urllib.parse, urllib.request, zipfile
+
+# This server's IPv6 route to the HF CDN hangs in SYN-SENT (same workaround as core/catalog/tools/build_catalog.py).
+_orig_gai = socket.getaddrinfo
+socket.getaddrinfo = lambda host, *a, **k: [r for r in _orig_gai(host, *a, **k) if r[0] == socket.AF_INET] or _orig_gai(host, *a, **k)
+
+HERE = pathlib.Path(__file__).resolve().parent
+ROOT = HERE.parent.parent
+CATALOG = ROOT / "core/catalog/src/main/resources/catalog/catalog.json"
+ALLOWED = ("huggingface.co", ".huggingface.co", ".hf.co", "github.com", ".githubusercontent.com")
+
+
+def models_dir() -> pathlib.Path:
+    if os.environ.get("MURMUR_MODELS"):
+        return pathlib.Path(os.environ["MURMUR_MODELS"])
+    try:
+        common = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "--path-format=absolute", "--git-common-dir"],
+                                capture_output=True, text=True, check=True).stdout.strip()
+        main = pathlib.Path(common).parent
+    except Exception:
+        main = ROOT
+    return main / ".cache" / "models"
+
+
+def host_ok(url: str) -> bool:
+    h = urllib.parse.urlparse(url).hostname or ""
+    return any(h == a or (a.startswith(".") and h.endswith(a)) for a in ALLOWED)
+
+
+class CheckedRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        if not host_ok(newurl):
+            raise SystemExit(f"redirect to a host outside the allowlist: {urllib.parse.urlparse(newurl).hostname}")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+OPENER = urllib.request.build_opener(CheckedRedirect)
+
+
+def sha256_file(p: pathlib.Path) -> str:
+    h = hashlib.sha256()
+    with open(p, "rb") as f:
+        for b in iter(lambda: f.read(1 << 20), b""):
+            h.update(b)
+    return h.hexdigest()
+
+
+def download(spec: dict, dest: pathlib.Path) -> None:
+    final = dest / spec["name"]
+    if final.exists() and final.stat().st_size == spec["bytes"] and sha256_file(final) == spec["sha256"]:
+        return
+    part = dest / (spec["name"] + ".part")
+    have = part.stat().st_size if part.exists() else 0
+    if have > spec["bytes"]:
+        part.unlink(); have = 0
+    if have < spec["bytes"]:
+        req = urllib.request.Request(spec["url"], headers={"Range": f"bytes={have}-", "User-Agent": "murmur-fetch/1"})
+        with OPENER.open(req, timeout=60) as r, open(part, "ab" if r.status == 206 else "wb") as out:
+            if r.status != 206 and have:
+                print(f"  server ignored Range, restarting {spec['name']}", file=sys.stderr)
+            print(f"  GET {spec['name']} status={r.status} from={have if r.status == 206 else 0}", file=sys.stderr)
+            for b in iter(lambda: r.read(1 << 20), b""):
+                out.write(b)
+            out.flush(); os.fsync(out.fileno())
+    got = sha256_file(part)
+    if got != spec["sha256"] or part.stat().st_size != spec["bytes"]:
+        part.unlink()
+        raise SystemExit(f"checksum mismatch for {spec['name']}: deleted the partial file (expected {spec['sha256']}, got {got})")
+    os.replace(part, final)
+
+
+def safe_members(names, base: pathlib.Path):
+    for n in names:
+        target = (base / n).resolve()
+        if n.startswith("/") or ".." in pathlib.PurePosixPath(n).parts or base.resolve() not in (target, *target.parents):
+            raise SystemExit(f"unsafe archive member: {n}")
+
+
+def extract(spec: dict, dest: pathlib.Path) -> None:
+    arc = dest / spec["name"]
+    marker = dest / (spec["name"] + ".extracted")
+    if marker.exists():
+        return
+    if spec["archive"] == "tar.bz2":
+        with tarfile.open(arc, "r:bz2") as t:
+            ms = t.getmembers()
+            safe_members([m.name for m in ms], dest)
+            if any(m.issym() or m.islnk() or m.isdev() for m in ms):
+                raise SystemExit("archive contains links or devices")
+            t.extractall(dest, filter="data")
+    elif spec["archive"] == "zip":
+        with zipfile.ZipFile(arc) as z:
+            safe_members(z.namelist(), dest)
+            z.extractall(dest)
+    marker.write_text(spec["sha256"] + "\n")
+
+
+def fetch(art_id: str, catalog: dict, root: pathlib.Path) -> pathlib.Path:
+    for m in catalog["models"]:
+        for a in m["artifacts"]:
+            if a["id"] != art_id:
+                continue
+            dest = root / art_id
+            dest.mkdir(parents=True, exist_ok=True)
+            with open(root / f".lock-{art_id}", "w") as lk:
+                fcntl.flock(lk, fcntl.LOCK_EX)
+                ok = dest / "fetch.ok"
+                if ok.exists() and ok.read_text() == catalog["catalogVersion"] + "\n":
+                    return dest
+                for f in a["files"]:
+                    if not host_ok(f["url"]):
+                        raise SystemExit(f"catalog url host not allowed: {f['url']}")
+                    download(f, dest)
+                    if f.get("archive"):
+                        extract(f, dest)
+                base = dest / a.get("layout", {}).get("dir", "")
+                missing = [p for k, p in a.get("layout", {}).items() if k != "dir" and not (base / p).exists()]
+                if missing:
+                    raise SystemExit(f"{art_id}: layout paths missing after download: {missing}")
+                ok.write_text(catalog["catalogVersion"] + "\n")
+            return dest
+    raise SystemExit(f"unknown artifact id: {art_id} (tools/models/fetch --list)")
+
+
+def main(argv: list[str]) -> int:
+    catalog = json.loads(CATALOG.read_text(encoding="utf-8"))
+    if not argv or argv[0] in ("-h", "--help"):
+        print(__doc__); return 0
+    if argv[0] == "--list":
+        for m in catalog["models"]:
+            for a in m["artifacts"]:
+                print(f"{a['id']:58s} {sum(f['bytes'] for f in a['files']) / 2**20:9.1f} MiB  {','.join(a['units'])}")
+        return 0
+    root = models_dir()
+    root.mkdir(parents=True, exist_ok=True)
+    for art in argv:
+        print(f"{art} -> {fetch(art, catalog, root)}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv[1:]))

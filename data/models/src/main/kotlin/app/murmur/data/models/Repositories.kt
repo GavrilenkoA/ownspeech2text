@@ -7,6 +7,12 @@ import app.murmur.core.catalog.CatalogRepository
 import app.murmur.core.catalog.CustomModelRequest
 import app.murmur.core.catalog.CustomModelResolver
 import app.murmur.core.catalog.DeviceProfile
+import app.murmur.core.catalog.DeviceProfileRepository
+import app.murmur.core.catalog.UnitHealth
+import app.murmur.core.catalog.UnitHealthRepository
+import app.murmur.core.engine.InferenceHost
+import app.murmur.core.model.ComputeUnit
+import app.murmur.core.store.BenchmarkRepository
 import app.murmur.core.catalog.ModelEntry
 import app.murmur.core.dictation.ActiveModels
 import app.murmur.core.dictation.ModelResolver
@@ -39,13 +45,42 @@ class DefaultInstalledModelsRepository(private val context: Context, private val
     override suspend fun storage(): StorageInfo = TODO("WP-13")
 }
 
-/** Settings + catalog + install state + device profile + benchmarks -> LoadSpecs (ArtifactSelector). WP-13. */
+/**
+ * Settings + catalog + install state + device profile + unit health + valid benchmarks -> LoadSpecs
+ * (ArtifactSelector.ranked; primary = first, fallback = next installed). Never throws (ARCHITECTURE 8.4). WP-13.
+ */
 class DefaultModelResolver(
     private val catalog: CatalogRepository,
     private val installed: InstalledModelsRepository,
-    private val device: () -> DeviceProfile,
+    private val device: DeviceProfileRepository,
+    private val health: UnitHealth,
+    private val benchmarks: BenchmarkRepository,
 ) : ModelResolver {
     override suspend fun resolve(settings: Settings): Outcome<ActiveModels> = TODO("WP-13")
+}
+
+/**
+ * Probe both inference processes once per app version (InferenceHost.probe), cache in noBackupFilesDir; never throws:
+ * on failure DeviceProfile.cpuOnly (ARCHITECTURE 8.4). WP-13 is the only owner of the probe.
+ */
+class DefaultDeviceProfileRepository(
+    private val context: Context,
+    private val asrHost: InferenceHost,
+    private val llmHost: InferenceHost,
+) : DeviceProfileRepository {
+    private val _profile = MutableStateFlow<DeviceProfile?>(null)
+    override val profile: StateFlow<DeviceProfile?> = _profile.asStateFlow()
+    override suspend fun ensure(): DeviceProfile = TODO("WP-13")
+    override suspend fun reprobe(): DeviceProfile = TODO("WP-13")
+}
+
+/** UnitHealth persisted as JSON in noBackupFilesDir/models/unit-health.json, reset when the app version changes. WP-13. */
+class FileUnitHealthRepository(private val storage: ModelStorage, private val appVersion: String) : UnitHealthRepository {
+    override fun failed(artifact: ArtifactId, unit: ComputeUnit): Boolean = TODO("WP-13")
+    override fun proven(artifact: ArtifactId, unit: ComputeUnit): Boolean = TODO("WP-13")
+    override suspend fun markFailed(artifact: ArtifactId, unit: ComputeUnit, code: String) = TODO("WP-13")
+    override suspend fun markProven(artifact: ArtifactId, unit: ComputeUnit) = TODO("WP-13")
+    override suspend fun clear(artifact: ArtifactId, unit: ComputeUnit) = TODO("WP-13")
 }
 
 /** HF API (/api/models/<repo>/revision, /paths-info) -> ModelEntry with origin CUSTOM (D3). WP-13. */

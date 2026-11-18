@@ -1,5 +1,5 @@
 {
- "pipeline": "ocr.v1",
+ "pipeline": "ocr.v2",
  "spec": {
   "template": "messenger_a",
   "device": "fold7_inner",
@@ -61,6 +61,12 @@
  "exclude_kinds": [
   "status_bar",
   "keyboard"
+ ],
+ "field_box": [
+  808,
+  1224,
+  1947,
+  1342
  ],
  "visible": [
   {

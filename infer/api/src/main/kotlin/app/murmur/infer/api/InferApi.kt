@@ -34,12 +34,30 @@ object InferApi {
         runCatching { json.decodeFromString(MurmurError.serializer(), text) }.getOrElse { MurmurError.Internal("bad error payload") }
 }
 
-/** Client-side timeouts for binder round trips (ARCHITECTURE.md 4.3). */
+/**
+ * Client-side timeouts for binder round trips (ARCHITECTURE.md 4.3). The prefix prefill and the synthetic benchmark
+ * scale with the work (review 2026-11-19: a fixed 30 s killed the 3.1k-token default.v4 prefill on the emulator).
+ * [scale] = Settings.debugTimeoutScale in debug builds (1.0 in release). A timeout means "treat the process as dead":
+ * shutdown() + Err(Timeout(stage)).
+ */
 data class BinderTimeouts(
     val bindMs: Long = 3_000,
     val asrLoadMs: Long = 15_000,
     val llmLoadMs: Long = 30_000,
-    val prefixMs: Long = 30_000,
     val ocrMs: Long = 4_000,
     val callMs: Long = 2_000,
-)
+    /** Floor prefill speed for timeouts when no benchmark exists (tok/s; emulator Qwen3.5 measured ~60, LFM3 ~15). */
+    val prefillFloorTps: Double = 40.0,
+    val decodeFloorTps: Double = 5.0,
+    val scale: Double = 1.0,
+) {
+    /** setPrefix: max(30 s, 2 x tokens / speed); a restore from disk is milliseconds, a prefill is the slow case. */
+    fun prefixMs(prefixTokens: Int, prefillTps: Double? = null): Long =
+        (maxOf(30_000.0, 2.0 * prefixTokens / (prefillTps ?: prefillFloorTps) * 1000) * scale).toLong()
+
+    /** bench(nPrompt, nGen, reps): (nPrompt / pp + nGen / tg) x reps x 2, at the floor speeds, at least 30 s. */
+    fun benchMs(nPrompt: Int, nGen: Int, reps: Int): Long =
+        (maxOf(30_000.0, (nPrompt / prefillFloorTps + nGen / decodeFloorTps) * reps * 2 * 1000) * scale).toLong()
+
+    fun scaled(ms: Long): Long = (ms * scale).toLong()
+}

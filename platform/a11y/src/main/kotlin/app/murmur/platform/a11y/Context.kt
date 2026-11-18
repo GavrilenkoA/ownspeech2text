@@ -18,6 +18,7 @@ import app.murmur.core.ocr.ScreenImage
  */
 class A11yTargetReader(private val service: AccessibilityService) : TargetReader {
     override suspend fun snapshot(): A11ySnapshot? = TODO("WP-02")
+    override suspend fun snapshotAfterShade(timeoutMs: Long): A11ySnapshot? = TODO("WP-02: await WINDOWS_CHANGED with a non-SystemUI app window")
     override suspend fun screenshot(target: A11ySnapshot): Outcome<ScreenImage> = TODO("WP-02")
     override suspend fun current(): A11ySnapshot? = TODO("WP-02")
 }
@@ -28,13 +29,27 @@ class A11yInserter(private val service: AccessibilityService) : Inserter {
     override fun copyToClipboard(text: String): Boolean = TODO("WP-02: ClipData + EXTRA_IS_SENSITIVE=false")
 }
 
-/** Restricted-settings detection that works (platform spike REFUTED the app-op check): enabled-but-never-connected + install source. */
+/**
+ * Restricted-settings detection (ADR-027, corrected after review 2026-11-19). When Android blocks the restricted
+ * setting, the toggle is refused ("App was denied access"), so the service never appears in
+ * ENABLED_ACCESSIBILITY_SERVICES: "enabled but never connected" cannot detect it. The usable signal is: the user
+ * came back from the accessibility settings screen, the service is still not connected, and the APK came from a
+ * file (sideload) rather than a store. "Enabled but never connected" is a separate failure ([enabledButDead]).
+ */
 object RestrictedSettingsProbe {
-    fun likelyBlocked(enabledInSettings: Boolean, everConnected: Boolean, packageSource: Int): Boolean =
-        enabledInSettings && !everConnected && packageSource != PACKAGE_SOURCE_STORE
+    fun likelyBlocked(returnedFromA11ySettings: Boolean, connectedNow: Boolean, packageSource: Int): Boolean =
+        returnedFromA11ySettings && !connectedNow && packageSource in SIDELOAD_SOURCES
 
-    /** PackageInstaller.PACKAGE_SOURCE_STORE (API 33). */
+    /** Enabled in Settings.Secure but onServiceConnected never ran (crash at connect, or killed): show the "turn off and on" hint. */
+    fun enabledButDead(enabledInSettings: Boolean, everConnected: Boolean): Boolean = enabledInSettings && !everConnected
+
+    /** PackageInstaller.PACKAGE_SOURCE_* (API 33). */
+    const val PACKAGE_SOURCE_UNSPECIFIED = 0
+    const val PACKAGE_SOURCE_OTHER = 1
     const val PACKAGE_SOURCE_STORE = 2
+    const val PACKAGE_SOURCE_LOCAL_FILE = 3
+    const val PACKAGE_SOURCE_DOWNLOADED_FILE = 4
+    val SIDELOAD_SOURCES = setOf(PACKAGE_SOURCE_LOCAL_FILE, PACKAGE_SOURCE_DOWNLOADED_FILE)
 }
 
 /**
@@ -48,6 +63,7 @@ object A11yBridge {
 class BridgedTargetReader : TargetReader {
     private fun delegate() = A11yBridge.service.value?.let { A11yTargetReader(it) }
     override suspend fun snapshot(): A11ySnapshot? = delegate()?.snapshot()
+    override suspend fun snapshotAfterShade(timeoutMs: Long): A11ySnapshot? = delegate()?.snapshotAfterShade(timeoutMs)
     override suspend fun screenshot(target: A11ySnapshot): Outcome<ScreenImage> =
         delegate()?.screenshot(target) ?: Outcome.Err(app.murmur.core.model.MurmurError.AccessibilityOff)
     override suspend fun current(): A11ySnapshot? = delegate()?.current()

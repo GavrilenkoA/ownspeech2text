@@ -1,0 +1,32 @@
+{"id": "disfl-ru-01", "lang": "ru", "domain": "messenger", "text": "Слушай, э-э, я сегодня, эм, приду чуть позже, наверное к к семи.", "terms": [], "tts_text": null}
+{"id": "disfl-ru-02", "lang": "ru", "domain": "messenger", "text": "Мы мы созвонимся, э-э, после обеда и всё обсудим.", "terms": [], "tts_text": null}
+{"id": "disfl-ru-03", "lang": "ru", "domain": "messenger", "text": "Скинь мне, эм, пожалуйста, отчёт за за прошлую неделю.", "terms": [], "tts_text": null}
+{"id": "disfl-ru-04", "lang": "ru", "domain": "messenger", "text": "Я думаю, ээ, что это, э-э, лучше перенести на четверг.", "terms": [], "tts_text": null}
+{"id": "disfl-ru-05", "lang": "ru", "domain": "messenger", "text": "Короче, э-э, машину я забрал, всё всё нормально.", "terms": [], "tts_text": null}
+{"id": "disfl-ru-06", "lang": "ru", "domain": "messenger", "text": "Напомни мне, эм, завтра позвонить, э-э, в банк.", "terms": [], "tts_text": null}
+{"id": "disfl-ru-07", "lang": "ru", "domain": "messenger", "text": "Она она сказала, э-э, что опоздает минут на десять.", "terms": [], "tts_text": null}
+{"id": "disfl-ru-08", "lang": "ru", "domain": "messenger", "text": "Давай, ээ, встретимся у у метро в шесть.", "terms": [], "tts_text": null}
+{"id": "disfl-ru-09", "lang": "ru", "domain": "messenger", "text": "Я, эм, проверил документы, там, э-э, всё в порядке.", "terms": [], "tts_text": null}
+{"id": "disfl-ru-10", "lang": "ru", "domain": "messenger", "text": "Купи, э-э, хлеба и и молока, если будет время.", "terms": [], "tts_text": null}
+{"id": "disfl-ru-11", "lang": "ru", "domain": "messenger", "text": "Он, эм, ещё не не ответил на письмо.", "terms": [], "tts_text": null}
+{"id": "disfl-ru-12", "lang": "ru", "domain": "messenger", "text": "В общем, э-э, презентацию я, ээ, доделаю к вечеру.", "terms": [], "tts_text": null}
+{"id": "disfl-ru-13", "lang": "ru", "domain": "messenger", "text": "Можешь, эм, глянуть, э-э, мой мой черновик?", "terms": [], "tts_text": null}
+{"id": "disfl-ru-14", "lang": "ru", "domain": "messenger", "text": "Завтра, э-э, совещание переносится на, эм, одиннадцать.", "terms": [], "tts_text": null}
+{"id": "disfl-en-01", "lang": "en", "domain": "messenger", "text": "So, um, I think we should, uh, move the meeting to Friday.", "terms": [], "tts_text": null}
+{"id": "disfl-en-02", "lang": "en", "domain": "messenger", "text": "I I will send you the, um, report by tonight.", "terms": [], "tts_text": null}
+{"id": "disfl-en-03", "lang": "en", "domain": "messenger", "text": "Can you, uh, pick up some, um, milk on the way home?", "terms": [], "tts_text": null}
+{"id": "disfl-en-04", "lang": "en", "domain": "messenger", "text": "We we need to, uh, fix the login page before the release.", "terms": [], "tts_text": null}
+{"id": "disfl-en-05", "lang": "en", "domain": "messenger", "text": "Um, let me know if, uh, the the time works for you.", "terms": [], "tts_text": null}
+{"id": "disfl-en-06", "lang": "en", "domain": "messenger", "text": "I was, er, going to call you, um, after lunch.", "terms": [], "tts_text": null}
+{"id": "disfl-en-07", "lang": "en", "domain": "messenger", "text": "The the client wants, uh, a new draft by Monday.", "terms": [], "tts_text": null}
+{"id": "disfl-en-08", "lang": "en", "domain": "messenger", "text": "Uh, could you, um, check if the room is free?", "terms": [], "tts_text": null}
+{"id": "disfl-en-09", "lang": "en", "domain": "messenger", "text": "She said, um, that she she will be late.", "terms": [], "tts_text": null}
+{"id": "disfl-en-10", "lang": "en", "domain": "messenger", "text": "I, uh, finished the slides, um, an hour ago.", "terms": [], "tts_text": null}
+{"id": "disfl-en-11", "lang": "en", "domain": "messenger", "text": "Let's, um, meet at at the cafe around six.", "terms": [], "tts_text": null}
+{"id": "disfl-en-12", "lang": "en", "domain": "messenger", "text": "Uh, thanks for, um, the quick reply yesterday.", "terms": [], "tts_text": null}
+{"id": "disfl-mixed-01", "lang": "mixed", "domain": "messenger", "text": "Я, э-э, закинул фикс в в main, эм, посмотри, когда будет время.", "terms": [], "tts_text": null}
+{"id": "disfl-mixed-02", "lang": "mixed", "domain": "messenger", "text": "Слушай, эм, deploy на staging, э-э, опять опять упал.", "terms": [], "tts_text": null}
+{"id": "disfl-mixed-03", "lang": "mixed", "domain": "messenger", "text": "Я, э-э, открыл pull request, эм, глянь его до обеда.", "terms": [], "tts_text": null}
+{"id": "disfl-mixed-04", "lang": "mixed", "domain": "messenger", "text": "Мне, эм, нужно обновить Docker, э-э, на на сервере.", "terms": [], "tts_text": null}
+{"id": "disfl-mixed-05", "lang": "mixed", "domain": "messenger", "text": "Давай, э-э, обсудим roadmap, эм, в в пятницу.", "terms": [], "tts_text": null}
+{"id": "disfl-mixed-06", "lang": "mixed", "domain": "messenger", "text": "Я, эм, поправил README, э-э, и и закоммитил.", "terms": [], "tts_text": null}

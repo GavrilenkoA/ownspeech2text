@@ -1,5 +1,5 @@
 {
- "pipeline": "ocr.v1",
+ "pipeline": "ocr.v2",
  "spec": {
   "template": "terminal",
   "device": "fold7_cover",
@@ -54,6 +54,12 @@
  "exclude_kinds": [
   "status_bar",
   "keyboard"
+ ],
+ "field_box": [
+  0,
+  157,
+  1080,
+  1624
  ],
  "visible": [
   {

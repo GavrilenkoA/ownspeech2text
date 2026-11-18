@@ -2,8 +2,8 @@
 
 The prompt is rendered by ml.eval.contract.render_prompt -> prompts/render.py, never stored.
 Per example (deterministic in (seed, id)):
-  * system prompt / profile: `default_system` (default.v1, the long prompted-model prompt) with
-    probability default_share, else `system` (finetuned.v1); any prompts/profiles/<name> works;
+  * system prompt / profile: `default_system` (default.v4s, the stock-model profile with shots) with
+    probability default_share, else `system` (finetuned.v2); any prompts/profiles/<name> works;
   * preferences: meta.preferences if the example has them (its target depends on them), else with
     probability preferences_share a random target-neutral entry of the preferences pool;
   * loss only on the completion = target tokens + end-of-turn token (<|im_end|>); an empty target
@@ -29,9 +29,9 @@ IGNORE = -100
 
 @dataclass
 class PromptMix:
-    system: str = "finetuned"
-    default_system: str = "default"
-    default_share: float = 0.15
+    system: str = "finetuned.v2"
+    default_system: str = "default.v4s"
+    default_share: float = 0.05
     preferences_share: float = 0.15
     preferences_pool: str | None = None
     seed: int = 1234

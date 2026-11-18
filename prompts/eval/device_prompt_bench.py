@@ -103,7 +103,7 @@ def main(argv=None) -> int:
             f.write_text(render.render_prompt(prof, c["ctx"], c["transcript"], spec["template"]), encoding="utf-8")
             n_pred = min(1024, 2 * max(1, len(c["transcript"]) // 3) + 64)  # chars/3 ~ tokens (no tokenizer here)
             o, err = tgt.complete(tgt.put(f, f.name), n_pred)
-            text = o.replace("<|im_end|>", "").strip()
+            text = re.sub(r"\s*\[end of text\]\s*$", "", o.replace("<|im_end|>", "")).strip()  # llama-completion's EOS marker
             t = timings(err)
             same = (text == ref.get(c["id"])) if c["id"] in ref else None
             rows.append({"profile": prof, "id": c["id"], "out": text, "ref": ref.get(c["id"]), "same": same, **t})

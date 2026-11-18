@@ -1,7 +1,8 @@
 """Render a screen spec to a phone-sized PNG with the ground truth of the visible text.
 
     from ml.screens import render
-    out = render(spec)   # {"png": bytes, "size": [w, h], "visible": [{"role", "text", "box"}], "exclude_rects": [[x0, y0, x1, y1]]}
+    out = render(spec)   # {"png": bytes, "size": [w, h], "visible": [{"role", "text", "box"}], "exclude_rects": [[x0, y0, x1, y1]],
+                         #  "exclude_kinds", "field_box": [x0, y0, x1, y1] of the focused field or None, "spec"}
 
     python -m ml.screens.render SPEC.json OUT.png            # also writes OUT.json (everything but the PNG)
     python -m ml.screens.render --batch SPECS.jsonl OUTDIR   # one browser for all specs
@@ -29,6 +30,7 @@ HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
 SCRATCH = Path(os.environ.get("MURMUR_SCREENS_SCRATCH", REPO / ".cache" / "ml" / "screens"))
 FONTS = Path(os.environ.get("MURMUR_SCREENS_FONTS", SCRATCH / "fonts"))
+CHROME = os.environ.get("MURMUR_CHROME", "/usr/local/bin/google-chrome")   # driver.js reads the same variable
 
 
 def build_html(spec: dict) -> tuple[str, dict]:
@@ -80,7 +82,7 @@ class Renderer:
         atexit.register(self.close)
 
     def _start(self):
-        env = dict(os.environ)
+        env = dict(os.environ, MURMUR_CHROME=CHROME)
         self.proc = subprocess.Popen(["node", str(HERE / "driver.js")], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                      stderr=subprocess.DEVNULL, text=True, encoding="utf-8", env=env, bufsize=1)
 
@@ -122,9 +124,13 @@ class Renderer:
                 vis.append({"role": it["role"], "text": it["text"], "box": b, "lead": bool(it.get("lead")),
                             "trail": bool(it.get("trail"))})
         ex = [{"kind": x["kind"], "box": _px(x["box"], s, w, h)} for x in res["visible"]["exclude"]]
+        foc = res["visible"].get("focus") or []
+        if len(foc) > 1:
+            raise RuntimeError(f"template {spec.get('template')!r} marked {len(foc)} focused fields")
+        fbox = _px(foc[0], s, w, h) if foc and foc[0] else None
         data = png.read_bytes()
         return {"png": data, "size": [w, h], "visible": _merge(vis), "exclude_rects": [x["box"] for x in ex],
-                "exclude_kinds": [x["kind"] for x in ex], "spec": normalise_spec(spec)}
+                "exclude_kinds": [x["kind"] for x in ex], "field_box": fbox, "spec": normalise_spec(spec)}
 
 
 _DEFAULT: Renderer | None = None

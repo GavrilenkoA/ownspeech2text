@@ -1,4 +1,4 @@
-package app.murmur
+package app.murmur.e2e
 
 import android.content.pm.PackageManager
 import androidx.test.ext.junit.runners.AndroidJUnit4

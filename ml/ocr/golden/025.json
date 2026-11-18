@@ -1,5 +1,5 @@
 {
- "pipeline": "ocr.v1",
+ "pipeline": "ocr.v2",
  "spec": {
   "template": "calendar_tasks",
   "device": "fold7_cover",
@@ -58,6 +58,12 @@
  "exclude_kinds": [
   "status_bar",
   "keyboard"
+ ],
+ "field_box": [
+  21,
+  1681,
+  1059,
+  1798
  ],
  "visible": [
   {

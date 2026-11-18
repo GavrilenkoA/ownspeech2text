@@ -19,9 +19,11 @@ data:
     - {path: "${MURMUR_DATA:-data}/dev.jsonl"}
   upsample: {}            # e.g. {noop: 1.5}; only if the dev eval shows a category under-trained
 prompt:
-  system: finetuned       # prompts/system/finetuned.v1.md (short, ~90 tokens): what the app sends to fine-tunes
-  default_system: default # prompts/system/default.v1.md: the long prompted-model prompt
-  default_share: 0.15     # rendered with default_system instead (robust to the user picking the long prompt)
+  system: finetuned.v2   # prompts/system/finetuned.v2.md (short, OCR wording, ~110 tokens): what the app must
+                          # send to these fine-tunes (card + catalog entry record it; eval reads it per run)
+  default_system: default.v4s  # the stock-model profile a user can actually select (default.v4 + 8 OCR shots,
+                               # ~2.2K tokens rendered): robustness to switching the prompt
+  default_share: 0.05     # 5 %: mean rendered length ~395 tokens (measured on proof_v6 train); 10 % would be ~490
   preferences_share: 0.15 # random target-neutral "My preferences" block (meta.preferences always wins)
   preferences_pool: ml/train/preferences_pool.v1.txt
   seed: 1234

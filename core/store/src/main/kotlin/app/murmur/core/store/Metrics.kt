@@ -7,7 +7,7 @@ import java.time.LocalDate
 /**
  * Numbers-only record of one dictation, written next to the history row and kept for the stats retention
  * period (90 days proposed, open question) even after the history text is gone (DESIGN 6.2). Every
- * Dashboard number is derivable from these rows (ARCHITECTURE.md section 11): no text, no context.
+ * Dashboard number is derivable from these rows (ARCHITECTURE.md section 12): no text, no context.
  */
 data class DictationMetrics(
     val createdAt: Instant,
@@ -58,4 +58,29 @@ data class DashboardStats(
 
 interface StatsCalculator {
     fun compute(rows: List<DictationMetrics>, today: LocalDate, typingWpm: Int): DashboardStats
+}
+
+/**
+ * Numbers computed once at delivery by WP-11 (ARCHITECTURE 12), implemented and tested by WP-12. Pure. The
+ * filler lexicon comes from OutputGuard.fillers (the prompts/guard.py FILLERS port, WP-04).
+ */
+interface DeliveryMetrics {
+    fun wordCount(text: String): Int
+    /** Word-level Levenshtein distance raw -> final (casefolded, punctuation stripped). */
+    fun editDistanceWords(raw: String, final: String): Int
+    /** Filler tokens of [raw] absent from [final]. */
+    fun fillersRemoved(raw: String, final: String, fillers: Set<String>): Int
+    /** Substitutions that are not filler deletions (= edit distance - fillers removed, floored at 0). */
+    fun fixes(raw: String, final: String, fillers: Set<String>): Int
+    /** True when >= 2 tokens of the minority script (Cyrillic vs Latin) are present. */
+    fun mixedLanguage(text: String): Boolean
+}
+
+/** WP-12 replaces the bodies; the signatures are the contract WP-11 calls (tests use :testing SimpleDeliveryMetrics). */
+class DefaultDeliveryMetrics : DeliveryMetrics {
+    override fun wordCount(text: String): Int = TODO("WP-12")
+    override fun editDistanceWords(raw: String, final: String): Int = TODO("WP-12")
+    override fun fillersRemoved(raw: String, final: String, fillers: Set<String>): Int = TODO("WP-12")
+    override fun fixes(raw: String, final: String, fillers: Set<String>): Int = TODO("WP-12")
+    override fun mixedLanguage(text: String): Boolean = TODO("WP-12")
 }

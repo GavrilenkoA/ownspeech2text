@@ -1,6 +1,5 @@
 package app.murmur.core.store
 
-import app.murmur.core.model.ArtifactId
 import app.murmur.core.model.ModelId
 import app.murmur.core.model.UnitPreference
 import kotlinx.coroutines.flow.StateFlow
@@ -39,8 +38,12 @@ data class Settings(
     // Models
     val asrModel: ModelId? = null,
     val cleanup: CleanupChoice = CleanupChoice.Default,
-    val livePreviewModel: ModelId? = null,
-    val unitPreference: Map<String, UnitPreference> = emptyMap(),   // ArtifactId.value -> preference
+    /**
+     * ModelId.value -> preference (review 2026-11-19: per model, not per artifact, because NPU and CPU are often
+     * different artifacts of one model). Written by the hub's unit picker (WP-18), read by the resolver (WP-13).
+     * No live-preview model in v1 (ADR-047).
+     */
+    val unitPreference: Map<String, UnitPreference> = emptyMap(),
     val wifiOnlyDownloads: Boolean = true,
     /** D5: keep inference processes warm this long after a dictation, then unload + exit. */
     val idleUnloadSec: Int = 60,
@@ -48,8 +51,13 @@ data class Settings(
     val onboardingDone: Boolean = false,
     /** Debug builds only: run the pipeline on :testing fakes (D6). Ignored in release. */
     val debugFakeEngines: Boolean = false,
+    /** Debug builds only: multiply every dictation and binder timeout (slow x86_64 emulator CPU engines). 1.0 in release. */
+    val debugTimeoutScale: Float = 1f,
+    /** Debug builds only: ignore the memory gate (3 GB AVDs), so emulator tests exercise the LLM path. */
+    val debugIgnoreMemoryGate: Boolean = false,
 )
 
+/** DESIGN 6.5 "Sound and vibration". Sound = earcons through the Feedback port (WP-03; open design question). */
 @Serializable enum class Feedback { VIBRATION, SOUND, BOTH, OFF }
 @Serializable enum class BubbleVisibility { WHEN_TYPING, ALWAYS }
 @Serializable enum class BubbleSize(val dp: Int) { SMALL(44), STANDARD(52), LARGE(60) }

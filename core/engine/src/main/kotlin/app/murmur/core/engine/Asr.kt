@@ -14,8 +14,11 @@ import kotlinx.serialization.Serializable
 interface AsrEngine {
     /** Load ASR + VAD (VAD only for batch models). May be called while audio already flows (session buffers). */
     suspend fun load(asr: LoadSpec, vad: LoadSpec?): Outcome<LoadInfo>
-    /** Start a session; [accept] may be called before [load] completes: audio is buffered, never dropped. */
-    fun startSession(options: AsrSessionOptions): AsrSession
+    /**
+     * Start a session; [AsrSession.accept] may be called before [load] completes: audio is buffered, never dropped.
+     * Suspends: over binder this is a round trip (2 s timeout, ARCHITECTURE 4.3); main-safe like every port.
+     */
+    suspend fun startSession(options: AsrSessionOptions): AsrSession
     suspend fun unload()
 }
 

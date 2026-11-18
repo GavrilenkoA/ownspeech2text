@@ -13,6 +13,7 @@ import app.murmur.core.store.AudioStore
 import app.murmur.core.store.HistoryEntry
 import app.murmur.core.store.HistoryRepository
 import app.murmur.core.store.SettingsRepository
+import app.murmur.ui.design.AppInfoProvider
 import java.time.LocalDate
 
 /** What :app passes in (ADR-010: constructor injection, no DI framework). */
@@ -24,6 +25,8 @@ class HistoryDeps(
     /** DictationOrchestrator.retry / repolish. */
     val retry: suspend (EntryId) -> Outcome<EntryId>,
     val repolish: suspend (EntryId) -> Outcome<EntryId>,
+    /** Row and detail app icons + labels (PackageManager lives in :app). */
+    val apps: AppInfoProvider,
 )
 
 /** DESIGN 6.3 list state. */

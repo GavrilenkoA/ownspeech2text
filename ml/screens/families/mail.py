@@ -148,7 +148,8 @@ def email_compose(c: Ctx) -> str:
     bc = c.field.get("before_cursor") or ""
     from_row = row(c.ui["from"], e(_addr(me, c.r)), "filler")
     if to_focus:
-        to_html = (f'<span data-role="field">{e(bc)}</span>' if bc else "") + '<span class="cursor"></span>'
+        to_html = ('<span data-focus="1">' + (f'<span data-role="field">{e(bc)}</span>' if bc else "")
+                   + '<span class="cursor"></span></span>')
         fields = from_row + row(c.ui["to"], to_html, "field")
     else:
         fields = from_row + row(c.ui["to"], chip, "author")
@@ -169,6 +170,8 @@ def email_compose(c: Ctx) -> str:
                   f'<div class="t2" style="border-left:2px solid var(--divider);padding-left:10px;margin-top:4px;white-space:pre-wrap" data-role="message">'
                   f'{e(m["text"])}</div>')
     snips = "".join(f'<div class="t2" style="margin-top:14px;font-size:{C.fs(14)}" data-role="snippet">{e(s)}</div>' for s in c.snippets)
+    if body:   # the body EditText holds only the typed text; quote and snippets are separate views below it
+        body = f'<div data-focus="1">{body}</div>'
     return frame(c, f'{head}{fields}<div class="grow" style="padding:14px 16px;overflow:hidden">{body}{quoted}{snips}</div>')
 
 

@@ -44,3 +44,52 @@ timed() {
     "$(date -u +%FT%TZ)" "$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1)" >>"$MURMUR_LOGS/timings.jsonl"
   return $rc
 }
+
+# ---- GPU-hour budget, enforced where the time is spent (run_all per stage, train_matrix per run,
+# run_one per step, export_eval per eval). Billed time = sum over pod sessions of (last check - container
+# start), container start = now - elapsed time of PID 1 (counts setup and idle time, not only stages),
+# plus BUDGET_SESSION_OVERHEAD_S per session for provisioning / image pull before the container runs.
+# Persisted on the volume in $W/.budget/sessions.tsv ("start<TAB>last" per session).
+#   MAX_GPU_HOURS     hard cap (owner: 5): nothing starts that would end past it
+#   TARGET_GPU_HOURS  plan (3): optional runs (sweep extras, DoRA, full FT) start only if they fit
+# MURMUR_SESSION_START (epoch seconds) overrides the container start (local simulation, odd runtimes).
+export MAX_GPU_HOURS="${MAX_GPU_HOURS:-5}" TARGET_GPU_HOURS="${TARGET_GPU_HOURS:-3}"
+export BUDGET_SESSION_OVERHEAD_S="${BUDGET_SESSION_OVERHEAD_S:-300}"
+export BUDGET_DIR="$W/.budget"; mkdir -p "$BUDGET_DIR"
+_session_start() {
+  if [[ -n "${MURMUR_SESSION_START:-}" ]]; then echo "$MURMUR_SESSION_START"; return; fi
+  local now et; now=$(date +%s); et=$(ps -o etimes= -p 1 2>/dev/null | tr -d ' ')
+  if [[ -n "$et" && "$et" -lt 43200 ]]; then echo $(( now - et )); return; fi
+  # PID 1 older than 12 h: not a fresh pod container; fall back to the first check seen on this boot
+  local boot; boot=$(cat /proc/sys/kernel/random/boot_id 2>/dev/null || echo noboot)
+  [[ -f "$BUDGET_DIR/boot-$boot" ]] || echo "$now" >"$BUDGET_DIR/boot-$boot"
+  cat "$BUDGET_DIR/boot-$boot"
+}
+# prints the billed seconds so far (and records this session's heartbeat)
+budget_used() {
+  local now st; now=$(date +%s); st=$(_session_start)
+  touch "$BUDGET_DIR/sessions.tsv"
+  awk -v st="$st" -v now="$now" -v ov="$BUDGET_SESSION_OVERHEAD_S" -v f="$BUDGET_DIR/sessions.tsv.new" '
+    BEGIN { OFS = "\t" }
+    { if ($1 - st < 90 && st - $1 < 90) { $2 = now; hit = 1 } print > f; used += $2 - $1 + ov }
+    END { if (!hit) { print st, now > f; used += now - st + ov } print used }' "$BUDGET_DIR/sessions.tsv"
+  mv "$BUDGET_DIR/sessions.tsv.new" "$BUDGET_DIR/sessions.tsv"
+}
+# budget_check WHAT RESERVE_S [hard|target]: rc 5 (and a log line) if WHAT would end past the limit
+budget_check() {
+  local what=$1 reserve=${2:-0} kind=${3:-hard} used lim h
+  used=$(budget_used)
+  if [[ "$kind" == target ]]; then h=$TARGET_GPU_HOURS; else h=$MAX_GPU_HOURS; fi
+  lim=$(awk "BEGIN{print int($h*3600)}")
+  if (( used + reserve > lim )); then
+    log "budget: $what needs ~${reserve}s, used ${used}s, $kind limit ${lim}s (${h} h): NOT started"
+    return 5
+  fi
+  log "budget: used ${used}s of ${lim}s ($kind); next $what (~${reserve}s)"
+}
+# median seconds of finished timed steps whose name starts with $1 (e.g. "eval:"), else $2
+median_seconds() {
+  [[ -f "$MURMUR_LOGS/timings.jsonl" ]] || { echo "$2"; return; }
+  jq -s --arg p "$1" --argjson d "$2" '[.[] | select(.stage | startswith($p)) | select(.rc == 0) | .seconds] | sort
+    | if length == 0 then $d else .[(length / 2 | floor)] end' "$MURMUR_LOGS/timings.jsonl"
+}

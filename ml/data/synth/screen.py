@@ -61,6 +61,45 @@ def render_params(key: str, app_category: str, lang: str, field_present: bool) -
             "keyboard": field_present and r.random() < 0.7, "seed": r.randrange(1 << 30)}
 
 
+# Real-backend template per app (ml/screens templates), so that the screen fits the app the scenario names:
+# a chat app gets a chat, a browser gets a page, never Telegram on a web page or Mattermost as an issue tracker.
+PACKAGE_TEMPLATES = {
+    "org.telegram.messenger": [("messenger_a", 1)], "org.telegram.plus": [("messenger_a", 1)],
+    "com.whatsapp": [("messenger_b", 1)], "org.thoughtcrime.securesms": [("messenger_b", 1)],
+    "com.samsung.android.messaging": [("messenger_b", 1)], "com.google.android.apps.messaging": [("messenger_b", 1)],
+    "com.vkontakte.android": [("messenger_a", 1)], "com.discord": [("work_chat", 1)],
+    "com.Slack": [("work_chat", 1)], "com.microsoft.teams": [("work_chat", 1)], "com.mattermost.rn": [("work_chat", 1)],
+    "com.atlassian.android.jira.core": [("issue_tracker", 1)], "com.linear.app": [("issue_tracker", 1)],
+    "com.google.android.keep": [("notes", 1)], "com.samsung.android.app.notes": [("notes", 1)],
+    "md.obsidian": [("notes", 1)], "notion.id": [("doc_editor", 1)],
+    "com.google.android.apps.docs.editors.docs": [("doc_editor", 1)],
+    "com.termux": [("terminal", 1)], "com.github.android": [("browser_pr", 1)],
+    "com.google.android.calendar": [("calendar_tasks", 1)], "com.samsung.android.calendar": [("calendar_tasks", 1)],
+    "com.openai.chatgpt": [("ai_chat", 1)], "com.yandex.alice": [("ai_chat", 1)], "com.anthropic.claude": [("ai_chat", 1)],
+    "ai.perplexity.app.android": [("ai_chat", 1)],
+}
+CATEGORY_TEMPLATES = {
+    "email": [("email_thread", 45), ("email_compose", 55)], "social": [("social_feed", 1)],
+    "search": [("browser_article", 55), ("browser_docs", 45)], "messaging": [("messenger_a", 55), ("messenger_b", 45)],
+    "work_chat": [("work_chat", 1)], "notes": [("notes", 65), ("doc_editor", 35)], "code": [("terminal", 1)],
+    "default": [("ai_chat", 1)],
+}
+
+
+def template_for(app: dict, field_kind: str | None, key: str) -> str:
+    """ml/screens template for this app + field (deterministic from key)."""
+    pkg, cat = app.get("package", ""), app.get("category", "default")
+    if cat == "email":
+        if field_kind == "search":
+            return "email_inbox"
+        if field_kind in ("email_subject", "address"):
+            return "email_compose"
+    if cat == "search" and field_kind in ("search", "address"):
+        return "browser_search"
+    return _pick(mkrng("template.v1", key), PACKAGE_TEMPLATES.get(pkg) or CATEGORY_TEMPLATES.get(cat)
+                 or CATEGORY_TEMPLATES["default"])
+
+
 def variant_params(p: dict, variant: int) -> dict:
     """variant 0 = as planned; 1 = the one allowed re-render (other theme and font scale)."""
     if variant == 0:
@@ -132,7 +171,8 @@ def make_spec(sc: dict, content: dict, variant: int = 0) -> dict:
         spec = SM.from_teacher({"title": title, "messages": msgs, "snippets": snippets,
                                 "before_cursor": (content.get("before_cursor") or "") if sc["category"] == "continuation" else ""},
                                dict(sc["app"]), sc["field_kind"] if sc.get("field_present", True) else None, sc["lang"],
-                               seed=p0["seed"], device=p0["device"], theme=p["theme"], font_scale=p["font_scale"],
+                               seed=p0["seed"], template=p0.get("screen_template"),
+                               device=p0["device"], theme=p["theme"], font_scale=p["font_scale"],
                                keyboard=bool(p0["keyboard"] and sc.get("field_present", True)), locale=hint_lang,
                                avoid=avoid_list(sc))
         return spec

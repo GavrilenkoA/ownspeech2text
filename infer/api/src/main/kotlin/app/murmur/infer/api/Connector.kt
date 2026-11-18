@@ -20,7 +20,8 @@ import kotlinx.coroutines.flow.asStateFlow
  * WP-05 implements connect/await/unbind; the skeleton only holds the state.
  */
 class ServiceConnector(
-    private val context: Context,
+    /** Read at every bind (accessibility service when connected, else the application). */
+    private val bindContext: () -> Context,
     val process: InferProcess,
     private val timeouts: BinderTimeouts = BinderTimeouts(),
 ) {
@@ -36,7 +37,7 @@ class ServiceConnector(
         override fun onBindingDied(name: ComponentName?) { binder = null }
     }
 
-    fun intent(): Intent = Intent().setClassName(context.packageName, InferApi.serviceClass(process))
+    fun intent(): Intent = bindContext().let { Intent().setClassName(it.packageName, InferApi.serviceClass(process)) }
 
     /** Bind and wait up to [BinderTimeouts.bindMs] for the binder; checks apiVersion. */
     suspend fun connect(): IBinder? = TODO("WP-05: bindService(intent(), connection, BIND_AUTO_CREATE or BIND_IMPORTANT) + await")

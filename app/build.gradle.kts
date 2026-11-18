@@ -6,6 +6,9 @@ plugins {
 }
 
 val productName = providers.gradleProperty("murmur.productName").getOrElse("Murmur")
+// Local device builds only (DEVICE_CHECKLIST DC8): -Pmurmur.htp=true -Pmurmur.qnn=true. Never redistributed until the
+// owner has read the Hexagon SDK CE and QNN runtime licences (ADR-048).
+val shipHtp = providers.gradleProperty("murmur.htp").map { it.toBoolean() }.getOrElse(false)
 
 android {
     namespace = "app.murmur"
@@ -59,6 +62,9 @@ android {
             // (libggml-htp-v79.so) and the CPU-variant loader scans a directory; QNN's skel needs
             // ADSP_LIBRARY_PATH to point at a real directory (llm spike 3.4, asr-ocr 5.3).
             useLegacyPackaging = true
+            // ADR-048: the Hexagon-SDK-built DSP skel ships only with -Pmurmur.htp=true (licence unread, needsFromOwner),
+            // the same rule as QNN (-Pmurmur.qnn=true, WP-06). Without it the :llm probe reports no HTP0 (CPU/GPU only).
+            if (!shipHtp) excludes += "**/libggml-htp-*.so"
         }
     }
 

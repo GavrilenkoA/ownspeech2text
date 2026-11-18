@@ -26,6 +26,15 @@ def delta(ref: dict, cand: dict) -> dict:
     return out
 
 
+def guarded_view(rep: dict) -> dict | None:
+    """The report's after-guard measurement (ml/eval/run_eval.py) shaped as a report, or None."""
+    g = rep.get("guarded")
+    if not g:
+        return None
+    return {"info": {**rep["info"], "backend": rep["info"]["backend"] + "+guard"}, "summary": g["summary"],
+            "gates": g["gates"]}
+
+
 def compare(ref: dict, cand: dict) -> dict:
     scopes = {"overall": (ref["summary"]["overall"], cand["summary"]["overall"])}
     for lang in sorted(set(ref["summary"]["by_lang"]) & set(cand["summary"]["by_lang"])):

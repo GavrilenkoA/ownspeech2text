@@ -20,4 +20,13 @@ class RetentionPolicyTest {
         val z = ZoneId.of("Europe/Moscow")
         assertEquals(LocalDate.of(2026, 11, 25).atStartOfDay(z), RetentionPolicy.deletesAt(LocalDate.of(2026, 11, 18), 7, z))
     }
+
+    @Test
+    fun dontKeepHistoryDeletesTodayToo() {
+        // review 2026-11-19: days = 0 used to return today, keeping today's dictations after "Don't keep history".
+        assertEquals(LocalDate.of(2026, 11, 19), RetentionPolicy.firstKeptDay(today, 0))
+        assertTrue(today.isBefore(RetentionPolicy.firstKeptDay(today, 0)))
+        assertEquals(false, RetentionPolicy.keepsHistory(0))
+        assertEquals(false, RetentionPolicy.deletesTonight(today, today, 0))
+    }
 }

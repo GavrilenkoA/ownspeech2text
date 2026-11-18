@@ -7,13 +7,20 @@ PROFILES ?= default.v4
 SET      ?= dev.v2
 RUNS     := $(ROOT)/.cache/ml/prompt/runs
 
-.PHONY: test sets goldens eval sweep report raw
+.PHONY: test sets sets-fixture goldens eval sweep report raw
 
 test:            ## unit tests: renderer goldens + chat templates, scorer, guard contract
 	cd tests && $(PY) -m unittest discover -s . -p "test_*.py"
 
-sets:            ## rebuild eval/sets/*.jsonl and shots/*.jsonl from eval/cases/*.py (validates them; v2 = OCR contexts)
-	cd $(ROOT) && $(PY) -m prompts.eval.cases.build && $(PY) -m prompts.eval.cases.build_v2
+OCRPY    ?= $(ROOT)/.cache/ml/ocr/venv/bin/python
+
+sets:            ## rebuild v1 sets + v2 sets/shots/smoke with real render+OCR (ml/screens; heavy, ~4 min) and the dense set
+	cd $(ROOT) && $(PY) -m prompts.eval.cases.build
+	cd $(ROOT) && tools/heavy $(OCRPY) -m prompts.eval.cases.build_v2 --workers 3 --threads 2
+	cd $(ROOT) && tools/heavy $(OCRPY) -m prompts.eval.cases.build_v2 --dense --workers 3 --threads 2
+
+sets-fixture:    ## v2 sets from the OCR fixture (no render/OCR): sets/*.v2fx.jsonl, shots/*.fx.jsonl
+	cd $(ROOT) && $(PY) -m prompts.eval.cases.build_v2 --fixture
 
 goldens:         ## regenerate examples/golden_*.txt (v1, must not change) and examples/ctxv2_*.txt
 	$(PY) render.py --regen-goldens

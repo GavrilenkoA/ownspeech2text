@@ -33,6 +33,7 @@ sys.path.insert(0, str(HERE))
 import guard  # noqa: E402
 import render  # noqa: E402
 import score  # noqa: E402
+from cases.fingerprint import stale  # noqa: E402
 
 DEFAULT_BIN = ROOT / ".cache/ml/llm/bin/llama-b12503"
 SLOTS = ROOT / ".cache/ml/prompt/slots"
@@ -94,6 +95,10 @@ def run(a) -> dict:
     set_path = (Path(a.set) if a.set.endswith(".jsonl") else
                 HERE / "sets" / (f"{a.set}.jsonl" if "." in a.set else f"{a.set}.v1.jsonl"))
     cases = score.load_jsonl(set_path)
+    n_stale, producer = stale(cases)
+    if n_stale and not a.allow_stale:
+        raise SystemExit(f"{set_path.name}: {n_stale} cases were built with another ml/ocr+ml/screens version "
+                         f"(now {producer}); rebuild with `make -C prompts sets` or pass --allow-stale")
     if a.ids:
         keep = set(a.ids.split(","))
         cases = [c for c in cases if c["id"] in keep]
@@ -158,8 +163,8 @@ def run(a) -> dict:
             pass
     rows = [results[c["id"]] for c in cases if c["id"] in results]
     out.write_text("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows), encoding="utf-8")
-    _, s_raw = score.score_run(cases, {r["id"]: r["out"] for r in rows})
-    _, s_fin = score.score_run(cases, {r["id"]: r["final"] for r in rows})
+    _, s_raw = score.score_run(cases, {r["id"]: r["out"] for r in rows}, prof.get("ctx2"))
+    _, s_fin = score.score_run(cases, {r["id"]: r["final"] for r in rows}, prof.get("ctx2"))
     n = max(1, len(rows))
     meta = {"model": Path(a.model).name, "template": a.template, "profile": prof.get("name"), "set": set_path.name,
             "n": len(rows), "np": a.np, "threads": a.threads, "prefix_tokens": prefix_tokens,
@@ -167,6 +172,7 @@ def run(a) -> dict:
             "mean_gen_tokens": round(sum(r["gen_n"] or 0 for r in rows) / n, 1),
             "truncated": sum(r["truncated"] for r in rows),
             "guard_fired": sum(r["guard"] != "accept" for r in rows), "wall_s": round(wall, 1),
+            "ctx2": prof.get("ctx2"), "producer": producer, "guard_version": guard.GUARD_VERSION,
             "score_raw": s_raw, "score_guarded": s_fin}
     out.with_suffix(".meta.json").write_text(json.dumps(meta, ensure_ascii=False, indent=1), encoding="utf-8")
     return meta
@@ -188,6 +194,7 @@ def main(argv=None) -> int:
     ap.add_argument("--ctx2", help='JSON overrides of the ctx v2 render options, e.g. {"order": "reading"}')
     ap.add_argument("--tag", default="", help="suffix for the default output name (ablations)")
     ap.add_argument("--verbose", action="store_true")
+    ap.add_argument("--allow-stale", action="store_true", help="run on a set whose OCR contexts are from an older producer")
     a = ap.parse_args(argv)
     if a.m:
         spec = json.loads((HERE / "models.json").read_text(encoding="utf-8"))[a.m]

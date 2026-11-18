@@ -7,13 +7,18 @@ Per case it computes (definitions in prompts/eval/README.md#metrics):
             against target or any meta.check.alts
   wer       word error rate vs target on normalised words (case/punctuation ignored)
   fwer      formatting-aware token error rate (case, punctuation and line breaks are tokens)
-  keep      share of critical entities (meta.check.keep) present in the output
+  keep      share of critical entities (meta.check.keep) present in the output. In the context-support categories
+            (SUPPORT_CATS) with a ctx v2 an entity only counts when it is also spelled in the screen text the model
+            was shown (on_screen: the rendered <context> block, i.e. after the renderer's filters and budget), so a
+            term the screen does not support cannot be "kept" (same rule as ml/eval/metrics.py, stricter: rendered
+            block instead of all OCR lines)
   forbid    any forbidden string present (distractor, injection payload, abandoned correction, filler)
   answered  output looks like an answer/continuation instead of the transcription
   lang_ok   Latin/Cyrillic letter share of output within 0.2 of the target's
   len_ok    output length within [0.6, 1.5] x target length (empty target: output must be empty)
-  noop_ok   byte-exact (after strip) for no-op cases
-  ok        em OR all hard checks pass AND wer <= 0.15 AND fwer <= 0.20
+  noop_ok   byte-exact (after strip) for no-op cases; it is the pass decision for no-op cases
+  ok        no-op case: noop_ok; empty target: output empty;
+            otherwise em OR all hard checks pass AND wer <= 0.15 AND fwer <= 0.20
 
   python3 prompts/eval/score.py --set prompts/eval/sets/dev.v1.jsonl --results RUN.jsonl [--json OUT.json]
 """
@@ -31,6 +36,8 @@ WER_MAX = 0.15
 FWER_MAX = 0.20
 LEN_MIN, LEN_MAX = 0.6, 1.5
 LANG_TOL = 0.2
+# categories whose critical entity must come from the screen (CONTEXT_V2 category rules; names as in ml/eval/metrics.py)
+SUPPORT_CATS = {"context_names", "context_resolution", "near_miss", "context_asr_correction"}
 
 _QUOTES = str.maketrans({"«": '"', "»": '"', "“": '"', "”": '"', "„": '"', "‘": "'", "’": "'",
                          "–": "—", "‑": "-", " ": " ", " ": " ", " ": " ", "ё": "е", "Ё": "Е"})
@@ -130,7 +137,25 @@ def answered(out: str, transcript: str, target: str, ctx: dict | None = None) ->
     return len(novel) / len(content) > 0.4 or len(words(o)) > 2.0 * ref_n + 4
 
 
-def score_case(case: dict, out: str) -> dict:
+def shown_screen(ctx: dict | None, ctx2: dict | None = None) -> str | None:
+    """Screen text of the rendered <context> block (ctx v2 only, else None)."""
+    if (ctx or {}).get("v") != 2:
+        return None
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    import render
+    block = render.render_context(ctx, ctx2)
+    head = block.find("Screen text (OCR")
+    return block[block.index("\n", head) + 1:].removesuffix("</context>") if head >= 0 else ""
+
+
+def on_screen(ctx: dict | None, term: str, ctx2: dict | None = None) -> bool:
+    """Term spelled as given (after fold) in the screen text the model was shown."""
+    shown = shown_screen(ctx, ctx2)
+    return bool(term) and shown is not None and fold(term) in fold(shown)
+
+
+def score_case(case: dict, out: str, ctx2: dict | None = None) -> dict:
+    """ctx2: the profile's ctx v2 render options (decides which screen text the model saw)."""
     tgt, tr = case["target"], case["transcript"]
     chk = (case.get("meta") or {}).get("check") or {}
     out_s = (out or "").strip()
@@ -138,8 +163,10 @@ def score_case(case: dict, out: str) -> dict:
     em = any(light(out_s) == light(r) for r in refs)
     wer = min(error_rate(words(out_s), words(r)) for r in refs)
     fwer = min(error_rate(ftokens(out_s), ftokens(r)) for r in refs)
-    keeps = chk.get("keep", [])
-    kept = [any(has(out_s, a) for a in (k if isinstance(k, list) else [k])) for k in keeps]
+    keeps = [k if isinstance(k, list) else [k] for k in chk.get("keep", [])]
+    support = case["category"] in SUPPORT_CATS and (case.get("ctx") or {}).get("v") == 2 and bool(keeps)
+    supported = [any(on_screen(case.get("ctx"), a, ctx2) for a in k) for k in keeps] if support else []
+    kept = [any(has(out_s, a) and (not support or on_screen(case.get("ctx"), a, ctx2)) for a in k) for k in keeps]
     hits = forbidden_hits(out_s, chk.get("forbid", []))
     ans = answered(out_s, tr, tgt, case.get("ctx"))
     n_t, lat_t = script_share(tgt)
@@ -158,11 +185,12 @@ def score_case(case: dict, out: str) -> dict:
     if not tgt.strip():
         ok = out_s == ""
     if noop:
-        ok = em
+        ok = noop_ok
     return {"id": case["id"], "lang": case["lang"], "category": case["category"], "ok": ok, "em": em,
             "wer": round(wer, 4), "fwer": round(fwer, 4), "keep": (sum(kept) / len(kept)) if kept else None,
             "keep_all": all(kept), "forbid_hits": hits, "answered": ans, "noanswer_case": bool(chk.get("noanswer")),
-            "lang_ok": lang_ok, "len_ratio": round(ratio, 3), "len_ok": len_ok, "noop_ok": noop_ok}
+            "lang_ok": lang_ok, "len_ratio": round(ratio, 3), "len_ok": len_ok, "noop_ok": noop_ok,
+            "ctx_supported": all(supported) if support else None}
 
 
 def _mean(xs):
@@ -203,8 +231,8 @@ def load_jsonl(p: str | Path) -> list[dict]:
     return [json.loads(l) for l in Path(p).read_text(encoding="utf-8").splitlines() if l.strip()]
 
 
-def score_run(cases: list[dict], outputs: dict[str, str]) -> tuple[list[dict], dict]:
-    rows = [score_case(c, outputs.get(c["id"], "")) for c in cases]
+def score_run(cases: list[dict], outputs: dict[str, str], ctx2: dict | None = None) -> tuple[list[dict], dict]:
+    rows = [score_case(c, outputs.get(c["id"], ""), ctx2) for c in cases]
     return rows, summarize(rows)
 
 

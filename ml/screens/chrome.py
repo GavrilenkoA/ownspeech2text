@@ -238,8 +238,11 @@ def input_field(field: dict, hint_default: str, r: random.Random, left_icons=("s
         inner = f'<span class="cursor" style="margin-left:0;margin-right:2px"></span><span class="hint ell" data-role="hint">{e(hint)}</span>'
     li = "".join(icon(n, 24, "t2") for n in left_icons)
     ri = "".join(icon(n, 24, "t2") for n in right_icons)
+    # data-focus: the focused editable node, whose bounds become ctx.field.box (getBoundsInScreen on the phone).
+    # "y-parent": the text area between the icon buttons, as tall as the pill (a real Messages compose EditText
+    # on the emulator: [316,2310][796,2436], icons outside it, the pill's full height).
     return (f'<div class="{cls}"><span style="margin-right:8px;display:flex">{li}</span>'
-            f'<div class="grow" style="overflow:hidden">{inner}</div><span style="display:flex;gap:10px">{ri}</span></div>')
+            f'<div class="grow" style="overflow:hidden" data-focus="y-parent">{inner}</div><span style="display:flex;gap:10px">{ri}</span></div>')
 
 
 def murmur_bubble(r: random.Random, css_w: int, css_h: int, top_min: int, top_max: int, locale: str) -> str:

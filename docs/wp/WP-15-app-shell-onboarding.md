@@ -1,20 +1,25 @@
-# WP-15 App shell, navigation, onboarding (`:app` shell files, `:feature:onboarding`)
+# WP-15 App shell, navigation, onboarding, `:app` wiring for the screens (`:app`, `:feature:onboarding`)
 
 Wave 2 (needs WP-01 components; may start with the existing placeholders). Read first: `docs/wp/README.md`;
-DESIGN.md §0 decisions 4, 6, 7; §2 (Fold7 layouts, size classes); §3.5 transitions; §4 bottom nav and rail; §6.1
-onboarding (all frames `ob-*`); §8; ARCHITECTURE.md §3; DECISIONS ADR-027, ADR-032, ADR-034;
-`docs/research/verify/platform.md` §1.9 (enable flow, restricted settings) and §2.
+DESIGN.md §0 decisions 4, 6, 7; §2 (Fold7 layouts, size classes); §3.5 transitions; §4 bottom nav and rail; §5.1
+(status notification); §6.1 onboarding (all frames `ob-*`); §8; ARCHITECTURE.md §2 (rule 4), §3, §8.4, §8.5, §13;
+DECISIONS ADR-010, ADR-027, ADR-032, ADR-034, ADR-052, ADR-054, ADR-055; `docs/research/verify/platform.md` §1.9
+(enable flow, restricted settings) and §2.
 
 ## Goal
 
 The frame every screen lives in (4 tabs, History first, bottom bar on the cover display, rail + list-detail panes
-on the inner display) and the first-run flow that gets the permissions and the first models honestly.
+on the inner display), the first-run flow that gets the permissions and the first models honestly, and the `:app`
+wiring that lets every wave-2 screen run inside the real shell (real modules where they landed, `:testing` fakes
+elsewhere). WP-20 takes the wiring over in wave 3.
 
 ## Owns
 
-`app/src/main/kotlin/app/murmur/MainActivity.kt`, `app/src/main/kotlin/app/murmur/AppShell.kt` (+ new shell files in
-`app/src/main/kotlin/app/murmur/shell/`), `app/src/main/res/**`, `feature/onboarding/**`.
-Not `AppContainer.kt`/`MurmurApp.kt`/manifest (WP-20): ask WP-20 for wiring you need.
+`app/build.gradle.kts`, `app/src/main/AndroidManifest.xml`, `app/src/main/kotlin/app/murmur/**` (`MainActivity.kt`,
+`AppShell.kt`, `AppContainer.kt`, `MurmurApp.kt`, new files in `shell/`), `app/src/main/res/**`,
+`app/src/{debug,release,test}/**`, `app/src/androidTest/kotlin/app/murmur/shell/**` (`AppShellTest` lives there),
+`feature/onboarding/**`. Not `app/src/androidTest/kotlin/app/murmur/e2e/**` (WP-20). In wave 3 WP-20 takes over every
+path above except `MainActivity.kt`, `AppShell.kt`, `shell/**`, `res/**` and `androidTest/.../shell/**`.
 
 ## Contracts
 
@@ -22,7 +27,17 @@ Navigation 3 (`NavDisplay`, `rememberNavBackStack`, `@Serializable` `NavKey` rou
 (`currentWindowAdaptiveInfoV2`, `ListDetailSceneStrategy` from adaptive-navigation3) — keep `TABS` order and the
 `HistoryRoute` start (`ShellTest`). Feature entry points: `HistoryScreen(deps, onOpenEntry)`,
 `DashboardScreen(deps, onTryDictation)`, `ModelsScreen(deps, onOpenModel)`, `SettingsScreen(deps)`,
-`OnboardingScreen(deps, onDone)`; deps come from `AppContainer` (WP-20 builds `XxxDeps`).
+`OnboardingScreen(deps, onDone)`. You build every `XxxDeps` in `AppContainer` (members are listed in each feature
+file) and implement the `:app`-side ports:
+- `AppNavigator` (`core/dictation`): `Intent` to `MainActivity` with deep-link extras (open History entry N, open
+  Models), handled by the shell;
+- `PermissionMonitor` (`core/dictation`): mic, notifications, accessibility enabled (`Settings.Secure`) / connected
+  (`A11yServiceHost` state) / ever connected, battery unrestricted, `restrictedLikely` from WP-02's `A11yStatus` and
+  `RestrictedSettingsProbe` (ADR-054);
+- `AppInfoProvider` (`ui:design`): PackageManager labels and launcher icons (cached `Painter`s), launcher apps
+  (`<queries>` LAUNCHER, ADR-021);
+- status notification wiring: `StatusNotifier.show(modelsLine, hiddenUntil)` while the service is connected and
+  notifications are allowed, updated from the resolver and `Settings.hiddenUntilEpochMs` (ADR-055).
 
 ## Deliver
 
@@ -31,28 +46,40 @@ Navigation 3 (`NavDisplay`, `rememberNavBackStack`, `@Serializable` `NavKey` rou
    medium+ (pane widths 300 / 316 / 260 dp); shared-axis X on the cover display, cross-fade on the inner; selection
    kept across fold/unfold (`rememberSaveable`); back handling; edge-to-edge insets; deep links used by the bubble
    (open History entry, open Models) as `Intent` extras handled in `MainActivity`.
-2. Onboarding gate: `Settings.onboardingDone == false` → onboarding; steps of DESIGN 6.1 (welcome, mic, accessibility
-   + restricted-settings recovery, notifications, battery, models pack with sizes from the catalog packs and the
-   real download progress, download error, ready with the in-app practice bubble). On return from each system screen
-   re-check and advance. Restricted-settings detection via `RestrictedSettingsProbe` (WP-02) — never the app-op
-   (ADR-027). `ob-overlay` is not shown (ADR-034).
-3. App icon placeholder (mark on white) until the asset pass.
-4. Strings EN + RU from the copy deck; plurals; product name via `ProductName.NAME`.
+2. Wiring: `AppContainer` builds the five `XxxDeps` from real repositories where the wave-1 packages landed and from
+   `:testing` fakes (debug only, `app/src/debug`) where they did not, so every screen renders in the shell; a debug
+   `FakeAppContainer` mode (seeded history, metrics, catalog with install states) for screenshot tests.
+3. Onboarding gate: `Settings.onboardingDone == false` → onboarding; steps of DESIGN 6.1 (welcome, mic, accessibility
+   + restricted-settings recovery, notifications, battery, models pack, download error, ready with the in-app practice
+   bubble). On return from each system screen `PermissionMonitor.refresh()` and advance. Restricted-settings detection
+   only via `PermissionState.restrictedLikely` (never the app-op, ADR-027/054). The models step awaits
+   `deps.device.ensure()` before showing pack sizes (the artifact each pack item resolves to on this phone, plus the
+   VAD/OCR it queues, ARCHITECTURE 8.5) and shows Preparing progress and any queued CPU artifact. `ob-overlay` is not
+   shown (ADR-034). The practice field calls `deps.practice(target)` (orchestrator `startInApp`).
+4. App icon placeholder (mark on white) until the asset pass.
+5. Strings EN + RU from the copy deck; plurals; product name via `ProductName.NAME`.
 
 ## Acceptance (checkable here)
 
 - `tools/gw :app:testDebugUnitTest :feature:onboarding:testDebugUnitTest` green (route/tab tests, onboarding step
-  machine: each permission granted/denied/skipped path, restricted-settings branch).
-- Instrumented on `murmur_fold7_cover`: `AppShellTest` (exists) + bottom bar visible, rail absent; on
-  `murmur_fold7_inner`: rail visible, list + detail visible side by side for History with a fake entry.
+  machine: each permission granted/denied/skipped path, restricted-settings branch, pack sizes for the emulator and
+  Fold7 device profiles from `FakeDeviceProfileRepository`).
+- Instrumented on `murmur_fold7_cover`: `AppShellTest` + bottom bar visible, rail absent; on `murmur_fold7_inner`:
+  rail visible, list + detail visible side by side for History with a fake entry; after `adb shell wm size 1080x2520`
+  the selection survives.
 - Onboarding with fakes: walk welcome → mic (grant via `pm grant`) → accessibility (enable via `settings put`, the
-  screen advances on return) → notifications → battery → models (fake download completes) → ready; screenshots of
-  every step at cover and inner size in `.cache/spikes/wp-15/` compared by eye with `docs/design/screens/ob-*.png`.
-- No feature module imports another feature module.
+  screen advances on return) → notifications → battery → models (fake download + fake Preparing completes) → ready
+  (practice dictation with fake engines inserts into the practice field); restricted branch with a file-installed APK
+  (WP-02's emulator recipe); screenshots of every step at cover and inner size in `.cache/spikes/wp-15/` compared by
+  eye with `docs/design/screens/ob-*.png`.
+- A deep-link intent with an entry id opens that History entry; the status notification appears with "Murmur is
+  ready" when the service is connected (`dumpsys notification`).
+- No feature module imports another feature module; `./gradlew :app:dependencies` shows `:testing` only in debug and
+  test configurations.
 
 ## Out of scope
 
-Screen contents (WP-16..19), wiring (WP-20), One UI menu labels (DEVICE_CHECKLIST D6).
+Screen contents (WP-16..19), real engine wiring and end-to-end tests (WP-20), One UI menu labels (DEVICE_CHECKLIST DC6).
 
 ## Build/test
 

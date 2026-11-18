@@ -6,7 +6,8 @@ import app.murmur.core.model.Outcome
 /**
  * D3 "the user can configure any model": the user pastes a Hugging Face repo (and optionally a revision
  * and file), Murmur builds a [ModelEntry] with origin CUSTOM for a supported runtime:
- *  - LLM: one GGUF file -> runtime llama/gguf (template/profile chosen by the user, default "qwen3.5"/default profile).
+ *  - LLM: one GGUF file -> runtime llama/gguf; template from the GGUF architecture ([GgufTemplates]); prompt
+ *    profile from [GgufTemplates.profileFor] unless the user picks one (ADR-046).
  *  - ASR: a sherpa-onnx layout (encoder/decoder/joiner + tokens.txt, or model.onnx + tokens.txt) -> sherpa runtime.
  * Implemented in :data:models (needs network); this file is the contract.
  */
@@ -17,12 +18,58 @@ data class CustomModelRequest(
     val file: String? = null,         // GGUF path for LLMs; null = pick by rules (prefer Q4_0)
     val runtime: String? = null,      // null = detect from the file list
     val displayName: String? = null,
-    val llmTemplate: String? = null,  // prompts/render.py TEMPLATES key
+    /** render.py TEMPLATES key; null = from the GGUF general.architecture ([GgufTemplates.templateFor]). */
+    val llmTemplate: String? = null,
+    /** prompts profile; null = [GgufTemplates.profileFor] (fine-tunes get finetuned.v1, others default.v4). */
+    val promptProfile: String? = null,
 )
 
 interface CustomModelResolver {
-    /** Reads the repo file list (HF API, sizes + LFS sha256), detects the layout, returns a validated entry. */
+    /**
+     * Reads the repo file list (HF API, sizes + LFS sha256), detects the layout, reads the GGUF header (first
+     * MBs via an HTTP Range request: general.architecture, general.name, murmur.prompt_profile), returns a
+     * validated entry with nCtx = roundUp(prefixTokens + CONTEXT_RESERVE_TOKENS) once Preparing measured the
+     * prefix (until then the [GgufTemplates.DEFAULT_CUSTOM_NCTX]).
+     */
     suspend fun resolve(request: CustomModelRequest): Outcome<ModelEntry>
+}
+
+/**
+ * GGUF metadata -> render.py template and prompt profile (ADR-046). render.py has exactly four templates; any other
+ * architecture is rejected with a clear error, because the prompt format would be wrong.
+ * VERIFIED (architect, GGUF header read of the cached files, 2026-11-19): Qwen3.5-0.8B/2B = "qwen35", LFM3 = "lfm3",
+ * LFM2.5-1.2B/350M = "lfm2", Qwen3-0.6B = "qwen3"; the ML dry-run fine-tunes have "qwen35" and general.name
+ * "murmur-dryrun-lora" / "murmur-dryrun-full" (no prompt-profile key yet).
+ */
+object GgufTemplates {
+    val byArchitecture: Map<String, String> = mapOf(
+        "qwen35" to "qwen3.5",
+        "qwen3" to "qwen3",
+        "lfm3" to "lfm3",
+        "lfm2" to "lfm2.5",
+    )
+
+    /** GGUF key written by ml/train/export.py for Murmur fine-tunes (requested from the ML team, ADR-046). */
+    const val PROFILE_KEY = "murmur.prompt_profile"
+    const val FINETUNE_NAME_PREFIX = "murmur-cleanup-"
+    const val STOCK_PROFILE = "default.v4"
+    const val FINETUNE_PROFILE = "finetuned.v1"
+    const val DEFAULT_CUSTOM_NCTX = 9_216
+
+    fun templateFor(architecture: String): String? = byArchitecture[architecture]
+
+    /** Explicit GGUF key wins, then the fine-tune name convention, else the stock profile. */
+    fun profileFor(generalName: String?, profileKey: String?): String = when {
+        !profileKey.isNullOrBlank() -> profileKey
+        generalName?.startsWith(FINETUNE_NAME_PREFIX) == true -> FINETUNE_PROFILE
+        else -> STOCK_PROFILE
+    }
+
+    /** nCtx rule of [LlmTraits.nCtx]. */
+    fun nCtxFor(prefixTokens: Int): Int {
+        val need = prefixTokens + LlmTraits.CONTEXT_RESERVE_TOKENS
+        return ((need + 1023) / 1024) * 1024
+    }
 }
 
 /** Pure layout detection used by the resolver (unit-testable without network). */

@@ -15,6 +15,10 @@ from __future__ import annotations
 import hashlib
 import re
 
+from prompts.render import NO_SCREEN_LEVEL
+
+# no-screen eval cases cycle through the phone's reasons (screenshot_error/ocr_empty: level full; others app_only)
+NO_SCREEN_REASONS = ("secure_window", "screenshot_error", "denylisted_app", "ocr_empty")
 TEMPLATE = {"messaging": "chat", "work_chat": "chat", "social": "feed", "email": "mail", "notes": "notes",
             "code": "terminal", "search": "browser", "address": "browser", "default": "notes"}
 
@@ -154,8 +158,9 @@ def spec_for(case: dict, filler: bool = True, pools: bool = True, force_dense: b
     has_content = bool(title or msgs or snippets or c1.get("terms"))
     if filler and not force_dense and not screen_terms(case) and case["category"] not in ("injection", "context_names", "continuation") \
             and h % 8 == 0:
-        spec["screen"] = False  # screenshot unavailable (secure window / error): must exist in eval data
-        spec["privacy"] = {"level": "full", "reason": "no_screenshot"}
+        spec["screen"] = False  # no screenshot: must exist in eval data; level per reason = render.NO_SCREEN_LEVEL
+        reason = NO_SCREEN_REASONS[(h // 8) % len(NO_SCREEN_REASONS)]
+        spec["privacy"] = {"level": NO_SCREEN_LEVEL[reason], "reason": reason}
         return spec
     if pools and tpl in ("chat", "feed") and not title:
         title = next((n for n in NAMES[loc][h % 6:] + NAMES[loc] if ok(n)), "")
@@ -219,11 +224,23 @@ def screens_spec(spec: dict, case: dict) -> dict:
     screen = {"title": spec.get("title", ""), "messages": spec.get("messages", []), "snippets": spec.get("snippets", []),
               "before_cursor": f.get("before_cursor", "")}
     privacy = "full"
-    if spec.get("screen") is False:
+    if spec.get("screen") is False:  # any non-"full" value makes build_ctx skip render OCR; privacy_fix sets the final level
         privacy = (spec.get("privacy") or {}).get("level", "full")
         privacy = "no_screenshot" if privacy == "full" else privacy
     s = from_teacher(screen, spec["app"], field_kind=f.get("kind") or "generic", lang=case.get("lang", "ru"),
                      seed=spec["seed"], device=spec["device"], theme=spec["theme"], keyboard=spec["keyboard"],
                      locale=spec["locale"], privacy=privacy, avoid=spec.get("protect", []))
     s["filler"] = bool(spec.get("filler", True))
+    if spec.get("screen") is False:
+        s["privacy_reason"] = (spec.get("privacy") or {}).get("reason")
     return s
+
+
+def privacy_fix(ctx: dict, spec: dict) -> dict:
+    """build_ctx output for a no-screen spec -> privacy {level, reason} as the phone sends it (render.NO_SCREEN_LEVEL).
+    build_ctx cannot express "level full, no screenshot" (it OCRs every full-level spec), so the level is set here."""
+    pv = spec.get("privacy") or {}
+    if spec.get("screen") is False and pv.get("reason"):
+        ctx["privacy"] = {"level": pv.get("level", "full"), "reason": pv["reason"]}
+        ctx.pop("screen", None)
+    return ctx

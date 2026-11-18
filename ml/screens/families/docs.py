@@ -51,7 +51,10 @@ def _note_editor(c: Ctx, bg: str) -> str:
     edited = (f'{"Изменено" if c.locale == "ru" else "Edited"} {c.fill.clock()}')
     foot = (f'<div class="row t2" style="padding:6px 12px;gap:16px;background:{bg}">{C.icon("plus")}{C.icon("pen")}'
             f'<span class="grow" style="text-align:center;font-size:{C.fs(12)}" data-role="chrome">{e(edited)}</span>{C.icon("undo")}{C.icon("dots")}</div>')
-    body = f'<div class="grow" style="padding:0 18px;overflow:hidden">{_cursor_text(c, c.ui["write_note"])}{after}{tags}</div>'
+    text = _cursor_text(c, c.ui["write_note"]) + after
+    if c.has_field:   # one EditText: the typed text and the rest of the note; checklist/chips are separate views
+        text = f'<div data-focus="1">{text}</div>'
+    body = f'<div class="grow" style="padding:0 18px;overflow:hidden">{text}{tags}</div>'
     return f'<div class="col grow" style="background:{bg}">{head}{title}{body}{foot}</div>'
 
 
@@ -106,7 +109,9 @@ def doc_editor(c: Ctx) -> str:
             f'<div style="font-size:{C.fs(14)};margin-top:6px" data-role="message">{e(m["text"])}</div></div>' for m in comments) + "</div>"
         if not c.wide:   # cover: comments as a bottom card
             cm = cm.replace('style="width:30%;', 'style="position:absolute;bottom:0;left:0;right:0;')
-    canvas = f'<div class="grow row" style="align-items:flex-start;background:var(--surface);overflow:hidden;position:relative"><div class="grow">{pg}</div>{cm}</div>'
+    focus = ' data-focus="1"' if c.has_field else ""   # the document view is one editable node (assumed, see README)
+    canvas = (f'<div class="grow row" style="align-items:flex-start;background:var(--surface);overflow:hidden;position:relative">'
+              f'<div class="grow"{focus}>{pg}</div>{cm}</div>')
     return frame(c, f'{head}{tool}{canvas}')
 
 

@@ -179,6 +179,23 @@ def check(rec: dict) -> list[str]:
     return out
 
 
+def review_flags(rec: dict) -> list[str]:
+    """Target content words that occur (exactly, after normalisation) in none of: the spoken text, the transcript,
+    the screen lines, the text before the cursor, the record's entities. Such a word passed the fuzzy checks above
+    but may be invented ('п' -> 'Pro', an inserted "I'll"); the record is kept and listed in review.jsonl for a human."""
+    if rec["category"] in ("noise_only", "address"):
+        return []
+    ctx = rec["ctx"]
+    pool_text = " ".join([rec["meta"].get("spoken", ""), rec["transcript"],
+                          " ".join(ln.get("text", "") for ln in (ctx.get("screen") or {}).get("lines", [])),
+                          (ctx.get("field") or {}).get("before_cursor") or "",
+                          " ".join(rec["meta"].get("entities") or [])])
+    pw = T.norm_words(pool_text)
+    pool = _parts(pw) | {a + b for a, b in zip(pw, pw[1:])}
+    return [w for w in T.content_words(rec["target"]) if w not in pool and not all(p in pool for p in w.split("-") if p)
+            and not T.numbers_in(w)]
+
+
 def _starts_with_name(tgt: str, rec: dict) -> bool:
     first = (T.words(tgt) or [""])[0]
     ctx = rec["ctx"]

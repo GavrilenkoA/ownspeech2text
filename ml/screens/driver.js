@@ -86,7 +86,17 @@ function collectVisible() {
     const r = e.getBoundingClientRect();
     if (r.width > 0 && r.height > 0) ex.push({ kind: e.getAttribute('data-exclude'), box: [r.left, r.top, r.right, r.bottom] });
   });
-  return { items: out.map(o => ({ role: o.role, text: o.text, lead: o.lead, trail: o.trail, box: [o.x0, o.y0, o.x1, o.y1] })), exclude: ex, vw, vh };
+  // the focused editable node: its bounds clipped to its ancestors' clip and the viewport (what
+  // AccessibilityNodeInfo.getBoundsInScreen reports for a partly scrolled-off view)
+  const focus = [];
+  document.querySelectorAll('[data-focus]').forEach(e => {
+    const r = e.getBoundingClientRect(), c = clipOf(e.parentElement);
+    const y = e.getAttribute('data-focus') === 'y-parent' ? e.parentElement.getBoundingClientRect() : r;
+    const b = [Math.max(r.left, c[0]), Math.max(y.top, c[1]), Math.min(r.right, c[2]), Math.min(y.bottom, c[3])];
+    focus.push(b[2] > b[0] && b[3] > b[1] ? b : null);
+  });
+  return { items: out.map(o => ({ role: o.role, text: o.text, lead: o.lead, trail: o.trail, box: [o.x0, o.y0, o.x1, o.y1] })),
+           exclude: ex, focus, vw, vh };
 }
 
 async function main() {

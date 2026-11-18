@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Convert prompts/eval/smoke_cases.v1.jsonl (24 hand-written cases) to the shared data contract.
+"""Convert prompts/eval/smoke_cases.v2.jsonl (24 hand-written cases, ctx v2 = OCR screen text; the
+default) or the legacy smoke_cases.v1.jsonl to the shared data contract.
 
 The smoke checks map onto meta.check (same keys as prompts/eval/sets/*.jsonl):
   must -> keep, must_any -> keep (list of alternatives), must_not -> forbid,
@@ -19,7 +20,7 @@ CAT_MAP = {"no_op": "noop", "empty": "empty_noise", "commands": "spoken_format",
            "self_correction": "filler_selfcorr", "field_context": "continuation"}
 
 
-def convert(case: dict, split: str) -> dict:
+def convert(case: dict, split: str, origin: str = "prompts/eval/smoke_cases.v2.jsonl") -> dict:
     cat = CAT_MAP.get(case["cat"], case["cat"])
     check = {}
     keep = list(case.get("must", [])) + [list(alts) for alts in case.get("must_any", [])]
@@ -36,18 +37,19 @@ def convert(case: dict, split: str) -> dict:
         lang = "mixed"
     ex = {"id": "smoke-" + case["id"], "lang": lang, "category": cat, "source": "manual", "split": split,
           "ctx": case["ctx"], "transcript": case["transcript"], "target": case["ref"],
-          "meta": {"check": check, "origin": "prompts/eval/smoke_cases.v1.jsonl", "smoke_cat": case["cat"],
-                   "licence": "project-internal"}}
+          "meta": {"check": check, "origin": origin, "smoke_cat": case["cat"],
+                   "licence": "project-internal", **({"screen_spec": case["spec"]} if case.get("spec") else {})}}
     return validate(ex)
 
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--src", default=str(REPO / "prompts/eval/smoke_cases.v1.jsonl"))
+    ap.add_argument("--src", default=str(REPO / "prompts/eval/smoke_cases.v2.jsonl"))
     ap.add_argument("--split", default="test")
     ap.add_argument("--out", required=True)
     a = ap.parse_args(argv)
-    rows = [convert(json.loads(l), a.split) for l in Path(a.src).read_text(encoding="utf-8").splitlines() if l.strip()]
+    origin = str(Path(a.src).resolve().relative_to(REPO)) if Path(a.src).resolve().is_relative_to(REPO) else a.src
+    rows = [convert(json.loads(l), a.split, origin) for l in Path(a.src).read_text(encoding="utf-8").splitlines() if l.strip()]
     n = write_jsonl(a.out, rows)
     print(f"wrote {n} examples to {a.out}")
     return 0

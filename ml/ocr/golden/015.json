@@ -1,5 +1,5 @@
 {
- "pipeline": "ocr.v1",
+ "pipeline": "ocr.v2",
  "spec": {
   "template": "doc_editor",
   "device": "fold7_inner",
@@ -64,6 +64,12 @@
   "status_bar",
   "keyboard",
   "murmur_bubble"
+ ],
+ "field_box": [
+  0,
+  341,
+  1378,
+  1159
  ],
  "visible": [
   {

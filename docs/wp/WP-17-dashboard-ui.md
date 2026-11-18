@@ -15,7 +15,7 @@ and p90, typed vs copied (and where it fails), cleanup changes, languages, top a
 ## Contracts
 
 Consume `DashboardDeps` (metrics repository, settings, `StatsCalculator` from WP-12, clock, service-connected
-flow). Provide `DashboardScreen(deps, onTryDictation)`.
+flow, `apps: AppInfoProvider` — metrics store package names only; "Where you dictate" shows labels and icons from it). Provide `DashboardScreen(deps, onTryDictation)`.
 
 ## Deliver
 

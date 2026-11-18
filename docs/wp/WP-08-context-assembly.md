@@ -22,8 +22,10 @@ Implement `ContextAssembler` (`DefaultContextAssembler`: `decide`, `assemble`) i
 ## Deliver
 
 1. `decide()` per ARCHITECTURE 9.2: password → `none` + no screenshot + `skipLlm`; denylisted or user-hidden app →
-   no dictation (the bubble is hidden; return `app_only` if called anyway); "Use what's on screen" off →
-   `app_only`, no screenshot; else `full` + screenshot.
+   no dictation (the bubble is hidden; return `app_only` if called anyway); Murmur's own package → `app_only`, no
+   screenshot (only the in-app practice, `StartMode.IN_APP`, dictates there); "Use what's on screen" off →
+   `app_only`, no screenshot; else `full` + screenshot. SystemUI is never a target (a NOTIFICATION start snapshots
+   after the shade collapsed, ADR-056).
 2. `assemble()`: `app{package, label, category}` (category: `app_categories.v1.json` from the classpath via
    `PromptAssets`-like loading, unknown → null), `field{kind (FieldKinds.ctxKind), hint, before_cursor, box (field
    bounds in screenshot pixels: the window capture's origin is the window's top-left, convert), password}`,
@@ -36,8 +38,8 @@ Implement `ContextAssembler` (`DefaultContextAssembler`: `decide`, `assemble`) i
 ## Acceptance (checkable here)
 
 - `tools/gw :core:context:test` green with tables: password field, number/phone field (bubble not allowed),
-  denylisted app, setting off, secure window (screen null), OCR empty, missing field (app exposes no focused node),
-  multiline before_cursor, field box conversion with a window offset.
+  denylisted app, own package (in-app practice), setting off, secure window (screen null), OCR empty, missing field (app
+  exposes no focused node), multiline before_cursor, field box conversion with a window offset.
 - Round trip: for both `prompts/examples/ctxv2_*.input.json`, a synthetic `A11ySnapshot` + the example's OCR lines
   assemble to the example's `context` object exactly (JSON equality) — proves the shape the renderer goldens use.
 - No Android imports (JVM module).

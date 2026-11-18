@@ -46,7 +46,8 @@ def terminal(c: Ctx) -> str:
                  f'{C.icon("terminal", 18)}<span class="ell grow" data-role="title">{e(c.title)}</span>'
                  f'<span class="t3" data-role="chrome">[{c.r.randint(1, 3)}]</span></div>')
     fsz = c.r.choice([12, 13, 14])
-    scr = (f'<div class="grow col" style="justify-content:flex-end;overflow:hidden;padding:4px 6px;background:{bg};color:{fg};'
+    focus = ' data-focus="1"' if c.has_field else ""   # the terminal view is the IME target
+    scr = (f'<div class="grow col"{focus} style="justify-content:flex-end;overflow:hidden;padding:4px 6px;background:{bg};color:{fg};'
            f'font-family:{mono};font-size:{C.fs(fsz)};line-height:1.3;white-space:pre-wrap;word-break:break-all">{"".join(lines)}</div>')
     keys = ["ESC", "/", "-", "HOME", "↑", "END", "PGUP"], ["TAB", "CTRL", "ALT", "←", "↓", "→", "PGDN"]
     extra = "".join(f'<div class="row" style="justify-content:space-around;height:36px;background:{bg};color:{fg};font-family:{mono};font-size:13px">'
@@ -99,7 +100,8 @@ def code_editor(c: Ctx) -> str:
         rows.append(f'<div class="row" style="align-items:flex-start;background:rgba(127,127,127,.12)"><span style="width:3.2em;text-align:right;padding-right:10px;'
                     f'color:{pal["num"]};flex:none" data-role="chrome">{start + len(src)}</span><span style="white-space:pre-wrap" data-role="field">{e(bc)}</span>'
                     f'<span class="cursor"></span></div>')
-    ed = (f'<div class="grow" style="overflow:hidden;background:{pal["bg"]};font-family:{mono};font-size:{C.fs(c.r.choice([12, 13, 14]))};'
+    focus = ' data-focus="1"' if c.has_field else ""   # the editor view is one EditText
+    ed = (f'<div class="grow"{focus} style="overflow:hidden;background:{pal["bg"]};font-family:{mono};font-size:{C.fs(c.r.choice([12, 13, 14]))};'
           f'line-height:1.45;padding-top:6px">{"".join(rows)}</div>')
     symbols = ('<div class="row" style="justify-content:space-around;height:34px;border-top:1px solid var(--divider);font-family:' + mono + '">'
                + "".join(f'<span data-role="chrome">{e(k)}</span>' for k in ["→", "{", "}", "(", ")", ";", "=", "\"", ":", "/"]) + "</div>")

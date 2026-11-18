@@ -56,7 +56,10 @@ object CatalogValidator {
         fun ref(what: String, id: app.murmur.core.model.ModelId?) {
             if (id != null && c.model(id) == null) p += "$what references unknown model $id"
         }
-        c.defaults.asr.forEach { (k, v) -> ref("defaults.asr[$k]", v) }
+        c.defaults.asr.forEach { (k, v) ->
+            ref("defaults.asr[$k]", v)
+            if (c.model(v)?.selectableAsAsr == false) p += "defaults.asr[$k] = $v is not selectable as the speech model (previewOnly, ADR-047)"
+        }
         ref("defaults.llm", c.defaults.llm); ref("defaults.vad", c.defaults.vad)
         ref("defaults.ocrDet", c.defaults.ocrDet); ref("defaults.ocrRec", c.defaults.ocrRec)
         c.packs.forEach { pk -> pk.items.forEach { ref("pack ${pk.id}", it) } }
@@ -64,7 +67,12 @@ object CatalogValidator {
             if (m.status == Status.AVAILABLE && m.artifacts.isEmpty()) p += "${m.id}: available but no artifacts"
             when (m.kind) {
                 app.murmur.core.model.ModelKind.ASR -> if (m.asr == null) p += "${m.id}: asr traits missing"
-                app.murmur.core.model.ModelKind.LLM -> if (m.llm == null) p += "${m.id}: llm traits missing"
+                app.murmur.core.model.ModelKind.LLM -> {
+                    val l = m.llm
+                    if (l == null) p += "${m.id}: llm traits missing"
+                    else if (l.prefixTokens != null && l.nCtx < l.prefixTokens + LlmTraits.CONTEXT_RESERVE_TOKENS)
+                        p += "${m.id}: nCtx ${l.nCtx} < prefixTokens ${l.prefixTokens} + ${LlmTraits.CONTEXT_RESERVE_TOKENS} (ADR-045)"
+                }
                 app.murmur.core.model.ModelKind.OCR_DET, app.murmur.core.model.ModelKind.OCR_REC ->
                     if (m.ocr == null) p += "${m.id}: ocr traits missing"
                 else -> Unit
@@ -74,6 +82,8 @@ object CatalogValidator {
                 if (a.units.isEmpty()) p += "${a.id}: no compute units"
                 if (a.preferredUnit != null && a.preferredUnit !in a.units) p += "${a.id}: preferredUnit not in units"
                 if (a.files.isEmpty()) p += "${a.id}: no files"
+                if (m.origin == Origin.BUNDLED) for (u in a.units)
+                    if (a.memoryMb[u] == null) p += "${a.id}: memoryMb[$u] missing (bundled artifacts carry a value, MemoryEstimate)"
                 for (f in a.files) {
                     if (!SHA256.matches(f.sha256)) p += "${a.id}/${f.name}: sha256 missing or malformed"
                     if (f.bytes <= 0) p += "${a.id}/${f.name}: bytes <= 0"

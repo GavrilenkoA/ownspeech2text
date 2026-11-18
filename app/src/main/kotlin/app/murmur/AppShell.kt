@@ -41,7 +41,7 @@ val TABS = listOf(
 )
 
 /**
- * Shell (WP-01): bottom bar on compact width (cover display), navigation rail on medium+ (inner display),
+ * Shell (WP-15): bottom bar on compact width (cover display), navigation rail on medium+ (inner display),
  * decided by WindowSizeClass, never by device detection (DESIGN 2). Screens are placeholders until the
  * feature packages land; icons come from the design system (prototype ICONS map) in WP-01.
  */

@@ -35,6 +35,8 @@ object BubblePolicy {
         if (dragging) return BubbleVisual.Dragging(overHideTarget)
         if (v.hiddenUntilMs != null && v.nowMs < v.hiddenUntilMs) return BubbleVisual.Hidden
         if (v.appHidden) return BubbleVisual.Hidden
+        // DESIGN 5.2: password, number and phone fields hide the bubble "always", even with "Show the bubble: Always".
+        if (v.editableFocused && !v.bubbleAllowedForField) return BubbleVisual.Hidden
         val show = (v.editableFocused && v.bubbleAllowedForField) || v.showAlways
         if (!show) return BubbleVisual.Hidden
         if (!v.editableFocused && v.showAlways) return BubbleVisual.Rest

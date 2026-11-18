@@ -41,8 +41,9 @@ def _urlbar(c: Ctx, url: str, focus: bool, bottom: bool) -> str:
             f'<span class="t2">{C.icon("dots", 22)}</span></div>')
 
 
-def _browser(c: Ctx, url: str, content: str, page_field: str = "") -> str:
-    focus = c.has_field and (c.field.get("kind") in ("search", "address") or not page_field)
+def _browser(c: Ctx, url: str, content: str, page_field: str = "", page_focused: bool = False) -> str:
+    """page_field: an input bar below the page; page_focused: the focused field is already inside `content`."""
+    focus = c.has_field and not page_focused and (c.field.get("kind") in ("search", "address") or not page_field)
     bottom = c.r.random() < 0.3 and not focus
     bar = _urlbar(c, url, focus, bottom)
     pf = page_field if (c.has_field and not focus) else ""
@@ -105,7 +106,8 @@ def browser_search(c: Ctx) -> str:
     focus_on_page = c.has_field and c.field.get("kind") not in ("search", "address")
     if focus_on_page:   # the query box on the page is the focused field
         qbox = (f'<div style="margin:10px 12px">{C.input_field(c.field, q or ("Поиск" if c.locale == "ru" else "Search"), c.r, (), ("mic",), "inputbox")}</div>')
-    return _browser(c, url, f'{qbox}{tabbar}<div class="grow" style="overflow:hidden">{"".join(res)}</div>')
+    return _browser(c, url, f'{qbox}{tabbar}<div class="grow" style="overflow:hidden">{"".join(res)}</div>',
+                    page_focused=focus_on_page)
 
 
 def browser_pr(c: Ctx) -> str:

@@ -69,6 +69,10 @@ Screen text (OCR, nearest to the field first):        (if any line survives the 
 
 1. Bump the version (`default.v5`) instead of editing a released file; the app stores which version produced each history item.
 2. `make -C prompts sets goldens test`, then run the dev sweep (`make -C prompts sweep SET=dev.v2 PROFILES=…`) and compare
-   with `make -C prompts report SET=dev.v2`. Look at the held-out test set only for the final candidate.
+   with `make -C prompts report SET=dev.v2`. Look at the held-out test set only for the final candidates, once, with a
+   ship rule written down before the run (PROMPT_EVAL.md §R).
+4. The guard (`guard.py`, `GUARD_VERSION`) is frozen; a rule change is accepted on dev runs only and bumps the version.
+5. If ml/ocr or ml/screens change, `run_eval.py` refuses the stale sets: rebuild (`make -C prompts sets goldens test`)
+   and re-run before comparing numbers.
 3. Users edit only the default instructions (stock models) and "My preferences" (all models). "Reset to default"
    restores the shipped profile's system prompt.

@@ -15,7 +15,7 @@ import argparse
 import json
 from pathlib import Path
 
-from ml.eval import compare, gates
+from ml.eval import compare, contract, gates
 from ml.eval.run_eval import table
 
 LICENSES = {
@@ -49,6 +49,8 @@ def main(argv=None) -> int:
     run = Path(a.run)
     man = load(run / "gguf/manifest.json")
     info = load(run / "train_info.json") or {}
+    rcfg = load(run / "config.resolved.json") or {}
+    sysname = contract.render._versioned((rcfg.get("prompt") or {}).get("system") or "finetuned.v2")
     rep = load(a.eval)
     tpl = man["template"]
     lic = LICENSES[tpl]
@@ -56,7 +58,12 @@ def main(argv=None) -> int:
     ref, stock = load(a.ref_eval), load(a.stock_eval)
     qloss = load(a.qloss_json) or (compare.compare(ref, rep) if ref else None)
     vs_stock = compare.compare(stock, rep) if stock else None
+    gs, gr = (compare.guarded_view(stock), compare.guarded_view(rep)) if stock else (None, None)
+    vs_stock_guarded = compare.compare(gs, gr) if gs and gr else None
     o = rep["summary"]["overall"]
+    if contract.render._versioned(rep["info"].get("system") or "") != sysname:
+        print(f"WARNING: {a.eval} was measured with system {rep['info'].get('system')!r}, the run trained with "
+              f"{sysname!r}: the card's numbers do not describe the shipped prompt", file=__import__("sys").stderr)
 
     entry = {
         "id": a.name, "family": "finetune", "display_name": a.name.replace("-", " "), "role": "finetune",
@@ -65,7 +72,7 @@ def main(argv=None) -> int:
         "languages": ["ru", "en"], "license": {"id": lic["id"], "commercial": lic["commercial"]},
         "context_length": 4096, "template_id": TEMPLATE_IDS[tpl], "runtime_format": "gguf",
         "min_llama_cpp": man.get("llama_cpp_build"),
-        "prompt_profile": {"system": "finetuned.v1", "system_file": "prompts/system/finetuned.v1.md",
+        "prompt_profile": {"system": sysname, "system_file": f"prompts/system/{sysname}.md",
                            "preferences_block": "preferences_block.v1", "thinking": "off",
                            "decoding": "greedy, no repetition/presence penalty",
                            "max_new_tokens_formula": "min(1024, 2*transcript_tokens + 64)"},
@@ -74,7 +81,8 @@ def main(argv=None) -> int:
                             "default": True, "backends": ["cpu", "gpu", "npu"] if f["quant"] == "Q4_0" else ["cpu", "gpu"]}],
         "eval": {"set": rep["info"]["data"], "n": o["n"], "verdict": rep["gates"]["verdict"], "em": o["em"],
                  "nwer": o["nwer"], "noop_exact": o["noop_exact"], "answer_rate": o["answer_rate"],
-                 "injection_success": o["injection_success"], "entity_recall": o["entity_recall"]},
+                 "injection_success": o["injection_success"], "entity_recall": o["entity_recall"],
+                 "guarded_verdict": (rep.get("guarded") or {}).get("gates", {}).get("verdict")},
         "training": {"method": info.get("method"), "steps": info.get("steps"), "run_name": info.get("run_name")},
     }
     (run / "gguf/catalog_entry.json").write_text(json.dumps(entry, indent=1, ensure_ascii=False))
@@ -89,7 +97,7 @@ def main(argv=None) -> int:
         "transcript plus screen context into the text the speaker meant to type. Not a chat model.", "",
         f"* Base: `{info.get('base_model')}`; method: **{info.get('method')}**; steps: {info.get('steps')}",
         f"* File: `{f['path']}` ({f['bytes']:,} bytes, sha256 `{f['sha256']}`), llama.cpp `{man.get('llama_cpp_build')}`",
-        "* Prompt: system = `prompts/system/finetuned.v1.md` (+ optional preferences block), user = `Style:` line + "
+        f"* Prompt: system = `prompts/system/{sysname}.md` (+ optional preferences block), user = `Style:` line + "
         "`<context>` + `<transcript>` exactly as `prompts/render.py` builds it; thinking disabled "
         f"(`{'<think>' + chr(92) + 'n' + chr(92) + 'n</think>' + chr(92) + 'n' + chr(92) + 'n' if tpl == 'qwen3.5' else '<think></think>'}`); "
         "greedy decoding; stop on `<|im_end|>`.",
@@ -98,8 +106,16 @@ def main(argv=None) -> int:
         table(rep["summary"]), "", gates.to_markdown(rep["gates"]), ""]
     if qloss:
         md += ["## Quantisation loss (measured: BF16 GGUF vs this file, same eval set)", "", compare.to_markdown(qloss), ""]
+    if rep.get("guarded"):
+        md += ["## After the app's output guard (prompts/guard.py)", "", table(rep["guarded"]["summary"]), "",
+               gates.to_markdown(rep["guarded"]["gates"]), ""]
     if vs_stock:
-        md += ["## Versus the stock model with the default prompt", "", compare.to_markdown(vs_stock), ""]
+        sp = stock["info"].get("system")
+        md += [f"## Versus the stock model with the shipped stock prompt (`{sp}`), raw outputs", "",
+               compare.to_markdown(vs_stock), ""]
+    if vs_stock_guarded:
+        md += [f"## Versus the stock model (`{stock['info'].get('system')}`), both after prompts/guard.py", "",
+               compare.to_markdown(vs_stock_guarded), ""]
     md += ["## Limitations", "", "* Host-side latency in the tables is not phone latency; use the app's Benchmark.",
            "* Evaluated on synthetic + hand-written sets; real-dictation (E5) results are listed only when measured."]
     (run / "gguf/README.md").write_text("\n".join(md) + "\n", encoding="utf-8")

@@ -1,5 +1,5 @@
 {
- "pipeline": "ocr.v1",
+ "pipeline": "ocr.v2",
  "spec": {
   "template": "work_chat",
   "device": "fold7_cover",
@@ -54,6 +54,12 @@
  ],
  "exclude_kinds": [
   "status_bar"
+ ],
+ "field_box": [
+  21,
+  2209,
+  1059,
+  2336
  ],
  "visible": [
   {

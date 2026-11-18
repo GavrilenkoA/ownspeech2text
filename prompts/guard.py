@@ -4,6 +4,10 @@
 The Android (Kotlin) implementation is a port of this file and must pass prompts/tests/test_guard.py
 (the cases there are the contract). No third-party dependencies.
 
+Frozen as GUARD_VERSION (below). Tuning protocol: a rule change is accepted or rejected on dev runs only
+(prompts/eval/sets/dev*.jsonl); held-out test runs are scored with the frozen guard and never consulted for a
+rule change. Any behaviour change bumps GUARD_VERSION (run metadata records it).
+
 Two entry points:
 
   precheck(transcript) -> Pre(skip: bool, transcript: str, reason: str)
@@ -73,6 +77,8 @@ _PREAMBLE = re.compile(
     r"отредактированный текст|извините, (?:я|но)|я не могу\b)", re.I)
 _WORD = re.compile(r"[\w]+(?:[-'’][\w]+)*")
 _QUOTE_PAIRS = {'"': '"', "«": "»", "“": "”", "'": "'", "`": "`"}
+
+GUARD_VERSION = "guard.v1.1"  # frozen 2026-11-19: v1 + R4 char loop/length + R5b single word (accepted on dev)
 
 GROW_K, GROW_ADD = 1.5, 4
 CHAR_GROW_K, CHAR_GROW_ADD = 2.5, 40           # characters: catches blow-ups inside one hyphenated "word"

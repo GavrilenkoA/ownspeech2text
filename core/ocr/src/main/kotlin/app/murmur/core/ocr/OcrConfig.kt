@@ -1,12 +1,12 @@
 package app.murmur.core.ocr
 
 /**
- * Every constant of the OCR pipeline. Defaults MUST equal ml/ocr/config.py (PIPELINE_VERSION ocr.v1);
+ * Every constant of the OCR pipeline. Defaults MUST equal ml/ocr/config.py (PIPELINE_VERSION ocr.v2);
  * OcrConfigParityTest parses config.py and fails on drift. Changing a value is an ml/ocr change first
  * (it regenerates ml/ocr/golden), then a change here. ADR-013 (det_limit / rec_batch history).
  */
 data class OcrConfig(
-    val pipelineVersion: String = "ocr.v1",
+    val pipelineVersion: String = "ocr.v2",
     val threads: Int = 4,
     val detLimit: Int = 960,
     val detMultiple: Int = 32,

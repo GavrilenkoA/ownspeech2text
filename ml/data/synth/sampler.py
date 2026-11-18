@@ -39,10 +39,18 @@ APP_LABELS = {
     "com.twitter.android": "X", "com.instagram.android": "Instagram", "com.reddit.frontpage": "Reddit",
     "com.linkedin.android": "LinkedIn", "com.openai.chatgpt": "ChatGPT", "com.yandex.alice": "Алиса",
 }
+# app.category comes ONLY from the shared table prompts/tones/app_categories.v1.json (the one the Kotlin app
+# loads); a package absent from it is "default", as on the device. Extra apps are used only once that table
+# lists them, so training never sees a category the phone would not assign.
 EXTRA_APPS = {"code": [("com.github.android", "GitHub"), ("com.jetbrains.space", "Space")],
               "work_chat": [("com.atlassian.android.jira.core", "Jira"), ("com.linear.app", "Linear")]}
 AI_APPS = [("com.openai.chatgpt", "ChatGPT"), ("com.yandex.alice", "Алиса"), ("com.anthropic.claude", "Claude"),
            ("ai.perplexity.app.android", "Perplexity")]
+DEFAULT_APPS = [("com.google.android.calendar", "Calendar"), ("com.samsung.android.calendar", "Calendar")] + AI_APPS
+# prose dictation does not go into a terminal: 'code' apps only when the shared table has a non-terminal one
+PROSE_CODE_APPS = [p for p, c in APP_MAP.items() if c == "code" and p != "com.termux"]
+ADDRESS_APPS = [("com.google.android.gm", "Gmail"), ("com.microsoft.office.outlook", "Outlook"),
+                ("com.android.chrome", "Chrome"), ("com.sec.android.app.sbrowser", "Samsung Internet")]
 FIELD_BY_CAT = {"messaging": "message", "work_chat": "message", "email": "email_body", "notes": "note",
                 "search": "search", "social": "message", "code": "code", "address": "address", "default": "generic"}
 CONV_KIND = {"messaging": "chat", "work_chat": "chat", "email": "email_thread", "notes": "document",
@@ -87,6 +95,9 @@ MIX_W = [("ru_terms", 60), ("switch", 40)]
 APP_W = [("messaging", 30), ("work_chat", 18), ("email", 14), ("notes", 12), ("search", 7), ("social", 5),
          ("code", 6), ("default", 8)]
 TECH_APP_W = [("work_chat", 35), ("messaging", 20), ("notes", 15), ("email", 12), ("code", 12), ("search", 6)]
+if not PROSE_CODE_APPS:
+    APP_W = [(c, w) for c, w in APP_W if c != "code"]
+    TECH_APP_W = [(c, w) for c, w in TECH_APP_W if c != "code"]
 LEN_W = [((3, 10), 35), ((11, 30), 45), ((31, 70), 17), ((71, 140), 3)]
 LEGACY_PRIVACY_W = [("full", 55), ("terms_only", 10), ("app_only", 10), ("none", 25)]  # rng stream only
 # CONTEXT_V2: explicit shares of examples WITHOUT a screenshot (ctx.screen absent) and WITHOUT a focused field
@@ -157,14 +168,20 @@ def category_counts(n: int) -> dict:
     return apportion(n, CATEGORY_TARGETS)
 
 
+def app_category(package: str) -> str:
+    """What the phone assigns: the shared table, else 'default'."""
+    return APP_MAP.get(package, "default")
+
+
 def _app(r: random.Random, cat_app: str) -> dict:
-    pk = [p for p, c in APP_MAP.items() if c == cat_app]
-    extra = EXTRA_APPS.get(cat_app, [])
+    pk = [p for p, c in APP_MAP.items() if c == cat_app and not (cat_app == "code" and p == "com.termux")]
+    extra = [(p, lb) for p, lb in EXTRA_APPS.get(cat_app, []) if APP_MAP.get(p) == cat_app]
     if extra and r.random() < 0.25:
         p, label = r.choice(extra)
         return {"package": p, "label": label, "category": cat_app}
-    if not pk:
-        return {"package": "com.example.app", "label": "Browser", "category": cat_app}
+    if cat_app == "default" or not pk:
+        p, label = r.choice([(p, lb) for p, lb in DEFAULT_APPS if app_category(p) == "default"])
+        return {"package": p, "label": label, "category": "default"}
     p = r.choice(pk)
     return {"package": p, "label": APP_LABELS.get(p, p.split(".")[-1].title()), "category": cat_app}
 
@@ -216,13 +233,12 @@ def scenario(seed: int, split: str, index: int, category: str, lang: str, counte
     # app and field
     if category == "address":
         cat_app = "address"
-        app = r.choice([{"package": "com.google.android.gm", "label": "Gmail", "category": "email"},
-                        {"package": "com.android.chrome", "label": "Chrome", "category": "search"},
-                        {"package": "org.telegram.messenger", "label": "Telegram", "category": "messaging"}])
+        p, label = r.choice(ADDRESS_APPS)  # an address field: e-mail recipient or browser URL bar
+        app = {"package": p, "label": label, "category": app_category(p)}
     elif category == "ai_addressed":
         cat_app = "default"
         p, label = r.choice(AI_APPS)
-        app = {"package": p, "label": label, "category": "default"}
+        app = {"package": p, "label": label, "category": app_category(p)}
     else:
         if category == "continuation":
             cat_app = r.choice(["messaging", "email", "notes", "work_chat"])
@@ -239,8 +255,8 @@ def scenario(seed: int, split: str, index: int, category: str, lang: str, counte
         mix = "ru_terms"  # a search query is one short query, not two clauses in two languages
     field_kind = "address" if category == "address" else FIELD_BY_CAT[cat_app]
     if category == "address":
-        itv = r.choice(["TYPE_TEXT_VARIATION_EMAIL_ADDRESS", "TYPE_TEXT_VARIATION_URI"]) if app["category"] != "email" \
-            else "TYPE_TEXT_VARIATION_EMAIL_ADDRESS"
+        # e-mail recipient field in a mail app, URL bar in a browser
+        itv = "TYPE_TEXT_VARIATION_EMAIL_ADDRESS" if app["category"] == "email" else "TYPE_TEXT_VARIATION_URI"
     else:
         itv = None
     if cat_app == "email" and category in ("plain", "numbers", "context_names") and r.random() < 0.08:
@@ -336,7 +352,8 @@ def scenario(seed: int, split: str, index: int, category: str, lang: str, counte
         "screen_terms": screen_terms, "screen_people": screen_people,
         "privacy": privacy, "with_screen": with_screen, "screen_absent": absent_reason,
         "field_present": not field_absent,
-        "render": SCR.render_params(key, app["category"], lang, not field_absent),
+        "render": SCR.render_params(key, app["category"], lang, not field_absent)
+        | {"screen_template": SCR.template_for(app, None if field_absent else field_kind, key)},
         "injection": _injection(r, lang, split) if category == "injection" else None,
         "continuation_mid": category == "continuation" and r.random() < 0.5,
         "severity": _pick(r, SEVERITY_W), "messiness": 0.0 if category in NO_DISFLUENCY else _pick(r, MESSY_W),

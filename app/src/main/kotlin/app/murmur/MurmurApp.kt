@@ -23,7 +23,11 @@ class MurmurApp : Application(), A11yServiceHost {
 
     override val dictation: DictationOrchestrator get() = main().orchestrator
     override val settings: SettingsRepository get() = main().settings
-    override fun onServiceState(connected: Boolean) { main().serviceConnected.value = connected }
+    override fun onServiceState(connected: Boolean) {
+        main().serviceConnected.value = connected
+        // ExternalStop(A11Y_OFF) for a running dictation (ARCHITECTURE 4.4); a no-op when Idle. WP-11 implements.
+        if (!connected) runCatching { main().orchestrator.onAccessibilityLost() }
+    }
 }
 
 object Processes {

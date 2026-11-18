@@ -76,7 +76,7 @@ def test_prompt_mix_deterministic_and_prefs_win():
     a = [choose_prompt(e, mix, pool) for e in SMOKE]
     b = [choose_prompt(e, mix, pool) for e in SMOKE]
     assert a == b
-    assert {s for s, _ in a} == {"default", "finetuned"}
+    assert {s for s, _ in a} == {"default.v4s", "finetuned.v2"}
     e = dict(SMOKE[0], meta={**SMOKE[0]["meta"], "preferences": "Use British spelling."})
     assert all(choose_prompt(dict(e, id=f"x{i}"), mix, pool)[1] == "Use British spelling." for i in range(20))
 
@@ -94,21 +94,37 @@ def test_configs_resolve():
         c = cfglib.resolve(p, ["train.max_steps=3"])
         assert c["method"] in ("lora", "dora", "full"), p
         assert c["train"]["max_steps"] == 3
-        assert c["prompt"]["system"] == "finetuned"
+        assert c["prompt"]["system"] == "finetuned.v2" and c["prompt"]["default_system"] == "default.v4s"
         assert "${" not in str(c), p
 
 
+SMOKE_V2 = [__import__("ml.eval.smoke_to_contract", fromlist=["convert"]).convert(__import__("json").loads(l), "train")
+            for l in (REPO / "prompts/eval/smoke_cases.v2.jsonl").read_text(encoding="utf-8").splitlines() if l.strip()]
+PROFILES = ["finetuned", "finetuned.v2", "default"] + sorted(p.stem for p in (contract.PROMPTS / "profiles").glob("*.json"))
+
+
 @pytest.mark.parametrize("tpl", ["qwen3.5", "lfm3"])
-@pytest.mark.parametrize("profile", ["finetuned", "default", "default.v1", "default.v2", "default_inline.v2"])
+@pytest.mark.parametrize("profile", PROFILES)
 def test_contract_render_equals_render_py_profiles(tpl, profile):
-    """contract.render_prompt (training + eval) == prompts/render.py render_prompt (the app's spec),
-    for bare system prompt names and for profiles with few-shot turns."""
-    if not (contract.PROMPTS / "profiles" / f"{profile}.json").exists() and profile.endswith(".v2"):
-        pytest.skip(f"profile {profile} not present")
-    for ex in SMOKE[:5]:
+    """contract.render_prompt (training + eval) == prompts/render.py render_prompt (the app's spec), byte
+    for byte, for bare system prompt names and EVERY profile in prompts/profiles, on v1 and v2 contexts."""
+    for ex in SMOKE[:3] + [e for e in SMOKE_V2 if e["ctx"].get("screen")][:3]:
         for prefs in (None, "Use British spelling."):
             assert contract.render_prompt(ex, profile, tpl, prefs) == contract.render.render_prompt(
                 profile, ex["ctx"], ex["transcript"], tpl, prefs), (profile, ex["id"])
+
+
+def test_contract_render_passes_profile_ctx2(monkeypatch):
+    """A profile with non-empty ctx2 must change the request exactly as render.render_prompt does."""
+    prof = dict(contract.render.load_profile("default.v4s"), ctx2={"budget": 200, "order": "reading", "terms": True})
+    real = contract.render.load_profile
+    monkeypatch.setattr(contract.render, "load_profile", lambda n: prof if n == "x-ctx2" else real(n))
+    ex = next(e for e in SMOKE_V2 if e["ctx"].get("screen"))
+    mine = contract.render_prompt(ex, "x-ctx2", "qwen3.5")
+    assert mine == contract.render.render_prompt(prof, ex["ctx"], ex["transcript"], "qwen3.5")
+    assert mine != contract.render_prompt(ex, "default.v4s", "qwen3.5")  # ctx2 really took effect
+    sysmsg, turns, user = contract.render_messages(ex, "x-ctx2")
+    assert user in mine and turns == contract.render.profile_turns(prof)
 
 
 def test_resolve_max_len():

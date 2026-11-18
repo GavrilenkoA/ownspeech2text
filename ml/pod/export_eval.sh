@@ -3,28 +3,37 @@
 # llama.cpp CUDA on the pod (greedy). Idempotent: every eval dir with a report.json is skipped.
 #   1. stock baselines (B2), only with STOCK_ON_POD=1 (default: they run free on the dev server CPU in
 #      ml/pod/after_pod.sh, the vendor GGUFs are already there): vendor Q4_0 GGUFs with the
-#      prompted-model profiles and the short fine-tune prompt; STOCK_OURS=1 adds the stock weights
+#      prompt profiles the app ships for stock models (default.v4, default.v4s) and the short fine-tune
+#      prompt; every report also holds the after-guard (prompts/guard.py) measurement, which is what
+#      the app inserts for a stock model; STOCK_OURS=1 adds the stock weights
 #      through OUR conversion (plain Q4_0: isolates the fine-tuning effect from vendor imatrix/QAD)
 #   2. finalists = best run per base model on the dev Q4_0 eval (ml.train.select):
 #      BF16 GGUF on dev (-> measured quantisation loss), Q4_0 on the test sets, Q4_0 with the long
 #      default prompt (robustness to prompt edits), model card + catalog entry
-#   3. leaderboard over everything
+#   3. LEGACY=1 only: finalists' Q4_0 on the v1-context sets (dev.v1 + test.v1), labelled "legacy", in a
+#      separate leaderboard table; never used by select.py, the gates or the cards
+#   4. leaderboard over everything
+# Budget: every eval is checked against MAX_GPU_HOURS before it starts (ml/pod/env.sh budget_check).
 # The judge (teacher, dev server) and the CPU ship-gate eval run on the dev server afterwards:
-# ml/pod/after_pod.sh. Env: EVAL_DEV, EVAL_TEST, PROFILES (prompted-model profiles, default
-# "default default.v2"), HF_OWNER (for the card's repo id).
+# ml/pod/after_pod.sh. Env: EVAL_DEV, EVAL_TEST, PROFILES (stock-model profiles, default
+# "default.v4 default.v4s", the first one is the card's comparison), HF_OWNER (for the card's repo id).
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 source ml/pod/env.sh
 PY="$VENV_TRAIN/bin/python"
-SMOKE="$MURMUR_DATA/smoke.test.jsonl"
+SMOKE="$MURMUR_DATA/smoke.v2.test.jsonl"
 [[ -f "$SMOKE" ]] || "$PY" -m ml.eval.smoke_to_contract --split test --out "$SMOKE" >/dev/null
-read -r -a DEV <<<"${EVAL_DEV:-$MURMUR_DATA/dev.jsonl prompts/eval/sets/dev.v1.jsonl $SMOKE}"
-read -r -a TEST <<<"${EVAL_TEST:-$MURMUR_DATA/test.jsonl prompts/eval/sets/test.v1.jsonl}"
-PROFILES="${PROFILES:-default default.v2}"
+read -r -a DEV <<<"${EVAL_DEV:-$MURMUR_DATA/dev.jsonl prompts/eval/sets/dev.v2.jsonl $SMOKE}"
+read -r -a TEST <<<"${EVAL_TEST:-$MURMUR_DATA/test.jsonl prompts/eval/sets/test.v2.jsonl}"
+read -r -a LEGACY_SETS <<<"${EVAL_LEGACY:-prompts/eval/sets/dev.v1.jsonl prompts/eval/sets/test.v1.jsonl}"
+PROFILES="${PROFILES:-default.v4 default.v4s}"
+FT_SYSTEM="${FT_SYSTEM:-finetuned.v2}"   # = prompt.system of ml/train/configs/base.yaml (stock models with the FT prompt)
+STOCK_P="${PROFILES%% *}"
 
-evaluate() {  # $1=model file  $2=out dir  $3=system/profile  $4=label  $5=dev|test
+evaluate() {  # $1=model file  $2=out dir  $3=system/profile  $4=label  $5=dev|test|legacy
   [[ -f "$2/report.json" ]] && { log "eval $4: done, skip"; return 0; }
-  local sets=("${DEV[@]}"); [[ "$5" == test ]] && sets=("${TEST[@]}")
+  local sets=("${DEV[@]}"); [[ "$5" == test ]] && sets=("${TEST[@]}"); [[ "$5" == legacy ]] && sets=("${LEGACY_SETS[@]}")
+  budget_check "eval $4" "$(median_seconds eval: 300)" hard || return 0
   [[ -f "prompts/profiles/$3.json" || -f "prompts/system/$3.md" || -f "prompts/system/$3.v1.md" ]] \
     || { log "eval $4: profile $3 not found, skip"; return 0; }
   log "eval $4 ($3, $5)"
@@ -40,7 +49,7 @@ dl LiquidAI/LFM3-1.7B-GGUF LFM3-1.7B-QAD-Q4_0.gguf
 dl unsloth/Qwen3.5-0.8B-GGUF Qwen3.5-0.8B-Q4_0.gguf
 dl unsloth/Qwen3.5-2B-GGUF Qwen3.5-2B-Q4_0.gguf
 for f in LFM3-1.7B-QAD-Q4_0 Qwen3.5-0.8B-Q4_0 Qwen3.5-2B-Q4_0; do
-  for p in $PROFILES finetuned; do
+  for p in $PROFILES $FT_SYSTEM; do
     for s in dev test; do evaluate "$W/stock/$f.gguf" "$MURMUR_EVAL/stock/$f/$p-$s" "$p" "stock $f $p $s" "$s"; done
   done
 done
@@ -52,7 +61,7 @@ for base in ${STOCK_OURS:+LiquidAI/LFM3-1.7B Qwen/Qwen3.5-0.8B Qwen/Qwen3.5-2B};
     timed "export:$sname" "$PY" -m ml.train.export --hf "$snap" --name "$sname" --out "$sdir" --quants Q4_0 \
       >>"$MURMUR_LOGS/export-$sname.log" 2>&1
   fi
-  evaluate "$sdir/$sname-Q4_0.gguf" "$MURMUR_EVAL/stock/$sname/default-dev" default "$sname ours-Q4_0 default dev" dev
+  evaluate "$sdir/$sname-Q4_0.gguf" "$MURMUR_EVAL/stock/$sname/$STOCK_P-dev" "$STOCK_P" "$sname ours-Q4_0 $STOCK_P dev" dev
 done
 
 # ---- 2. finalists: best run per base model
@@ -66,19 +75,23 @@ for b in "${!FAM[@]}"; do
   run=$("$PY" -m ml.train.select --runs-dir "$MURMUR_RUNS" ${FAM[$b]} | sed -n 1p) || continue
   echo "$b $run" >>"$MURMUR_RUNS/finalists.txt"; log "finalist for $b: $run"
   dir="$MURMUR_RUNS/$run"; name=$(jq -r .name "$dir/gguf/manifest.json")
-  evaluate "$dir/gguf/$name-BF16.gguf" "$dir/eval/BF16-dev" finetuned "$run BF16 dev" dev
-  evaluate "$dir/gguf/$name-Q4_0.gguf" "$dir/eval/Q4_0-test" finetuned "$run Q4_0 test" test
-  evaluate "$dir/gguf/$name-Q4_0.gguf" "$dir/eval/Q4_0-dev-defaultprompt" default "$run Q4_0 dev default-prompt" dev
-  "$PY" -m ml.eval.compare "$dir/eval/BF16-dev/report.json" "$dir/eval/Q4_0-dev/report.json" \
-    --json "$dir/eval/quant_loss.json" --md "$dir/eval/quant_loss.md" >/dev/null
+  ftsys=$(jq -r '.prompt.system // "finetuned.v2"' "$dir/config.resolved.json")
+  evaluate "$dir/gguf/$name-BF16.gguf" "$dir/eval/BF16-dev" "$ftsys" "$run BF16 dev" dev
+  evaluate "$dir/gguf/$name-Q4_0.gguf" "$dir/eval/Q4_0-test" "$ftsys" "$run Q4_0 test" test
+  evaluate "$dir/gguf/$name-Q4_0.gguf" "$dir/eval/Q4_0-dev-$STOCK_P" "$STOCK_P" "$run Q4_0 dev $STOCK_P prompt" dev
+  [[ -f "$dir/eval/BF16-dev/report.json" ]] && "$PY" -m ml.eval.compare "$dir/eval/BF16-dev/report.json" \
+    "$dir/eval/Q4_0-dev/report.json" --json "$dir/eval/quant_loss.json" --md "$dir/eval/quant_loss.md" >/dev/null
+  [[ -f "$dir/eval/Q4_0-test/report.json" ]] || { log "no Q4_0 test eval for $run (budget?): no card"; continue; }
   case "$b" in *LFM3*) st="LFM3-1.7B-QAD-Q4_0";; *0.8B*) st="Qwen3.5-0.8B-Q4_0";; *) st="Qwen3.5-2B-Q4_0";; esac
   "$PY" -m ml.train.card --run "$dir" --name "$name" --repo "${HF_OWNER:-OWNER}/$name-gguf" \
-    --eval "$dir/eval/Q4_0-test/report.json" --qloss-json "$dir/eval/quant_loss.json" \
-    $([[ -f "$MURMUR_EVAL/stock/$st/default-test/report.json" ]] && echo --stock-eval "$MURMUR_EVAL/stock/$st/default-test/report.json") \
+    --eval "$dir/eval/Q4_0-test/report.json" \
+    $([[ -f "$dir/eval/quant_loss.json" ]] && echo --qloss-json "$dir/eval/quant_loss.json") \
+    $([[ -f "$MURMUR_EVAL/stock/$st/$STOCK_P-test/report.json" ]] && echo --stock-eval "$MURMUR_EVAL/stock/$st/$STOCK_P-test/report.json") \
     >/dev/null
+  [[ -z "${LEGACY:-}" ]] || evaluate "$dir/gguf/$name-Q4_0.gguf" "$dir/eval/legacy-v1-Q4_0" "$ftsys" "$run Q4_0 legacy-v1" legacy
 done
 sort -u -o "$MURMUR_RUNS/finalists.txt" "$MURMUR_RUNS/finalists.txt" 2>/dev/null || true
 
-# ---- 3. leaderboard
+# ---- 4. leaderboard
 "$PY" -m ml.eval.leaderboard "$MURMUR_EVAL/stock" "$MURMUR_RUNS" --out "$MURMUR_EVAL/leaderboard.md"
 log "export_eval finished; leaderboard: $MURMUR_EVAL/leaderboard.md"

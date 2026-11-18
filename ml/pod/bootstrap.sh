@@ -84,17 +84,29 @@ if step venv-train "$MARK_VOL"; then
   uv cache clean -q || true   # ~wheel-sized duplicate on the volume otherwise
   touch "$MARK_VOL/venv-train"
 fi
-"$VENV_TRAIN/bin/python" - <<'EOF'
-import torch, transformers, peft
+rm -f "$MARK_VOL/fla-missing"
+"$VENV_TRAIN/bin/python" - "$MARK_VOL/fla-missing" <<'EOF'
+import sys, torch, transformers, peft
 assert torch.cuda.is_available(), "torch sees no GPU"
 x = torch.randn(1024, 1024, device="cuda", dtype=torch.bfloat16); (x @ x).sum().item()
 print("torch", torch.__version__, "cuda", torch.version.cuda, torch.cuda.get_device_name(0),
       "cap", torch.cuda.get_device_capability(0), "transformers", transformers.__version__, "peft", peft.__version__)
 try:
     import fla  # Gated DeltaNet kernels for Qwen3.5
-    print("flash-linear-attention", fla.__version__)
+    # the op transformers resolves for Qwen3.5 ("fla" + "ops.gated_delta_rule"); run it once forward and
+    # backward so a Triton kernel that does not compile for sm_120 is caught here, not mid-matrix
+    from fla.ops.gated_delta_rule import chunk_gated_delta_rule
+    B, T, H, K = 1, 128, 2, 64
+    q, k, v = (torch.randn(B, T, H, K, device="cuda", dtype=torch.bfloat16, requires_grad=True) for _ in range(3))
+    g = torch.nn.functional.logsigmoid(torch.randn(B, T, H, device="cuda", dtype=torch.float32))
+    beta = torch.rand(B, T, H, device="cuda", dtype=torch.bfloat16)
+    o, _ = chunk_gated_delta_rule(q, k, v, g=g, beta=beta, use_qk_l2norm_in_kernel=True)
+    o.float().sum().backward()
+    assert torch.isfinite(q.grad).all(), "fla backward produced non-finite grads"
+    print("flash-linear-attention", fla.__version__, "chunk_gated_delta_rule fwd+bwd OK on", torch.cuda.get_device_name(0))
 except Exception as e:
     print("WARNING flash-linear-attention unavailable, Qwen3.5 trains on the slow PyTorch path:", e)
+    open(sys.argv[1], "w").write(repr(e) + "\n")  # train_matrix.sh preflight refuses Qwen runs on this marker
 EOF
 
 # ---- 6. self-test (unit tests: metrics, gates, rendering parity, judge/rescore plumbing via the stub)

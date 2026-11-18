@@ -3,5 +3,6 @@
 # run outside the 8 GB session memory cap. Usage: tools/gw :app:assembleDebug
 set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
+export ANDROID_HOME="${ANDROID_HOME:-$HOME/.local/share/android-sdk}"
 mkdir -p "$root/.cache"
 exec flock "$root/.cache/gradle.lock" "$root/tools/heavy" "$root/gradlew" -p "$root" "$@"

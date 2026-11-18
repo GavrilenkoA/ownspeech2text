@@ -27,9 +27,11 @@ import kotlinx.coroutines.flow.StateFlow
 /**
  * :main-side implementations of the :core:engine contracts over binder (WP-05). PCM goes through a
  * ParcelFileDescriptor pipe written by the capture thread; screenshots through SharedMemory.
+ * [bindContext] is read at every bind: the accessibility service when connected (the bound process inherits its
+ * importance), else the application (A11yBridge.service ?: app, wired by :app).
  */
-class AsrClient(context: Context, timeouts: BinderTimeouts = BinderTimeouts()) : AsrEngine, OcrService, InferenceHost {
-    private val connector = ServiceConnector(context, InferProcess.ASR, timeouts)
+class AsrClient(bindContext: () -> Context, timeouts: BinderTimeouts = BinderTimeouts()) : AsrEngine, OcrService, InferenceHost {
+    private val connector = ServiceConnector(bindContext, InferProcess.ASR, timeouts)
     override val process = InferProcess.ASR
     override val state: StateFlow<HostState> get() = connector.state
 
@@ -40,7 +42,7 @@ class AsrClient(context: Context, timeouts: BinderTimeouts = BinderTimeouts()) :
     override suspend fun shutdown() { TODO("WP-05") }
 
     override suspend fun load(asr: LoadSpec, vad: LoadSpec?): Outcome<LoadInfo> = TODO("WP-05")
-    override fun startSession(options: AsrSessionOptions): AsrSession = TODO("WP-05: createPipe(), startSession(), writer")
+    override suspend fun startSession(options: AsrSessionOptions): AsrSession = TODO("WP-05: createPipe(), startSession(), writer")
     override suspend fun unload() { TODO("WP-05") }
 
     override suspend fun loadOcr(det: LoadSpec, rec: LoadSpec): Outcome<LoadInfo> = TODO("WP-05")
@@ -48,8 +50,8 @@ class AsrClient(context: Context, timeouts: BinderTimeouts = BinderTimeouts()) :
     override suspend fun recognize(image: ScreenImage): Outcome<ScreenText> = TODO("WP-05: SharedMemory.create + mapReadWrite + setProtect(PROT_READ)")
 }
 
-class LlmClient(context: Context, timeouts: BinderTimeouts = BinderTimeouts()) : LlmEngine, InferenceHost {
-    private val connector = ServiceConnector(context, InferProcess.LLM, timeouts)
+class LlmClient(bindContext: () -> Context, timeouts: BinderTimeouts = BinderTimeouts()) : LlmEngine, InferenceHost {
+    private val connector = ServiceConnector(bindContext, InferProcess.LLM, timeouts)
     override val process = InferProcess.LLM
     override val state: StateFlow<HostState> get() = connector.state
 
@@ -68,9 +70,9 @@ class LlmClient(context: Context, timeouts: BinderTimeouts = BinderTimeouts()) :
 }
 
 /** The real [Engines] of the :main process. */
-class BinderEngines(context: Context) : Engines {
-    private val asrClient = AsrClient(context)
-    private val llmClient = LlmClient(context)
+class BinderEngines(bindContext: () -> Context, timeouts: BinderTimeouts = BinderTimeouts()) : Engines {
+    private val asrClient = AsrClient(bindContext, timeouts)
+    private val llmClient = LlmClient(bindContext, timeouts)
     override val asr: AsrEngine get() = asrClient
     override val ocr: OcrService get() = asrClient
     override val asrHost: InferenceHost get() = asrClient

@@ -1,5 +1,5 @@
 {
- "pipeline": "ocr.v1",
+ "pipeline": "ocr.v2",
  "spec": {
   "template": "email_inbox",
   "device": "fold7_cover",
@@ -42,6 +42,12 @@
  ],
  "exclude_kinds": [
   "status_bar"
+ ],
+ "field_box": [
+  31,
+  99,
+  1049,
+  216
  ],
  "visible": [
   {

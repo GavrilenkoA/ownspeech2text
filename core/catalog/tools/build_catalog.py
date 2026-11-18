@@ -17,7 +17,7 @@ A mismatch aborts the build. Run:  python3 -I core/catalog/tools/build_catalog.p
 from __future__ import annotations
 
 import hashlib
-import json
+import json, re
 import os
 import sys
 import urllib.request
@@ -177,8 +177,12 @@ def asr_artifact(src_id: str, runtime: str, units: list[str], *, layout: dict, w
         a["socs"] = s["socs"]
     if window:
         a["maxWindowSec"] = window
-    if memory:
-        a["memoryMb"] = memory
+    if not memory:
+        # MemoryEstimate fallback (ADR-045 review): file bytes x 1.5, so that every bundled artifact carries a value.
+        mb = -(-sum(f["bytes"] for f in a["files"]) * 3 // (2 * 1024 * 1024))
+        memory = {u: mb for u in units}
+        notes = ((notes + " ") if notes else "") + "memoryMb estimated (download bytes x 1.5)."
+    a["memoryMb"] = memory
     if notes:
         a["notes"] = notes
     return a
@@ -294,6 +298,10 @@ def asr_models() -> list[dict]:
     return M
 
 
+# The OCR models are validated against ml/ocr's golden suite of this pipeline version (read, never hard-coded).
+OCR_PIPELINE_VERSION = re.search(r'^PIPELINE_VERSION = "([^"]+)"', (REPO / "ml/ocr/config.py").read_text(encoding="utf-8"), re.M).group(1)
+
+
 def aux_models() -> list[dict]:
     s = ASR_BY_ID["silero-vad@onnx-v5"]
     vad = {"id": "silero-vad-v5", "kind": "vad", "displayName": "Silero VAD v5", "publisher": "Silero", "family": "silero-vad",
@@ -305,7 +313,7 @@ def aux_models() -> list[dict]:
     det = {"id": "pp-ocrv6-tiny-det", "kind": "ocr-det", "displayName": "PP-OCRv6 tiny detector", "publisher": "PaddlePaddle",
            "family": "pp-ocr", "baseRepo": "PaddlePaddle/PP-OCRv6_tiny_det_onnx",
            "description": "Finds text lines in the screenshot.", "license": {"id": "Apache-2.0"}, "tier": "recommended",
-           "ocr": {"stage": "det", "pipelineVersion": "ocr.v1"},
+           "ocr": {"stage": "det", "pipelineVersion": OCR_PIPELINE_VERSION},
            "artifacts": [{"id": "pp-ocrv6-tiny-det@onnx", "runtime": "ort/ppocr-det", "format": "onnx", "units": ["cpu"],
                           "files": [hf_file("PaddlePaddle/PP-OCRv6_tiny_det_onnx", "2ba1506", "inference.onnx",
                                             sha256="193bab7a" if OFFLINE else None, name="det.onnx")],
@@ -316,7 +324,7 @@ def aux_models() -> list[dict]:
            "publisher": "PaddlePaddle", "family": "pp-ocr", "baseRepo": "PaddlePaddle/cyrillic_PP-OCRv5_mobile_rec_onnx",
            "description": "Reads Cyrillic and Latin text lines.", "license": {"id": "Apache-2.0"}, "tier": "recommended",
            "languages": {"codes": ["ru", "en", "uk", "be", "bg", "sr"], "count": 6, "mode": "auto"},
-           "ocr": {"stage": "rec", "pipelineVersion": "ocr.v1"},
+           "ocr": {"stage": "rec", "pipelineVersion": OCR_PIPELINE_VERSION},
            "artifacts": [{"id": "pp-ocrv5-cyrillic-mobile-rec@onnx", "runtime": "ort/ppocr-rec", "format": "onnx", "units": ["cpu"],
                           "files": [hf_file("PaddlePaddle/cyrillic_PP-OCRv5_mobile_rec_onnx", "2cef881", "inference.onnx", name="rec.onnx"),
                                     hf_file("PaddlePaddle/cyrillic_PP-OCRv5_mobile_rec_onnx", "2cef881", "inference.yml", name="rec.yml")],
@@ -332,11 +340,44 @@ LLM_TEMPLATE = {"lfm3-chatml": "lfm3", "lfm2-chatml": "lfm2.5", "lfm2-chatml-alw
 PREFERRED = {"lfm3": "npu", "lfm2.5": "npu", "qwen3.5": "cpu", "qwen3": "npu"}
 # Host no-mmap peak RSS where measured (llm-npu.md 5.4), else the research estimate.
 CPU_MB = {"lfm3-1.7b": 1250, "qwen3.5-0.8b": 710}
+# ADR-045: tokens of render.cache_prefix(profile, template), VERIFIED by the architect on 2026-11-19 with
+# `.cache/ml/llm/bin/llama-b12503/llama-tokenize -m <gguf> -f <prefix file> --show-count --no-bos` on the real GGUFs
+# (Qwen3.5-0.8B and -2B, LFM3-1.7B, LFM2.5-1.2B and -350M, Qwen3-0.6B; same tokenizer within a family).
+# Regenerate the prefix files with render.cache_prefix; the WP-10 tokenizer test pins these numbers.
+PREFIX_TOKENS = {("default.v4", "qwen3.5"): 3129, ("default.v4", "lfm3"): 3240, ("default.v4", "lfm2.5"): 3269,
+                 ("default.v4", "qwen3"): 3161, ("finetuned.v1", "qwen3.5"): 97, ("finetuned.v1", "lfm3"): 102,
+                 ("finetuned.v1", "lfm2.5"): 102, ("finetuned.v1", "qwen3"): 97}
+CONTEXT_RESERVE_TOKENS = 5200  # = LlmTraits.CONTEXT_RESERVE_TOKENS (5-minute dictation, ADR-045)
+KV_DEFAULT = 12288
+
+
+def n_ctx_for(prefix_tokens: int) -> int:
+    need = prefix_tokens + CONTEXT_RESERVE_TOKENS
+    return (need + 1023) // 1024 * 1024
+
+
+def kv_mb(n_ctx: int, kv_bytes: int | None) -> int:
+    return -(-n_ctx * (kv_bytes or KV_DEFAULT) // (1024 * 1024))
+
+
+def finetune_2b(src: dict) -> dict:
+    """review 2026-11-19 (ADR-046): ML trains Qwen3.5 0.8B/2B and LFM3 (ml/eval/contract.py TEMPLATES), not Qwen3."""
+    d = dict(src)
+    d.update({"id": "murmur-cleanup-qwen3.5-2b", "display_name": "Murmur Cleanup (Qwen3.5 2B)", "base_repo": "Qwen/Qwen3.5-2B",
+              "params": 2274069824, "notes": "Phase B of docs/ml/TRAINING_RUNBOOK.md; Q4_0 GGUF."})
+    return d
 
 
 def llm_models() -> list[dict]:
     out = []
+    src_models = []
     for m in LLM["models"]:
+        if m["id"] == "murmur-cleanup-qwen3-0.6b":
+            continue  # cannot be produced: the training contract has no qwen3 template (ADR-046)
+        src_models.append(m)
+        if m["id"] == "murmur-cleanup-qwen3.5-0.8b":
+            src_models.append(finetune_2b(m))
+    for m in src_models:
         if m["id"] == "none":
             continue  # "None" is a UI choice, not a catalog model
         fam = m["family"]
@@ -353,22 +394,30 @@ def llm_models() -> list[dict]:
              "license": lic(m),
              "tier": {"default": "recommended", "option": "optional", "experimental": "experimental"}.get(m.get("role"), "planned"),
              "status": "in_training" if planned else "available",
-             "llm": {"template": tmpl, "promptProfile": "finetuned.v1" if planned else "default.v4",
-                     "nCtx": 4096, **({"note": m["thinking"].get("caveat")} if isinstance(m.get("thinking"), dict) and m["thinking"].get("caveat") else {})},
+             "llm": {"template": tmpl, "promptProfile": (profile := "finetuned.v1" if planned else "default.v4"),
+                     "nCtx": n_ctx_for(PREFIX_TOKENS[(profile, tmpl)]), "prefixTokens": PREFIX_TOKENS[(profile, tmpl)],
+                     **({"kvBytesPerToken": m["kv_cache_bytes_per_token_f16"]} if m.get("kv_cache_bytes_per_token_f16") else {}),
+                     **({"note": m["thinking"].get("caveat")} if isinstance(m.get("thinking"), dict) and m["thinking"].get("caveat") else {})},
              "artifacts": [], "evidence": "docs/research/verify/llm-npu.md"}
         if fam == "qwen3.5" and "ru" not in e["languages"]["codes"]:
             e["languages"]["codes"] = ["ru", "en"]
         for f in m.get("download_files", []):
             quant = f.get("quant", "")
             units = [u for u in ["npu", "gpu", "cpu"] if u in f.get("backends", ["cpu"])]
-            # llm-npu.md 3.2: K-quants are HTP-tiled at b12520, but the catalog only claims what Qualcomm benchmarks.
+            # llm-npu.md 3.2 (ADR-009): K-quants ARE HTP-tiled at b12520 (the "CPU fallback" claim was REFUTED), so they
+            # claim npu too; preferredUnit stays as is (Q4_0 remains the default artifact) and the benchmark decides.
+            claimed = list(units)  # preferredUnit is decided on the research claim, unchanged by the npu addition
+            if "k_" in quant.lower() and "npu" not in units:
+                units = ["npu"] + units
+            extra_kv = kv_mb(e["llm"]["nCtx"], e["llm"].get("kvBytesPerToken")) - kv_mb(4096, e["llm"].get("kvBytesPerToken"))
             art = {"id": f"{m['id']}@{f['path'].removesuffix('.gguf').split('-')[-1].lower()}" + ("" if "qad" not in quant.lower() else "-qad"),
                    "runtime": "llama/gguf", "format": "gguf", "quant": quant, "units": units,
                    "files": [hf_file(f["repo"], f.get("repo_sha", "main"), f["path"], bytes_=f["bytes"], sha256=f.get("sha256"), name="model.gguf")],
                    "layout": {"model": "model.gguf"},
-                   "memoryMb": {u: (CPU_MB.get(m["id"], m.get("ram_estimate_mb", 1200)) if u == "cpu" else m.get("ram_estimate_mb", 1200)) for u in units}}
+                   # estimates were made at n_ctx 4096: add the KV growth to nCtx (ADR-045)
+                   "memoryMb": {u: extra_kv + (CPU_MB.get(m["id"], m.get("ram_estimate_mb", 1200)) if u == "cpu" else m.get("ram_estimate_mb", 1200)) for u in units}}
             pu = PREFERRED.get(tmpl if fam != "qwen3" else "qwen3")
-            if pu in units:
+            if pu in claimed:
                 art["preferredUnit"] = pu
             if f.get("default"):
                 e["artifacts"].insert(0, art)

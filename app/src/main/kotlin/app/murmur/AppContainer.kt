@@ -4,11 +4,15 @@ import android.app.ActivityManager
 import android.content.Context
 import app.murmur.core.benchmark.BenchmarkRunner
 import app.murmur.core.catalog.CatalogRepository
-import app.murmur.core.catalog.DeviceProfile
+import app.murmur.core.catalog.DeviceProfileRepository
+import app.murmur.core.catalog.UnitHealthRepository
 import app.murmur.core.context.DefaultContextAssembler
 import app.murmur.core.dictation.DictationDeps
 import app.murmur.core.dictation.DictationOrchestrator
+import app.murmur.core.dictation.AppNavigator
 import app.murmur.core.dictation.Feedback
+import app.murmur.core.dictation.OpenTarget
+import app.murmur.core.dictation.PermissionMonitor
 import app.murmur.core.dictation.HapticKind
 import app.murmur.core.dictation.MemoryGate
 import app.murmur.core.engine.Engines
@@ -19,6 +23,7 @@ import app.murmur.core.prompt.GuardPyPort
 import app.murmur.core.prompt.RenderPyPort
 import app.murmur.core.store.AudioStore
 import app.murmur.core.store.BenchmarkRepository
+import app.murmur.core.store.DefaultDeliveryMetrics
 import app.murmur.core.store.HistoryRepository
 import app.murmur.core.store.InstalledModelsRepository
 import app.murmur.core.store.MetricsRepository
@@ -29,10 +34,13 @@ import app.murmur.data.db.RoomBenchmarkRepository
 import app.murmur.data.db.RoomHistoryRepository
 import app.murmur.data.db.RoomMetricsRepository
 import app.murmur.data.models.DefaultCatalogRepository
+import app.murmur.data.models.DefaultDeviceProfileRepository
+import app.murmur.data.models.FileUnitHealthRepository
 import app.murmur.data.models.DefaultInstalledModelsRepository
 import app.murmur.data.models.DefaultModelResolver
 import app.murmur.data.models.ModelsModule
 import app.murmur.infer.api.BinderEngines
+import app.murmur.platform.a11y.A11yBridge
 import app.murmur.platform.a11y.BridgedInserter
 import app.murmur.platform.a11y.BridgedTargetReader
 import app.murmur.platform.audio.AndroidAudioCapture
@@ -45,17 +53,18 @@ import kotlinx.coroutines.flow.MutableStateFlow
 /**
  * The :main object graph (ADR-010: manual constructor injection). Everything is lazy so that a skeleton
  * module whose implementation is still TODO only fails when it is actually used.
- * Integration owner: WP-20. Other packages change their own module, not this file.
+ * Owner: WP-15 in wave 2 (feature deps, fake wiring for screens), WP-20 from wave 3 (real modules); see docs/wp/README.md.
  */
 class AppContainer(private val context: Context) {
     val clock: MurmurClock = SystemMurmurClock
-    /** Application scope; the orchestrator gets its own serial view of it (threading policy, ARCHITECTURE.md 12). */
+    /** Application scope; the orchestrator gets its own serial view of it (threading policy, ARCHITECTURE.md 14). */
     val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     val serviceConnected = MutableStateFlow(false)
-    /** Cached probe of both inference processes (ARCHITECTURE.md 8.4); null until the first probe. */
-    val deviceProfile = MutableStateFlow<DeviceProfile?>(null)
 
     private val debug = DebugEngines(context)
+
+    /** Binder clients bind from the accessibility service when connected (process importance), else from the app. */
+    private val bindContext: () -> Context = { A11yBridge.service.value ?: context }
 
     // --- data
     private val db by lazy { DbModule.database(context) }
@@ -68,12 +77,12 @@ class AppContainer(private val context: Context) {
     // --- models
     val catalog: CatalogRepository by lazy { DefaultCatalogRepository() }
     val installed: InstalledModelsRepository by lazy { DefaultInstalledModelsRepository(context, ModelsModule.storage(context)) }
-    private val resolver by lazy {
-        DefaultModelResolver(catalog, installed) { deviceProfile.value ?: error("device profile not probed yet") }
-    }
-
     // --- engines (real binder clients, or :testing fakes in debug fake mode)
-    val engines: Engines by lazy { debug.fakeEnginesOrNull() ?: BinderEngines(context) }
+    val engines: Engines by lazy { debug.fakeEnginesOrNull() ?: BinderEngines(bindContext) }
+    /** The only owner of the probe (WP-13, ARCHITECTURE 8.4); never throws (CPU-only profile on failure). */
+    val deviceProfile: DeviceProfileRepository by lazy { DefaultDeviceProfileRepository(context, engines.asrHost, engines.llmHost) }
+    val unitHealth: UnitHealthRepository by lazy { FileUnitHealthRepository(ModelsModule.storage(context), BuildConfig.VERSION_NAME) }
+    private val resolver by lazy { DefaultModelResolver(catalog, installed, deviceProfile, unitHealth, benchmarks) }
     val benchmarkRunner: BenchmarkRunner by lazy { TODO("WP-14: BenchmarkRunner over engines + hosts") }
 
     // --- prompt
@@ -89,12 +98,23 @@ class AppContainer(private val context: Context) {
                 audio = AndroidAudioCapture(context, audioStore), target = BridgedTargetReader(), inserter = BridgedInserter(),
                 context = DefaultContextAssembler(), renderer = renderer, guard = guard, prompts = prompts,
                 history = history, metrics = metrics, audioStore = audioStore, feedback = feedback, memory = memory,
+                unitHealth = unitHealth, navigator = navigator, permissions = permissions, deliveryMetrics = DefaultDeliveryMetrics(),
             ),
             appScope,
         )
     }
 
-    private val feedback = Feedback { _: HapticKind -> /* WP-03: View.performHapticFeedback per Settings.feedback */ }
+    /** WP-03 provides the overlay-view implementation; this placeholder does nothing. */
+    private val feedback = object : Feedback {
+        override fun haptic(kind: HapticKind) {}
+        override fun sound(kind: HapticKind) {}
+    }
+
+    /** WP-15: Intent to MainActivity with the shell's deep-link extras (open History entry / Models). */
+    private val navigator = AppNavigator { _: OpenTarget -> TODO("WP-15") }
+
+    /** WP-15: PermissionMonitor over PackageManager / NotificationManager / PowerManager / Settings.Secure + RestrictedSettingsProbe. */
+    private val permissions: PermissionMonitor by lazy { TODO("WP-15") }
 
     private val memory = MemoryGate {
         val mi = ActivityManager.MemoryInfo()

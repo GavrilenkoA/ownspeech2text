@@ -83,6 +83,9 @@ data class ModelEntry(
 ) {
     /** DESIGN.md 6.4: a model whose card does not list Russian gets the "No Russian" badge. */
     val noRussian: Boolean get() = (kind == ModelKind.ASR || kind == ModelKind.LLM) && "ru" !in languages.codes
+
+    /** May be the speech model of record (ADR-047: preview-only streaming models may not). */
+    val selectableAsAsr: Boolean get() = kind == ModelKind.ASR && asr?.previewOnly != true && status == Status.AVAILABLE
 }
 
 @Serializable
@@ -139,7 +142,11 @@ data class AsrTraits(
     val punctuation: Boolean,
     val casing: Boolean,
     val sampleRate: Int = 16_000,
-    /** True for models that may only drive the live preview, never the text of record (Nemotron, A5). */
+    /**
+     * Streaming models kept for a future live preview (Nemotron, A5). v1 has no live preview (ADR-047): the hub
+     * lists them as "Preview only, not selectable yet", and the resolver and the validator reject them as the
+     * speech model.
+     */
     val previewOnly: Boolean = false,
 )
 
@@ -149,9 +156,31 @@ data class LlmTraits(
     val template: String,
     /** prompts/profiles/<name>.json; fine-tunes use a bare system prompt name ("finetuned.v1"). */
     val promptProfile: String,
-    val nCtx: Int = 4096,
+    /**
+     * Context window the :llm process allocates (LoadSpec option n_ctx). Rule (ADR-045): nCtx >=
+     * [prefixTokens] + [CONTEXT_RESERVE_TOKENS], rounded up to 1,024, so that a 5-minute dictation (the DESIGN
+     * maximum) fits with its screen context and output. Stock default.v4: 9,216; finetuned.v1: 6,144.
+     */
+    val nCtx: Int,
+    /**
+     * Tokens of render.cache_prefix(promptProfile, template) with this model's tokenizer (VERIFIED with
+     * llama-tokenize at catalog generation; the WP-10 tokenizer test pins it). null for custom models: measured at
+     * Preparing from PrefixInfo.tokens.
+     */
+    val prefixTokens: Int? = null,
+    /** KV cache bytes per token (F16), for the memory estimate; null = 12,288 (hybrid models). */
+    val kvBytesPerToken: Int? = null,
     val note: String? = null,
-)
+) {
+    companion object {
+        /**
+         * Everything after the cached prefix for a 5-minute dictation at the conservative 0.40 tokens/char
+         * (measured 0.31-0.34 on the ctx v2 goldens, ADR-045): screen + field context 1,850 chars (740 tokens) +
+         * transcript 5,000 chars (2,000) + minimum output 1.1 x 2,000 + 16 (2,216), plus 5 % slack.
+         */
+        const val CONTEXT_RESERVE_TOKENS = 5_200
+    }
+}
 
 @Serializable
 data class OcrTraits(

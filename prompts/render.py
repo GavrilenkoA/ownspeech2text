@@ -212,6 +212,13 @@ def render_context(ctx: dict | None, ctx2: dict | None = None) -> str:
 #   place      "before" (shipped) | "after": <context> after the <transcript> (ablation; see user_message)
 CTX2_DEFAULT = {"budget": 1400, "order": "near", "min_conf": 0.5, "min_chars": 2, "drop_clock": True,
                 "dedup": True, "merge": True, "side": False, "terms": False, "line_max": 240, "place": "before"}
+# ctx v2 without a screen: privacy.level the phone sends for each privacy.reason (binding for app, data and eval;
+# context.schema.v2.json). app_only hides the field text before the cursor (kind and hint stay); full shows it.
+#   secure_window (FLAG_SECURE), denylisted_app, password_field -> app_only: the app/user marked the content sensitive
+#   screenshot_error, ocr_empty                                -> full: nothing sensitive, the screenshot just failed
+#   user_setting (screen context switched off by the user)     -> app_only or none, as the user chose
+NO_SCREEN_LEVEL = {"secure_window": "app_only", "denylisted_app": "app_only", "password_field": "app_only",
+                   "screenshot_error": "full", "ocr_empty": "full"}
 _CLOCK = re.compile(r"^[\d\s:.,/%+\-–—()|·•]*(?:[ap]\.?m\.?|ч|мин|lte|5g|4g|g)?[\d\s:.,/%+\-–—()|·•]*$", re.I)
 _ALNUM = re.compile(r"[^\W_]", re.U)
 

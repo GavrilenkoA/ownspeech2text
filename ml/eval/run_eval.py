@@ -12,6 +12,11 @@ are skipped on re-run), scores.jsonl, report.json, report.md. --rescore recomput
 report from existing predictions (and DIR/judge.jsonl if present) without loading any model: used
 on the dev server after syncing pod results and running `ml.eval.judge`. Exit code 0 even when
 gates fail (the verdict is in report.json).
+
+Every report carries two measurements of the same predictions: `summary`/`gates` on the raw model
+output (what select.py ranks), and `guarded` = the same after prompts/guard.py (precheck skip ->
+empty, post-LLM repair/fallback), i.e. what the app inserts. The guard is deterministic, so it is
+recomputed on --rescore; scores_guarded.jsonl holds the per-example rows.
 """
 from __future__ import annotations
 
@@ -27,6 +32,8 @@ from pathlib import Path
 
 from . import contract, gates, metrics
 from .backends import HFBackend, LlamaServer, TeacherBackend
+
+import guard as app_guard  # noqa: E402  prompts/guard.py (contract puts prompts/ on sys.path)
 
 DEFAULT_LLAMA_BIN = os.environ.get("MURMUR_LLAMA_BIN", str(contract.REPO / ".cache/ml/llm/bin/llama-b12503"))
 _THINK = re.compile(r"^\s*<think>.*?</think>\s*", re.S)
@@ -156,16 +163,26 @@ def main(argv=None) -> int:
     judged = load_judged(out)
     if a.judge:
         judged = judge_all(data, done, out, JudgeConfig(a.judge_url))
-    rows = []
+    rows, grows, reasons = [], [], {}
     for ex in data:
         p = done[ex["id"]]
+        extra = {k: p.get(k) for k in ("latency_ms", "prompt_tokens", "completion_tokens", "prefill_ms", "decode_ms")}
         r = metrics.score_example(ex, p["out"])
-        r.update({k: p.get(k) for k in ("latency_ms", "prompt_tokens", "completion_tokens", "prefill_ms", "decode_ms")})
+        r.update(extra)
         if ex["id"] in judged:
             r.update({k: judged[ex["id"]][k] for k in ("judge_score", "judge_drift")})
         rows.append(r)
+        v = app_guard.guard(ex["transcript"], p.get("raw_out") or p["out"], ex.get("ctx"))
+        reasons[v.reason] = reasons.get(v.reason, 0) + 1
+        gr = metrics.score_example(ex, v.text)
+        gr.update(extra, guard_action=v.action, guard_reason=v.reason)
+        if ex["id"] in judged and v.text == p["out"]:
+            gr.update({k: judged[ex["id"]][k] for k in ("judge_score", "judge_drift")})
+        grows.append(gr)
     contract.write_jsonl(out / "scores.jsonl", rows)
+    contract.write_jsonl(out / "scores_guarded.jsonl", grows)
     summ = metrics.summarize(rows)
+    gsumm = metrics.summarize(grows)
     preds = [done[ex["id"]] for ex in data]
     pref = [p["prefill_ms"] / p["prompt_tokens"] for p in preds if p.get("prefill_ms") and p.get("prompt_tokens")]
     dec = [p["completion_tokens"] / (p["decode_ms"] / 1000) for p in preds
@@ -187,7 +204,10 @@ def main(argv=None) -> int:
             info[k] = old_info.get(k)
         info["rescored_on"] = platform.node()
     g = gates.evaluate(summ, backend=kind)
-    report = {"info": info, "summary": summ, "gates": g}
+    guarded = {"summary": gsumm, "gates": gates.evaluate(gsumm, backend=kind),
+               "fired": sum(n for k, n in reasons.items() if k not in ("ok", "repaired")), "reasons": reasons,
+               "note": "judge scores are copied only where the guard left the raw output unchanged"}
+    report = {"info": info, "summary": summ, "gates": g, "guarded": guarded}
     (out / "report.json").write_text(json.dumps(report, ensure_ascii=False, indent=1), encoding="utf-8")
     (out / "report.md").write_text(to_markdown(report), encoding="utf-8")
     print(to_markdown(report))
@@ -220,7 +240,13 @@ def to_markdown(rep: dict) -> str:
             f"backend={i['backend']} template={i['template']} system={i['system']} n={i['n']} "
             f"sha256={(i['model_sha256'] or '')[:12]} prefill_ms/tok={i['prefill_ms_per_token_mean']} "
             f"decode_tok/s={i['decode_tok_per_s_mean']} (host CPU/GPU, not phone)\n")
-    return head + "\n" + table(rep["summary"]) + "\n\n" + gates.to_markdown(rep["gates"]) + "\n"
+    body = head + "\n" + table(rep["summary"]) + "\n\n" + gates.to_markdown(rep["gates"]) + "\n"
+    gd = rep.get("guarded")
+    if gd:
+        body += (f"\n## After prompts/guard.py (what the app inserts; guard fired {gd['fired']}x: "
+                 + ", ".join(f"{k} {v}" for k, v in sorted(gd["reasons"].items())) + ")\n\n"
+                 + table(gd["summary"]) + "\n\n" + gates.to_markdown(gd["gates"]) + "\n")
+    return body
 
 
 if __name__ == "__main__":

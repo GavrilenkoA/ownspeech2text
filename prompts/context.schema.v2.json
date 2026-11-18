@@ -141,14 +141,24 @@
         "level": {
           "type": "string",
           "maxLength": 20,
-          "description": "full | app_only | none. app_only/none: no screen text and no field text in the prompt; none also hides the app label. Other values render as full."
+          "description": "full | app_only | none. full: app, field kind/hint, text before the cursor and screen text (if any). app_only: app, field kind and hint only (no screen text, no text before the cursor). none: as app_only and the app label is hidden. Unknown values (also the deprecated 'no_screenshot') render as full. Without a screen the phone MUST send the level that prompts/render.py NO_SCREEN_LEVEL gives for the reason: secure_window, denylisted_app, password_field -> app_only; screenshot_error, ocr_empty -> full; user_setting -> app_only or none as chosen by the user."
         },
         "reason": {
           "type": [
             "string",
             "null"
           ],
-          "maxLength": 60
+          "maxLength": 60,
+          "description": "null when a screen is present. Otherwise why it is absent: secure_window | denylisted_app | password_field | screenshot_error | ocr_empty | user_setting.",
+          "enum": [
+            null,
+            "secure_window",
+            "denylisted_app",
+            "password_field",
+            "screenshot_error",
+            "ocr_empty",
+            "user_setting"
+          ]
         }
       }
     }

@@ -31,6 +31,16 @@ class PromptAssetsTest {
         assertTrue(PromptEditRules.validateSystem("Fix punctuation.").isEmpty())
     }
 
+    @Test
+    fun userOverrideNeverAppliesToFineTunes() {
+        // ADR-046: the edited instructions belong to the stock profile they were written for.
+        assertTrue(PromptEditRules.overrideApplies(assets.profile("default.v4"), "default.v4"))
+        assertTrue(!PromptEditRules.overrideApplies(assets.profile("default.v4s"), "default.v4"))
+        assertTrue(!PromptEditRules.overrideApplies(assets.profile("finetuned.v1"), "finetuned.v1"))
+        assertTrue(!PromptEditRules.overrideApplies(assets.profile("default.v4"), null))
+        assertEquals("finetuned.v1", assets.profile("finetuned.v1").system)
+    }
+
     @Ignore("WP-04 enables: Kotlin renderer must reproduce prompts/examples/ctxv2_* byte-for-byte")
     @Test
     fun goldenCtxV2Prompts() {

@@ -257,7 +257,22 @@ def misspell_surname(spoken: str, person: str, r: random.Random) -> tuple[str, s
 
 
 # ------------------------------------------------------------------ recoverability
+_LIST_MARK = re.compile(r"(?m)^\s*\d+[.)]\s+")
+
+
+def _vouches(w: str, h: str) -> bool:
+    """Can the transcript word h be a garbled hearing of the target word w? Never a single letter ('п' is no
+    evidence for 'Pro'); same script: spelling similarity >= 0.6; other script ('докер' for 'docker'): phonetic
+    similarity >= 0.75."""
+    if len(h) < 2 or (len(w) >= 4 and len(h) < 3):
+        return False
+    if T.is_cyr(w) == T.is_cyr(h):
+        return T.similarity(w, h) >= 0.6
+    return T.phon_sim(w, h) >= 0.75
+
+
 def unrecoverable(target: str, hyp: str, ctx_text: str, allow: set[str] = frozenset()) -> list[str]:
+    """Target content words and numbers that neither the transcript nor the context supports."""
     hw = T.norm_words(hyp)
     hs = set(hw)
     joined = {a + b for a, b in zip(hw, hw[1:])} | {a + "-" + b for a, b in zip(hw, hw[1:])}
@@ -275,9 +290,13 @@ def unrecoverable(target: str, hyp: str, ctx_text: str, allow: set[str] = frozen
         # a hypothesis word that is itself an exact target word cannot vouch for another one
         # ('Saturday' must not make a garbled 'Sunday' look recoverable)
         # and a garbled word vouches only for the target word it is closest to ('Seturday' is Saturday's)
-        if any((T.similarity(w, h) >= 0.6 or T.phon_sim(w, h) >= 0.75) and _closest(h, tw) == w for h in free):
+        if any(_vouches(w, h) and _closest(h, tw) == w for h in free):
             continue
         bad.append(w)
+    # every number in the target must be heard (digits or number words) or be on screen: 'в съем вечера' is no
+    # evidence for '6 вечера'
+    missing = set(T.numbers_in(_LIST_MARK.sub("", target))) - hnums - set(T.numbers_in(ctx_text))
+    bad += [str(n) for n in sorted(missing)]
     return bad
 
 
@@ -286,15 +305,21 @@ def _closest(h: str, words: list[str]) -> str:
 
 
 def implausible_subs(events: list[str]) -> list[str]:
-    """Substitutions that no recogniser makes from the audio ('Sunday' -> 'Utxpyri', 'по' -> 'свенство'): a long
-    replacement that sounds nothing like the word. Mined confusion tables contain a few such alignment artefacts;
-    an example built on them teaches the model to guess, so the attempt is retried with another seed."""
+    """Substitutions and insertions no recogniser makes from the audio ('Sunday' -> 'Utxpyri', 'по' -> 'свенство',
+    'на' -> 'аж', inserted 'папы'). Mined confusion tables contain such alignment artefacts; an example built on them
+    teaches the model to guess, so the attempt is retried with another seed. (Channel.implausible adds the
+    model-specific term-garble checks.)"""
+    from ml.data.synth.channel import plausible_ins, plausible_sub
     out = []
     for e in events:
         if e.startswith("sub:") and "->" in e:
             a, b = e[4:].split("->", 1)
-            if len(b) >= 4 and T.phon_sim(a, b) < 0.3:
+            wa, wb = a.split(), b.split()
+            pairs = list(zip(wa, wb)) if len(wa) == len(wb) else [(a.replace(" ", ""), b.replace(" ", ""))]
+            if not all(plausible_sub(x, y) for x, y in pairs):
                 out.append(e)
+        elif e.startswith("ins:") and not all(plausible_ins(w) for w in e[4:].split()):
+            out.append(e)
     return out
 
 
@@ -372,7 +397,8 @@ def build(sc: dict, ex: dict, channel: Channel, teacher: str, backend: SCR.Backe
     last = "no_attempt"
     for k in range(attempts):
         rk = mkrng("noise", sc["sid"], k)
-        model = channel.pick_model(lang, rk, prefer)
+        model = channel.pick_model(lang, rk, prefer, switch=sc.get("mix") == "switch")
+        render = channel.disfluency_render(model)
         sev = sc["severity"] if k < attempts - 2 else min(sc["severity"], 0.5)
         sp, events, garble = spoken, [], None
         chan_terms = [t for t in sc["spoken_terms"] if _contains(spoken, t["text"])]  # exact Latin spelling only
@@ -399,7 +425,8 @@ def build(sc: dict, ex: dict, channel: Channel, teacher: str, backend: SCR.Backe
                 if new:
                     garble = (garble or {}) | {"person": p, "from": old, "to": new}
         caps = {w for t in sc["spoken_terms"] for w in T.words(t["text"])} | {w for p in sc["people"] for w in p.split()}
-        sp2, dops = D.inject(sp, lang, sc["messiness"], rk, sounds_only=cat == "meaningful_filler", keep_caps=caps)
+        sp2, dops = D.inject(sp, lang, sc["messiness"], rk, sounds_only=cat == "meaningful_filler", keep_caps=caps,
+                             render=render)
         hyp, events = channel.transcribe(sp2, target, lang, model, chan_terms, sc["noise_seed"] + k, sev)
         if cat == "asr_artifact":
             tail = rk.choice(TAILS["en" if lang == "en" else "ru"])
@@ -408,8 +435,11 @@ def build(sc: dict, ex: dict, channel: Channel, teacher: str, backend: SCR.Backe
         if not hyp.strip():
             last = "empty_hypothesis"
             continue
-        if implausible_subs(events):
-            last = "implausible_substitution"
+        bad_noise = channel.implausible(events, model, lang)
+        if bad_noise:
+            hyp, events, bad_noise = channel.repair_terms(hyp, events, model, lang, bad_noise, sc["spoken_terms"])
+        if bad_noise:
+            last = "implausible_noise"
             continue
         if garble and garble.get("form") and not _contains(hyp, garble["form"]):
             last = "garble_lost"
@@ -439,6 +469,7 @@ def build(sc: dict, ex: dict, channel: Channel, teacher: str, backend: SCR.Backe
     meta["asr_model"] = model
     meta["noise"] = {"source": channel.source, "severity": sev, "attempt": k, "events": events[:20]}
     meta["disfluency"] = dops
+    meta["disfluency_render"] = render
     if garble:
         meta["garble"] = garble
     if cat == "context_resolution":

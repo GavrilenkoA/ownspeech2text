@@ -18,6 +18,8 @@ interface PromptRenderer {
 interface OutputGuard {
     fun precheck(transcript: String): Precheck
     fun guard(transcript: String, output: String, ctx: CtxV2?): GuardVerdict
+    /** guard.py FILLERS (casefolded); the dashboard's "fillers removed" uses the same lexicon (DeliveryMetrics). */
+    val fillers: Set<String>
 }
 
 /** Read access to the packaged prompts (classpath /prompts/...). */
@@ -37,6 +39,15 @@ object PromptEditRules {
     const val MAX_SYSTEM_CHARS = 8_000
     const val MAX_PREFERENCES_CHARS = 1_000
     private val forbidden = listOf("<|im_", "<|startoftext|>", "<context>", "</context>", "<transcript>", "</transcript>", "<think>")
+
+    /**
+     * The user's edited instructions apply only to the profile they were written for (review 2026-11-19, ADR-046):
+     * a stock profile whose name equals [override].baseProfile. Never to fine-tune profiles (`finetuned.*`), which
+     * were trained on their own prompt, and not after the catalog moves to a newer stock profile (Settings then shows
+     * "Your edit was made for an older prompt" with Reset / Keep editing).
+     */
+    fun overrideApplies(profile: PromptProfile, overrideBaseProfile: String?): Boolean =
+        overrideBaseProfile != null && !profile.system.startsWith("finetuned") && profile.name == overrideBaseProfile
 
     /** Returns problems (empty = valid). Keys map to strings.xml messages in :feature:settings. */
     fun validateSystem(text: String): List<String> = buildList {
