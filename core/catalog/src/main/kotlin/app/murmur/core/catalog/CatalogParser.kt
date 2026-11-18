@@ -46,6 +46,12 @@ object CatalogValidator {
     val allowedUrlPrefixes = listOf("https://huggingface.co/", "https://github.com/")
     val allowedRedirectHosts = listOf("huggingface.co", ".huggingface.co", ".hf.co", "github.com", ".githubusercontent.com")
 
+    /** Entries starting with '.' match as a suffix, the others exactly (case-insensitive). */
+    fun isAllowedHost(host: String): Boolean {
+        val h = host.lowercase().trimEnd('.')
+        return allowedRedirectHosts.any { if (it.startsWith(".")) h.endsWith(it) else h == it }
+    }
+
     fun validate(c: Catalog): List<String> {
         val p = mutableListOf<String>()
         if (c.schema != Catalog.SCHEMA) p += "schema ${c.schema} != ${Catalog.SCHEMA}"
@@ -63,37 +69,65 @@ object CatalogValidator {
         ref("defaults.llm", c.defaults.llm); ref("defaults.vad", c.defaults.vad)
         ref("defaults.ocrDet", c.defaults.ocrDet); ref("defaults.ocrRec", c.defaults.ocrRec)
         c.packs.forEach { pk -> pk.items.forEach { ref("pack ${pk.id}", it) } }
-        for (m in c.models) {
-            if (m.status == Status.AVAILABLE && m.artifacts.isEmpty()) p += "${m.id}: available but no artifacts"
-            when (m.kind) {
-                app.murmur.core.model.ModelKind.ASR -> if (m.asr == null) p += "${m.id}: asr traits missing"
-                app.murmur.core.model.ModelKind.LLM -> {
-                    val l = m.llm
-                    if (l == null) p += "${m.id}: llm traits missing"
-                    else if (l.prefixTokens != null && l.nCtx < l.prefixTokens + LlmTraits.CONTEXT_RESERVE_TOKENS)
+        for (m in c.models) p += validateEntry(m)
+        return p
+    }
+
+    /**
+     * Rules for one model entry (also used for custom entries before they are stored, ADR-046): traits per kind,
+     * the ADR-045 context rule, known runtimes, units, files pinned, hashed, on an allowed host, safe local names,
+     * layout paths that are relative and stay inside the artifact directory.
+     */
+    fun validateEntry(m: ModelEntry): List<String> {
+        val p = mutableListOf<String>()
+        if (m.status == Status.AVAILABLE && m.artifacts.isEmpty()) p += "${m.id}: available but no artifacts"
+        when (m.kind) {
+            app.murmur.core.model.ModelKind.ASR -> if (m.asr == null) p += "${m.id}: asr traits missing"
+            app.murmur.core.model.ModelKind.LLM -> {
+                val l = m.llm
+                if (l == null) p += "${m.id}: llm traits missing"
+                else {
+                    if (l.prefixTokens != null && l.nCtx < l.prefixTokens + LlmTraits.CONTEXT_RESERVE_TOKENS)
                         p += "${m.id}: nCtx ${l.nCtx} < prefixTokens ${l.prefixTokens} + ${LlmTraits.CONTEXT_RESERVE_TOKENS} (ADR-045)"
+                    if (l.template !in GgufTemplates.byArchitecture.values) p += "${m.id}: unknown template ${l.template}"
                 }
-                app.murmur.core.model.ModelKind.OCR_DET, app.murmur.core.model.ModelKind.OCR_REC ->
-                    if (m.ocr == null) p += "${m.id}: ocr traits missing"
-                else -> Unit
             }
-            for (a in m.artifacts) {
-                if (a.runtime !in RuntimeKeys.known) p += "${a.id}: unknown runtime ${a.runtime}"
-                if (a.units.isEmpty()) p += "${a.id}: no compute units"
-                if (a.preferredUnit != null && a.preferredUnit !in a.units) p += "${a.id}: preferredUnit not in units"
-                if (a.files.isEmpty()) p += "${a.id}: no files"
-                if (m.origin == Origin.BUNDLED) for (u in a.units)
-                    if (a.memoryMb[u] == null) p += "${a.id}: memoryMb[$u] missing (bundled artifacts carry a value, MemoryEstimate)"
-                for (f in a.files) {
-                    if (!SHA256.matches(f.sha256)) p += "${a.id}/${f.name}: sha256 missing or malformed"
-                    if (f.bytes <= 0) p += "${a.id}/${f.name}: bytes <= 0"
-                    if (allowedUrlPrefixes.none { f.url.startsWith(it) }) p += "${a.id}/${f.name}: url host not allowed"
-                    if (f.name.contains('/') || f.name.startsWith(".")) p += "${a.id}/${f.name}: bad local name"
-                    if (f.source == FileSource.HUGGINGFACE && !f.url.contains("/resolve/${f.revision}/"))
-                        p += "${a.id}/${f.name}: HF url not pinned to revision"
-                }
+            app.murmur.core.model.ModelKind.OCR_DET, app.murmur.core.model.ModelKind.OCR_REC ->
+                if (m.ocr == null) p += "${m.id}: ocr traits missing"
+            else -> Unit
+        }
+        for (a in m.artifacts) {
+            if (a.runtime !in RuntimeKeys.known) p += "${a.id}: unknown runtime ${a.runtime}"
+            if (a.units.isEmpty()) p += "${a.id}: no compute units"
+            if (a.preferredUnit != null && a.preferredUnit !in a.units) p += "${a.id}: preferredUnit not in units"
+            if (a.files.isEmpty()) p += "${a.id}: no files"
+            if (a.id.value.contains('/') || a.id.value.startsWith(".")) p += "${a.id}: bad artifact id"
+            if (m.origin == Origin.BUNDLED) for (u in a.units)
+                if (a.memoryMb[u] == null) p += "${a.id}: memoryMb[$u] missing (bundled artifacts carry a value, MemoryEstimate)"
+            val names = a.files.map { it.name }
+            names.groupBy { it }.filter { it.value.size > 1 }.keys.forEach { p += "${a.id}: duplicate local name $it" }
+            for (f in a.files) {
+                if (!SHA256.matches(f.sha256)) p += "${a.id}/${f.name}: sha256 missing or malformed"
+                if (f.bytes <= 0) p += "${a.id}/${f.name}: bytes <= 0"
+                if (allowedUrlPrefixes.none { f.url.startsWith(it) }) p += "${a.id}/${f.name}: url host not allowed"
+                if (f.name.contains('/') || f.name.startsWith(".")) p += "${a.id}/${f.name}: bad local name"
+                if (f.source == FileSource.HUGGINGFACE && !f.url.contains("/resolve/${f.revision}/"))
+                    p += "${a.id}/${f.name}: HF url not pinned to revision"
+            }
+            for ((role, path) in a.layout)
+                if (path.isBlank() || path.startsWith("/") || path.split('/').any { it == ".." || it.isEmpty() })
+                    p += "${a.id}: layout[$role] must be a relative path inside the artifact"
+            if (a.files.none { it.archive != null }) {
+                // Without an archive every layout path must be one of the downloaded files.
+                for ((role, path) in a.layout) if (role != LAYOUT_DIR && path !in names) p += "${a.id}: layout[$role] = $path is not a file of the artifact"
             }
         }
         return p
     }
+
+    /**
+     * Layout role naming the directory an archive extracts to; the other roles are relative to it
+     * (sherpa-onnx SM8750 tarballs: one top-level directory). The installer verifies <dir>/<path> for each role.
+     */
+    const val LAYOUT_DIR = "dir"
 }
