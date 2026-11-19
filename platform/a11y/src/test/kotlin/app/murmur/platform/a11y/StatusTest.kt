@@ -31,6 +31,8 @@ class StatusTest {
         assertFalse(blocked.copy(packageSource = p.PACKAGE_SOURCE_UNSPECIFIED).restrictedLikely)
         assertFalse(blocked.copy(returnedFromA11ySettings = false).restrictedLikely)
         assertFalse(blocked.copy(connectedNow = true).restrictedLikely)
+        // A sideloaded install that connected once and is off again after settings (crash, switched off by hand).
+        assertFalse(blocked.copy(everConnected = true).restrictedLikely)
         assertTrue(blocked.copy(enabledInSettings = true).enabledButDead)
         assertFalse(blocked.copy(enabledInSettings = true, everConnected = true).enabledButDead)
     }

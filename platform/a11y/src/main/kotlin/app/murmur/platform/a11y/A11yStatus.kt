@@ -55,7 +55,12 @@ data class A11yState(
     /** The user was sent to the accessibility settings screen and has come back since. */
     val returnedFromA11ySettings: Boolean,
 ) {
-    val restrictedLikely: Boolean get() = RestrictedSettingsProbe.likelyBlocked(returnedFromA11ySettings, connectedNow, packageSource)
+    /**
+     * Once the service has connected, the restricted setting was allowed for this install (Android keeps that per
+     * install), so a later "off after a trip to settings" is a crash or a manual switch-off, not the restriction.
+     */
+    val restrictedLikely: Boolean
+        get() = !everConnected && RestrictedSettingsProbe.likelyBlocked(returnedFromA11ySettings, connectedNow, packageSource)
     val enabledButDead: Boolean get() = RestrictedSettingsProbe.enabledButDead(enabledInSettings, everConnected)
 }
 
