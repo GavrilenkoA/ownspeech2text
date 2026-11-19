@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Dashboard copy (DESIGN 6.2, 7). Numbers are formatted with the locale's NumberFormat before they are passed in,
+     so every count argument is %s. Prefix dash_ keeps the keys apart from other modules after resource merging. -->
+<resources>
+    <string name="dash_title">Dashboard</string>
+
+    <!-- Range chip (DESIGN 6.2): history covers 7 days, so these are the only two ranges. -->
+    <string name="dash_range_week">Last 7 days</string>
+    <string name="dash_range_today">Today</string>
+    <!-- TalkBack: %1$s = the current range -->
+    <string name="dash_range_cd">Range: %1$s</string>
+    <!-- TalkBack action: %1$s = the other range -->
+    <string name="dash_range_action">Show %1$s</string>
+
+    <!-- Today card -->
+    <string name="dash_today">Today</string>
+    <plurals name="dash_words_unit">
+        <item quantity="one">word</item>
+        <item quantity="other">words</item>
+    </plurals>
+    <!-- %1$s = whole minutes of speech today -->
+    <string name="dash_speaking">%1$s min of speaking.</string>
+    <string name="dash_speaking_short">Under a minute of speaking.</string>
+    <string name="dash_nothing_today">Nothing dictated yet today.</string>
+    <!-- Copy deck dash_time_saved. %1$s = typing speed, %2$s = minutes to type, %3$s = dash_min_saved (bold) -->
+    <string name="dash_time_saved">Typing this at %1$s wpm would take about %2$s min, so roughly %3$s.</string>
+    <string name="dash_min_saved">%1$s min saved</string>
+    <string name="dash_card_action">Change typing speed</string>
+
+    <!-- Last 7 days chart -->
+    <string name="dash_week_title">Last 7 days</string>
+    <plurals name="dash_words_count">
+        <item quantity="one">%1$s word</item>
+        <item quantity="other">%1$s words</item>
+    </plurals>
+    <!-- Chart description for TalkBack. %1$s = total, %2$s = the days, e.g. "Thursday 2,140, …, today 1,284" -->
+    <string name="dash_chart_cd">Words per day, %1$s in total: %2$s.</string>
+    <string name="dash_chart_today">today</string>
+    <!-- Monday first (java.time DayOfWeek order) -->
+    <string-array name="dash_days_short">
+        <item>Mo</item>
+        <item>Tu</item>
+        <item>We</item>
+        <item>Th</item>
+        <item>Fr</item>
+        <item>Sa</item>
+        <item>Su</item>
+    </string-array>
+    <string-array name="dash_days_full">
+        <item>Monday</item>
+        <item>Tuesday</item>
+        <item>Wednesday</item>
+        <item>Thursday</item>
+        <item>Friday</item>
+        <item>Saturday</item>
+        <item>Sunday</item>
+    </string-array>
+
+    <!-- How it's going -->
+    <string name="dash_metrics_title">How it\'s going</string>
+    <string name="dash_pace">Speaking pace</string>
+    <string name="dash_pace_unit">wpm</string>
+    <string name="dash_pace_sub_week">Median of 7 days, pauses excluded</string>
+    <string name="dash_pace_sub_today">Median of today, pauses excluded</string>
+    <string name="dash_ready">Ready after you stop</string>
+    <string name="dash_ready_unit">s</string>
+    <!-- %1$s = 90th percentile in seconds -->
+    <string name="dash_ready_sub">Median. 9 in 10 under %1$s s</string>
+    <string name="dash_typed">Typed into the app</string>
+    <string name="dash_percent_unit" formatted="false">%</string>
+    <plurals name="dash_copied_only">
+        <item quantity="one">%1$s copied only</item>
+        <item quantity="other">%1$s copied only</item>
+    </plurals>
+    <!-- %1$s = dash_copied_only, %2$s = app name -->
+    <string name="dash_copied_all_in">%1$s, all in %2$s</string>
+    <string name="dash_copied_one_in">%1$s, in %2$s</string>
+    <string name="dash_copied_most_in">%1$s, most in %2$s</string>
+    <!-- %1$s = dash_copied_only, %2$s = how many of them in the app, %3$s = app name -->
+    <string name="dash_copied_some_in">%1$s, %2$s in %3$s</string>
+    <string name="dash_copied_none">Every dictation went straight in</string>
+    <string name="dash_cleanup">Changed by cleanup</string>
+    <string name="dash_cleanup_unit" formatted="false">% of words</string>
+    <plurals name="dash_fillers">
+        <item quantity="one">%1$s filler word removed</item>
+        <item quantity="other">%1$s filler words removed</item>
+    </plurals>
+    <plurals name="dash_fixes">
+        <item quantity="one">%1$s fix</item>
+        <item quantity="other">%1$s fixes</item>
+    </plurals>
+    <!-- %1$s = dash_fillers, %2$s = dash_fixes -->
+    <string name="dash_cleanup_sub">%1$s, %2$s</string>
+    <string name="dash_cleanup_none">Nothing cleaned up yet</string>
+    <!-- Shown instead of a value that does not exist yet -->
+    <string name="dash_no_value">—</string>
+    <string name="dash_no_value_cd">No data yet</string>
+
+    <!-- Languages -->
+    <string name="dash_languages">Languages</string>
+    <string name="dash_lang_mixed">Mixed</string>
+    <string name="dash_lang_other">Other</string>
+    <!-- %1$s = language, %2$s = share in percent -->
+    <string name="dash_lang_item">%1$s %2$s%%</string>
+
+    <!-- Where you dictate -->
+    <string name="dash_apps">Where you dictate</string>
+    <string name="dash_apps_caption_week">words, 7 days</string>
+    <string name="dash_apps_caption_today">words, today</string>
+    <plurals name="dash_other_apps">
+        <item quantity="one">%1$s other app</item>
+        <item quantity="other">%1$s other apps</item>
+    </plurals>
+    <!-- %1$s = dash_other_apps, %2$s = dash_words_count -->
+    <string name="dash_other_apps_line">%1$s · %2$s</string>
+
+    <!-- Empty state (dash-empty) -->
+    <string name="dash_empty_body">Your numbers appear after the first dictation. They are counted on this phone and never sent anywhere.</string>
+    <string name="dash_try">Try a dictation</string>
+    <string name="dash_empty_metrics">What you\'ll see here</string>
+    <string name="dash_empty_pace">Words per minute while you talk</string>
+    <string name="dash_empty_ready">How long until the text appears</string>
+    <string name="dash_empty_typed">Inserted directly vs. copied only</string>
+
+    <!-- Error (stats DB unreadable) -->
+    <string name="dash_error_title">Couldn\'t read your stats.</string>
+    <string name="dash_error_body">History is not affected.</string>
+    <string name="dash_retry">Retry</string>
+
+    <!-- dash-off: %1$s = product name -->
+    <string name="dash_off_title">The bubble is off.</string>
+    <string name="dash_off_body">Android turned off %1$s\'s accessibility service, usually after an update or a crash. Turn it on again to dictate.</string>
+    <string name="dash_off_action">Open Accessibility settings</string>
+
+    <!-- Typing speed sheet (DESIGN 6.2: 30/40/50/60/custom) -->
+    <string name="dash_wpm_title">Your typing speed</string>
+    <string name="dash_wpm_body">Time saved compares speaking with typing the same words at this speed.</string>
+    <!-- %1$s = words per minute -->
+    <string name="dash_wpm_option">%1$s wpm</string>
+    <string name="dash_wpm_default">Default</string>
+    <string name="dash_wpm_custom">Custom</string>
+    <string name="dash_wpm_custom_label">Words per minute</string>
+    <!-- %1$s, %2$s = the allowed range -->
+    <string name="dash_wpm_custom_range">From %1$s to %2$s</string>
+    <string name="dash_wpm_save">Save</string>
+</resources>
