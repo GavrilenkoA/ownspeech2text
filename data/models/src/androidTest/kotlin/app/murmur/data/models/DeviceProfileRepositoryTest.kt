@@ -13,7 +13,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -21,7 +20,7 @@ import org.junit.runner.RunWith
 /**
  * DefaultDeviceProfileRepository on the x86_64 emulator: SoC, ABI and RAM from the platform, the cache file in
  * noBackupFilesDir per app version, CPU only when the probe fails. The inference processes are stand-ins (the real
- * binder hosts are WP-05's; the emulator profile is soc null, units {CPU}: ARCHITECTURE 8.4).
+ * binder hosts are WP-05's; the emulator profile is units {CPU}: ARCHITECTURE 8.4).
  */
 @RunWith(AndroidJUnit4::class)
 class DeviceProfileRepositoryTest {
@@ -44,7 +43,10 @@ class DeviceProfileRepositoryTest {
         val asr = Host(InferProcess.ASR)
         val repo = DefaultDeviceProfileRepository(context, asr, Host(InferProcess.LLM), appVersion = "test+1")
         val p = repo.ensure()
-        assertNull("emulator has no SoC model", p.soc)
+        // Build.SOC_MODEL is "ranchu" on the emulator (ARCHITECTURE 8.4 expected null): never an SM8750, so the QNN
+        // artifacts stay WRONG_SOC either way.
+        assertEquals(android.os.Build.SOC_MODEL, p.soc)
+        assertTrue(p.soc != "SM8750")
         assertEquals("x86_64", p.abi)
         assertTrue(p.totalRamMb > 1_000)
         assertEquals(setOf(ComputeUnit.CPU), p.availableUnits)

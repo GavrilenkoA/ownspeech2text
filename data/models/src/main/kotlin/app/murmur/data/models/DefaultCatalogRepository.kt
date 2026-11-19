@@ -9,6 +9,7 @@ import app.murmur.core.catalog.Origin
 import app.murmur.core.model.ModelId
 import app.murmur.data.db.CustomModelDao
 import app.murmur.data.db.CustomModelRow
+import app.murmur.data.db.MurmurDatabase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,6 +26,9 @@ interface CustomModelStore {
 }
 
 class RoomCustomModelStore(private val dao: CustomModelDao) : CustomModelStore {
+    /** From the app's database (callers need no Room types on their classpath). */
+    constructor(db: MurmurDatabase) : this(db.customModels())
+
     override val entries: Flow<List<String>> = dao.all().map { rows -> rows.map { it.json } }
     override suspend fun put(id: String, json: String, addedMs: Long) = dao.put(CustomModelRow(id, json, addedMs))
     override suspend fun delete(id: String) = dao.delete(id)
