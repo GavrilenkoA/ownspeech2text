@@ -48,7 +48,7 @@ class LlmOcrBenchmarkTest {
         val prompt = record.notes[BenchNotes.LLM_PROMPT_TOKENS]!!.toInt()
         val generated = record.notes[BenchNotes.LLM_GENERATED_TOKENS]!!.toInt()
         assertEquals(prompt * 1000.0, r.prefillTps, 1e-9)
-        assertEquals(generated * 1000.0 / 3.0, r.decodeTps, 1e-9)
+        assertEquals((generated - 1) * 1000.0 / 3.0, r.decodeTps, 1e-9) // decodeMs spans first -> last token
         assertEquals(1_500L, r.loadMsCold) // connect + load; the prefix prefill is not load time
         assertEquals("1", record.notes[BenchNotes.LLM_PREFIX_MS]) // PrefixInfo.prefillMs as reported by :llm
         assertEquals("false", record.notes[BenchNotes.LLM_PREFIX_RESTORED])

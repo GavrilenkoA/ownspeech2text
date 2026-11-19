@@ -244,11 +244,13 @@ class DefaultBenchmarkRunner(
         val session = guarded { engines.asr.startSession(AsrSessionOptions(language = hint, emitPartials = false)) }
         val pcm = clip.pcm16k
         val start = clock.elapsedMs()
-        var i = 0
-        while (i < pcm.size) {
-            val n = minOf(config.chunkSamples, pcm.size - i)
-            session.accept(PcmChunk(pcm.copyOfRange(i, i + n), i.toLong()))
-            i += n
+        guarded {
+            var i = 0
+            while (i < pcm.size) {
+                val n = minOf(config.chunkSamples, pcm.size - i)
+                session.accept(PcmChunk(pcm.copyOfRange(i, i + n), i.toLong()))
+                i += n
+            }
         }
         val stopAt = clock.elapsedMs()
         val finished = try {
@@ -285,9 +287,11 @@ class DefaultBenchmarkRunner(
         val unit = candidate.unit
         val traits = entry.llm ?: throw UnitFailure(MurmurError.Internal("bench.llm_traits"))
         val modelSha = spec.modelSha256 ?: throw UnitFailure(MurmurError.Internal("bench.model_sha"))
-        val pre = guard.precheck(case.transcript)
+        val pre = guarded { guard.precheck(case.transcript) }
         if (pre.skip) throw UnitFailure(MurmurError.Internal("bench.case_precheck:${pre.reason}"))
-        val rendered = renderer.render(RenderInput(assets.profile(traits.promptProfile), traits.template, case.context, pre.transcript))
+        val rendered = guarded {
+            renderer.render(RenderInput(assets.profile(traits.promptProfile), traits.template, case.context, pre.transcript))
+        }
         lateinit var cold: ColdLoad
         step(unit, BenchStep.LOAD) {
             cold = coldStart(host) { llm.load(spec.main) }
@@ -318,7 +322,7 @@ class DefaultBenchmarkRunner(
         }
         val memory = unloadAndMeasure(unit, host, cold.baseline) { llm.unload() }
         val stats = done.stats
-        val verdict = guard.guard(pre.transcript, done.text, case.context)
+        val verdict = guarded { guard.guard(pre.transcript, done.text, case.context) }
         val invalid = BenchValidity.llm(done.text, verdict.action == GuardAction.ACCEPT, stats.stopReason, expectCyrillic = true)
         notes.putAll(memory.notes)
         notes[BenchNotes.LOAD_ENGINE_MS] = cold.info.loadMs.toString()
@@ -328,7 +332,8 @@ class DefaultBenchmarkRunner(
         notes[BenchNotes.LLM_TG_TPS] = "%.1f".format(java.util.Locale.ROOT, synthetic.tgTps)
         notes[BenchNotes.LLM_GUARD_REASON] = verdict.reason
         return BenchmarkResultData.Llm(
-            decodeTps = perSecond(stats.generatedTokens, stats.decodeMs),
+            // LlmStats.decodeMs runs from the first token to the last (murmur_llm.h): n - 1 decode steps.
+            decodeTps = perSecond(stats.generatedTokens - 1, stats.decodeMs),
             prefillTps = perSecond(stats.promptTokens, stats.prefillMs),
             ttftMs = stats.ttftMs,
             e2eMs = stats.totalMs,
@@ -362,7 +367,7 @@ class DefaultBenchmarkRunner(
         return done ?: throw UnitFailure(MurmurError.LlmFailed("no_done"))
     }
 
-    private fun perSecond(count: Int, ms: Double): Double = if (ms > 0) count * 1000.0 / ms else 0.0
+    private fun perSecond(count: Int, ms: Double): Double = if (ms > 0 && count > 0) count * 1000.0 / ms else 0.0
 
     // ---------------------------------------------------------------------------------------------------- OCR
 

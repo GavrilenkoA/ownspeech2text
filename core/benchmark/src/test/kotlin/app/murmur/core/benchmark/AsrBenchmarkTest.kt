@@ -303,6 +303,24 @@ class AsrBenchmarkTest {
         val last = failedEverywhere.run(BenchRig.GIGAAM).last()
         assertEquals("engine.oom.asr", (last as BenchProgress.Failed).error.code)
     }
+    @Test
+    fun anEngineThatThrowsFailsTheUnitNotTheRun() = runTest {
+        val fake = engines(BenchRig.perfectScripts(BenchRig.GIGAAM))
+        val throwing = object : Engines by fake {
+            override val asr: AsrEngine = object : AsrEngine by fake.asr {
+                override suspend fun startSession(options: AsrSessionOptions): AsrSession = throw IllegalStateException("binder died")
+            }
+        }
+        val rig = BenchRig(this, throwing)
+        val events = rig.run(BenchRig.GIGAAM)
+        val failed = events.filterIsInstance<BenchProgress.UnitFailed>().single()
+        assertEquals("internal", failed.error.code)
+        assertEquals("bench.exception:IllegalStateException", failed.error.detail)
+        assertEquals(failed.error, (events.last() as BenchProgress.Failed).error)
+        assertNull(fake.asr.loaded)
+        assertEquals(HostState.Down, fake.asrHost.state.value)
+        assertFalse(rig.health.failed(failed.artifact, ComputeUnit.CPU)) // not a load failure: the unit stays usable
+    }
 }
 
 /** Records the order of host and engine calls (cold-start protocol test). */
