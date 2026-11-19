@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="bubble_listening">Слушаю</string>
+    <string name="bubble_hold">Отпустите, чтобы закончить</string>
+    <string name="bubble_transcribing">Распознаю</string>
+    <string name="bubble_polishing">Привожу в порядок</string>
+    <string name="bubble_inserted">Вставлено</string>
+    <string name="bubble_inserted_nocleanup">Вставлено без правки</string>
+    <string name="bubble_copied">Скопировано. Вставьте куда нужно</string>
+    <string name="bubble_err_nospeech">Не расслышал</string>
+    <string name="bubble_err_micbusy">Микрофон занят</string>
+    <string name="bubble_err_nomodel">Сначала скачайте модель речи</string>
+    <string name="bubble_err_load">Не удалось загрузить модель</string>
+    <string name="bubble_err_transcription">Не удалось распознать</string>
+    <string name="bubble_err_generic">Диктовка не удалась</string>
+    <string name="bubble_action_retry">Повторить</string>
+    <string name="bubble_action_open">Открыть</string>
+    <string name="bubble_action_undo">Отменить</string>
+    <string name="bubble_hide_target">Перетащите сюда, чтобы скрыть на час</string>
+    <string name="bubble_hidden_snack">Кнопка скрыта до %1$s</string>
+
+    <string name="bubble_rest_cd">%1$s. Нажмите дважды, чтобы показать кнопку диктовки</string>
+    <string name="bubble_ready_cd">Начать диктовку. Нажмите дважды, чтобы говорить, и ещё раз дважды, чтобы закончить</string>
+    <string name="bubble_finish_cd">Закончить диктовку</string>
+    <string name="bubble_cancel_cd">Отменить и не сохранять</string>
+    <string name="bubble_hold_live">Слушаю. Отпустите, чтобы закончить</string>
+    <string name="bubble_copied_live">Скопировано в буфер обмена</string>
+    <string name="bubble_drag_cd">Перетаскивание. Отпустите внизу, чтобы скрыть</string>
+    <string name="bubble_hide_action">Скрыть на час</string>
+</resources>

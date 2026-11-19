@@ -14,7 +14,11 @@ sealed interface BubbleVisual {
     data class Dragging(val overHideTarget: Boolean) : BubbleVisual
 }
 
-/** DESIGN 5.2 visibility inputs (computed by :platform:a11y from focus events and settings). */
+/**
+ * DESIGN 5.2 visibility inputs (computed by :platform:a11y from focus events and settings), plus the geometry the
+ * placement of DESIGN 5.4 needs. Geometry is in screen pixels of the display the input is for; null = unknown (the
+ * bubble then keeps its stored or current position).
+ */
 data class VisibilityInput(
     val editableFocused: Boolean,
     val bubbleAllowedForField: Boolean,   // FieldKinds.bubbleAllowed (no password/number/phone)
@@ -25,7 +29,19 @@ data class VisibilityInput(
     val idleSinceMs: Long?,               // Ready without interaction since
     val tuckIn: Boolean,
     val talkBackOn: Boolean,              // DESIGN 8: no tuck-in under TalkBack
-)
+    /** Top of the focused field's getBoundsInScreen (px). */
+    val fieldTop: Int? = null,
+    /** Top of the TYPE_INPUT_METHOD window from the accessibility window list (px); null = no keyboard shown. */
+    val imeTop: Int? = null,
+) {
+    companion object {
+        /** Before the service has published anything: nothing focused, nothing hidden. */
+        fun nothingFocused(nowMs: Long) = VisibilityInput(
+            editableFocused = false, bubbleAllowedForField = true, appHidden = false, hiddenUntilMs = null, nowMs = nowMs,
+            showAlways = false, idleSinceMs = null, tuckIn = true, talkBackOn = false,
+        )
+    }
+}
 
 object BubblePolicy {
     const val TUCK_AFTER_MS = 4_000L
@@ -42,5 +58,16 @@ object BubblePolicy {
         if (!v.editableFocused && v.showAlways) return BubbleVisual.Rest
         val idle = v.idleSinceMs
         return if (v.tuckIn && !v.talkBackOn && idle != null && v.nowMs - idle >= TUCK_AFTER_MS) BubbleVisual.Rest else BubbleVisual.Ready
+    }
+
+    /**
+     * The next instant at which [merge] can change without a new event: the end of the tuck-in wait while Ready, or
+     * the end of "hide for 1 hour" while hidden by it. Null = nothing pending.
+     */
+    fun nextDeadline(dictation: DictationBubble, v: VisibilityInput): Long? {
+        if (dictation !is DictationBubble.Idle) return null
+        v.hiddenUntilMs?.takeIf { it > v.nowMs }?.let { return it }
+        if (merge(dictation, v, dragging = false, overHideTarget = false) != BubbleVisual.Ready) return null
+        return v.idleSinceMs?.let { it + TUCK_AFTER_MS }?.takeIf { it > v.nowMs && v.tuckIn && !v.talkBackOn }
     }
 }
