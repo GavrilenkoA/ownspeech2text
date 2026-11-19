@@ -8,8 +8,10 @@ import app.murmur.core.dictation.DictationState
 import app.murmur.core.engine.HostState
 import app.murmur.core.model.ComputeUnit
 import app.murmur.core.model.InferProcess
+import app.murmur.core.model.MurmurError
 import app.murmur.core.store.EntryStatus
 import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -18,9 +20,10 @@ import org.junit.runner.RunWith
 /**
  * :asr killed while it is still loading the model (events suites; its own instrumentation run, so :asr starts cold).
  * ADR-066 / ADR-083: a death during a load is that load's error (a unit failure unless lmkd reported low memory) and the
- * fallback is tried; with no other ASR installed the dictation fails with the recording kept. Whatever the outcome, the
- * dictation must not hang: it ends after the stop tap with a history row that holds the recording, and the next
- * dictation ends too. The unit marks the death leaves are reported, then cleared. On the fakes the load takes 5 s
+ * fallback is tried; with no other ASR installed the dictation fails with the recording kept and the ASR unit stays
+ * marked failed (until the next app version: every later dictation then fails with model.asr_missing, which is why the
+ * test clears the marks afterwards). Whatever the outcome, the dictation must not hang: it ends after the stop tap
+ * with a history row that holds the recording, and the next dictation ends too. On the fakes the load takes 5 s
  * (FakeAsrEngine.loadDelayMs); on the real engines GigaAM's own load (3-7 s on the emulator) is the window.
  */
 @RunWith(AndroidJUnit4::class)
@@ -60,13 +63,24 @@ class AsrLoadDeathE2eTest : DictationTest() {
                 is DictationOutcome.Inserted -> assertEntry(EntryStatus.INSERTED)
                 else -> throw AssertionError("a death during the load ends Failed (recording kept) or Inserted after a fallback, not ${done.outcome}")
             }
-            E2e.report("asr_load_death.failed_units", failedUnits().joinToString(" ").ifEmpty { "none" })
+            val failed = failedUnits()
+            E2e.report("asr_load_death.failed_units", failed.joinToString(" ").ifEmpty { "none" })
+            if (fakes == null) {
+                // The real engines, one ASR installed: the load fails with the death, the unit is marked (ADR-066: a
+                // process death during the load is a unit failure; SIGKILL is not lmkd's REASON_LOW_MEMORY, ADR-083), and
+                // with no other candidate the dictation fails with the recording kept. (The fakes keep loading through a
+                // host crash, so there the dictation ends Inserted.)
+                assertEquals(MurmurError.ProcessDied(InferProcess.ASR).code, (done.outcome as? DictationOutcome.Failed)?.error?.code)
+                assertTrue("the ASR unit is marked failed: $failed", failed.any { it.startsWith(Pipeline.ASR_MODEL) })
+            }
         } finally {
             fakes?.asr?.loadDelayMs = 0
             clearFailedUnits()
         }
         // The app after the death, with the unit marks cleared: the next dictation must end as well (no hang in Arming).
-        E2e.waitUntil("orchestrator back to Idle", 30_000, pollMs = 100) { rec.state is DictationState.Idle }
+        // The Error pill stays 6 s x debugTimeoutScale before the orchestrator is Idle again.
+        val scale = E2e.container.settings.settings.value.debugTimeoutScale.coerceAtLeast(1f)
+        E2e.waitUntil("orchestrator back to Idle", (15_000 * scale).toLong(), pollMs = 100) { rec.state is DictationState.Idle }
         rec.states.clear()
         historyBefore = Pipeline.historyCount()
         Bubble.tapToStart()
