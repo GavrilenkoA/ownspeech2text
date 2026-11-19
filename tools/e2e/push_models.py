@@ -27,6 +27,9 @@ def run(*cmd: str, check: bool = True) -> str:
 
 
 def models_cache() -> pathlib.Path:
+    """The shared cache of tools/models/fetch: $MURMUR_MODELS, else <main checkout>/.cache/models."""
+    if os.environ.get("MURMUR_MODELS"):
+        return pathlib.Path(os.environ["MURMUR_MODELS"])
     common = run("git", "-C", str(ROOT), "rev-parse", "--path-format=absolute", "--git-common-dir").strip()
     return pathlib.Path(common).parent / ".cache" / "models"
 
