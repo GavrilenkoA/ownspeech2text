@@ -26,6 +26,8 @@ import app.murmur.core.model.MurmurError
 import app.murmur.core.model.SystemMurmurClock
 import app.murmur.core.prompt.ClasspathPromptAssets
 import app.murmur.core.prompt.GuardPyPort
+import app.murmur.core.prompt.OutputGuard
+import app.murmur.core.prompt.PromptRenderer
 import app.murmur.core.prompt.RenderPyPort
 import app.murmur.core.store.AudioStore
 import app.murmur.core.store.BenchmarkRepository
@@ -125,8 +127,8 @@ class AppContainer(private val context: Context) {
 
     // --- prompt (WP-04)
     val prompts by lazy { ClasspathPromptAssets() }
-    val renderer by lazy { RenderPyPort(prompts) }
-    val guard by lazy { GuardPyPort() }
+    val renderer: PromptRenderer by lazy { replacements.renderer ?: RenderPyPort(prompts) }
+    val guard: OutputGuard by lazy { replacements.guard ?: GuardPyPort() }
 
     // --- platform ports implemented here (WP-15)
     val permissions: AndroidPermissionMonitor by lazy { AndroidPermissionMonitor(context, serviceConnected, appScope) }

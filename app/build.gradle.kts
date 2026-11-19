@@ -27,7 +27,8 @@ android {
         targetSdk = libs.versions.targetSdk.get().toInt()
         versionCode = 1
         versionName = "0.1.0"
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // MurmurTestRunner = AndroidJUnitRunner + "-e murmurFake seeded|fresh|off" (debug fake container, WP-15 shell tests).
+        testInstrumentationRunner = "app.murmur.shell.MurmurTestRunner"
         // D10: the product name lives in gradle.properties only.
         resValue("string", "app_name", productName)
         manifestPlaceholders["productName"] = productName
@@ -99,7 +100,8 @@ dependencies {
     implementation(project(":feature:models"))
     implementation(project(":feature:settings"))
     implementation(project(":feature:onboarding"))
-    // D6: debug builds can run the whole pipeline on deterministic fakes (DebugEngines in src/debug).
+    // D6: debug builds can run the whole pipeline on deterministic fakes, and the debug fake container swaps the data
+    // side for screenshot and shell tests (DebugWiring in src/debug). :testing never reaches the release APK.
     debugImplementation(project(":testing"))
 
     implementation(libs.androidx.core.ktx)

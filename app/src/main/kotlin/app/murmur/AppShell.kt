@@ -71,7 +71,7 @@ import kotlinx.serialization.Serializable
 @Serializable data class HistoryEntryRoute(val id: Long) : NavKey
 @Serializable data class ModelDetailRoute(val id: String) : NavKey
 
-data class Tab(val route: TopRoute, val label: Int, val testTag: String)
+data class Tab(val route: TopRoute, val label: Int)
 
 /** The four tab screens' dependencies, built by AppContainer (ADR-010). */
 class ShellDeps(
@@ -82,10 +82,10 @@ class ShellDeps(
 )
 
 val TABS = listOf(
-    Tab(DashboardRoute, R.string.tab_dashboard, "tab-dashboard"),
-    Tab(HistoryRoute, R.string.tab_history, "tab-history"),
-    Tab(ModelsRoute, R.string.tab_models, "tab-models"),
-    Tab(SettingsRoute, R.string.tab_settings, "tab-settings"),
+    Tab(DashboardRoute, R.string.tab_dashboard),
+    Tab(HistoryRoute, R.string.tab_history),
+    Tab(ModelsRoute, R.string.tab_models),
+    Tab(SettingsRoute, R.string.tab_settings),
 )
 
 private val TAB_ICONS = mapOf(
@@ -151,23 +151,23 @@ fun AppShell(deps: ShellDeps, links: StateFlow<DeepLink?>, onLinkHandled: () -> 
                 }
                 entry<HistoryRoute>(
                     metadata = ListDetailSceneStrategy.listPane(detailPlaceholder = { EmptyDetail() }) +
-                        ListDetailSceneStrategy.preferredPaneSize(Layout.historyListPane, 0.dp),
+                        ListDetailSceneStrategy.preferredPaneSize(Layout.historyListPane),
                 ) {
                     ListPane { HistoryScreen(deps.history, onOpenEntry = { replace(ShellNav.openEntry(it)) }, selected = if (wide) selectedEntry else null) }
                 }
                 entry<HistoryEntryRoute>(metadata = ListDetailSceneStrategy.detailPane() + mapOf(DETAIL to true)) { r ->
-                    DetailPane("detail-entry-${r.id}") {
+                    DetailPane("detail-entry-${r.id}", wide) {
                         HistoryEntryDetail(deps.history, EntryId(r.id), onBack = if (wide) null else { { replace(ShellNav.back(backStack.toList()) ?: listOf(HistoryRoute)) } })
                     }
                 }
                 entry<ModelsRoute>(
                     metadata = ListDetailSceneStrategy.listPane(detailPlaceholder = { EmptyDetail() }) +
-                        ListDetailSceneStrategy.preferredPaneSize(Layout.modelsListPane, 0.dp),
+                        ListDetailSceneStrategy.preferredPaneSize(Layout.modelsListPane),
                 ) {
                     ListPane { ModelsScreen(deps.models, onOpenModel = { replace(ShellNav.openModel(it.value)) }, selected = if (wide) selectedModel else null) }
                 }
                 entry<ModelDetailRoute>(metadata = ListDetailSceneStrategy.detailPane() + mapOf(DETAIL to true)) { r ->
-                    DetailPane("detail-model-${r.id}") {
+                    DetailPane("detail-model-${r.id}", wide) {
                         ModelDetail(deps.models, ModelId(r.id), onBack = if (wide) null else { { replace(ShellNav.back(backStack.toList()) ?: listOf(ModelsRoute)) } })
                     }
                 }
@@ -204,11 +204,15 @@ private fun ListPane(content: @Composable () -> Unit) {
     Box(Modifier.fillMaxSize().background(c.bg)) { content() }
 }
 
-/** The detail pane: surface (prototype: background var(--surface)); on the inner display separated by a 1 dp line. */
+/**
+ * The detail destination. Inner display: the right pane on surface, a 1 dp line from the list (prototype: background
+ * var(--surface), border-right of the list). Cover display: a pushed screen on bg like every other screen.
+ */
 @Composable
-private fun DetailPane(tag: String, content: @Composable () -> Unit) {
+private fun DetailPane(tag: String, wide: Boolean, content: @Composable () -> Unit) {
     val c = MurmurTheme.colors
-    Box(Modifier.fillMaxSize().background(c.surface).leftLine(c.line).testTag(tag)) { content() }
+    val pane = if (wide) Modifier.background(c.surface).leftLine(c.line) else Modifier.background(c.bg)
+    Box(Modifier.fillMaxSize().then(pane).testTag(tag)) { content() }
 }
 
 /** Nothing selected on the inner display: the detail pane stays an empty surface (no frame defines a placeholder). */

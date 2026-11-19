@@ -18,7 +18,7 @@ class ShellTest {
     fun fourTabsInBriefOrderWithHistoryStart() {
         assertEquals(listOf(DashboardRoute, HistoryRoute, ModelsRoute, SettingsRoute), TABS.map { it.route })
         assertEquals("History is the start destination (DESIGN decision 4)", HistoryRoute, ShellNav.tabOf(emptyList()))
-        assertEquals(listOf("tab-dashboard", "tab-history", "tab-models", "tab-settings"), TABS.map { it.testTag })
+        assertEquals(listOf(R.string.tab_dashboard, R.string.tab_history, R.string.tab_models, R.string.tab_settings), TABS.map { it.label })
         assertEquals(listOf(0, 1, 2, 3), ShellNav.tabRoots.map(ShellNav::indexOf))
     }
 

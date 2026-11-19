@@ -606,11 +606,13 @@ private fun Ready(
                 modifier = Modifier.align(Alignment.TopEnd).offset(x = if (bubble == DictationBubble.Idle) 8.dp else 6.dp, y = if (bubble == DictationBubble.Idle) 82.dp else 84.dp),
             )
         }
-        if (result != null) {
+        // Shown once the bubble is back to its circle (an Inserted pill would sit on it); it keeps clear of the
+        // bubble's column (the field's 56 dp end padding) so that long model names wrap instead of running under it.
+        if (result != null && bubble == DictationBubble.Idle) {
             val models = result.llm?.let { stringResource(R.string.ob_ready_models, result.asr, it) } ?: result.asr
             val secs = java.text.NumberFormat.getNumberInstance(locale()).apply { maximumFractionDigits = 1; minimumFractionDigits = 1 }.format(result.seconds)
             Row(
-                Modifier.padding(top = 8.dp).testTag("practice-result"),
+                Modifier.padding(top = 8.dp, end = 56.dp).testTag("practice-result"),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 Icon(MurmurIcons.check, null, tint = c.ink3, modifier = Modifier.size(14.dp))

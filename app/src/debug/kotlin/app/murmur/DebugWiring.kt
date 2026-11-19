@@ -24,6 +24,8 @@ import app.murmur.testing.FakeDeviceProfileRepository
 import app.murmur.testing.FakeAudioCapture
 import app.murmur.testing.FakeEngines
 import app.murmur.testing.FakeModelResolver
+import app.murmur.testing.FakePromptRenderer
+import app.murmur.testing.PassThroughGuard
 import app.murmur.testing.FakeUnitHealth
 import app.murmur.testing.FixedMemoryGate
 import app.murmur.testing.InMemoryAudioStore
@@ -65,6 +67,8 @@ class DebugWiring(private val context: Context, private val scope: CoroutineScop
             engines = if (engines) FakeEngines() else null,
             data = data,
             benchmarkRunner = { repo, _ -> FakeBenchmarkRunner(repo = repo) },
+            renderer = if (engines) FakePromptRenderer() else null,
+            guard = if (engines) PassThroughGuard() else null,
         )
     }
 
@@ -82,7 +86,8 @@ class DebugWiring(private val context: Context, private val scope: CoroutineScop
         val audioStore = InMemoryAudioStore()
         val benchmarks = InMemoryBenchmarkRepository()
         val unitHealth = FakeUnitHealth()
-        val downloads = Wp15StagedDownloads(catalog = { catalog.catalog.value }, scope = scope)
+        // 200 ms steps: a pack takes about 15 s, long enough to watch (and screenshot) every install state.
+        val downloads = Wp15StagedDownloads(catalog = { catalog.catalog.value }, scope = scope, stepMs = 200)
         if (mode == SEEDED) runBlocking { seed(history, metrics, downloads, catalog, profile, settings.settings.value) }
         return FakeData(
             settings = settings, history = history, metrics = metrics, benchmarks = benchmarks, audioStore = audioStore,

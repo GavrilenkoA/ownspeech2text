@@ -12,6 +12,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.launch
@@ -34,16 +36,21 @@ class StatusNotificationController(
 
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     fun start(scope: CoroutineScope): Job = scope.launch {
-        // The models line follows the settings (model choice) and the install states (a download finishing).
+        // The models line follows the settings (model choice) and the install states (a download finishing). It is
+        // computed only while the notification is due: resolving reads the device profile, whose first probe binds
+        // the inference processes, which must not happen just because the app started.
         val models: Flow<String> = combine(settings.settings, installed.states, catalog.catalog) { s, _, _ -> s }
             .mapLatest { s -> modelsLine(s) }
             .distinctUntilChanged()
         combine(
-            serviceConnected,
+            serviceConnected.distinctUntilChanged(),
             permissions.state.map { it.notificationsGranted }.distinctUntilChanged(),
             settings.settings.map { it.hiddenUntilEpochMs }.distinctUntilChanged(),
-            models,
-        ) { connected, allowed, hidden, line -> decide(connected, allowed, line, hidden) }
+        ) { connected, allowed, hidden -> Triple(connected, allowed, hidden) }
+            .flatMapLatest { (connected, allowed, hidden) ->
+                if (decide(connected, allowed, "", hidden) == null) flowOf(null)
+                else models.map { line -> decide(connected, allowed, line, hidden) }
+            }
             .distinctUntilChanged()
             .collect { shown -> if (shown == null) notifier.hide() else notifier.show(shown.modelsLine, shown.hiddenUntilEpochMs) }
     }
