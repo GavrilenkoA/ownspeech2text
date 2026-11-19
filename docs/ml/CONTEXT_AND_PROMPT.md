@@ -6,7 +6,7 @@
 > Struck below: tree-first screen text (§0.1, §2.1 extraction, §2.3), the compact ranked block with conversation
 > authors and a ranked term list (§0.3, §0.4, §4.4, §4.5), the v1 ContextPacket (§6) and the v1 user-message layout
 > (§7.4). Current spec: `prompts/context.schema.v2.json`, `prompts/render.py` `render_context_v2` (measured choices in
-> `docs/ml/PROMPT_EVAL.md`), prompt `prompts/system/default.v4.md`. OCR model choice (§3), privacy (§5), tone and
+> `docs/ml/PROMPT_EVAL.md`), shipped stock prompt `prompts/profiles/default.v1.json` (PROMPT_EVAL.md §0). OCR model choice (§3), privacy (§5), tone and
 > preferences (§7.5), decoding (§7.6) and the guard (§7.7 → `prompts/guard.py`) still apply.
 
 Owner of this doc: ML post-processing. Date: 2026-11-18. Status: design; nothing here was validated on a Fold7 (no device attached).
@@ -187,10 +187,10 @@ Drop order when over budget (implemented in `render.py`): other screen snippets 
 
 > **ctx v2 (2026-11-19, binding for app, training data and eval; `prompts/render.py NO_SCREEN_LEVEL`,
 > `prompts/context.schema.v2.json`):** without a screen the phone sends `privacy.reason` and the level fixed for it —
-> `secure_window`, `denylisted_app`, `password_field` → `app_only` (app, field kind and hint; no text before the
-> cursor, no screen); `screenshot_error`, `ocr_empty` → `full` (text before the cursor kept); `user_setting` →
-> `app_only` or `none` as the user chose. `terms_only` no longer exists (no tree terms in v2); the password row's
-> "do not run the LLM" still holds in the app. The "Action" column below is v1 history where it differs.
+> `secure_window`, `denylisted_app` → `app_only` (app, field kind and hint; no text before the cursor, no screen);
+> `screenshot_error`, `ocr_empty` → `full` (text before the cursor kept); `password_field` → `none` and the LLM is
+> not run (ADR-070 `skipLlm`), so no eval or training example carries it; `user_setting` → `app_only`.
+> `terms_only` no longer exists (no tree terms in v2). The "Action" column below is v1 history where it differs.
 
 | Situation | Detection | Action (`privacy.level`) |
 |---|---|---|

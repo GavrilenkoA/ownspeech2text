@@ -7,9 +7,9 @@ n_predict rule as run_eval.py) and reports prefill tokens / ms, generation tok/s
 host llama-server run stored in .cache/ml/prompt/runs/<m>.<profile>.<set>.jsonl (greedy parity).
 
   # host (any x86_64 build), through tools/heavy:
-  tools/heavy python3 prompts/eval/device_prompt_bench.py --local --m q08 --profiles default.v4,default.v4s --n 6
+  tools/heavy python3 prompts/eval/device_prompt_bench.py --local --m q08 --profiles default.v1,default.v4 --n 6
   # phone: after tools/device/llm_npu_smoke.sh pushed the arm64 build + GGUFs to /data/local/tmp/murmur-llm
-  python3 prompts/eval/device_prompt_bench.py --m lfm3 --profiles default.v4,default.v4s --n 12 --threads 6
+  python3 prompts/eval/device_prompt_bench.py --m lfm3 --profiles default.v1,default.v4 --n 12 --threads 6
 
 Output: a markdown table on stdout and .cache/device-reports/prompt_bench-<ts>/{report.json,outputs.jsonl}.
 """
@@ -78,7 +78,7 @@ def timings(err: str) -> dict:
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--m", required=True, help="model key in prompts/eval/models.json")
-    ap.add_argument("--profiles", default="default.v4,default.v4s")
+    ap.add_argument("--profiles", default="default.v1,default.v4")
     ap.add_argument("--set", default="dev.v2")
     ap.add_argument("--n", type=int, default=6, help="cases per profile (first N of the set)")
     ap.add_argument("--threads", type=int, default=6)
