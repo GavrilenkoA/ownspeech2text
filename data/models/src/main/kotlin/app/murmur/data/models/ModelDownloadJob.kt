@@ -20,12 +20,14 @@ import app.murmur.core.store.InstallState
 import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /** Implemented by the Application (AppContainer): how the system-created job finds the process's [ModelDownloads]. */
@@ -40,7 +42,10 @@ interface ModelJobHost {
  * rescheduling. Progress lives on disk (.part lengths), so the job resumes after process death.
  */
 class ModelDownloadJob : JobService() {
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    /** Nothing a job does may take :main down (dictation and the accessibility service live there). */
+    private val scope = CoroutineScope(
+        SupervisorJob() + Dispatchers.IO + CoroutineExceptionHandler { _, e -> Log.e(TAG, "job_uncaught err=${e.javaClass.simpleName}") },
+    )
     private val workers = ConcurrentHashMap<Int, Job>()
 
     override fun onStartJob(params: JobParameters): Boolean {
@@ -57,22 +62,32 @@ class ModelDownloadJob : JobService() {
         }
         workers[params.jobId] = scope.launch {
             val follower = launch {
-                downloads.states.transitions.filter { it.first == id }.collect { (_, s) -> notes.update(s) }
+                downloads.states.transitions.filter { it.first == id }.collect { (_, s) -> quietly("notify") { notes.update(s) } }
             }
+            var reschedule = false
             try {
-                val r = downloads.runJob(id, wifiOnly) { bytes ->
-                    if (params.isUserInitiatedJob) updateTransferredNetworkBytes(params, bytes, 0)
+                val r = try {
+                    downloads.runJob(id, wifiOnly) { bytes ->
+                        if (params.isUserInitiatedJob) quietly("transferred") { updateTransferredNetworkBytes(params, bytes, 0) }
+                    }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    // runJob maps its failures itself; this only guards the process.
+                    Log.e(TAG, "job_exception artifact=${id.value} err=${e.javaClass.simpleName}")
+                    Outcome.Err(MurmurError.Internal("job: ${e.javaClass.simpleName}"))
                 }
-                follower.cancel()
-                val reschedule = r is Outcome.Err && wantsRetry(r.error)
+                reschedule = r is Outcome.Err && wantsRetry(r.error)
                 if (r is Outcome.Err && reschedule && r.error !is MurmurError.NoNetwork) downloads.onStopped(id, StopKind.SYSTEM, wifiOnly)
-                notes.finish(downloads.states.get(id), willRetry = reschedule)
+                quietly("finish") { notes.finish(downloads.states.get(id), willRetry = reschedule) }
                 Log.i(TAG, "job_end artifact=${id.value} ok=${r is Outcome.Ok} code=${(r as? Outcome.Err)?.error?.code} reschedule=$reschedule")
-                workers.remove(params.jobId)
-                jobFinished(params, reschedule)
-            } catch (e: CancellationException) {
+            } finally {
                 follower.cancel()
-                throw e
+                // Cancelled = onStopJob ran (stop, pause, delete): the system already knows. Otherwise always report.
+                if (isActive) {
+                    workers.remove(params.jobId)
+                    jobFinished(params, reschedule)
+                }
             }
         }
         return true
@@ -91,14 +106,26 @@ class ModelDownloadJob : JobService() {
         return kind != StopKind.USER
     }
 
+    private inline fun quietly(what: String, block: () -> Unit) {
+        try {
+            block()
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            Log.w(TAG, "job_side_effect_failed what=$what err=${e.javaClass.simpleName}")
+        }
+    }
+
     override fun onDestroy() {
         scope.cancel()
         super.onDestroy()
     }
 
-    /** Network loss and server errors are retried by JobScheduler (backoff); integrity and storage need the user. */
+    /**
+     * Network loss, server errors and a catalog that did not load in time are retried by JobScheduler (backoff);
+     * integrity and storage need the user.
+     */
     private fun wantsRetry(e: MurmurError) = when (e) {
-        MurmurError.NoNetwork -> true
+        MurmurError.NoNetwork, is MurmurError.Timeout -> true
         is MurmurError.DownloadFailed -> e.httpStatus.let { it != null && (it >= 500 || it == 408 || it == 429) }
         else -> false
     }

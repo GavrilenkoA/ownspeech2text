@@ -140,6 +140,33 @@ class DefaultModelResolverTest {
     }
 
     @Test
+    fun aSelectedCustomModelIsUsedOnTheFirstResolveAfterAColdStart() = runBlocking {
+        // The custom entry arrives with the store's first read, after the resolver was asked.
+        val bundled = CatalogParser.bundled()
+        val base = bundled.model(ModelId("parakeet-tdt-0.6b-v3"))!!
+        val cpuArtifact = base.artifacts.first { it.id == pCpu }
+        val custom = base.copy(
+            id = ModelId("custom-parakeet"), origin = app.murmur.core.catalog.Origin.CUSTOM,
+            artifacts = listOf(cpuArtifact.copy(id = ArtifactId("custom-parakeet@onnx-int8"))),
+        )
+        val late = object : app.murmur.core.catalog.CatalogRepository {
+            private val flow = MutableStateFlow(bundled)
+            override val catalog: StateFlow<app.murmur.core.catalog.Catalog> = flow
+            override suspend fun loaded(): app.murmur.core.catalog.Catalog {
+                kotlinx.coroutines.delay(200)
+                flow.value = bundled.copy(models = bundled.models + custom)
+                return flow.value
+            }
+            override suspend fun addCustom(entry: app.murmur.core.catalog.ModelEntry) = Unit
+            override suspend fun removeCustom(id: ModelId) = Unit
+        }
+        val installed = Installed(everything + custom.artifacts.single().id)
+        val m = ok(DefaultModelResolver(late, installed, FakeDeviceProfileRepository(FakeDeviceProfileRepository.FOLD7), health, bench)
+            .resolve(Settings(asrModel = custom.id)))
+        assertEquals(custom.id to custom.artifacts.single().id, m.asr.modelId to m.asr.artifactId)
+    }
+
+    @Test
     fun batchAsrWithoutVadIsNoVadModel() = runBlocking {
         val r = resolver(Installed(listOf(pNpu, pCpu, det, rec, lfm))).resolve(Settings())
         assertEquals(Outcome.Err(MurmurError.NoVadModel), r)

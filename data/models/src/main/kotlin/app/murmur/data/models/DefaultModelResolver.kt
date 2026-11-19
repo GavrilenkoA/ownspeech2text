@@ -37,6 +37,7 @@ import app.murmur.core.store.Settings
 import java.io.File
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Settings + catalog + install state + device profile + unit health + valid benchmarks -> LoadSpecs
@@ -60,7 +61,8 @@ class DefaultModelResolver(
     }
 
     private suspend fun resolveOrErr(settings: Settings): Outcome<ActiveModels> {
-        val c = catalog.catalog.value
+        // A custom model selected by the user exists only once the stored entries are read (first resolve after start).
+        val c = withTimeoutOrNull(CATALOG_WAIT_MS) { catalog.loaded() } ?: catalog.catalog.value
         val dev = device.ensure()
 
         // Speech model: the user's choice when it may be the speech model (ADR-047), else the language default.
@@ -161,6 +163,8 @@ class DefaultModelResolver(
         const val LLM_NONE = "none"
         const val LLM_NO_MODEL = "no_model"
         const val LLM_THREADS = 4
+        /** Upper bound on waiting for the stored custom entries (Room's first read takes milliseconds). */
+        const val CATALOG_WAIT_MS = 2_000L
 
         /** Settings.languages -> catalog defaults.asr key. */
         fun languageProfile(languages: List<String>): String {

@@ -10,13 +10,15 @@ import app.murmur.core.model.ModelId
 import app.murmur.data.db.CustomModelDao
 import app.murmur.data.db.CustomModelRow
 import app.murmur.data.db.MurmurDatabase
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
 /** Stored custom entries as JSON (Room `custom_model`, WP-12's DAO; in-memory in tests). */
 interface CustomModelStore {
@@ -38,7 +40,8 @@ class RoomCustomModelStore(private val dao: CustomModelDao) : CustomModelStore {
  * The effective catalog = bundled + the user's custom entries (ARCHITECTURE 8.6, 8.7). A stored entry that no
  * longer parses or validates, or that collides with a bundled id, is left out (it never breaks the catalog).
  * [addCustom] upserts (WP-11 stores the entry again after Preparing measured its prefix,
- * GgufTemplates.withMeasuredPrefix).
+ * GgufTemplates.withMeasuredPrefix). [catalog] starts as the bundled catalog; [loaded] waits for the store's first
+ * read, so a job restarted after process death, or the first resolve, sees the custom entries.
  */
 class DefaultCatalogRepository(
     private val bundled: Catalog = CatalogParser.bundled(),
@@ -46,9 +49,28 @@ class DefaultCatalogRepository(
     scope: CoroutineScope,
     private val now: () -> Long = System::currentTimeMillis,
 ) : CatalogRepository {
-    override val catalog: StateFlow<Catalog> = store.entries
-        .map { rows -> merge(bundled, rows.mapNotNull(::decode)) }
-        .stateIn(scope, SharingStarted.Eagerly, bundled)
+    private val _catalog = MutableStateFlow(bundled)
+    override val catalog: StateFlow<Catalog> = _catalog.asStateFlow()
+
+    /** Completed by the store's first emission (or its failure): from then on [catalog] holds the custom entries. */
+    private val firstLoad = CompletableDeferred<Unit>()
+
+    init {
+        scope.launch {
+            store.entries
+                .map { rows -> merge(bundled, rows.mapNotNull(::decode)) }
+                .catch { firstLoad.complete(Unit) }   // an unreadable store leaves the bundled catalog
+                .collect { c ->
+                    _catalog.value = c
+                    firstLoad.complete(Unit)
+                }
+        }
+    }
+
+    override suspend fun loaded(): Catalog {
+        firstLoad.await()
+        return _catalog.value
+    }
 
     /** Throws IllegalArgumentException for an entry that is not a valid custom entry (resolver output always is). */
     override suspend fun addCustom(entry: ModelEntry) {

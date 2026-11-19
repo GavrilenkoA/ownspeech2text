@@ -7,6 +7,8 @@ import app.murmur.core.model.ArtifactId
 import app.murmur.core.model.MurmurError
 import app.murmur.core.model.Outcome
 import app.murmur.core.store.InstallState
+import java.io.IOException
+import kotlinx.coroutines.CancellationException
 
 /**
  * Everything one download job does for one artifact (ARCHITECTURE 8.5), without Android types so that it runs in JVM
@@ -16,8 +18,11 @@ import app.murmur.core.store.InstallState
  * says it stopped: finished files are kept, parts resume, an extracted archive is not fetched again, an installed
  * but unprepared artifact is only prepared.
  *
- * Errors set the state themselves: LowStorage / NoNetwork -> Paused (the job retries), anything else -> Failed.
- * Cancellation (pause, onStopJob) propagates; the caller sets the paused state.
+ * Errors set the state themselves and are results, never exceptions (the job runs in :main, next to dictation):
+ * NoNetwork -> Paused (the job retries); out of space (ENOSPC, or a disk error while free space is under the
+ * pre-check rule) -> Paused(LowStorage); any other disk error (installed.json, the stamp, a rename) ->
+ * Failed(StorageFailed); anything else -> Failed. Cancellation (pause, onStopJob) propagates; the caller sets the
+ * paused state.
  */
 class ArtifactInstaller(
     private val storage: ModelStorage,
@@ -35,6 +40,19 @@ class ArtifactInstaller(
     suspend fun install(catalog: Catalog, id: ArtifactId): Outcome<InstallState.Installed> {
         val artifact = catalog.artifact(id)?.second
             ?: return fail(id, MurmurError.CatalogInvalid("unknown artifact"))
+        return try {
+            installOrErr(catalog, artifact)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // A disk error outside the downloader: installed.json, the .extracted stamp, a directory that vanished.
+            log.event("install_exception", "artifact" to id.value, "err" to e.javaClass.simpleName, "noSpace" to isNoSpace(e))
+            diskFailure(artifact, if (e is IOException) diskError(e, "install") else MurmurError.Internal("install: ${e.javaClass.simpleName}"))
+        }
+    }
+
+    private suspend fun installOrErr(catalog: Catalog, artifact: Artifact): Outcome<InstallState.Installed> {
+        val id = artifact.id
         val marker = storage.readMarker(id)
         if (marker == null) {
             val r = fetchAndUnpack(catalog, artifact)
@@ -52,6 +70,7 @@ class ArtifactInstaller(
         val id = a.id
         val total = a.downloadBytes
         storage.dir(id).mkdirs()
+        dropExtractedArchives(a)
         val done0 = storage.bytesDone(a)
         val needed = peakInstallBytes(a) - done0 + RESERVE_BYTES
         val free = freeBytes()
@@ -64,6 +83,7 @@ class ArtifactInstaller(
         var before = 0L
         var transferred = 0L   // network bytes of this run, all files
         var lastEmit = 0L
+        var lastTransferReport = 0L
         for (f in a.files) {
             if (storage.file(id, f.name).isFile || storage.extractedStamp(id, f.name).isFile) { before += f.bytes; continue }
             val base = before
@@ -73,8 +93,12 @@ class ArtifactInstaller(
                 val done = base + onFile
                 if (fileStart < 0) fileStart = onFile
                 fileLatest = onFile
-                onTransferred(transferred + (onFile - fileStart))
                 val t = now()
+                // A binder call on Android: about once a second, not once per buffer.
+                if (t - lastTransferReport >= TRANSFER_EVERY_MS || onFile == f.bytes) {
+                    lastTransferReport = t
+                    onTransferred(transferred + (onFile - fileStart))
+                }
                 meter.add(t, done)
                 if (t - lastEmit >= EMIT_EVERY_MS || onFile == f.bytes) {
                     lastEmit = t
@@ -82,13 +106,18 @@ class ArtifactInstaller(
                 }
             }
             if (r is Outcome.Err) {
-                val doneNow = storage.bytesDone(a)
-                when (r.error) {
-                    MurmurError.NoNetwork -> states.set(id, InstallState.Paused(doneNow, total, MurmurError.NoNetwork))
-                    else -> states.set(id, InstallState.Failed(r.error))
-                }
                 log.event("install_file_failed", "artifact" to id.value, "file" to f.name, "code" to r.error.code)
-                return Outcome.Err(r.error)
+                return when (r.error) {
+                    MurmurError.NoNetwork -> {
+                        states.set(id, InstallState.Paused(storage.bytesDone(a), total, MurmurError.NoNetwork))
+                        Outcome.Err(MurmurError.NoNetwork)
+                    }
+                    MurmurError.LowStorage, is MurmurError.StorageFailed -> diskFailure(a, r.error)
+                    else -> {
+                        states.set(id, InstallState.Failed(r.error))
+                        Outcome.Err(r.error)
+                    }
+                }
             }
             if (fileStart >= 0) transferred += fileLatest - fileStart
             before += f.bytes
@@ -107,7 +136,14 @@ class ArtifactInstaller(
         for (f in archives) {
             val archive = storage.file(id, f.name)
             when (val r = extractor.extract(archive, storage.dir(id), f.archive!!)) {
-                is Outcome.Err -> { archive.delete(); return fail(id, r.error) }
+                is Outcome.Err -> {
+                    val e = r.error
+                    if (e == MurmurError.LowStorage || (e is MurmurError.StorageFailed && outOfSpace(a))) {
+                        return diskFailure(a, MurmurError.LowStorage)   // the verified archive stays: extract again later
+                    }
+                    archive.delete()
+                    return fail(id, e)
+                }
                 is Outcome.Ok -> {
                     ModelStorage.writeAtomically(storage.extractedStamp(id, f.name), f.sha256)
                     archive.delete()
@@ -131,10 +167,46 @@ class ArtifactInstaller(
         return Outcome.Ok(Unit)
     }
 
+    /**
+     * An archive whose .extracted stamp exists was extracted completely; it is still on disk only when the process
+     * died between the stamp and the delete. It is never needed again.
+     */
+    private fun dropExtractedArchives(a: Artifact) {
+        for (f in a.files) {
+            if (f.archive == null || !storage.extractedStamp(a.id, f.name).isFile) continue
+            val archive = storage.file(a.id, f.name)
+            if (archive.isFile) {
+                log.event("install_drop_extracted_archive", "artifact" to a.id.value, "file" to f.name, "bytes" to archive.length())
+                archive.delete()
+            }
+        }
+    }
+
+    /** The same rule as the pre-check: less free space than the rest of the install plus the reserve. */
+    private fun outOfSpace(a: Artifact): Boolean =
+        freeBytes() < peakInstallBytes(a) - storage.bytesDone(a) + RESERVE_BYTES
+
+    /** A disk error: Paused(LowStorage) when the disk is full (the user frees space and resumes), else Failed. */
+    private fun diskFailure(a: Artifact, error: MurmurError): Outcome.Err {
+        if (error == MurmurError.LowStorage || (error is MurmurError.StorageFailed && outOfSpace(a))) {
+            log.event("install_low_storage", "artifact" to a.id.value, "during" to "install", "code" to error.code)
+            states.set(a.id, InstallState.Paused(storage.bytesDone(a), a.downloadBytes, MurmurError.LowStorage))
+            return Outcome.Err(MurmurError.LowStorage)
+        }
+        return fail(a.id, error)
+    }
+
     private suspend fun prepare(a: Artifact, marker: InstalledMarker) {
         val p = preparer() ?: return
         states.set(a.id, InstallState.Preparing(0f))
-        when (val r = p.prepareArtifact(a.id) { states.set(a.id, InstallState.Preparing(it.coerceIn(0f, 1f))) }) {
+        val r = try {
+            p.prepareArtifact(a.id) { states.set(a.id, InstallState.Preparing(it.coerceIn(0f, 1f))) }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Outcome.Err(MurmurError.Internal("prepare: ${e.javaClass.simpleName}"))
+        }
+        when (r) {
             is Outcome.Ok -> {
                 val report = r.value
                 log.event(
@@ -175,6 +247,7 @@ class ArtifactInstaller(
         /** Free space kept on top of the peak install bytes (ARCHITECTURE 8.5). */
         const val RESERVE_BYTES = 200L * 1024 * 1024
         private const val EMIT_EVERY_MS = 250L
+        private const val TRANSFER_EVERY_MS = 1_000L
         private const val WINDOW_MS = 3_000L
     }
 }

@@ -30,6 +30,7 @@ class CommonsArchiveExtractor(private val log: DlLog = DlLog.NONE) : ArchiveExtr
     override fun extract(archive: File, intoDir: File, type: ArchiveType): Outcome<List<File>> {
         val root = intoDir.canonicalFile
         val written = mutableListOf<File>()
+        var tmp: File? = null
         return try {
             open(archive, type).use { input ->
                 while (true) {
@@ -42,12 +43,13 @@ class CommonsArchiveExtractor(private val log: DlLog = DlLog.NONE) : ArchiveExtr
                         continue
                     }
                     target.parentFile?.mkdirs()
-                    val tmp = File(target.parentFile, target.name + ".tmp")
-                    FileOutputStream(tmp).use { out ->
+                    val t = File(target.parentFile, target.name + ".tmp").also { tmp = it }
+                    FileOutputStream(t).use { out ->
                         input.copyTo(out, 256 * 1024)
                         out.fd.sync()
                     }
-                    if (!tmp.renameTo(target)) throw IOException("rename failed")
+                    if (!t.renameTo(target)) throw IOException("rename failed")
+                    tmp = null
                     written += target
                 }
             }
@@ -55,12 +57,14 @@ class CommonsArchiveExtractor(private val log: DlLog = DlLog.NONE) : ArchiveExtr
             Outcome.Ok(written)
         } catch (e: Rejected) {
             written.forEach { it.delete() }
+            tmp?.delete()
             log.event("extract_rejected", "archive" to archive.name, "reason" to e.message)
             Outcome.Err(MurmurError.DownloadFailed(null, "archive rejected: ${e.message}"))
         } catch (e: IOException) {
             written.forEach { it.delete() }
-            log.event("extract_io", "archive" to archive.name, "err" to e.javaClass.simpleName)
-            Outcome.Err(MurmurError.StorageFailed("extract: ${e.javaClass.simpleName}"))
+            tmp?.delete()
+            log.event("extract_io", "archive" to archive.name, "err" to e.javaClass.simpleName, "noSpace" to isNoSpace(e))
+            Outcome.Err(diskError(e, "extract"))
         }
     }
 

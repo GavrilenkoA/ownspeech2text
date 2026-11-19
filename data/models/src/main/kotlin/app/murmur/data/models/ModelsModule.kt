@@ -10,6 +10,9 @@ import app.murmur.core.catalog.DeviceProfileRepository
 import app.murmur.core.dictation.EnginePreparer
 import app.murmur.core.engine.InferenceHost
 import java.io.File
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -63,8 +66,16 @@ object ModelsModule {
         }
     }
 
-    /** The process's download machinery; the Application exposes it through [ModelJobHost]. */
-    fun downloads(context: Context, catalog: CatalogRepository, preparer: () -> EnginePreparer?): ModelDownloads {
+    /**
+     * The process's download machinery; the Application exposes it through [ModelJobHost]. [scope] lives as long as
+     * the process (it follows catalog changes).
+     */
+    fun downloads(
+        context: Context,
+        catalog: CatalogRepository,
+        scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
+        preparer: () -> EnginePreparer?,
+    ): ModelDownloads {
         val storage = storage(context)
         return ModelDownloads(
             storage = storage,
@@ -74,6 +85,7 @@ object ModelsModule {
             preparer = preparer,
             freeBytes = freeBytes(context, storage),
             log = AndroidDlLog,
+            scope = scope,
         )
     }
 }

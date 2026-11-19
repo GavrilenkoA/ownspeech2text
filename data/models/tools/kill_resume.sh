@@ -53,6 +53,13 @@ if [ "$PID_AFTER" = "$PID1" ]; then
   [ "$PID_AFTER" = "$PID1" ] && { say "FAIL: pid $PID1 still alive"; exit 1; }
 fi
 say "killed: pid $PID1 gone (now '${PID_AFTER}'); part on disk $(size) bytes"
+# Evidence for the device check: the job is still scheduled and ready after the kill (JobScheduler re-evaluates it
+# only when the uid's state changes, e.g. a bound accessibility service or the app opening).
+jobstate() {
+  "${ADB[@]}" shell dumpsys jobscheduler "$PKG" | grep -E "Ready: |Backoff:|Last failed run|started as UIJ|Pending|Active" | head -6 | sed 's/^ */    /' || true
+}
+sleep 20
+say "jobscheduler 20 s after the kill:"; jobstate
 
 T0=$(date +%s); OPENED=0
 for _ in $(seq 1 600); do

@@ -42,7 +42,10 @@ fun interface DlLog {
  *  - a Hugging Face X-Linked-ETag that is a sha256 different from the catalog aborts before the body is read;
  *  - mismatch (size or hash): the part is deleted and the result is [MurmurError.ChecksumMismatch];
  *  - success: atomic rename of `<name>.part` to `<name>`.
- * Cancellation (job stopped, user pause) keeps the part.
+ * Cancellation (job stopped, user pause) keeps the part. Errors are results, never exceptions: network failures give
+ * [MurmurError.NoNetwork] or [MurmurError.DownloadFailed]; failures of the local disk (reading or truncating the part,
+ * writing, fsync, the rename) give [MurmurError.LowStorage] for ENOSPC / EDQUOT and [MurmurError.StorageFailed]
+ * otherwise.
  */
 class FileDownloader(
     private val http: HttpTransport,
@@ -64,11 +67,18 @@ class FileDownloader(
             log.event("dl_part_oversized", "file" to target.name, "bytes" to part.length())
             part.delete()
         }
-        var r = attempt(url, part, target, expectedBytes, expectedSha256, onProgress)
-        if (r is Attempt.Restart) r = attempt(url, part, target, expectedBytes, expectedSha256, onProgress)
-        when (r) {
-            is Attempt.Done -> r.outcome
-            is Attempt.Restart -> Outcome.Err(MurmurError.DownloadFailed(null, "range not honoured"))
+        try {
+            var r = attempt(url, part, target, expectedBytes, expectedSha256, onProgress)
+            if (r is Attempt.Restart) r = attempt(url, part, target, expectedBytes, expectedSha256, onProgress)
+            when (r) {
+                is Attempt.Done -> r.outcome
+                is Attempt.Restart -> Outcome.Err(MurmurError.DownloadFailed(null, "range not honoured"))
+            }
+        } catch (e: IOException) {
+            // Network errors are mapped inside attempt(); what reaches here is the disk (hash, truncate, rename).
+            currentCoroutineContext().ensureActive()
+            log.event("dl_disk", "file" to target.name, "err" to e.javaClass.simpleName, "noSpace" to isNoSpace(e))
+            Outcome.Err(diskError(e, "part"))
         }
     }
 
@@ -121,6 +131,10 @@ class FileDownloader(
             }
             val written = try {
                 copy(res, part, append, if (append) have else 0L, expectedBytes, md, onProgress)
+            } catch (e: LocalIoException) {
+                currentCoroutineContext().ensureActive()
+                log.event("dl_disk", "file" to target.name, "bytes" to part.length(), "err" to e.cause.javaClass.simpleName, "noSpace" to isNoSpace(e))
+                return Attempt.Done(Outcome.Err(diskError(e.cause, "write")))
             } catch (e: IOException) {
                 currentCoroutineContext().ensureActive()
                 log.event("dl_io", "file" to target.name, "bytes" to part.length(), "err" to e.javaClass.simpleName)
@@ -143,7 +157,8 @@ class FileDownloader(
     /**
      * Streams the body into the part; returns the bytes the part holds (expected + 1 = longer than the catalog says).
      * A watcher closes the connection when the coroutine is cancelled (pause, onStopJob), so that a read blocked on
-     * the socket returns at once; the part is flushed and fsynced either way.
+     * the socket returns at once; the part is flushed and fsynced either way. Reading the body fails with the
+     * network's IOException; opening, writing, syncing or closing the part fails with [LocalIoException].
      */
     private suspend fun copy(
         res: HttpResponse, part: File, append: Boolean, start: Long, expectedBytes: Long, md: MessageDigest, onProgress: (Long) -> Unit,
@@ -152,22 +167,30 @@ class FileDownloader(
         try {
             var written = start
             res.body.use { input ->
-                FileOutputStream(part, append).use { out ->
+                val out = disk { FileOutputStream(part, append) }
+                var failure: Throwable? = null
+                try {
+                    val buf = ByteArray(bufferBytes)
+                    while (true) {
+                        ensureActive()
+                        val n = input.read(buf)
+                        if (n < 0) break
+                        if (written + n > expectedBytes) { written = expectedBytes + 1; break }
+                        disk { out.write(buf, 0, n) }
+                        md.update(buf, 0, n)
+                        written += n
+                        onProgress(written)
+                    }
+                } catch (t: Throwable) {
+                    failure = t
+                    throw t
+                } finally {
+                    // The bytes written so far stay a valid resume offset; a sync error only matters on its own.
                     try {
-                        val buf = ByteArray(bufferBytes)
-                        while (true) {
-                            ensureActive()
-                            val n = input.read(buf)
-                            if (n < 0) break
-                            if (written + n > expectedBytes) { written = expectedBytes + 1; break }
-                            out.write(buf, 0, n)
-                            md.update(buf, 0, n)
-                            written += n
-                            onProgress(written)
-                        }
-                    } finally {
-                        out.flush()
-                        out.fd.sync()
+                        disk { out.flush(); out.fd.sync(); out.close() }
+                    } catch (e: LocalIoException) {
+                        runCatching { out.close() }
+                        if (failure == null) throw e
                     }
                 }
             }
@@ -187,6 +210,12 @@ class FileDownloader(
         Files.move(part.toPath(), target.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
         log.event("dl_verified", "file" to target.name, "bytes" to expectedBytes, "sha256" to got)
         return Outcome.Ok(target)
+    }
+
+    private inline fun <T> disk(block: () -> T): T = try {
+        block()
+    } catch (e: IOException) {
+        throw LocalIoException(e)
     }
 
     /** Feeds the existing part into [md]; returns its length. */
@@ -217,6 +246,19 @@ class FileDownloader(
         }
     }
 }
+
+/** A failure of the local disk while a part is written (not of the network). */
+internal class LocalIoException(override val cause: IOException) : IOException(cause.message, cause)
+
+/** ENOSPC / EDQUOT anywhere in the cause chain (java.io and android.system.ErrnoException messages carry the name). */
+internal fun isNoSpace(e: Throwable): Boolean = generateSequence(e) { it.cause }.take(8).any { t ->
+    val m = t.message.orEmpty()
+    "ENOSPC" in m || "No space left" in m || "EDQUOT" in m || "quota exceeded" in m
+}
+
+/** The error of a failed disk operation: out of space -> [MurmurError.LowStorage], else [MurmurError.StorageFailed]. */
+internal fun diskError(e: Throwable, what: String): MurmurError =
+    if (isNoSpace(e)) MurmurError.LowStorage else MurmurError.StorageFailed("$what: ${e.javaClass.simpleName}")
 
 internal fun ByteArray.toHex(): String = joinToString("") { "%02x".format(it) }
 
