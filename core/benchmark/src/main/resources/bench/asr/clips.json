@@ -1,0 +1,23 @@
+{
+  "format": "PCM16 little-endian, 16000 Hz, mono, no header",
+  "clips": [
+    {
+      "id": "ru",
+      "languages": ["ru"],
+      "file": "ru.pcm",
+      "reference": "Женщинам следует осознавать, что из-за культурных различий им может показаться, что их домогаются, женщин часто преследуют, берут за руку и так далее."
+    },
+    {
+      "id": "en",
+      "languages": ["en"],
+      "file": "en.pcm",
+      "reference": "Any amendments or requests though should be coursed through the travel agent first and not directly with the hotel."
+    },
+    {
+      "id": "mixed",
+      "languages": ["ru", "en"],
+      "file": "mixed.pcm",
+      "reference": "Как только вы выйдете из течения, плыть обратно будет не труднее, чем обычно. At the beginning dress was heavily influenced by the Byzantine culture in the east."
+    }
+  ]
+}
