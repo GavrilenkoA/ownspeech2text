@@ -18,6 +18,12 @@ data class A11ySnapshot(
     /** IME window + own overlay + system bars, only needed for the display-capture fallback. */
     val excludeRects: List<Rect>,
     val capturedAtMs: Long,
+    /**
+     * AccessibilityWindowInfo.getBoundsInScreen() of the target window. The window capture's pixel (0, 0) is this
+     * rectangle's top-left, so [CaptureFrame] needs it to put field.box into screenshot pixels (split screen, inner
+     * display, freeform). null = unknown: screen coordinates are used as they are (right for full-screen windows).
+     */
+    val windowBoundsInScreen: Rect? = null,
 )
 
 data class FieldSnapshot(
@@ -25,8 +31,12 @@ data class FieldSnapshot(
     val inputType: Int,
     val imeOptions: Int,
     val hint: String?,
-    /** getSurroundingText(1000, 0, 0) cut at the selection start; null = unknown. Never for passwords. */
+    /**
+     * getSurroundingText(1000, 0, 0) cut at the selection start; "" when the field is empty (hint showing);
+     * null = unknown (no caret). Never for passwords (the assembler drops it even if set).
+     */
     val beforeCursor: String?,
+    /** AccessibilityNodeInfo.getBoundsInScreen() of the focused node (screen pixels, not screenshot pixels). */
     val boundsInScreen: Rect?,
     val isPassword: Boolean,
     val isMultiline: Boolean,
