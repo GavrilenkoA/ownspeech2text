@@ -97,6 +97,11 @@ sealed interface RowState {
     data object InTraining : RowState
     /** Nothing in the catalog can run on this phone (every candidate blocked). */
     data class Unavailable(val blocker: Blocker?, val socs: List<String>) : RowState
+    /**
+     * The device profile is not known yet: which artifact runs here (and so whether the model is downloaded, in use or
+     * blocked) cannot be decided. Skeleton instead of a control; nothing can be downloaded, selected or deleted.
+     */
+    data object Loading : RowState
 }
 
 /** Unit badge on a row: [chosen] = the unit the model runs on (filled); others are claimed and usable (outlined). */
@@ -142,7 +147,14 @@ sealed interface Fact {
 }
 
 /** One line of "Runs on": a unit and why it cannot be used, if it cannot. */
-data class RunsOnLine(val unit: ComputeUnit, val blocker: Blocker?, val chosen: Boolean, val socs: List<String> = emptyList())
+data class RunsOnLine(
+    val unit: ComputeUnit,
+    val blocker: Blocker?,
+    val chosen: Boolean,
+    val socs: List<String> = emptyList(),
+    /** The NPU is a Snapdragon's Hexagon (this phone's SoC, or the SoCs the artifact is built for): "NPU (Hexagon)". */
+    val hexagon: Boolean = false,
+)
 
 /** Warn lines under the facts (ARCHITECTURE 8.2 labels). */
 sealed interface DetailNote {
@@ -160,11 +172,23 @@ sealed interface DetailNote {
 sealed interface DetailAction {
     data object InUse : DetailAction
     data object Use : DetailAction
-    data class Download(val bytes: Long) : DetailAction
+    /** [artifact] = the artifact the detail shows (what a dictation would load once it is downloaded). */
+    data class Download(val bytes: Long, val artifact: Artifact? = null) : DetailAction
     /** Download in progress / paused / failed: the row's control lives in the detail too. */
     data class InProgress(val state: RowState) : DetailAction
     /** Nothing to do (in training, unavailable, preview-only installed, support models). */
     data object None : DetailAction
+    /** The device profile is not known yet (RowState.Loading): a skeleton in place of the action. */
+    data object Loading : DetailAction
+}
+
+/**
+ * A second artifact of the model being fetched while the row shows the one that runs (DESIGN 6.4 detail): the pinned
+ * unit's artifact ([Purpose.PINNED], under the unit picker) or the CPU version after an NPU failure
+ * ([Purpose.CPU_VERSION], under the failure line). [state] is its progress (never NotDownloaded, Ready or In use).
+ */
+data class ExtraDownload(val artifact: Artifact, val unit: ComputeUnit, val state: RowState, val purpose: Purpose) {
+    enum class Purpose { PINNED, CPU_VERSION }
 }
 
 /** Unit picker row (no frame; radio rows from WP-01). [unit] null = Auto. */
@@ -181,10 +205,12 @@ data class ModelDetailView(
     val facts: List<Fact>,
     val notes: List<DetailNote>,
     val unitOptions: List<UnitOption>,
-    /** Pinned unit not installed: "Download (N MB)" under the picker. */
+    /** Pinned unit not installed (and not being fetched): "Download (N MB)" under the picker. */
     val pinnedDownload: Artifact?,
-    /** An NPU artifact failed and the CPU artifact is missing: "Download the CPU version (N MB)". */
+    /** An NPU artifact failed and the CPU artifact is not installed nor being fetched: "Download the CPU version (N MB)". */
     val cpuFallbackDownload: Artifact?,
+    /** The pinned or CPU-version artifact while it is queued, downloading, paused, failed or being checked. */
+    val extraDownload: ExtraDownload?,
     val action: DetailAction,
     val canDelete: Boolean,
     val inUse: Boolean,
@@ -299,6 +325,7 @@ object HubLogic {
 
     private fun rowState(entry: ModelEntry, input: HubInput, units: UnitView, selected: Boolean): RowState {
         if (!available(entry)) return RowState.InTraining
+        if (input.device == null) return RowState.Loading
         val shown = units.shown
         if (input.device != null && shown == null) {
             // Every candidate is blocked on this phone: show the most telling blocker (the first artifact's).
@@ -306,17 +333,24 @@ object HubLogic {
             return RowState.Unavailable(first?.blocker, first?.artifact?.socs.orEmpty())
         }
         // An artifact being fetched or prepared wins over "installed": the user sees its progress.
-        val active = entry.artifacts.map { it to input.state(it.id) }.firstOrNull { (_, s) ->
-            s is InstallState.Queued || s is InstallState.Downloading || s is InstallState.Paused || s is InstallState.Failed ||
-                s is InstallState.Verifying || s is InstallState.Extracting || s is InstallState.Preparing
-        }
-        if (active != null && units.chosen == null) return progressState(active.first, active.second, units)
+        val active = rowActive(entry, input, units)
+        if (active != null) return progressState(active, input.state(active.id), units)
         if (units.chosen != null) {
             return if (selected && selectableKind(entry)) RowState.InUse else RowState.Ready
         }
         val bytes = (shown?.artifact ?: entry.artifacts.first()).downloadBytes
         return RowState.NotDownloaded(bytes)
     }
+
+    private fun inFlight(s: InstallState) = s !is InstallState.NotInstalled && s !is InstallState.Installed
+
+    /**
+     * The artifact whose download the row (and the detail's action bar) shows: the first one in flight while nothing
+     * usable is installed. Once a model runs, the row shows that ("In use" / radio) and other artifacts in flight are
+     * the detail's [ExtraDownload].
+     */
+    private fun rowActive(entry: ModelEntry, input: HubInput, units: UnitView): Artifact? =
+        if (units.chosen != null) null else entry.artifacts.firstOrNull { inFlight(input.state(it.id)) }
 
     private fun progressState(a: Artifact, s: InstallState, units: UnitView): RowState = when (s) {
         is InstallState.Queued -> RowState.Queued(a.downloadBytes)
@@ -408,7 +442,7 @@ object HubLogic {
             paramsLabel(entry)?.let { add(Fact.Parameters(it)) }
             if (entry.languages.codes.isNotEmpty()) add(Fact.Languages(entry.languages.codes, maxOf(entry.languages.count, entry.languages.codes.size)))
             (shown?.artifact ?: entry.artifacts.firstOrNull())?.let { add(Fact.Download(it.downloadBytes, it.quant)) }
-            val lines = runsOn(entry, units)
+            val lines = runsOn(entry, units, input.device)
             if (lines.isNotEmpty()) add(Fact.RunsOn(lines))
             entry.asr?.let { add(Fact.Streaming(it.streaming)) }
             add(Fact.License(entry.license.id))
@@ -417,7 +451,8 @@ object HubLogic {
         val notes = buildList {
             if (entry.asr?.previewOnly == true) add(DetailNote.PreviewOnly)
             val failed = units.candidates.filter { it.blocker == Blocker.UNIT_FAILED }.map { it.unit }.distinct()
-            for (u in failed) add(DetailNote.UnitFailed(u, units.shown?.unit))
+            // "using CPU" only when CPU really runs; with nothing installed the line names the failure alone.
+            for (u in failed) add(DetailNote.UnitFailed(u, units.chosen?.unit))
             if (entry.followUps.any { it.id == NPU_PORT } && units.candidates.none { it.unit == ComputeUnit.NPU }) add(DetailNote.NpuNotYet)
             // ADR-071: the newest record of a unit decides; an invalid one shows "Results look wrong on <unit>".
             val newestPerUnit = entry.artifacts.flatMap { input.records[it.id].orEmpty() }
@@ -434,18 +469,29 @@ object HubLogic {
                 add(UnitOption(u, (units.preference as? UnitPreference.Pinned)?.unit == u, inst != null, (inst ?: cands.first()).artifact.downloadBytes))
             }
         }
+        // The row / action bar already shows this artifact's download: no second control for it.
+        val rowActive = rowActive(entry, input, units)?.id
         val npuFailed = units.candidates.any { it.unit == ComputeUnit.NPU && it.blocker == Blocker.UNIT_FAILED }
         val cpuArtifact = units.candidates.firstOrNull { it.unit == ComputeUnit.CPU && it.usable }?.artifact
-        val cpuFallback = if (npuFailed && cpuArtifact != null && !input.installed(cpuArtifact.id) &&
-            input.state(cpuArtifact.id) !is InstallState.Downloading && input.state(cpuArtifact.id) !is InstallState.Queued) cpuArtifact else null
+            ?.takeIf { npuFailed && !input.installed(it.id) && it.id != rowActive }
+        // While nothing runs, the action bar downloads what the model needs (the pinned unit included).
+        val pinned = units.pinnedMissing?.takeIf { units.chosen != null && it.id != rowActive && it.id != cpuArtifact?.id }
+        fun extra(a: Artifact?, unit: ComputeUnit, purpose: ExtraDownload.Purpose): ExtraDownload? =
+            a?.takeIf { inFlight(input.state(it.id)) }?.let { ExtraDownload(it, unit, progressState(it, input.state(it.id), units), purpose) }
+        val extraDownload = extra(cpuArtifact, ComputeUnit.CPU, ExtraDownload.Purpose.CPU_VERSION)
+            ?: (units.preference as? UnitPreference.Pinned)?.let { extra(pinned, it.unit, ExtraDownload.Purpose.PINNED) }
+        val cpuFallback = cpuArtifact?.takeIf { input.state(it.id) is InstallState.NotInstalled }
         val inUse = row.state == RowState.InUse
         val action = when (val s = row.state) {
             RowState.InUse -> DetailAction.InUse
             RowState.Ready -> if (selectableKind(entry)) DetailAction.Use else DetailAction.None
-            is RowState.NotDownloaded -> DetailAction.Download(s.bytes)
+            // "Download the CPU version" right under the failure line is that download: no second button for it.
+            is RowState.NotDownloaded -> if (cpuFallback != null && shown?.artifact?.id == cpuFallback.id) DetailAction.None
+                else DetailAction.Download(s.bytes, shown?.artifact)
             is RowState.Queued, is RowState.Downloading, is RowState.Paused, is RowState.Failed,
             RowState.Checking, is RowState.Preparing -> DetailAction.InProgress(s)
             RowState.InTraining, is RowState.Unavailable -> DetailAction.None
+            RowState.Loading -> DetailAction.Loading
         }
         val installedAny = entry.artifacts.any { input.installed(it.id) }
         val benchRecords = entry.artifacts.flatMap { input.records[it.id].orEmpty() }
@@ -460,10 +506,13 @@ object HubLogic {
             facts = facts,
             notes = notes,
             unitOptions = options,
-            pinnedDownload = units.pinnedMissing?.takeIf { input.state(it.id) is InstallState.NotInstalled },
+            pinnedDownload = pinned?.takeIf { input.state(it.id) is InstallState.NotInstalled },
             cpuFallbackDownload = cpuFallback,
+            extraDownload = extraDownload,
             action = action,
-            canDelete = installedAny || entry.artifacts.any { val s = input.state(it.id); s is InstallState.Paused || s is InstallState.Failed },
+            // Unknown device: whether the model is in use (delete asks first) cannot be decided yet.
+            canDelete = input.device != null &&
+                (installedAny || entry.artifacts.any { val s = input.state(it.id); s is InstallState.Paused || s is InstallState.Failed }),
             inUse = inUse,
             bench = BenchBlock(benchRecord, canRun = installedAny && benchCandidates(entry, input).any { it.usable || it.blocker == Blocker.UNIT_FAILED }),
             sourceUrl = src?.url,
@@ -480,12 +529,16 @@ object HubLogic {
     const val NPU_PORT = "npu-port"
 
     /** One line per claimed unit: the best candidate of that unit (usable first) with its blocker. */
-    fun runsOn(entry: ModelEntry, units: UnitView): List<RunsOnLine> =
+    fun runsOn(entry: ModelEntry, units: UnitView, device: DeviceProfile? = null): List<RunsOnLine> =
         units.claimedUnits.map { u ->
             val cands = units.candidates.filter { it.unit == u }
             val best = cands.firstOrNull { it.usable } ?: cands.first()
-            RunsOnLine(u, best.blocker, units.shown?.unit == u && best.usable, best.artifact.socs)
+            val hexagon = u == ComputeUnit.NPU && (device?.soc?.let(::snapdragon) == true || best.artifact.socs.any(::snapdragon))
+            RunsOnLine(u, best.blocker, units.shown?.unit == u && best.usable, best.artifact.socs, hexagon)
         }
+
+    /** Qualcomm Snapdragon part numbers (SM8750, ...): their NPU is the Hexagon processor. A device fact. */
+    private fun snapdragon(soc: String) = soc.startsWith("SM") && soc.drop(2).all { it.isDigit() }
 
     /**
      * Source row: the model card's HF repo ([ModelEntry.baseRepo], text before any note in parentheses) or, without one,
@@ -507,7 +560,8 @@ object HubLogic {
      * artifacts that are not installed yet. [artifact] forces a specific artifact (pinned unit, CPU version).
      */
     fun downloadPlan(entry: ModelEntry, input: HubInput, artifact: Artifact? = null): List<ArtifactId> {
-        val device = input.device ?: return listOfNotNull(artifact?.id ?: entry.artifacts.firstOrNull()?.id)
+        // Without the device profile nothing is guessed (an NPU build for another SoC, a skipped VAD / OCR pair).
+        val device = input.device ?: return emptyList()
         val plan: List<PlannedDownload> = DownloadPlanner.forModels(
             input.catalog, listOf(entry.id), device, input.settings.useScreen,
         ) { id -> preference(input.settings, id) }

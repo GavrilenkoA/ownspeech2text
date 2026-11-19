@@ -32,10 +32,11 @@ class ModelsDeps(
     /** Units that failed to load on this phone ("Failed to load on NPU, using CPU"; Blocker.UNIT_FAILED). */
     val health: UnitHealth,
     /**
-     * `DeviceProfileRepository.ensure` (never throws). Called once when [device] is still null, so that the hub can
-     * decide units before anything else probed. Null = wait for someone else to probe.
+     * `DeviceProfileRepository.ensure` (never throws), e.g. `deviceProfile::ensure`. Called once when [device] is still
+     * null: until the profile is known the hub shows its rows without controls (nothing to download, select or delete),
+     * so it must not wait for someone else to probe (first visit right after onboarding).
      */
-    val ensureDevice: (suspend () -> DeviceProfile)? = null,
+    val ensureDevice: suspend () -> DeviceProfile,
     /** "Device" row of the benchmark result (the phone's model name; RAM comes from the device profile). */
     val deviceName: String = Build.MODEL ?: "",
     /** Wall clock for "Last run today, 14:05". */
@@ -62,10 +63,13 @@ fun ModelsScreen(deps: ModelsDeps, onOpenModel: (ModelId) -> Unit, modifier: Mod
 }
 
 /**
- * Model detail (DESIGN 6.4 `model-detail`), hosted by the app shell: pushed on the cover display ([onBack] = back
- * arrow), the right pane next to the 316 dp list on the inner display ([onBack] = null). It hosts the benchmark sheet.
+ * Model detail (DESIGN 6.4 `model-detail`), hosted by the app shell with the same convention as the History detail:
+ * the pushed screen on the cover display ([pane] false: top bar with the back arrow, which calls [onClose]), the right
+ * pane next to the 316 dp list on the inner display ([pane] true: no bar). [onClose] is also called when the model
+ * disappears from the catalog (a deleted custom model), so the shell never shows an empty page. It hosts the benchmark
+ * sheet.
  */
 @Composable
-fun ModelDetail(deps: ModelsDeps, id: ModelId, onBack: (() -> Unit)?, modifier: Modifier = Modifier) {
-    ModelDetailScreen(rememberModelsController(deps, Surface.DETAIL), deps, id, onBack, modifier)
+fun ModelDetail(deps: ModelsDeps, id: ModelId, onClose: () -> Unit, modifier: Modifier = Modifier, pane: Boolean = false) {
+    ModelDetailScreen(rememberModelsController(deps, Surface.DETAIL), deps, id, onClose, pane, modifier)
 }

@@ -54,6 +54,7 @@ import app.murmur.ui.design.components.RingProgress
 import app.murmur.ui.design.components.ScreenHeader
 import app.murmur.ui.design.components.SectionLabel
 import app.murmur.ui.design.components.SegmentedControl
+import app.murmur.ui.design.components.Skeleton
 
 /** Test tags of the hub (instrumented tests, the shell's tests). */
 object HubTags {
@@ -68,6 +69,8 @@ object HubTags {
     const val ADD_SHEET = "models-add-sheet"
     const val UNIT_PICKER = "models-unit-picker"
     const val ACTION_BAR = "models-action-bar"
+    const val EXTRA_DOWNLOAD = "models-extra-download"
+    const val LOADING = "models-loading"
     fun row(id: ModelId) = "model-row-${id.value}"
     fun support(id: ModelId) = "support-row-${id.value}"
     fun unitOption(name: String) = "unit-option-$name"
@@ -298,11 +301,33 @@ internal fun ModelRowView(
 private fun RowExtra(row: ModelRow) {
     val c = MurmurTheme.colors
     val t = MurmurTheme.type
-    val loc = HubTexts.locale()
     when (val s = row.state) {
+        is RowState.Unavailable -> HubTexts.blocker(s.blocker, s.socs, row.units.firstOrNull()?.unit ?: app.murmur.core.model.ComputeUnit.NPU)?.let {
+            Text(it, style = t.caption, color = c.ink3, modifier = Modifier.padding(top = 10.dp))
+        }
+        is RowState.NotDownloaded -> if (row.selected) {
+            Text(stringResource(R.string.models_selected_download), style = t.caption, color = c.accentInk, modifier = Modifier.padding(top = 10.dp))
+        }
+        else -> DownloadProgress(s)
+    }
+    if (row.previewOnly) Text(stringResource(R.string.models_preview_only), style = t.caption, color = c.ink3, modifier = Modifier.padding(top = 10.dp))
+}
+
+/**
+ * The extra line of a download in flight (DESIGN 6.4 state table): 4 dp progress + mono "89 MB of 144 MB · 12.3 MB/s",
+ * the ink4 bar + warn line when paused, the error line when failed, "Checking files…" / "Preparing for NPU…".
+ * [onPaddingTop] = the gap above a progress bar (text lines sit 2 dp closer). Nothing for other states.
+ */
+@Composable
+internal fun DownloadProgress(state: RowState, onPaddingTop: androidx.compose.ui.unit.Dp = 12.dp) {
+    val c = MurmurTheme.colors
+    val t = MurmurTheme.type
+    val loc = HubTexts.locale()
+    val textTop = onPaddingTop - 2.dp
+    when (val s = state) {
         is RowState.Downloading -> {
             val p = if (s.bytesTotal > 0) s.bytesDone.toFloat() / s.bytesTotal else 0f
-            LinearProgress(p, Modifier.padding(top = 12.dp))
+            LinearProgress(p, Modifier.padding(top = onPaddingTop))
             Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                 val (d, tt) = Format.progressPair(s.bytesDone, s.bytesTotal, loc)
                 Text(stringResource(R.string.models_progress, d, tt), style = t.mono, color = c.ink3)
@@ -310,12 +335,12 @@ private fun RowExtra(row: ModelRow) {
             }
         }
         is RowState.Queued -> {
-            LinearProgress(0f, Modifier.padding(top = 12.dp))
+            LinearProgress(0f, Modifier.padding(top = onPaddingTop))
             Text(stringResource(R.string.models_queued), style = t.caption, color = c.ink3, modifier = Modifier.padding(top = 6.dp))
         }
         is RowState.Paused -> {
             val p = if (s.bytesTotal > 0) s.bytesDone.toFloat() / s.bytesTotal else 0f
-            LinearProgress(p, Modifier.padding(top = 12.dp), paused = true)
+            LinearProgress(p, Modifier.padding(top = onPaddingTop), paused = true)
             Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Row(Modifier.weight(1f, fill = false), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
                     if (s.reason == MurmurError.NoNetwork) Icon(MurmurIcons.wifiOff, null, tint = c.warn, modifier = Modifier.size(14.dp))
@@ -325,24 +350,17 @@ private fun RowExtra(row: ModelRow) {
                 Text(stringResource(R.string.models_progress, d, tt), style = t.mono, color = c.warn, modifier = Modifier.padding(start = 8.dp))
             }
         }
-        is RowState.Failed -> Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+        is RowState.Failed -> Row(Modifier.padding(top = textTop), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(MurmurIcons.alert, null, tint = c.err, modifier = Modifier.size(14.dp))
             Text(HubTexts.downloadProblem(s.error), style = t.caption, color = c.err)
         }
-        RowState.Checking -> Text(stringResource(R.string.models_checking), style = t.caption, color = c.ink3, modifier = Modifier.padding(top = 10.dp))
+        RowState.Checking -> Text(stringResource(R.string.models_checking), style = t.caption, color = c.ink3, modifier = Modifier.padding(top = textTop))
         is RowState.Preparing -> Text(
             s.unit?.let { stringResource(R.string.models_preparing_unit, HubTexts.unit(it)) } ?: stringResource(R.string.models_preparing),
-            style = t.caption, color = c.ink3, modifier = Modifier.padding(top = 10.dp),
+            style = t.caption, color = c.ink3, modifier = Modifier.padding(top = textTop),
         )
-        is RowState.Unavailable -> HubTexts.blocker(s.blocker, s.socs, row.units.firstOrNull()?.unit ?: app.murmur.core.model.ComputeUnit.NPU)?.let {
-            Text(it, style = t.caption, color = c.ink3, modifier = Modifier.padding(top = 10.dp))
-        }
-        is RowState.NotDownloaded -> if (row.selected) {
-            Text(stringResource(R.string.models_selected_download), style = t.caption, color = c.accentInk, modifier = Modifier.padding(top = 10.dp))
-        }
         else -> Unit
     }
-    if (row.previewOnly) Text(stringResource(R.string.models_preview_only), style = t.caption, color = c.ink3, modifier = Modifier.padding(top = 10.dp))
 }
 
 /** Right column: pill, pause/resume, ring, radio, in-use pill or the In training badge (DESIGN 6.4 state table). */
@@ -369,6 +387,8 @@ private fun RowControl(row: ModelRow, onSelect: () -> Unit, onDownload: () -> Un
         RowState.InUse -> InUsePill()
         RowState.InTraining -> InTrainingBadge()
         is RowState.Unavailable -> Unit
+        // Same place and size as the download pill's visual (36 dp tall), no hit target: nothing can be done yet.
+        RowState.Loading -> Skeleton(Modifier.size(LOADING_PILL_W, 36.dp).testTag(HubTags.LOADING), MurmurShapes.full)
     }
 }
 
@@ -426,6 +446,7 @@ private fun SupportRow(row: ModelRow, onOpen: () -> Unit, onDownload: () -> Unit
                 MurmurIconButton(MurmurIcons.refresh, stringResource(R.string.models_cd_resume), onResume, tonal = true, small = true, iconSize = 18.dp)
             RowState.Checking -> RingProgress(1f, showPercent = false, modifier = Modifier.padding(end = 8.dp))
             is RowState.Preparing -> RingProgress(st.progress, modifier = Modifier.padding(end = 8.dp))
+            RowState.Loading -> Skeleton(Modifier.padding(end = 8.dp).size(LOADING_PILL_W, 36.dp).testTag(HubTags.LOADING), MurmurShapes.full)
             else -> Unit
         }
     }
@@ -435,6 +456,7 @@ private fun SupportRow(row: ModelRow, onOpen: () -> Unit, onDownload: () -> Unit
 private val RADIO_PAD = 13.dp
 private val ICON_PAD = 4.dp
 private val PILL_PAD = 6.dp
+private val LOADING_PILL_W = 88.dp
 
 /**
  * The prototype puts a control's *visual* at the row's 16 dp padding (top and end). Our controls carry an invisible

@@ -51,6 +51,8 @@ data class AddUi(
     /** The repo field is not "owner/name" (checked before any network call). */
     val repoInvalid: Boolean = false,
     val preview: ModelEntry? = null,
+    /** Bumped by every edit: a resolve answers only the form it was started for (an edit while "Checking…" wins). */
+    val generation: Int = 0,
 )
 
 /** A pending confirmation: delete [model], opened from [origin]. [inUse] = deleting switches the model of record. */
@@ -122,8 +124,9 @@ class ModelsController(private val deps: ModelsDeps, private val scope: Coroutin
 
     init {
         // The device profile flow is null until someone probed (ARCHITECTURE 8.4); ensure() never throws.
-        val ensure = deps.ensureDevice
-        if (deps.device.value == null && ensure != null) scope.launch { runCatching { ensure() } }
+        if (deps.device.value == null) scope.launch {
+            try { deps.ensureDevice() } catch (c: CancellationException) { throw c } catch (_: Throwable) { /* contract: never throws */ }
+        }
     }
 
     fun selectTab(t: HubTab) { _tab.value = t }
@@ -166,6 +169,8 @@ class ModelsController(private val deps: ModelsDeps, private val scope: Coroutin
     /** Queues the model's artifact (+ VAD / OCR pair by the download rules); [artifact] forces one (pinned, CPU version). */
     fun download(id: ModelId, artifact: Artifact? = null) {
         val inp = input.value ?: return
+        // Unknown device: which artifact runs here is not decided yet (RowState.Loading has no download control).
+        if (inp.device == null) return
         val e = inp.catalog.model(id) ?: return
         val plan = HubLogic.downloadPlan(e, inp, artifact)
         scope.launch { for (a in plan) deps.installed.download(a, inp.settings.wifiOnlyDownloads) }
@@ -191,6 +196,8 @@ class ModelsController(private val deps: ModelsDeps, private val scope: Coroutin
     /** Delete from [origin]: asks first when the model is in use, a support model, or a custom entry; else deletes. */
     fun requestDelete(id: ModelId, origin: Surface) {
         val inp = input.value ?: return
+        // Unknown device: whether the model is in use (and so whether to ask) cannot be decided yet.
+        if (inp.device == null) return
         val e = inp.catalog.model(id) ?: return
         val row = HubLogic.row(e, inp)
         val support = e.kind != ModelKind.ASR && e.kind != ModelKind.LLM
@@ -243,6 +250,9 @@ class ModelsController(private val deps: ModelsDeps, private val scope: Coroutin
         benchJob = scope.launch {
             try {
                 deps.runner.run(e, candidates).collect { ev -> _bench.update { s -> s?.let { BenchReducer.reduce(it, ev) } } }
+                // The run ended without Finished or Failed: stopped elsewhere (BenchmarkRunner.stop from the other surface,
+                // ADR-080: such a run ends with no event). Nothing more will come: close the sheet instead of a Stop forever.
+                _bench.update { s -> s?.takeUnless { it.phase == BenchUi.Phase.RUNNING } }
             } catch (c: CancellationException) {
                 throw c
             } catch (t: Throwable) {
@@ -271,10 +281,13 @@ class ModelsController(private val deps: ModelsDeps, private val scope: Coroutin
 
     // ------------------------------------------------------------------ add a model
 
-    fun openAdd(kind: ModelKind) { _add.value = AddUi(kind) }
+    /** One counter for every form this controller opens, so that a reopened sheet never matches an old answer. */
+    private var addGeneration = 0
+
+    fun openAdd(kind: ModelKind) { _add.value = AddUi(kind, generation = ++addGeneration) }
     fun closeAdd() { _add.value = null }
     fun editAdd(transform: (AddUi) -> AddUi) {
-        _add.update { s -> s?.let { transform(it).copy(error = null, repoInvalid = false, preview = null) } }
+        _add.update { s -> s?.let { transform(it).copy(error = null, repoInvalid = false, preview = null, busy = false, generation = ++addGeneration) } }
     }
 
     /** Back from the preview to the form, keeping what was typed. */
@@ -295,18 +308,20 @@ class ModelsController(private val deps: ModelsDeps, private val scope: Coroutin
                 PromptFormat.STANDARD -> GgufTemplates.STOCK_PROFILE
             }.takeIf { s.kind == ModelKind.LLM },
         )
-        _add.value = s.copy(busy = true, error = null, repoInvalid = false, preview = null)
+        val generation = ++addGeneration
+        _add.value = s.copy(busy = true, error = null, repoInvalid = false, preview = null, generation = generation)
         scope.launch {
             val r = try { deps.custom.resolve(request) } catch (c: CancellationException) { throw c } catch (t: Throwable) {
                 Outcome.Err(MurmurError.Internal(t.javaClass.simpleName))
             }
             _add.update { cur ->
-                cur?.let {
+                // Edited (or closed and reopened) since: this answer belongs to another form.
+                cur?.takeIf { it.generation == generation }?.let {
                     when (r) {
                         is Outcome.Ok -> it.copy(busy = false, preview = r.value)
                         is Outcome.Err -> it.copy(busy = false, error = r.error)
                     }
-                }
+                } ?: cur
             }
         }
     }

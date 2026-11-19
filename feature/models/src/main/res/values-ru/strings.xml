@@ -46,6 +46,7 @@
     <string name="unit_npu">NPU</string>
     <string name="unit_gpu">GPU</string>
     <string name="unit_cpu">CPU</string>
+    <string name="unit_npu_hexagon">NPU (Hexagon)</string>
 
     <string name="detail_parameters">Параметры</string>
     <string name="detail_languages">Языки</string>
@@ -80,6 +81,7 @@
     <string name="detail_unit_not_installed">Не скачана · %1$s</string>
     <string name="detail_download_pinned">Скачать (%1$s)</string>
     <string name="detail_download_cpu">Скачать версию для CPU (%1$s)</string>
+    <string name="detail_extra_title">Версия для %1$s · %2$s</string>
     <string name="detail_use">Использовать</string>
     <string name="detail_delete">Удалить</string>
     <string name="detail_download_action">Скачать %1$s</string>

@@ -71,9 +71,89 @@ class HubLogicTest {
         val d = HubLogic.detail(asr, inp)
         assertTrue(d.notes.toString(), DetailNote.UnitFailed(ComputeUnit.NPU, ComputeUnit.CPU) in d.notes)
         assertNull("CPU artifact installed: no extra download", d.cpuFallbackDownload)
-        // CPU artifact missing: "Download the CPU version (N MB)".
+        // CPU artifact missing: "Download the CPU version (N MB)", the only download control (not also the action bar).
         val onlyNpu = input(fold7, installed(npuArtifact(asr).id), health = health)
-        assertEquals(cpuArtifact(asr).id, HubLogic.detail(asr, onlyNpu).cpuFallbackDownload!!.id)
+        val d2 = HubLogic.detail(asr, onlyNpu)
+        assertEquals(cpuArtifact(asr).id, d2.cpuFallbackDownload!!.id)
+        assertEquals(DetailAction.None, d2.action)
+        // Nothing runs then: the line names the failure alone, never "using CPU" (review F6).
+        assertEquals(listOf(DetailNote.UnitFailed(ComputeUnit.NPU, null)), d2.notes.filterIsInstance<DetailNote.UnitFailed>())
+    }
+
+    @Test
+    fun theCpuVersionDownloadHasOneControlInEveryState() {
+        // Review F5: once the CPU version is fetched, its progress lives in the row and the action bar only.
+        val health = FakeUnitHealth()
+        runBlocking { health.markFailed(npuArtifact(asr).id, ComputeUnit.NPU, "engine.load.asr") }
+        val cpu = cpuArtifact(asr)
+        val cases = listOf(
+            InstallState.Queued(wifiOnly = false) to RowState.Queued(cpu.downloadBytes),
+            InstallState.Downloading(10, 100, 5) to RowState.Downloading(10, 100, 5),
+            InstallState.Paused(10, 100, MurmurError.DownloadPaused) to RowState.Paused(10, 100, MurmurError.DownloadPaused),
+            InstallState.Verifying to RowState.Checking,
+            InstallState.Preparing(0.3f) to RowState.Preparing(0.3f, ComputeUnit.CPU),
+            InstallState.Failed(MurmurError.ChecksumMismatch) to RowState.Failed(MurmurError.ChecksumMismatch, cpu.downloadBytes),
+        )
+        for ((st, row) in cases) {
+            val inp = input(fold7, installed(npuArtifact(asr).id) + (cpu.id to st), health = health)
+            val d = HubLogic.detail(asr, inp)
+            assertEquals(st.toString(), row, d.row.state)
+            assertEquals(st.toString(), DetailAction.InProgress(row), d.action)
+            assertNull(st.toString(), d.cpuFallbackDownload)
+            assertNull(st.toString(), d.extraDownload)
+        }
+    }
+
+    @Test
+    fun aPinnedDownloadInFlightKeepsItsProgressAndControl() {
+        // Review F1: NPU installed and running, CPU pinned; the CPU artifact in every in-flight state.
+        val s = Settings(unitPreference = mapOf(asr.id.value to UnitPreference.Pinned(ComputeUnit.CPU)))
+        val cpu = cpuArtifact(asr)
+        val cases = listOf(
+            InstallState.Queued(wifiOnly = false) to RowState.Queued(cpu.downloadBytes),
+            InstallState.Downloading(89, 144, 12) to RowState.Downloading(89, 144, 12),
+            InstallState.Paused(89, 144, MurmurError.DownloadPaused) to RowState.Paused(89, 144, MurmurError.DownloadPaused),
+            InstallState.Failed(MurmurError.ChecksumMismatch) to RowState.Failed(MurmurError.ChecksumMismatch, cpu.downloadBytes),
+            InstallState.Verifying to RowState.Checking,
+        )
+        for ((st, row) in cases) {
+            val inp = input(fold7, installed(npuArtifact(asr).id) + (cpu.id to st), settings = s)
+            val d = HubLogic.detail(asr, inp)
+            assertEquals("the model still runs on NPU", RowState.InUse, d.row.state)
+            assertNull(st.toString(), d.pinnedDownload)
+            assertEquals(st.toString(), ExtraDownload(cpu, ComputeUnit.CPU, row, ExtraDownload.Purpose.PINNED), d.extraDownload)
+        }
+        // Installed: nothing extra, the pinned unit runs.
+        val done = HubLogic.detail(asr, input(fold7, installed(npuArtifact(asr).id, cpu.id), settings = s))
+        assertNull(done.extraDownload)
+        assertNull(done.pinnedDownload)
+        assertEquals(ComputeUnit.CPU, done.chosenUnit)
+    }
+
+    @Test
+    fun anUnknownDeviceShowsLoadingAndOffersNoControls() {
+        // Review F2: profile not probed yet; the speech model of record is installed.
+        val inp = input(null, installed(cpuArtifact(asr).id))
+        val row = HubLogic.row(asr, inp)
+        assertEquals(RowState.Loading, row.state)
+        assertFalse(row.selectable)
+        val d = HubLogic.detail(asr, inp)
+        assertEquals(DetailAction.Loading, d.action)
+        assertFalse("in use or not is unknown: no delete", d.canDelete)
+        assertNull(d.cpuFallbackDownload)
+        assertNull(d.pinnedDownload)
+        assertNull(d.extraDownload)
+        assertTrue("nothing is guessed without the profile", HubLogic.downloadPlan(asr, inp).isEmpty())
+        val list = HubLogic.list(HubTab.SPEECH, inp)
+        assertTrue(list.rows.all { it.state == RowState.Loading || it.state == RowState.InTraining })
+        assertTrue(list.support.all { it.state == RowState.Loading })
+    }
+
+    @Test
+    fun theNpuLineNamesHexagon() {
+        val lines = HubLogic.detail(asr, input(fold7)).facts.filterIsInstance<Fact.RunsOn>().single().lines
+        assertTrue(lines.single { it.unit == ComputeUnit.NPU }.hexagon)
+        assertFalse(lines.single { it.unit == ComputeUnit.CPU }.hexagon)
     }
 
     @Test
@@ -155,6 +235,7 @@ class HubLogicTest {
                 assertEquals(e.displayName, row.name)
                 assertTrue(e.id.value, d.facts.any { it is Fact.License })
                 if (e.status != Status.AVAILABLE) assertEquals(e.id.value, RowState.InTraining, row.state)
+                else if (device == null) assertEquals(e.id.value, RowState.Loading, row.state)
                 if (e.asr?.previewOnly == true) assertFalse(row.selectable)
             }
             for (tab in HubTab.entries) HubLogic.list(tab, inp)

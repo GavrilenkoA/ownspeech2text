@@ -14,14 +14,21 @@ import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import app.murmur.core.catalog.ModelEntry
 import app.murmur.core.model.ModelKind
 import app.murmur.core.model.UnitPreference
+import app.murmur.core.store.BenchmarkRecord
+import app.murmur.core.store.BenchmarkResultData
 import app.murmur.core.store.Settings
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -131,10 +138,34 @@ class ModelsScreenshotTest {
         HubFrame(Device.TallCover, nav = false) { Detail(d.asrInUse, inp, cover = true) }
     }
 
-    /** Speech list scrolled out in full: the "Support models" group, the storage line and "Add a model". */
+    /**
+     * The Speech list scrolled to "Support models" (VAD downloaded; OCR detector downloaded and benchmarked: Benchmark +
+     * Delete and "N ms per screenshot"; OCR recogniser not downloaded: the pill), then the storage line and "Add a
+     * model". On the inner display the right pane shows the OCR detector's detail with its benchmark.
+     */
     @Test
-    fun noFrameSupportModels() = shot("no-frame/support-models", tall = true) {
-        HubFrame(Device.TallCover, nav = false) { HeaderedList(HubTab.SPEECH, d.speech, null) }
+    fun noFrameSupportModels() {
+        val inp = d.support
+        shot("no-frame/support-models", before = {
+            rule.onNodeWithTag(HubTags.SUPPORT).performScrollTo()
+            rule.onNodeWithTag(HubTags.SUPPORT).assertIsDisplayed()
+            rule.onNodeWithText(context.getString(R.string.models_support), ignoreCase = true).assertIsDisplayed()
+            for (m in listOf(d.vad, d.ocrDet, d.ocrRec)) rule.onNodeWithTag(HubTags.support(m.id)).assertIsDisplayed()
+            val det = d.ocrDet.displayName
+            rule.onNode(hasContentDescription(context.getString(R.string.models_cd_benchmark, det))).assertIsDisplayed()
+            rule.onNode(hasContentDescription(context.getString(R.string.models_cd_delete, det))).assertIsDisplayed()
+            rule.onNode(hasContentDescription(context.getString(R.string.models_cd_delete, d.vad.displayName))).assertIsDisplayed()
+            rule.onNode(hasText(context.getString(R.string.models_ocr_ms, d.ocrRecord.msPerScreenshotText()), substring = true)).assertIsDisplayed()
+            val recSize = Format.sizeText(d.ocrRec.artifacts.first().downloadBytes, context.resources.configuration.locales[0])
+            rule.onNode(hasContentDescription(context.getString(R.string.models_cd_download, d.ocrRec.displayName, recSize))).assertIsDisplayed()
+            // Exactly the three support models, nothing else in the group.
+            assertEquals(3, rule.onAllNodes(hasTestTagPrefix("support-row-")).fetchSemanticsNodes().size)
+        }) {
+            HubFrame(device) {
+                if (device.wide) InnerPanes(list = { HeaderedList(HubTab.SPEECH, inp, d.ocrDet) }, detail = { Detail(d.ocrDet, inp, cover = false) })
+                else HeaderedList(HubTab.SPEECH, inp, null)
+            }
+        }
     }
 
     @Test
@@ -163,13 +194,15 @@ class ModelsScreenshotTest {
 
     // ------------------------------------------------------------------ harness
 
-    private fun shot(name: String, tall: Boolean = false, content: @Composable () -> Unit) {
+    private fun shot(name: String, tall: Boolean = false, before: () -> Unit = {}, content: @Composable () -> Unit) {
         // One composition per test: the 2x frame for the capture, then the same content at the real density for the
         // touch-target check.
         var framed by mutableStateOf(true)
         rule.setContent {
             androidx.compose.runtime.CompositionLocalProvider(LocalUseFrameDensity provides framed) { content() }
         }
+        rule.waitForIdle()
+        before()
         rule.waitForIdle()
         val file = save(if (tall) name else "$name--$suffix", tall)
         assertTrue("$file written", file.length() > 0)
@@ -222,6 +255,12 @@ class ModelsScreenshotTest {
             ?: n.config.getOrNull(SemanticsProperties.ContentDescription)?.joinToString()
         return "#${n.id} '$text' ${n.size.width / density}x${n.size.height / density} dp"
     }
+
+    private fun hasTestTagPrefix(prefix: String) = SemanticsMatcher("testTag starts with $prefix") {
+        it.config.getOrNull(SemanticsProperties.TestTag)?.startsWith(prefix) == true
+    }
+
+    private fun BenchmarkRecord.msPerScreenshotText() = (result as BenchmarkResultData.Ocr).msPerScreenshot.toString()
 
     private companion object {
         const val TAG = "ModelsShot"

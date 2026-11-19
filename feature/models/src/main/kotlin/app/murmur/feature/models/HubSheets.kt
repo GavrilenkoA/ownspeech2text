@@ -1,6 +1,10 @@
 package app.murmur.feature.models
 
+import android.app.Activity
 import android.content.ClipData
+import android.content.Context
+import android.content.ContextWrapper
+import android.view.WindowManager
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -19,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -112,13 +117,7 @@ internal fun ColumnScope.BenchSheetContent(
     onDone: () -> Unit,
     onUnit: (ComputeUnit) -> Unit,
 ) {
-    val view = LocalView.current
-    val running = state.phase == BenchUi.Phase.RUNNING
-    DisposableEffect(running) {
-        val before = view.keepScreenOn
-        if (running) view.keepScreenOn = true
-        onDispose { view.keepScreenOn = before }
-    }
+    KeepScreenOn(state.phase == BenchUi.Phase.RUNNING)
     Column(
         Modifier
             .padding(horizontal = 24.dp)
@@ -131,6 +130,35 @@ internal fun ColumnScope.BenchSheetContent(
             BenchUi.Phase.FAILED -> BenchFailed(state, onDone)
         }
     }
+}
+
+/**
+ * FLAG_KEEP_SCREEN_ON on the activity's window while [active] (the bottom sheet is a window of its own: the flag
+ * belongs to the screen the user looks at). Restores the previous flag when the run ends or the sheet goes away.
+ */
+@Composable
+internal fun KeepScreenOn(active: Boolean) {
+    val context = LocalContext.current
+    val view = LocalView.current
+    DisposableEffect(active) {
+        if (!active) return@DisposableEffect onDispose { }
+        val window = context.findActivity()?.window
+        if (window != null) {
+            val had = window.attributes.flags and WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON != 0
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            onDispose { if (!had) window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
+        } else {
+            val before = view.keepScreenOn
+            view.keepScreenOn = true
+            onDispose { view.keepScreenOn = before }
+        }
+    }
+}
+
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
 }
 
 @Composable

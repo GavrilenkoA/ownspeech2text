@@ -47,6 +47,7 @@
     <string name="unit_npu">NPU</string>
     <string name="unit_gpu">GPU</string>
     <string name="unit_cpu">CPU</string>
+    <string name="unit_npu_hexagon">NPU (Hexagon)</string>
 
     <string name="detail_parameters">Parameters</string>
     <string name="detail_languages">Languages</string>
@@ -79,6 +80,7 @@
     <string name="detail_unit_not_installed">Not downloaded · %1$s</string>
     <string name="detail_download_pinned">Download (%1$s)</string>
     <string name="detail_download_cpu">Download the CPU version (%1$s)</string>
+    <string name="detail_extra_title">%1$s version · %2$s</string>
     <string name="detail_use">Use this model</string>
     <string name="detail_delete">Delete</string>
     <string name="detail_download_action">Download %1$s</string>

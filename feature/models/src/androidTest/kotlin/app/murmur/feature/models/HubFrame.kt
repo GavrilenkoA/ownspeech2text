@@ -206,6 +206,20 @@ internal object FrameData {
         storage = StorageInfo(2_400_000_000, 900_000_000),
     )
 
+    val vad: ModelEntry = catalog.model(catalog.defaults.vad)!!
+    val ocrDet: ModelEntry = catalog.model(catalog.defaults.ocrDet)!!
+    val ocrRec: ModelEntry = catalog.model(catalog.defaults.ocrRec)!!
+    val ocrRecord = BenchmarkRecord(
+        ocrDet.artifacts.first().id, ComputeUnit.CPU, "0.1.0", "samsung/fold7", runMs,
+        BenchmarkResultData.Ocr(msPerScreenshot = 450, boxes = 42, loadMsCold = 210, peakMemMb = 140, ranOn = "CPU"),
+    )
+
+    /** "Support models" (no frame): the VAD and the OCR detector downloaded (the detector benchmarked), the recogniser not. */
+    val support = input(
+        speech.states + installedAll(vad) + installedAll(ocrDet),
+        records = listOf(asrRecord, llmRecord, ocrRecord),
+    )
+
     val deviceLabel = DeviceLabel("Galaxy Z Fold7", Format.ramGb(fold7.totalRamMb))
 
     fun benchRun(e: ModelEntry): BenchUi {

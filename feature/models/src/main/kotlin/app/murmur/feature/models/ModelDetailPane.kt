@@ -17,7 +17,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -50,6 +52,7 @@ import app.murmur.ui.design.components.MurmurButton
 import app.murmur.ui.design.components.MurmurIconButton
 import app.murmur.ui.design.components.NoRussianBadge
 import app.murmur.ui.design.components.RowTrailing
+import app.murmur.ui.design.components.Skeleton
 import app.murmur.ui.design.components.StatusKind
 import app.murmur.ui.design.components.StatusLabel
 import app.murmur.ui.design.components.TopBar
@@ -57,10 +60,15 @@ import app.murmur.ui.design.rememberIsWide
 
 /** The detail screen: data from the controller, plus its sheets and dialogs. */
 @Composable
-internal fun ModelDetailScreen(controller: ModelsController, deps: ModelsDeps, id: ModelId, onBack: (() -> Unit)?, modifier: Modifier) {
+internal fun ModelDetailScreen(controller: ModelsController, deps: ModelsDeps, id: ModelId, onClose: () -> Unit, pane: Boolean, modifier: Modifier) {
     val input by controller.input.collectAsStateWithLifecycle()
     val inp = input
     val entry = inp?.catalog?.model(id)
+    val onBack: (() -> Unit)? = if (pane) null else onClose
+    // The catalog is loaded and the model is not in it (a custom model deleted here or elsewhere): leave the page.
+    val gone = inp != null && entry == null
+    val close by rememberUpdatedState(onClose)
+    LaunchedEffect(gone) { if (gone) close() }
     Box(modifier.fillMaxSize().testTag(HubTags.DETAIL)) {
         if (inp != null && entry != null) {
             ModelDetailContent(
@@ -144,6 +152,9 @@ internal fun ModelDetailContent(
                         modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
                     )
                 }
+                view.extraDownload?.takeIf { it.purpose == ExtraDownload.Purpose.CPU_VERSION }?.let {
+                    ExtraDownloadBlock(it, onPause, onResume, Modifier.padding(top = 12.dp))
+                }
             }
             if (kind != ModelKind.VAD && view.row.state != RowState.InTraining) {
                 BenchSection(view, kind, nowMs, onBenchmark)
@@ -152,10 +163,10 @@ internal fun ModelDetailContent(
             }
             // Below the benchmark (the frame's order: facts, then "Benchmark on this phone"); no frame of its own.
             if (view.unitOptions.isNotEmpty()) {
-                Box(Modifier.padding(start = 20.dp, end = 20.dp, bottom = 24.dp)) { UnitPicker(view, onPin, onDownload) }
+                Box(Modifier.padding(start = 20.dp, end = 20.dp, bottom = 24.dp)) { UnitPicker(view, onPin, onDownload, onPause, onResume) }
             }
         }
-        ActionBar(view, onUse, onDownload = { onDownload(null) }, onPause, onResume, onDelete)
+        ActionBar(view, onUse, onDownload = { onDownload((view.action as? DetailAction.Download)?.artifact) }, onPause, onResume, onDelete)
     }
 }
 
@@ -171,7 +182,7 @@ private fun factRows(view: ModelDetailView, open: (() -> Unit)?): List<KvRow> {
                 f.quant?.let { stringResource(R.string.detail_value_pair, Format.sizeText(f.bytes, loc), it) } ?: Format.sizeText(f.bytes, loc),
             )
             is Fact.RunsOn -> KvRow(stringResource(R.string.detail_runs_on), f.lines.map { l ->
-                val u = HubTexts.unit(l.unit)
+                val u = if (l.hexagon) stringResource(R.string.unit_npu_hexagon) else HubTexts.unit(l.unit)
                 when (val why = HubTexts.blocker(l.blocker, l.socs, l.unit)) {
                     null -> u
                     // "Failed to load on NPU" already names the unit.
@@ -180,7 +191,7 @@ private fun factRows(view: ModelDetailView, open: (() -> Unit)?): List<KvRow> {
             }.joinToString("\n"))
             is Fact.Streaming -> KvRow(stringResource(R.string.detail_streaming), stringResource(if (f.streaming) R.string.detail_streaming_yes else R.string.detail_streaming_no))
             is Fact.License -> KvRow(stringResource(R.string.detail_license), f.id)
-            is Fact.Source -> KvRow(stringResource(R.string.detail_source), f.label, mono = true, onClick = open, valueTag = "model-source")
+            is Fact.Source -> KvRow(stringResource(R.string.detail_source), f.label, onClick = open, valueTag = "model-source")
         }
     }
 }
@@ -207,7 +218,13 @@ private fun NoteLine(n: DetailNote) {
 
 /** Unit picker (no frame; radio rows from WP-01): Auto and each usable unit -> Settings.unitPreference[model]. */
 @Composable
-private fun UnitPicker(view: ModelDetailView, onPin: (ComputeUnit?) -> Unit, onDownload: (app.murmur.core.catalog.Artifact?) -> Unit) {
+private fun UnitPicker(
+    view: ModelDetailView,
+    onPin: (ComputeUnit?) -> Unit,
+    onDownload: (app.murmur.core.catalog.Artifact?) -> Unit,
+    onPause: () -> Unit,
+    onResume: () -> Unit,
+) {
     val c = MurmurTheme.colors
     val t = MurmurTheme.type
     val loc = HubTexts.locale()
@@ -243,6 +260,36 @@ private fun UnitPicker(view: ModelDetailView, onPin: (ComputeUnit?) -> Unit, onD
                 onClick = { onDownload(a) }, style = ButtonStyle.Outline, leadingIcon = MurmurIcons.dl,
                 modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
             )
+        }
+        view.extraDownload?.takeIf { it.purpose == ExtraDownload.Purpose.PINNED }?.let {
+            ExtraDownloadBlock(it, onPause, onResume, Modifier.padding(top = 12.dp))
+        }
+    }
+}
+
+/**
+ * The pinned unit's or the CPU version's download while the model keeps running on what is installed: "CPU version ·
+ * 446 MB", the row's progress and meta line, and its control (Pause / Resume / Download again; none while checking).
+ */
+@Composable
+private fun ExtraDownloadBlock(extra: ExtraDownload, onPause: () -> Unit, onResume: () -> Unit, modifier: Modifier = Modifier) {
+    val c = MurmurTheme.colors
+    val t = MurmurTheme.type
+    val loc = HubTexts.locale()
+    Column(modifier.fillMaxWidth().testTag(HubTags.EXTRA_DOWNLOAD)) {
+        Text(
+            stringResource(R.string.detail_extra_title, HubTexts.unit(extra.unit), Format.sizeText(extra.artifact.downloadBytes, loc)),
+            style = t.label, color = c.ink2,
+        )
+        DownloadProgress(extra.state, onPaddingTop = 8.dp)
+        when (extra.state) {
+            is RowState.Downloading, is RowState.Queued ->
+                MurmurButton(stringResource(R.string.detail_pause), onPause, Modifier.fillMaxWidth().padding(top = 12.dp), style = ButtonStyle.Secondary, leadingIcon = MurmurIcons.pause)
+            is RowState.Paused ->
+                MurmurButton(stringResource(R.string.detail_resume), onResume, Modifier.fillMaxWidth().padding(top = 12.dp), style = ButtonStyle.Outline, leadingIcon = MurmurIcons.refresh)
+            is RowState.Failed ->
+                MurmurButton(stringResource(R.string.detail_download_again), onResume, Modifier.fillMaxWidth().padding(top = 12.dp), style = ButtonStyle.Outline, leadingIcon = MurmurIcons.refresh)
+            else -> Unit
         }
     }
 }
@@ -354,6 +401,7 @@ private fun ActionBar(view: ModelDetailView, onUse: () -> Unit, onDownload: () -
                     )
                     else -> MurmurButton(stringResource(R.string.models_checking), {}, Modifier.fillMaxWidth(), style = ButtonStyle.Secondary, loading = true)
                 }
+                DetailAction.Loading -> Skeleton(Modifier.fillMaxWidth().height(52.dp), MurmurShapes.full)
                 DetailAction.None -> {
                     val text = when (val s = view.row.state) {
                         RowState.InTraining -> stringResource(R.string.detail_not_available_yet)

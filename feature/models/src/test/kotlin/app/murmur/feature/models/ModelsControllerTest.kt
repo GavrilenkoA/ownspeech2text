@@ -1,5 +1,8 @@
 package app.murmur.feature.models
 
+import app.murmur.core.catalog.CustomModelRequest
+import app.murmur.core.catalog.CustomModelResolver
+import app.murmur.core.catalog.ModelEntry
 import app.murmur.core.catalog.Origin
 import app.murmur.core.model.ArtifactId
 import app.murmur.core.model.ComputeUnit
@@ -21,6 +24,7 @@ import app.murmur.testing.FakeInstalledModelsRepository
 import app.murmur.testing.FakeUnitHealth
 import app.murmur.testing.InMemoryBenchmarkRepository
 import app.murmur.testing.InMemorySettingsRepository
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
@@ -40,7 +44,13 @@ import org.junit.Test
 class ModelsControllerTest {
 
     /** Every artifact missing except [installed] (the :testing fake treats unlisted artifacts as installed). */
-    private class World(installed: Set<ArtifactId> = emptySet(), settings: Settings = Settings(), deviceKnown: Boolean = true) {
+    private class World(
+        installed: Set<ArtifactId> = emptySet(),
+        settings: Settings = Settings(),
+        deviceKnown: Boolean = true,
+        /** Completed by the test: the probe answers only then (null = answers at once). */
+        val probe: CompletableDeferred<Unit>? = null,
+    ) {
         val catalog = FakeCatalogRepository()
         val installed = FakeInstalledModelsRepository(HubFixtures.catalog.models.flatMap { m -> m.artifacts.map { it.id } }.filterNot { it in installed }.toMutableSet())
         val benchmarks = InMemoryBenchmarkRepository()
@@ -53,7 +63,7 @@ class ModelsControllerTest {
         var ensured = 0
         val deps = ModelsDeps(
             catalog, this.installed, benchmarks, runner, this.settings, custom, device, health,
-            ensureDevice = { ensured++; profiles.ensure().also { device.value = it } },
+            ensureDevice = { ensured++; probe?.await(); profiles.ensure().also { device.value = it } },
             deviceName = "Test phone",
             now = { 0L },
         )
@@ -174,6 +184,101 @@ class ModelsControllerTest {
         val c = controller(w)
         assertEquals(1, w.ensured)
         assertNotNull(c.input.value!!.device)
+    }
+
+    @Test
+    fun anUnknownDeviceRefusesDownloadsAndDeletesUntilTheProfileIsKnown() = runTest(UnconfinedTestDispatcher()) {
+        // Review F2: first visit before anything probed; the probe is slow.
+        val w = World(setOf(cpuArtifact(asr).id), deviceKnown = false, probe = CompletableDeferred())
+        val c = controller(w)
+        assertEquals(1, w.ensured)
+        assertNull(c.input.value!!.device)
+        assertEquals(RowState.Loading, HubLogic.row(asr, c.input.value!!).state)
+        val npu = HubFixtures.npuArtifact(asr)
+        c.download(asr.id)
+        c.download(asr.id, npu)
+        advanceUntilIdle()
+        assertFalse("no NPU build for another SoC queued blind", w.installed.isInstalled(npu.id))
+        assertTrue(listOf(catalog.defaults.vad, catalog.defaults.ocrDet).none { w.installed.isInstalled(catalog.model(it)!!.artifacts.first().id) })
+        c.requestDelete(asr.id, Surface.DETAIL)
+        advanceUntilIdle()
+        assertNull(c.delete.value)
+        assertTrue("the model in use is not deleted without asking", w.installed.isInstalled(cpuArtifact(asr).id))
+        // The profile arrives: the row is decided (the speech model of record, in use) and delete asks first.
+        w.probe!!.complete(Unit)
+        advanceUntilIdle()
+        assertEquals(RowState.InUse, HubLogic.row(asr, c.input.value!!).state)
+        c.requestDelete(asr.id, Surface.DETAIL)
+        assertTrue(c.delete.value!!.inUse)
+    }
+
+    @Test
+    fun aRunStoppedElsewhereClosesTheSheet() = runTest(UnconfinedTestDispatcher()) {
+        // Review F10: another surface's stop() ends this run's flow without Finished or Failed (ADR-080).
+        val w = World(setOf(cpuArtifact(asr).id))
+        val c = controller(w)
+        c.runBenchmark(asr.id, Surface.DETAIL)
+        testScheduler.advanceTimeBy(150)
+        assertEquals(BenchUi.Phase.RUNNING, c.bench.value!!.phase)
+        w.runner.stop()
+        testScheduler.advanceTimeBy(60_000)
+        testScheduler.runCurrent()
+        assertNull("no sheet left with Stop forever", c.bench.value)
+        assertTrue(w.benchmarks.latest(cpuArtifact(asr).id).first().isEmpty())
+    }
+
+    /** Resolves through [w]'s fake once [gate] opens (the first request only when [firstOnly]). */
+    private class SlowResolver(val w: World, val gate: CompletableDeferred<Unit>, val firstOnly: Boolean) : CustomModelResolver {
+        val requests = mutableListOf<CustomModelRequest>()
+        override suspend fun resolve(request: CustomModelRequest): Outcome<ModelEntry> {
+            requests += request
+            if (!firstOnly || requests.size == 1) gate.await()
+            return w.custom.resolve(request)
+        }
+    }
+
+    private fun TestScope.controllerWith(w: World, resolver: CustomModelResolver) = ModelsController(
+        ModelsDeps(w.catalog, w.installed, w.benchmarks, w.runner, w.settings, resolver, w.device, w.health, ensureDevice = { FakeDeviceProfileRepository.EMULATOR }),
+        backgroundScope,
+    ).also { advanceUntilIdle() }
+
+    @Test
+    fun aResolveAnswersOnlyTheFormItWasStartedFor() = runTest(UnconfinedTestDispatcher()) {
+        // Review F12: the user edits the repo while "Checking…" is shown.
+        val w = World()
+        val slow = SlowResolver(w, CompletableDeferred(), firstOnly = true)
+        val c = controllerWith(w, slow)
+        c.openAdd(ModelKind.LLM)
+        c.editAdd { it.copy(repo = "first/Old-GGUF") }
+        c.resolveAdd()
+        assertTrue(c.add.value!!.busy)
+        c.editAdd { it.copy(repo = "second/New-GGUF") }
+        assertFalse("an edit ends the old check", c.add.value!!.busy)
+        slow.gate.complete(Unit)
+        advanceUntilIdle()
+        assertNull("the old answer is dropped", c.add.value!!.preview)
+        assertEquals("second/New-GGUF", c.add.value!!.repo)
+        c.saveAdd()
+        advanceUntilIdle()
+        assertTrue("nothing to save", w.catalog.catalog.value.models.none { it.origin == Origin.CUSTOM })
+        // Checking the new repo previews the new repo.
+        c.resolveAdd()
+        advanceUntilIdle()
+        assertEquals("second/New-GGUF", slow.requests.last().repo)
+        assertEquals("custom-new-gguf", c.add.value!!.preview!!.id.value)
+
+        // Closed and reopened while a check runs: the old answer does not fill the new form either.
+        val again = SlowResolver(w, CompletableDeferred(), firstOnly = false)
+        val c2 = controllerWith(w, again)
+        c2.openAdd(ModelKind.LLM)
+        c2.editAdd { it.copy(repo = "owner/Model-GGUF") }
+        c2.resolveAdd()
+        c2.closeAdd()
+        c2.openAdd(ModelKind.LLM)
+        again.gate.complete(Unit)
+        advanceUntilIdle()
+        assertNull(c2.add.value!!.preview)
+        assertFalse(c2.add.value!!.busy)
     }
 
     @Test
@@ -298,7 +403,7 @@ class ModelsControllerTest {
             override suspend fun storage() = app.murmur.core.store.StorageInfo(0, 0)
         }
         val w = World()
-        val deps = ModelsDeps(w.catalog, repo, w.benchmarks, w.runner, w.settings, w.custom, w.device, w.health)
+        val deps = ModelsDeps(w.catalog, repo, w.benchmarks, w.runner, w.settings, w.custom, w.device, w.health, ensureDevice = { FakeDeviceProfileRepository.EMULATOR })
         val c = ModelsController(deps, backgroundScope)
         advanceUntilIdle()
         c.pause(asr.id)
