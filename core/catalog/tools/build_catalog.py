@@ -29,7 +29,7 @@ CACHE = REPO / ".cache/spikes/architect/catalog-files"
 ASR = json.loads((REPO / "docs/research/asr-catalog.json").read_text(encoding="utf-8"))
 LLM = json.loads((REPO / "docs/research/llm-catalog.json").read_text(encoding="utf-8"))
 OFFLINE = "--offline" in sys.argv
-CATALOG_VERSION = "2026-11-18.1"
+CATALOG_VERSION = "2026-11-19.1"
 
 UA = {"User-Agent": "murmur-catalog-builder/1"}
 
@@ -447,7 +447,7 @@ def main() -> int:
     cat = {
         "schema": 1,
         "catalogVersion": CATALOG_VERSION,
-        "generated": "2026-11-18 by core/catalog/tools/build_catalog.py" + (" (--offline)" if OFFLINE else " (network-verified)"),
+        "generated": "2026-11-19 by core/catalog/tools/build_catalog.py" + (" (--offline)" if OFFLINE else " (network-verified)"),
         "defaults": {
             "asr": {"ru+en": "parakeet-tdt-0.6b-v3", "en": "parakeet-tdt-0.6b-v3", "ru": "gigaam-v3-e2e-rnnt"},
             "llm": LLM.get("default_model_id", "lfm3-1.7b"),
