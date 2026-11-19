@@ -40,7 +40,7 @@ class HfCustomModelResolverTest {
 
     @Test
     fun ggufRepoResolvesToQ40WithTemplateProfileAndPinnedSha() = runBlocking {
-        // Header longer than the first 4 MB step (tokenizer arrays), so the reader extends to 16 MB.
+        // Header longer than the first 4 MB step (tokenizer arrays, about 6 MB here), so the reader asks for the next 4 MB.
         serveQwen(GgufWriter.qwen35(vocab = 400_000).build())
         val e = ok(resolver.resolve(CustomModelRequest(ModelKind.LLM, qwenRepo)))
         assertEquals(Origin.CUSTOM, e.origin)
@@ -58,7 +58,7 @@ class HfCustomModelResolverTest {
         assertEquals(12_288, e.llm!!.kvBytesPerToken)
         assertEquals(emptyList<String>(), CatalogValidator.validateEntry(e))
         val ranges = net.requests.filter { it.url == ggufUrl }.map { it.headers["Range"] }
-        assertEquals(listOf("bytes=0-4194303", "bytes=4194304-16777215"), ranges)
+        assertEquals(listOf("bytes=0-4194303", "bytes=4194304-8388607"), ranges)
         assertTrue(resolver.lastHeaderBytes > 4L shl 20)
     }
 
@@ -75,10 +75,11 @@ class HfCustomModelResolverTest {
 
     @Test
     fun unsupportedArchitectureIsAClearError() = runBlocking {
-        serveQwen(GgufWriter().string("general.architecture", "llama").string("general.name", "Llama-3.2-1B").build())
+        serveQwen(GgufWriter().string("general.architecture", "llama").stringArray("tokenizer.ggml.tokens", 400_000) { "t$it" }.string("general.name", "Llama-3.2-1B").build())
         val r = resolver.resolve(CustomModelRequest(ModelKind.LLM, qwenRepo))
         val detail = ((r as Outcome.Err).error as MurmurError.CatalogInvalid).detail!!
         assertTrue(detail, detail.startsWith("unsupported GGUF architecture 'llama'") && "qwen35" in detail)
+        assertEquals("rejected after the first 4 MB", listOf("bytes=0-4194303"), net.requests.filter { it.url == ggufUrl }.map { it.headers["Range"] })
     }
 
     @Test

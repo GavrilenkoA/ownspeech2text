@@ -214,6 +214,27 @@ class ArtifactInstallerTest {
         assertNotNull(repo.states.value[plain.id])
     }
 
+    @Test
+    fun twoJobsForOneArtifactNeverWriteThePartAtTheSameTime() = runBlocking {
+        val active = java.util.concurrent.atomic.AtomicInteger()
+        var maxActive = 0
+        val counting = object : HttpTransport by net {
+            override fun get(url: String, headers: Map<String, String>): HttpResponse {
+                val r = net.get(url, headers)
+                synchronized(this) { maxActive = maxOf(maxActive, active.incrementAndGet()) }
+                Thread.sleep(50)
+                return HttpResponse(r.code, r.finalUrl, mapOf("content-range" to r.header("Content-Range").orEmpty()), r.hops, { r.body }, { active.decrementAndGet() })
+            }
+        }
+        val d = ModelDownloads(storage, catalog, scheduler, counting, { preparer }, { free })
+        val a = async(Dispatchers.IO) { d.runJob(plain.id, true) }
+        val b = async(Dispatchers.IO) { d.runJob(plain.id, true) }
+        assertTrue(a.await() is Outcome.Ok && b.await() is Outcome.Ok)
+        assertEquals(1, maxActive)
+        assertEquals(sha256(model), sha256Hex(storage.file(plain.id, "model.onnx")))
+        assertEquals("the second job found the artifact installed", 2, net.requests.size)
+    }
+
     private companion object {
         val DONE = ArtifactId("__done__")
     }

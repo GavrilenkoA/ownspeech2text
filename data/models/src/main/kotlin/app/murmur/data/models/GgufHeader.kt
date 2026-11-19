@@ -103,7 +103,8 @@ object GgufHeader {
     /**
      * F16 KV cache bytes per token from the attention shape: sum over layers of kv_heads x (key_length + value_length)
      * x 2 bytes. Per-layer head counts (hybrid models list 0 for recurrent layers) are summed as given. null when the
-     * header lacks the keys (MemoryEstimate then assumes 12 KiB/token).
+     * header lacks the keys (MemoryEstimate then assumes 12 KiB/token). An upper bound when the runtime shares KV between
+     * layers (LFM3 1.7B: 22,528 from the header vs 12,288 measured), which keeps the memory gate on the safe side.
      */
     fun kvBytesPerToken(m: Meta): Int? {
         val arch = m.string("general.architecture") ?: return null

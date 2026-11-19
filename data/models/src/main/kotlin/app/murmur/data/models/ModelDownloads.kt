@@ -17,6 +17,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /** Schedules one download job per artifact (JobScheduler UIDT on Android, ModelDownloadJob). */
 interface DownloadScheduler {
@@ -55,6 +57,13 @@ class ModelDownloads(
     private val downloader = FileDownloader(http, log)
     private val extractor = CommonsArchiveExtractor(log)
     private val running = ConcurrentHashMap<ArtifactId, Job>()
+    /**
+     * One writer per artifact directory: a job that is cancelled may still be inside a blocking connect when the next
+     * job for the same artifact starts (delete + download again, a stop and a restart); without the lock both would
+     * write the same .part.
+     */
+    private val locks = ConcurrentHashMap<ArtifactId, Mutex>()
+    private fun lock(id: ArtifactId) = locks.computeIfAbsent(id) { Mutex() }
 
     init {
         refresh()
@@ -97,20 +106,24 @@ class ModelDownloads(
     suspend fun runJob(id: ArtifactId, wifiOnly: Boolean, onTransferred: (Long) -> Unit = {}): Outcome<InstallState.Installed> {
         val job = currentCoroutineContext()[Job]
         if (job != null) running[id] = job
-        log.event("job_start", "artifact" to id.value, "partBytes" to catalog.catalog.value.artifact(id)?.second?.let { storage.bytesDone(it) })
         try {
-            val installer = ArtifactInstaller(
-                storage = storage, downloader = downloader, extractor = extractor, states = states, preparer = preparer,
-                queue = { cpu ->
-                    log.event("queue_cpu_artifact", "artifact" to cpu.value, "after" to id.value)
-                    enqueue(cpu, wifiOnly)
-                },
-                freeBytes = freeBytes, now = now, log = log, onTransferred = onTransferred,
-            )
-            return installer.install(catalog.catalog.value, id)
+            return lock(id).withLock { install(id, wifiOnly, onTransferred) }
         } finally {
             running.remove(id, job)
         }
+    }
+
+    private suspend fun install(id: ArtifactId, wifiOnly: Boolean, onTransferred: (Long) -> Unit): Outcome<InstallState.Installed> {
+        log.event("job_start", "artifact" to id.value, "partBytes" to catalog.catalog.value.artifact(id)?.second?.let { storage.bytesDone(it) })
+        val installer = ArtifactInstaller(
+            storage = storage, downloader = downloader, extractor = extractor, states = states, preparer = preparer,
+            queue = { cpu ->
+                log.event("queue_cpu_artifact", "artifact" to cpu.value, "after" to id.value)
+                enqueue(cpu, wifiOnly)
+            },
+            freeBytes = freeBytes, now = now, log = log, onTransferred = onTransferred,
+        )
+        return installer.install(catalog.catalog.value, id)
     }
 
     /** The job was stopped by the system or the user; the .part files stay. */
@@ -143,7 +156,7 @@ class ModelDownloads(
     suspend fun delete(id: ArtifactId) {
         scheduler.cancel(id)
         running[id]?.let { it.cancel(CancellationException("deleted")); it.join() }
-        storage.delete(id)
+        lock(id).withLock { storage.delete(id) }
         log.event("deleted", "artifact" to id.value)
         states.set(id, InstallState.NotInstalled)
     }

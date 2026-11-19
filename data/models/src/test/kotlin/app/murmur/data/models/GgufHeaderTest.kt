@@ -32,7 +32,8 @@ class GgufHeaderTest {
     @Test
     fun kvBytesPerTokenMatchesTheCatalogForQwen35AndCountsLfmAttentionLayers() {
         assertEquals(12_288, GgufHeader.kvBytesPerToken(GgufHeader.parse(GgufWriter.qwen35().build())))
-        // LFM3 1.7B dims (cached GGUF): 24 blocks, KV heads 4 on 11 attention layers, head dim 128.
+        // LFM3 1.7B dims (cached GGUF): 24 blocks, KV heads 4 on 11 attention layers, head dim 128. From the header alone
+        // this is an upper bound: the bundled catalog's 12,288 comes from a measured snapshot (llm-npu.md #35).
         val lfm3 = GgufWriter().string("general.architecture", "lfm3").u32("lfm3.block_count", 24).u32("lfm3.embedding_length", 2048)
             .u32("lfm3.attention.head_count", 16).u32("lfm3.attention.key_length", 128).u32("lfm3.attention.value_length", 128)
             .i32Array("lfm3.attention.head_count_kv", List(24) { if (it >= 2 && it % 2 == 0) 4 else 0 }).build()

@@ -48,7 +48,7 @@ import kotlinx.serialization.json.putJsonArray
  *  1. `GET /api/models/<repo>/revision/<rev>` -> commit sha, file list, card data (languages, licence); gated or
  *     private repos are refused (no tokens, D9);
  *  2. LLM: one GGUF (the request's file, else Q4_0 preferred, then Q4_K_M, never mmproj or split files); its header is
- *     read with HTTP Range requests (4 MB, up to 16 MB) for `general.architecture` -> template, `general.name` and
+ *     read with HTTP Range requests (4 MB steps, at most 16 MB) for `general.architecture` -> template, `general.name` and
  *     `murmur.prompt_profile` -> profile (the request's profile wins), the attention shape -> kvBytesPerToken;
  *     nCtx = [GgufTemplates.DEFAULT_CUSTOM_NCTX] until Preparing measures the prefix;
  *     ASR: [SherpaLayout.detect] over the file list;
@@ -111,7 +111,8 @@ class HfCustomModelResolver(
             ?: reject("no single-file GGUF in the repo")
         if (!path.endsWith(".gguf", ignoreCase = true)) reject("$path is not a GGUF file")
         val file = fileSpec(req.repo, sha, path, "model.gguf")
-        val meta = readHeader(file.url)
+        // An unsupported architecture is known from the first bytes: no need to read the rest of the header.
+        val meta = readHeader(file.url) { m -> req.llmTemplate == null && m.string("general.architecture")?.let { GgufTemplates.templateFor(it) == null } == true }
         val arch = meta.string("general.architecture") ?: reject("GGUF header has no general.architecture")
         val template = req.llmTemplate ?: GgufTemplates.templateFor(arch)
             ?: reject("unsupported GGUF architecture '$arch'; supported: ${GgufTemplates.byArchitecture.keys.joinToString(", ")}")
@@ -221,8 +222,8 @@ class HfCustomModelResolver(
         MessageDigest.getInstance("SHA-256").digest(bytes).toHex()
     }
 
-    /** GGUF metadata from the first 4 MB, extended to 16 MB when the key/values continue (tokenizer arrays). */
-    private fun readHeader(url: String): GgufHeader.Meta {
+    /** GGUF metadata from the first 4 MB, extended 4 MB at a time (to 16 MB) while the key/values continue (tokenizer arrays). */
+    private fun readHeader(url: String, enough: (GgufHeader.Meta) -> Boolean = { false }): GgufHeader.Meta {
         val buf = ByteArrayOutputStream()
         var meta: GgufHeader.Meta? = null
         for (end in HEADER_STEPS) {
@@ -237,7 +238,7 @@ class HfCustomModelResolver(
             }
             val bytes = buf.toByteArray()
             meta = try { GgufHeader.parse(bytes) } catch (e: GgufHeader.NotGguf) { reject("not a GGUF file (${e.message})") }
-            if (meta.complete || buf.size().toLong() < end) break
+            if (meta.complete || enough(meta) || buf.size().toLong() < end) break
         }
         lastHeaderBytes = buf.size().toLong()
         log.event("gguf_header", "bytes" to lastHeaderBytes, "complete" to meta?.complete, "keys" to meta?.values?.size)
@@ -256,7 +257,8 @@ class HfCustomModelResolver(
     companion object {
         const val API = "https://huggingface.co/api"
         const val SMALL_FILE_BYTES = 10L * 1024 * 1024
-        val HEADER_STEPS = listOf(4L shl 20, 16L shl 20)
+        /** Range steps for the GGUF header: 4 MB at a time, at most 16 MB (Qwen3.5 0.8B: 10.9 MB, LFM3 1.7B: 8.2 MB). */
+        val HEADER_STEPS = listOf(4L shl 20, 8L shl 20, 12L shl 20, 16L shl 20)
         private val REPO = Regex("^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9._-]+$")
         private val REV = Regex("^[A-Za-z0-9._/-]{1,100}$")
         private val SHA1 = Regex("^[0-9a-f]{40}$")
