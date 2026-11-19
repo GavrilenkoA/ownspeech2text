@@ -13,7 +13,6 @@ import app.murmur.core.dictation.AppNavigator
 import app.murmur.core.dictation.Feedback
 import app.murmur.core.dictation.OpenTarget
 import app.murmur.core.dictation.PermissionMonitor
-import app.murmur.core.dictation.HapticKind
 import app.murmur.core.dictation.MemoryGate
 import app.murmur.core.engine.Engines
 import app.murmur.core.model.MurmurClock
@@ -44,6 +43,7 @@ import app.murmur.platform.a11y.A11yBridge
 import app.murmur.platform.a11y.BridgedInserter
 import app.murmur.platform.a11y.BridgedTargetReader
 import app.murmur.platform.audio.AndroidAudioCapture
+import app.murmur.platform.overlay.OverlayFeedback
 import app.murmur.platform.audio.OpusAudioStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -104,11 +104,8 @@ class AppContainer(private val context: Context) {
         )
     }
 
-    /** WP-03 provides the overlay-view implementation; this placeholder does nothing. */
-    private val feedback = object : Feedback {
-        override fun haptic(kind: HapticKind) {}
-        override fun sound(kind: HapticKind) {}
-    }
+    /** WP-03: haptics from the bubble view per Settings.feedback (ADR-044); earcons silent until designed (ADR-062). */
+    private val feedback: Feedback = OverlayFeedback { settings.settings.value.feedback }
 
     /** WP-15: Intent to MainActivity with the shell's deep-link extras (open History entry / Models). */
     private val navigator = AppNavigator { _: OpenTarget -> TODO("WP-15") }
