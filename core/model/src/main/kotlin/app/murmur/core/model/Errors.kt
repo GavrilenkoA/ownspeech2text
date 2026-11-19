@@ -28,6 +28,8 @@ sealed class MurmurError {
     @Serializable data object MicBusy : MurmurError() { override val code = "audio.busy"; override val retryable = true }
     @Serializable data class MicStartFailed(override val detail: String?) : MurmurError() { override val code = "audio.start"; override val retryable = true }
     @Serializable data object MicSilenced : MurmurError() { override val code = "audio.silenced"; override val retryable = true }
+    /** The input stream died mid-recording (read error, reads that stay empty, no samples for a while); detail = cause code. */
+    @Serializable data class MicLost(override val detail: String?) : MurmurError() { override val code = "audio.lost"; override val retryable = true }
     @Serializable data object NoSpeech : MurmurError() { override val code = "audio.no_speech"; override val retryable = true }
 
     // --- inference processes / engines
