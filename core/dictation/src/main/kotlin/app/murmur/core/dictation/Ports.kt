@@ -41,7 +41,11 @@ sealed interface CaptureSignal {
     data object Silenced : CaptureSignal
     /** AudioRecord.read error or the input device disappeared. */
     data class Lost(val error: MurmurError) : CaptureSignal
-    /** AudioManager mode changed to IN_CALL / IN_COMMUNICATION (incoming or outgoing call). */
+    /**
+     * AudioManager mode changed during the recording to a call mode (IN_CALL, IN_COMMUNICATION, RINGTONE,
+     * CALL_SCREENING, CALL_REDIRECT, COMMUNICATION_REDIRECT): incoming (ringing) or outgoing call. A call already up at
+     * the start raises nothing; at most once per session (WP-09 CallWatch).
+     */
     data object CallStarted : CaptureSignal
 }
 

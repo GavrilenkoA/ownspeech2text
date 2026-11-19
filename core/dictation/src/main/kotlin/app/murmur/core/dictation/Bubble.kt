@@ -46,7 +46,7 @@ object BubbleMapping {
 
     fun errorBubble(e: MurmurError): DictationBubble.Error = when (e) {
         MurmurError.NoSpeech -> DictationBubble.Error(BubbleError.NO_SPEECH, BubbleAction.RETRY)
-        MurmurError.MicBusy, MurmurError.MicSilenced, is MurmurError.MicStartFailed -> DictationBubble.Error(BubbleError.MIC_BUSY, null)
+        MurmurError.MicBusy, MurmurError.MicSilenced, is MurmurError.MicStartFailed, is MurmurError.MicLost -> DictationBubble.Error(BubbleError.MIC_BUSY, null)
         MurmurError.NoAsrModel, MurmurError.NoVadModel -> DictationBubble.Error(BubbleError.NO_MODEL, BubbleAction.OPEN_MODELS)
         // NPU load failed and no CPU artifact installed: the hub offers "Download the CPU version" (ARCHITECTURE 4.4).
         is MurmurError.UnitUnavailable -> DictationBubble.Error(BubbleError.LOAD_FAILED, BubbleAction.OPEN_MODELS)
