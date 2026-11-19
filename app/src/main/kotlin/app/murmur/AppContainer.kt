@@ -114,7 +114,7 @@ class AppContainer(private val context: Context) {
                 system = system,
             ),
             appScope,
-            onInternalError = { android.util.Log.e("MurmurDictation", "internal_error", it) },
+            onInternalError = { android.util.Log.e("MurmurDictation", internalErrorLine(it)) },
         )
     }
 

@@ -54,7 +54,7 @@ class TestHostApp : Application(), A11yServiceHost {
 class RecordingSurface(val displayId: Int) : BubbleSurface {
     @Volatile var attached = false
     val inputs = CopyOnWriteArrayList<Pair<Long, VisibilityInput>>()
-    override fun attach() { attached = true }
+    override fun attach(): Boolean { attached = true; return true }
     override fun updateVisibility(input: VisibilityInput) { inputs += SystemClock.uptimeMillis() to input }
     override fun detach() { attached = false }
 }

@@ -119,7 +119,7 @@ class OverlayWindowTest {
         lastError?.let { throw it }
         onMain {
             host = OverlayHost(service, Display.DEFAULT_DISPLAY, dictation, levels, { inputs += it }, settings)
-            host.attach()
+            check(host.attach()) { "bubble window not attached" }
         }
     }
 
@@ -461,7 +461,7 @@ class OverlayWindowTest {
         onMain { host.detach() }
         assertEquals(androidx.lifecycle.Lifecycle.State.CREATED, onMain { host.owners.lifecycle.currentState })
         assertFalse("detach keeps the view models", probe.cleared)
-        onMain { host.attach() } // detach is reversible
+        assertTrue("attach after detach", onMain { host.attach() }) // detach is reversible
         waitUntil("Ready again") { snap().visual == BubbleVisual.Ready }
         onMain { host.destroy() }
         assertEquals(androidx.lifecycle.Lifecycle.State.DESTROYED, onMain { host.owners.lifecycle.currentState })

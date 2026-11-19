@@ -60,7 +60,11 @@ interface A11yServiceHost {
 
 /** What the service needs from a per-display bubble window. */
 interface BubbleSurface {
-    fun attach()
+    /**
+     * Shows the bubble. Returns false when no window could be added (bad token, display gone): the service then
+     * destroys this surface and tries a fresh one on the display's next change.
+     */
+    fun attach(): Boolean
     fun updateVisibility(input: VisibilityInput)
     /** Removes the windows; the surface may be attached again (a temporary loss of the window token). */
     fun detach()
@@ -69,7 +73,7 @@ interface BubbleSurface {
 }
 
 private class OverlayBubbleSurface(private val host: OverlayHost) : BubbleSurface {
-    override fun attach() = host.attach()
+    override fun attach(): Boolean = host.attach()
     override fun updateVisibility(input: VisibilityInput) = host.updateVisibility(input)
     override fun detach() = host.detach()
     override fun destroy() = host.destroy()
@@ -101,7 +105,7 @@ class MurmurAccessibilityService : AccessibilityService() {
 
     private var host: A11yServiceHost? = null
     private var tracker: FocusTracker? = null
-    private val surfaces = LinkedHashMap<Int, BubbleSurface>()
+    private val surfaces = BubbleSurfaces { displayId -> checkNotNull(host).bubbleFor(this, displayId) }
     private var lastVisibility: Pair<Int, VisibilityInput>? = null
     private val focusReadQueued = AtomicBoolean(false)
     @Volatile private var connected = false
@@ -193,27 +197,24 @@ class MurmurAccessibilityService : AccessibilityService() {
 
     private fun pushVisibility(focusDisplayId: Int, input: VisibilityInput) {
         lastVisibility = focusDisplayId to input
-        for ((displayId, surface) in surfaces) surface.updateVisibility(VisibilityRules.forDisplay(input, focusDisplayId, displayId))
+        surfaces.forEach { displayId, surface -> surface.updateVisibility(VisibilityRules.forDisplay(input, focusDisplayId, displayId)) }
     }
 
     private fun attachBubble(displayId: Int) {
-        if (displayId in surfaces) return
-        val h = host ?: return
-        val surface = try {
-            h.bubbleFor(this, displayId).also { it.attach() }
-        } catch (e: RuntimeException) {
-            // e.g. a display that went away between the event and the attach (WindowManager.BadTokenException).
-            Log.w(TAG, "bubble_attach_failed display=$displayId ${e.javaClass.simpleName}")
-            return
+        if (host == null) return
+        when (val r = surfaces.attach(displayId)) {
+            BubbleSurfaces.Result.Present -> Unit
+            BubbleSurfaces.Result.Attached -> lastVisibility?.let { (focusDisplay, input) ->
+                surfaces[displayId]?.updateVisibility(VisibilityRules.forDisplay(input, focusDisplay, displayId))
+            }
+            // e.g. a display that went away between the event and the attach (WindowManager.BadTokenException). The
+            // surface is not kept: the display's next change tries again with a fresh one.
+            is BubbleSurfaces.Result.Failed -> Log.w(TAG, "bubble_retry_later display=$displayId error=${r.error ?: "not_attached"}")
         }
-        surfaces[displayId] = surface
-        lastVisibility?.let { (focusDisplay, input) -> surface.updateVisibility(VisibilityRules.forDisplay(input, focusDisplay, displayId)) }
     }
 
     /** Display removed or service ending: the surface is final ([BubbleSurface.destroy]); a re-added display gets a new one. */
-    private fun destroyBubble(displayId: Int) {
-        surfaces.remove(displayId)?.destroy()
-    }
+    private fun destroyBubble(displayId: Int) = surfaces.destroy(displayId)
 
     private fun Display.isPublic() = (flags and Display.FLAG_PRIVATE) == 0
 
@@ -231,6 +232,10 @@ class MurmurAccessibilityService : AccessibilityService() {
 
         /** Fold/unfold and rotation (a 180° flip arrives only here, platform spike a): focus and bounds may have moved. */
         override fun onDisplayChanged(displayId: Int) {
+            // A display whose bubble failed to attach gets another try (F2: the failed surface is not kept).
+            if (connected && displayId !in surfaces) {
+                getSystemService(DisplayManager::class.java).getDisplay(displayId)?.takeIf { it.isPublic() }?.let { attachBubble(displayId) }
+            }
             requestFocusRead()
             tracker?.republish()
         }
@@ -244,7 +249,7 @@ class MurmurAccessibilityService : AccessibilityService() {
         A11yBridge.service.compareAndSet(this, null)
         runCatching { getSystemService(DisplayManager::class.java).unregisterDisplayListener(displayListener) }
         runCatching { getSystemService(AccessibilityManager::class.java).removeTouchExplorationStateChangeListener(talkBackListener) }
-        surfaces.keys.toList().forEach(::destroyBubble)
+        surfaces.destroyAll()
         scope?.cancel()
         scope = null
         tracker = null

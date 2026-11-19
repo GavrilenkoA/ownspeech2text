@@ -163,10 +163,13 @@ class OverlayHost(
         })
     }
 
-    /** Shows the bubble on this display. Idempotent; allowed again after [detach], never after [destroy]. */
-    fun attach() {
+    /**
+     * Shows the bubble on this display. Idempotent; allowed again after [detach], never after [destroy]. Returns
+     * whether the bubble window is attached: false when WindowManager refused it (bad token, display gone).
+     */
+    fun attach(): Boolean {
         check(!destroyed) { "OverlayHost for display $displayId was destroyed" }
-        if (attached) return
+        if (attached) return true
         if (lifecycleRegistry.currentState == Lifecycle.State.INITIALIZED) savedState.performRestore(null)
         lifecycleRegistry.currentState = Lifecycle.State.RESUMED
         val s = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -181,7 +184,7 @@ class OverlayHost(
             Log.w(TAG, "bubble_attach_failed display=$displayId ${e.javaClass.simpleName}")
             s.cancel(); scope = null
             lifecycleRegistry.currentState = Lifecycle.State.CREATED
-            return
+            return false
         }
         BubbleViews.register(root) { lastVisual != BubbleVisual.Hidden }
         ctx.registerComponentCallbacks(configCallbacks)
@@ -192,6 +195,7 @@ class OverlayHost(
         s.launch { dictation.collect { controller.dictation = it; refresh("dictation") } }
         Log.i(TAG, "bubble_attached display=$displayId type=${bubbleLp.type} bounds=${wm.currentWindowMetrics.bounds.toShortString()}")
         refresh("attach")
+        return true
     }
 
     fun updateVisibility(input: VisibilityInput) {
