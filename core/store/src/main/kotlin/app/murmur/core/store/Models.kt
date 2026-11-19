@@ -44,6 +44,12 @@ data class BenchmarkRecord(
     val buildFingerprint: String,
     val atEpochMs: Long,
     val result: BenchmarkResultData,
+    /**
+     * Measurement context (ARCHITECTURE 10 "record notes"), numbers and codes only: thermal status before/after,
+     * the raw memory readings behind peakMemMb, wall time of the unit, LLM synthetic pp512/tg128 speeds and prefix
+     * prefill, per-page OCR times. Keys: `BenchNotes` in :core:benchmark.
+     */
+    val notes: Map<String, String> = emptyMap(),
 )
 
 /**
