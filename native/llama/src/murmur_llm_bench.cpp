@@ -138,7 +138,7 @@ int main(int argc, char ** argv) {
                 FILE * pc = prefix_cache.empty() ? nullptr : fopen(prefix_cache.c_str(), "rb");
                 if (pc) {
                     fclose(pc);
-                    rc = mllm_prefix_load(e, prefix_cache.c_str(), &pi);
+                    rc = mllm_prefix_load(e, prefix_cache.c_str(), prefix.c_str(), &pi);
                     printf("{\"event\":\"prefix_load\",\"mode\":\"%s\",\"rc\":%d,\"n_tokens\":%d,\"load_ms\":%.1f}\n", mode_name.c_str(), rc, pi.n_tokens, pi.prefill_ms);
                 } else {
                     rc = mllm_prefix_set(e, prefix.c_str(), &pi);

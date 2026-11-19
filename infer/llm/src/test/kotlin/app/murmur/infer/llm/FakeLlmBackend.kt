@@ -4,7 +4,8 @@ import java.io.File
 
 /**
  * Scripted stand-in for libmurmur_llm_jni.so. Tokens = UTF-8 bytes / 4 (rounded up), prefix snapshots are files
- * holding "<tokens>" so that load/rebuild paths can be observed. Records every call that matters to the tests.
+ * holding "<tokens>\n<prefix text>" so that load/rebuild paths can be observed (like MLLMST02, a load restores only the
+ * exact prefix text). Records every call that matters to the tests.
  */
 class FakeLlmBackend(
     var devices: String = "CPU|Intel CPU|cpu;",
@@ -27,6 +28,9 @@ class FakeLlmBackend(
     var duringGenerate: (() -> Unit)? = null
     var prefixLoadRc: Int? = null
     var prefixSetRc: Int? = null
+    /** Called inside prefixLoad / bench (e.g. to advance a test clock or to cancel). */
+    var duringPrefixLoad: (() -> Unit)? = null
+    var duringBench: (() -> Unit)? = null
 
     fun tokens(b: ByteArray) = (b.size + 3) / 4
 
@@ -54,18 +58,22 @@ class FakeLlmBackend(
         calls += "prefixSet"
         prefixSetRc?.let { return it }
         stats[0] = tokens(prefixUtf8).toDouble(); stats[1] = 1000.0; stats[3] = 4096.0
-        lastPrefixTokens = tokens(prefixUtf8)
+        lastPrefix = prefixUtf8
         return LlmBackend.OK
     }
-    private var lastPrefixTokens = 0
+    private var lastPrefix = ByteArray(0)
     override fun prefixSave(h: Long, file: String): Int {
-        calls += "prefixSave"; File(file).writeText(lastPrefixTokens.toString()); return LlmBackend.OK
+        calls += "prefixSave"; File(file).writeText("${tokens(lastPrefix)}\n${lastPrefix.decodeToString()}"); return LlmBackend.OK
     }
-    override fun prefixLoad(h: Long, file: String, stats: DoubleArray): Int {
+    override fun prefixLoad(h: Long, file: String, prefixUtf8: ByteArray, stats: DoubleArray): Int {
         calls += "prefixLoad"
+        duringPrefixLoad?.invoke()
         prefixLoadRc?.let { return it }
-        val n = File(file).readText().toIntOrNull() ?: return LlmBackend.E_STATE
+        val content = File(file).readText()
+        val n = content.substringBefore('\n').toIntOrNull() ?: return LlmBackend.E_STATE
+        if ('\n' !in content || content.substringAfter('\n') != prefixUtf8.decodeToString()) return LlmBackend.E_STATE
         stats[0] = n.toDouble(); stats[1] = 4.0; stats[3] = File(file).length().toDouble()
+        lastPrefix = prefixUtf8
         return LlmBackend.OK
     }
 
@@ -94,7 +102,10 @@ class FakeLlmBackend(
     override fun cancel(h: Long) { calls += "cancel"; cancelFlag = true }
     override fun cancelClear(h: Long) { calls += "cancelClear"; cancelFlag = false }
     override fun bench(h: Long, nPrompt: Int, nGen: Int, reps: Int, out: DoubleArray): Int {
-        calls += "bench"; out[0] = 300.0; out[1] = 30.0; out[2] = 853.3; out[3] = 1066.7; return LlmBackend.OK
+        calls += "bench"
+        duringBench?.invoke()
+        if (cancelFlag) return LlmBackend.E_CANCELLED           // murmur_llm: a cancel in the pp or the tg phase
+        out[0] = 300.0; out[1] = 30.0; out[2] = 853.3; out[3] = 1066.7; return LlmBackend.OK
     }
     override fun lastError(h: Long) = ""
     override fun unload(h: Long) { calls += "unload:$h" }

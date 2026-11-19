@@ -24,10 +24,11 @@ import java.util.concurrent.atomic.AtomicLong
  *
  * Rules (WP-10, ARCHITECTURE 4.3, ADR-011/031/045/060):
  *  - load: `n_ctx` comes from the catalog (no default), CPU loads with `use_mmap = 0` unless asked otherwise;
- *    a unit that does not register, or refuses the weights (rpcmem/VTCM), is [MurmurError.UnitUnavailable]; the
- *    fallback to another unit belongs to the caller (ADR-050).
+ *    a unit that does not register, or refuses the weights (rpcmem/VTCM), is [MurmurError.UnitUnavailable]; host
+ *    memory refused during the load is [MurmurError.OutOfMemory] on every unit, which never judges the unit
+ *    (ADR-066); the fallback to another unit belongs to the caller (ADR-050).
  *  - setPrefix: restore `<dir>/prefix-<cacheKey>.state` when it exists, else prefill + snapshot + save (atomically);
- *    a state file that does not load (stale or truncated) or carries another token count is deleted and rebuilt.
+ *    a state file that does not load (stale, truncated, or holding another prefix text) is deleted and rebuilt.
  *  - generate: exact room check after tokenising the suffix; too little room is [MurmurError.LlmContextOverflow]
  *    without any decode; otherwise `max_tokens = min(request.maxTokens, room)`.
  *  - cancel: tickets order requests; a cancel covers the running request and every request already queued.
@@ -116,6 +117,8 @@ class LlmEngine(
             return err(
                 when {
                     rc == LlmBackend.E_DEVICE -> MurmurError.UnitUnavailable(spec.unit)
+                    // host RAM (weights, KV cache or compute buffers in CPU memory): says nothing about the unit
+                    rc == LlmBackend.E_NOMEM -> MurmurError.OutOfMemory(ModelKind.LLM)
                     // NPU/GPU: the weights or the compute buffers did not fit the unit (rpcmem, VTCM, OpenCL); the
                     // same GGUF may still load on the CPU, so this is the unit's failure, not the model's.
                     spec.unit != ComputeUnit.CPU && (rc == LlmBackend.E_LOAD || rc == LlmBackend.E_CTX) ->
@@ -147,16 +150,18 @@ class LlmEngine(
         val stats = DoubleArray(4)
 
         if (file.isFile) {
-            val rc = n.prefixLoad(l.handle, file.path, stats)
+            val t0 = nanoTime()
+            // The key covers model, prefix text, unit, build and context (ADR-060); the native side also compares the
+            // prefix text stored in the file byte for byte, so a file that holds another prefix is E_STATE too.
+            val rc = n.prefixLoad(l.handle, file.path, text, stats)
             if (rc == LlmBackend.OK) {
                 val tokens = stats[0].toInt()
-                // The key covers model, prefix text, unit, build and context (ADR-060); the token count is a cheap
-                // second check that the file really holds this prefix (a few ms against a multi-second prefill).
-                if (tokens == n.tokenCount(l.handle, text)) {
-                    prefix = Prefix.Ready(tokens)
-                    return Outcome.Ok(PrefixInfo(tokens, stats[1].toLong(), restoredFromDisk = true, bytes = file.length()))
-                }
-            } else if (rc != LlmBackend.E_STATE) {
+                prefix = Prefix.Ready(tokens)
+                // what the caller of setPrefix waits for here, not only the native map + restore
+                val restoreMs = (nanoTime() - t0) / 1_000_000
+                return Outcome.Ok(PrefixInfo(tokens, restoreMs, restoredFromDisk = true, bytes = file.length()))
+            }
+            if (rc != LlmBackend.E_STATE) {
                 prefix = Prefix.Broken
                 return err(if (rc == LlmBackend.E_CANCELLED) CANCELLED else MurmurError.LlmFailed("prefix load rc=$rc"))
             }

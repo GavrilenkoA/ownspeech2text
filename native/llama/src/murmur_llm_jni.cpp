@@ -145,10 +145,11 @@ JNIEXPORT jint JNICALL MLLM_JNI(prefixSave)(JNIEnv * env, jobject, jlong h, jstr
     return mllm_prefix_save(engine(h), chars(env, file).c_str());
 }
 
-JNIEXPORT jint JNICALL MLLM_JNI(prefixLoad)(JNIEnv * env, jobject, jlong h, jstring file, jdoubleArray stats) {
-    if (!h) return MLLM_E_ARG;
+JNIEXPORT jint JNICALL MLLM_JNI(prefixLoad)(JNIEnv * env, jobject, jlong h, jstring file, jbyteArray prefixUtf8, jdoubleArray stats) {
+    if (!h || !prefixUtf8) return MLLM_E_ARG;
+    const std::string prefix = bytes(env, prefixUtf8);
     mllm_prefix_info pi {};
-    const int rc = mllm_prefix_load(engine(h), chars(env, file).c_str(), &pi);
+    const int rc = mllm_prefix_load(engine(h), chars(env, file).c_str(), prefix.c_str(), &pi);
     put(env, stats, {static_cast<double>(pi.n_tokens), pi.prefill_ms, pi.snapshot_ms, static_cast<double>(pi.snapshot_bytes)});
     return rc;
 }

@@ -72,6 +72,8 @@ class LlmServiceTest {
     private val args: Bundle = InstrumentationRegistry.getArguments()
     private val artifactId = args.getString("artifact") ?: "qwen3.5-0.8b@q4_0"
     private val scale = args.getString("timeoutScale")?.toDouble() ?: 1.0
+    /** WP-10 asserts timings on the default model at scale 1; a scaled run is functional only (as for LFM3). */
+    private val timingRun = scale == 1.0
     private val catalog = CatalogParser.bundled()
     private val entry: ModelEntry = catalog.models.first { m -> m.artifacts.any { it.id.value == artifactId } }
     private val artifact: Artifact = entry.artifacts.first { it.id.value == artifactId }
@@ -118,6 +120,26 @@ class LlmServiceTest {
         assertEquals("CPU", load(s).deviceName)
     }
 
+    @Test fun t02b_aProbeDuringALoadDoesNotWaitForTheLoad() = withService { s ->
+        // :main probes with a 2 s timeout and treats a timeout as a dead process (ARCHITECTURE 4.3), e.g. on the first
+        // launch after an update while preparation is already loading the model in a fresh :llm process.
+        val loading = CountDownLatch(1)
+        s.load(json(spec()), object : IResultCallback.Stub() {
+            override fun onResult(json: String) { loading.countDown() }
+            override fun onError(errorJson: String) { loading.countDown() }
+        })
+        SystemClock.sleep(50)
+        val t0 = SystemClock.elapsedRealtime()
+        val p = InferApi.decode(ProcessProbe.serializer(), s.probe())
+        val took = SystemClock.elapsedRealtime() - t0
+        val loadStillRunning = loading.count > 0
+        report("probe_during_load_ms", "$took (load still running: $loadStillRunning)")
+        assertEquals(setOf(ComputeUnit.CPU), p.units)
+        assertTrue("probe answered in $took ms", took < PROBE_BOUND_MS)
+        assertTrue("the load outlived the probe, so the probe really overlapped it", loadStillRunning)
+        assertTrue(loading.await(ms(120_000), TimeUnit.MILLISECONDS))
+    }
+
     @Test fun t03_coldPrefixIsPrefilledSavedAndMatchesTheUncachedOutput() = withService { s ->
         modelDir.listFiles { f -> f.name.startsWith("prefix-") }?.forEach { it.delete() }
         val info = load(s)
@@ -146,14 +168,17 @@ class LlmServiceTest {
 
     @Test fun t04_aSecondProcessRestoresThePrefixFromDisk() {
         val firstPid = withService { pidOf() }
-        // The restore is one read of the state file plus one copy into the KV / recurrent buffers (tens of MB).
-        // Target: < 100 ms (WP-10). On this shared emulator memory and file bandwidth swing several-fold with the
-        // host load, so three cold process starts are measured and reported next to an in-process read of the same
-        // file; the assertion is a regression guard far below the prefill it replaces (40-150 s here).
+        // The restore maps the state file and copies it once into the KV / recurrent buffers (tens of MB). WP-10:
+        // < 100 ms, asserted on the median of three cold process starts in the timing run (timeoutScale 1, Qwen3.5);
+        // the functional run (timeoutScale > 1, LFM3) reports it. Every single start must stay under the guard, far
+        // below the prefill it replaces (40-150 s here): on this 3 GB emulator one start in three can hit a page
+        // cache or zram miss under host load.
         val restores = (1..3).map { start ->
             withService { s ->
                 load(s)
+                val t0 = SystemClock.elapsedRealtime()
                 val p = prefix(s)
+                val wall = SystemClock.elapsedRealtime() - t0
                 assertTrue(p.restoredFromDisk)
                 assertEquals(prefixTokens, p.tokens)
                 assertTrue("restore ${p.prefillMs} ms", p.prefillMs < RESTORE_GUARD_MS)
@@ -162,11 +187,15 @@ class LlmServiceTest {
                     assertEquals("same output as without cache", Shared.reference, out.text)
                     assertNotEquals("a new :llm process", firstPid, pidOf())
                 }
-                p.prefillMs
+                p.prefillMs to wall
             }
         }
-        report("prefix_restore_ms", "${restores.joinToString("/")} min=${restores.min()} under_100ms=${restores.count { it < 100 }}/3 " +
+        val engine = restores.map { it.first }
+        val median = engine.sorted()[1]
+        report("prefix_restore_ms", "${engine.joinToString("/")} median=$median under_100ms=${engine.count { it < 100 }}/3 target_asserted=$timingRun " +
+            "binder_wall_ms=${restores.joinToString("/") { it.second.toString() }} " +
             "(read of the ${stateFile.length()} B file into fresh memory: ${freshReadMs(stateFile)} ms)")
+        if (timingRun) assertTrue("median restore $median ms (${engine.joinToString("/")})", median < RESTORE_TARGET_MS)
     }
 
     @Test fun t05_bothCtxV2ExamplesGiveRussianTextWithoutThinking() = withService { s ->
@@ -262,14 +291,40 @@ class LlmServiceTest {
         withService { s -> load(s); assertTrue(prefix(s).restoredFromDisk) }
     }
 
+    @Test fun t09b_aStateFileOfAnotherPrefixIsRebuiltNotRestored() {
+        // a valid snapshot under a key whose prefix text differs (the file stores its text; the load compares it)
+        val otherKey = "test-other-prefix"
+        val other = File(modelDir, "prefix-$otherKey.state")
+        stateFile.copyTo(other, overwrite = true)
+        val shortPrefix = prefixText.substring(0, 400)
+        try {
+            withService { s ->
+                load(s)
+                val r = call(PrefixInfo.serializer(), ms(60_000)) { s.setPrefix(json(PrefixSpec(shortPrefix, otherKey)), it) }
+                val p = r.value ?: throw AssertionError("setPrefix failed: ${r.error}")
+                report("other_prefix", "restoredFromDisk=${p.restoredFromDisk} tokens=${p.tokens}")
+                assertFalse("not restored from a file of another prefix", p.restoredFromDisk)
+                assertTrue(p.tokens in 1 until prefixTokens)
+                assertTrue("rebuilt for the asked prefix", other.length() in 1 until stateFile.length())
+            }
+        } finally {
+            other.delete()
+        }
+        withService { s -> load(s); assertTrue("the real prefix still restores", prefix(s).restoredFromDisk) }
+    }
+
     @Test fun t10_unbindEndsTheProcessWithinTwoSeconds() {
-        val pid = withService { s -> load(s); pidOf() }       // withService unbinds at the end
+        // bound by hand: withService itself waits for the exit after its unbind, which would hide a slow one
+        val (s, conn) = bind()
+        val pid = try { load(s); pidOf() } catch (t: Throwable) { ctx.unbindService(conn); throw t }
+        assertTrue("a running :llm process", pid != null)
         val t0 = SystemClock.elapsedRealtime()
-        while (pidOf() != null && SystemClock.elapsedRealtime() - t0 < 2_000) SystemClock.sleep(50)
+        ctx.unbindService(conn)
+        while (pidOf() != null && SystemClock.elapsedRealtime() - t0 < EXIT_WAIT_MS) SystemClock.sleep(20)
         val gone = SystemClock.elapsedRealtime() - t0
         report("exit_after_unbind_ms", gone.toString())
-        assertTrue("pid $pid", pid != null)
         assertEquals("pidof $processName after unbind", null, pidOf())
+        assertTrue("pid $pid gone $gone ms after unbindService", gone < 2_000)
     }
 
     @Test fun t11_syntheticBenchReportsPrefillAndDecodeSpeed() = withService { s ->
@@ -280,6 +335,32 @@ class LlmServiceTest {
         assertTrue(b.ppTps > 0 && b.tgTps > 0 && b.ppMs > 0 && b.tgMs > 0)
         assertEquals(MurmurError.Internal("llm.bench_args"),
             call(SyntheticBench.serializer(), ms(10_000)) { s.bench(llm.nCtx, 16, 1, it) }.error)
+    }
+
+    @Test fun t12_aCancelledBenchIsCancelledInBothPhasesAndTheNextRequestWorks() = withService { s ->
+        load(s); prefix(s)
+        // pp phase: one long prefill of random tokens; tg phase: a short prompt, then thousands of single decodes
+        for ((phase, args) in listOf("pp" to (4_096 to 16), "tg" to (16 to 4_096))) {
+            val latch = CountDownLatch(1)
+            var error: MurmurError? = null
+            s.bench(args.first, args.second, 1, object : IResultCallback.Stub() {
+                override fun onResult(json: String) { latch.countDown() }
+                override fun onError(errorJson: String) { error = InferApi.decodeError(errorJson); latch.countDown() }
+            })
+            SystemClock.sleep(ms(3_000))
+            assertTrue("bench still running when cancelled", latch.count > 0)
+            val t0 = SystemClock.elapsedRealtime()
+            s.cancel()
+            assertTrue("bench answered after cancel", latch.await(ms(10_000), TimeUnit.MILLISECONDS))
+            val took = SystemClock.elapsedRealtime() - t0
+            report("bench_cancel_$phase", "$took ms: $error")
+            assertEquals(MurmurError.LlmFailed("cancelled"), error)
+            assertTrue("$phase cancel took $took ms", took < 500)
+        }
+        // the bench cleared the context memory: the next cleanup restores the prefix snapshot and still works
+        val next = generate(s, LlmRequest(suffix("ctxv2_chat_ru"), maxTokens = 256))
+        assertEquals(LlmStats.STOP_EOG, next.stats.stopReason)
+        assertEquals(Shared.reference ?: next.text, next.text)
     }
 
     // ------------------------------------------------------------------ helpers
@@ -357,8 +438,8 @@ class LlmServiceTest {
         else -> error("no serializer for $v")
     }
 
-    /** Binds :llm, runs [block], unbinds and waits until the process is gone (so the next step starts cold). */
-    private fun <R> withService(block: (ILlmService) -> R): R {
+    /** Binds :llm (a fresh process when none runs) and checks the API version; the caller unbinds. */
+    private fun bind(): Pair<ILlmService, ServiceConnection> {
         val bound = LinkedBlockingQueue<IBinder>()
         val conn = object : ServiceConnection {
             override fun onServiceConnected(name: ComponentName?, service: IBinder) { bound.put(service) }
@@ -370,11 +451,22 @@ class LlmServiceTest {
             val binder = bound.poll(10_000, TimeUnit.MILLISECONDS) ?: throw AssertionError("bind timed out")
             val s = ILlmService.Stub.asInterface(binder)
             assertEquals(InferApi.API_VERSION, s.apiVersion())
+            return s to conn
+        } catch (t: Throwable) {
+            ctx.unbindService(conn)
+            throw t
+        }
+    }
+
+    /** Binds :llm, runs [block], unbinds and waits until the process is gone (so the next step starts cold). */
+    private fun <R> withService(block: (ILlmService) -> R): R {
+        val (s, conn) = bind()
+        try {
             return block(s)
         } finally {
             ctx.unbindService(conn)
             val t0 = SystemClock.elapsedRealtime()
-            while (pidOf() != null && SystemClock.elapsedRealtime() - t0 < 5_000) SystemClock.sleep(50)
+            while (pidOf() != null && SystemClock.elapsedRealtime() - t0 < EXIT_WAIT_MS) SystemClock.sleep(50)
         }
     }
 
@@ -403,7 +495,13 @@ class LlmServiceTest {
 
     companion object {
         private const val TAG = "LlmServiceTest"
+        /** WP-10: a second process start restores the prefix in < 100 ms; asserted on the median of three starts. */
+        private const val RESTORE_TARGET_MS = 100L
+        /** Every single start, also the slowest one on a loaded host: far below the 40-150 s prefill it replaces. */
         private const val RESTORE_GUARD_MS = 500L
+        /** A quarter of :main's 2 s probe timeout (ARCHITECTURE 4.3): the probe waits for the native init at most. */
+        private const val PROBE_BOUND_MS = 500L
+        private const val EXIT_WAIT_MS = 5_000L
         private const val REPLACEMENT = '\uFFFD'
         private const val THUMBS = "\uD83D\uDC4D"
     }

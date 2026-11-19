@@ -12,6 +12,8 @@ val nativeLibsDir = providers.gradleProperty("murmur.nativeLibsDir")
 // module's own test APK just as app/build.gradle.kts does for the app.
 val shipHtp = providers.gradleProperty("murmur.htp").map { it.toBoolean() }.getOrElse(false)
 android {
+    // JNI names (LlmNative natives, TokenSink.onPiece) survive R8 in the consuming APK.
+    defaultConfig { consumerProguardFiles("consumer-rules.pro") }
     sourceSets.named("main") {
         jniLibs.srcDir(nativeLibsDir.get() + "/llama")
     }

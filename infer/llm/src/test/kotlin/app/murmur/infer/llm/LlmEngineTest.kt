@@ -101,6 +101,20 @@ class LlmEngineTest {
         assertFalse(engine.isLoaded)
     }
 
+    @Test fun hostMemoryRefusedIsOutOfMemoryOnEveryUnitNotAUnitOrModelFailure() {
+        fake.devices = "CPU|cpu|cpu;HTP0|Hexagon|other;GPUOpenCL|Adreno|gpu;"
+        fake.loadRc = LlmBackend.E_NOMEM                     // murmur_llm saw a CPU buffer / bad_alloc failure
+        for (unit in listOf(ComputeUnit.CPU, ComputeUnit.NPU, ComputeUnit.GPU)) {
+            assertEquals("$unit", MurmurError.OutOfMemory(ModelKind.LLM), errOf(engine.load(spec(unit))))
+        }
+        assertFalse(engine.isLoaded)
+        fake.loadRc = LlmBackend.E_CTX                       // a context failure without that signal stays as before
+        assertEquals(MurmurError.EngineLoadFailed(ModelKind.LLM, "load rc=-4"), errOf(engine.load(spec(ComputeUnit.CPU))))
+        assertEquals(MurmurError.UnitUnavailable(ComputeUnit.NPU), errOf(engine.load(spec(ComputeUnit.NPU))))
+        fake.loadRc = LlmBackend.OK
+        ok(engine.load(spec()))                              // a later load (memory freed) works
+    }
+
     @Test fun missingRuntimeFilesAndForeignRuntimes() {
         assertEquals(MurmurError.EngineRuntimeMissing(RuntimeKeys.LLAMA_GGUF), errOf(LlmEngine(null, "/lib").load(spec())))
         assertEquals(MurmurError.EngineRuntimeMissing(RuntimeKeys.ORT_SILERO_VAD),
@@ -149,6 +163,19 @@ class LlmEngineTest {
         assertEquals(listOf("prefixLoad"), fake2.calls.filter { it.startsWith("prefix") })
     }
 
+    @Test fun aRestoreReportsTheWholeWaitNotOnlyTheNativeRestore() {
+        ok(engine.load(spec()))
+        ok(engine.setPrefix(engine.nextTicket(), prefix))
+        var nowNs = 0L
+        val fake2 = FakeLlmBackend().apply { duringPrefixLoad = { nowNs += 38_000_000 } }   // the whole native call
+        val next = LlmEngine(fake2, "/lib", nanoTime = { nowNs })
+        ok(next.load(spec()))
+        val restored = ok(next.setPrefix(next.nextTicket(), prefix))
+        assertTrue(restored.restoredFromDisk)
+        assertEquals("the wall time of the restore, not the native stats (4 ms in the fake)", 38L, restored.prefillMs)
+        assertFalse("no re-tokenisation of the prefix on a restore", "tokenCount" in fake2.calls)
+    }
+
     @Test fun staleOrTruncatedStateIsDeletedAndRebuilt() {
         ok(engine.load(spec()))
         val state = File(dir, "prefix-${prefix.cacheKey}.state")
@@ -156,12 +183,13 @@ class LlmEngineTest {
         val info = ok(engine.setPrefix(engine.nextTicket(), prefix))
         assertFalse(info.restoredFromDisk)
         assertEquals(listOf("prefixLoad", "prefixSet", "prefixSave"), fake.calls.filter { it.startsWith("prefix") })
-        assertEquals(info.tokens.toString(), state.readText())
+        assertEquals("${info.tokens}\n$prefixText", state.readText())
 
         fake.calls.clear()
-        state.writeText("3")                                  // loads, but holds another prefix's token count
+        state.writeText("${info.tokens}\n${prefixText}x")    // a valid snapshot of another prefix text under this key
         assertFalse(ok(engine.setPrefix(engine.nextTicket(), prefix)).restoredFromDisk)
         assertEquals(listOf("prefixLoad", "prefixSet", "prefixSave"), fake.calls.filter { it.startsWith("prefix") })
+        assertEquals("rebuilt for this prefix", "${info.tokens}\n$prefixText", state.readText())
     }
 
     @Test fun oldSnapshotsArePrunedAndUnsafeKeysRefused() {
@@ -298,5 +326,18 @@ class LlmEngineTest {
         val b = ok(engine.bench(engine.nextTicket(), 256, 32, 1))
         assertEquals(300.0, b.ppTps, 0.0)
         assertEquals(30.0, b.tgTps, 0.0)
+    }
+
+    @Test fun aCancelledBenchIsLlmFailedCancelledAndTheNextOneRuns() {
+        ok(engine.load(spec(options = mapOf(LoadOptions.N_CTX to "1024"))))
+        fake.duringBench = { engine.cancel() }               // cancel while the native bench runs (pp or tg phase)
+        assertEquals(MurmurError.LlmFailed("cancelled"), errOf(engine.bench(engine.nextTicket(), 256, 32, 1)))
+        fake.duringBench = null
+        ok(engine.bench(engine.nextTicket(), 256, 32, 1))   // a later request clears the flag
+        val queued = engine.nextTicket()
+        engine.cancel()                                        // covers a bench still waiting for the engine thread
+        val before = fake.calls.count { it == "bench" }
+        assertEquals(MurmurError.LlmFailed("cancelled"), errOf(engine.bench(queued, 256, 32, 1)))
+        assertEquals("never reached native", before, fake.calls.count { it == "bench" })
     }
 }

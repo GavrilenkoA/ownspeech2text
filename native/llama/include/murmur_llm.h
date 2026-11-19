@@ -33,6 +33,8 @@ extern "C" {
 #define MLLM_E_STATE        -7   // prefix snapshot missing or could not be restored
 #define MLLM_E_OVERFLOW     -8   // prompt + max_tokens exceeds n_ctx (last-line guard: the app checks the room
                                  // with mllm_tokenize_count first and clamps max_tokens, so it never sees this)
+#define MLLM_E_NOMEM        -9   // mllm_load: host memory refused (a CPU buffer allocation or std::bad_alloc during the
+                                 // model or context load). Device memory (rpcmem, VTCM, OpenCL) stays E_LOAD / E_CTX.
 
 typedef enum {
     MLLM_DEV_CPU = 0,            // ggml-cpu only
@@ -128,11 +130,14 @@ int          mllm_load(const mllm_load_params * p, mllm_engine ** out, mllm_load
 // Prefill `prefix` (raw text, special tokens parsed, no BOS added: the rendered prompt carries it)
 // and snapshot the state. Replaces any previous prefix.
 int          mllm_prefix_set(mllm_engine * e, const char * prefix, mllm_prefix_info * info);
-// Persistence across process restarts. RAM mode: the snapshot itself ("MLLMST01" file, read straight back into the
-// snapshot and restored; info->prefill_ms = read + restore). Other modes: llama_state_seq_save_file / _load_file.
-// A missing, truncated, foreign or mismatching file is MLLM_E_STATE and leaves no prefix set.
+// Persistence across process restarts. RAM mode: the snapshot itself plus the prefix text ("MLLMST02" file; loading
+// maps it read-only, keeps the mapping as the snapshot and restores from it; info->prefill_ms = map + check + restore).
+// A loaded state file must only be replaced by rename or deleted, never truncated in place. Other modes:
+// llama_state_seq_save_file / _load_file. mllm_prefix_load restores only the exact `prefix` (the text given to
+// mllm_prefix_set): a missing, truncated, foreign or mismatching file, or one that holds another prefix, is
+// MLLM_E_STATE and leaves no prefix set.
 int          mllm_prefix_save(mllm_engine * e, const char * path);
-int          mllm_prefix_load(mllm_engine * e, const char * path, mllm_prefix_info * info);
+int          mllm_prefix_load(mllm_engine * e, const char * path, const char * prefix, mllm_prefix_info * info);
 // Generate a continuation of prefix + suffix. If no prefix is set, `suffix` is the whole prompt.
 // Cancelled (also during restore/prefill): returns MLLM_E_CANCELLED with *st filled and st->stop_reason = 3.
 int          mllm_generate(mllm_engine * e, const char * suffix, const mllm_gen_params * gp,
@@ -146,7 +151,8 @@ const char * mllm_device_name(const mllm_engine * e);
 void         mllm_unload(mllm_engine * e);
 
 // Synthetic benchmark for the hub's Benchmark button: pp = prefill of n_prompt random tokens,
-// tg = n_gen single-token decodes, median of `reps` (after one warm-up).
+// tg = n_gen single-token decodes, median of `reps` (after one warm-up). mllm_cancel() stops it in either phase
+// (MLLM_E_CANCELLED). Clears the context memory; the prefix snapshot stays valid (the next generate restores it).
 typedef struct {
     double pp_tps, tg_tps;       // tokens per second (median)
     double pp_ms, tg_ms;         // median wall time of one rep

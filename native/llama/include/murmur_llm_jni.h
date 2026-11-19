@@ -13,7 +13,7 @@
 //     external fun tokenCount(h: Long, utf8: ByteArray): Int
 //     external fun prefixSet(h: Long, prefixUtf8: ByteArray, stats: DoubleArray): Int
 //     external fun prefixSave(h: Long, file: String): Int
-//     external fun prefixLoad(h: Long, file: String, stats: DoubleArray): Int
+//     external fun prefixLoad(h: Long, file: String, prefixUtf8: ByteArray, stats: DoubleArray): Int  // exact prefix only
 //     external fun generate(h: Long, suffixUtf8: ByteArray, maxTokens: Int, temperature: Float, repeatPenalty: Float,
 //                           stopsUtf8: Array<ByteArray>?, sink: TokenSink, stats: DoubleArray): Int
 //     external fun cancel(h: Long)                                     // any thread
@@ -49,7 +49,7 @@
 //     backends from nativeLibDir). It cannot be undone: to release the FastRPC session and rpcmem, unload() and
 //     then let the :llm process exit.
 //   * arrays: load info -> [load_ms, ctx_ms, n_layers, n_vocab];
-//     prefixSet/prefixLoad -> [n_tokens, prefill_ms (load: file read ms), snapshot_ms, snapshot_bytes];
+//     prefixSet/prefixLoad -> [n_tokens, prefill_ms (load: map + check + restore ms), snapshot_ms, snapshot_bytes];
 //     generate -> [n_prompt, n_gen, restore_ms, prefill_ms, ttft_ms, decode_ms, total_ms, stop_reason];
 //     bench -> [pp_tps, tg_tps, pp_ms, tg_ms].
 #ifndef MURMUR_LLM_JNI_H
@@ -73,7 +73,7 @@ JNIEXPORT jstring JNICALL MLLM_JNI(deviceName)(JNIEnv *, jobject, jlong h);
 JNIEXPORT jint    JNICALL MLLM_JNI(tokenCount)(JNIEnv *, jobject, jlong h, jbyteArray utf8);
 JNIEXPORT jint    JNICALL MLLM_JNI(prefixSet)(JNIEnv *, jobject, jlong h, jbyteArray prefixUtf8, jdoubleArray stats);
 JNIEXPORT jint    JNICALL MLLM_JNI(prefixSave)(JNIEnv *, jobject, jlong h, jstring file);
-JNIEXPORT jint    JNICALL MLLM_JNI(prefixLoad)(JNIEnv *, jobject, jlong h, jstring file, jdoubleArray stats);
+JNIEXPORT jint    JNICALL MLLM_JNI(prefixLoad)(JNIEnv *, jobject, jlong h, jstring file, jbyteArray prefixUtf8, jdoubleArray stats);
 JNIEXPORT jint    JNICALL MLLM_JNI(generate)(JNIEnv *, jobject, jlong h, jbyteArray suffixUtf8, jint maxTokens, jfloat temperature,
                                              jfloat repeatPenalty, jobjectArray stopsUtf8, jobject sink, jdoubleArray stats);
 JNIEXPORT void    JNICALL MLLM_JNI(cancel)(JNIEnv *, jobject, jlong h);

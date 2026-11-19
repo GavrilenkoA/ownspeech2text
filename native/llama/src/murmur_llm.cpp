@@ -17,6 +17,11 @@
 #include <utility>
 #include <vector>
 
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
 #ifdef __ANDROID__
 #include <android/log.h>
 #endif
@@ -52,8 +57,21 @@ void capture_runtime_info(const char * text) {
     }
 }
 
+// Set when ggml / llama.cpp report that host memory was refused, on the thread that logs it (mllm_load runs on the
+// engine thread and resets it first). llama.cpp turns these into a plain "load failed": the log is the only place
+// that says why, and an out-of-memory load must not be reported as the unit's or the model's failure (ADR-066).
+thread_local bool t_host_alloc_failed = false;
+
+bool is_host_alloc_failure(const char * text) {
+    return strstr(text, "ggml_aligned_malloc: insufficient memory")                  // posix_memalign ENOMEM
+        || strstr(text, "ggml_backend_cpu_buffer_type_alloc_buffer: failed to allocate")
+        || strstr(text, "unable to allocate CPU")                                    // CPU / CPU_REPACK weights
+        || strstr(text, "bad_alloc");                                                // std::bad_alloc caught by llama.cpp
+}
+
 void log_cb(ggml_log_level level, const char * text, void *) {
     if (level == GGML_LOG_LEVEL_INFO) capture_runtime_info(text);
+    if (level == GGML_LOG_LEVEL_ERROR && is_host_alloc_failure(text)) t_host_alloc_failed = true;
     if (level == GGML_LOG_LEVEL_DEBUG && g_verbose < 2) return;
     if ((level == GGML_LOG_LEVEL_INFO || level == GGML_LOG_LEVEL_CONT) && g_verbose < 1) return;
 #ifdef __ANDROID__
@@ -88,6 +106,50 @@ struct uninit_allocator : std::allocator<T> {
 };
 using byte_buffer = std::vector<uint8_t, uninit_allocator<uint8_t>>;
 
+// The prefix snapshot bytes: either owned (taken right after a prefill) or a read-only private mapping of the state
+// file (restored from disk). The mapping is the restore's only source: no copy into freshly faulted memory, the pages
+// are the page cache's own and stay reclaimable. A state file is only ever replaced by rename or deleted (unlink keeps
+// the mapped inode alive); truncating it in place while mapped would fault (SIGBUS) on the next restore.
+class snapshot_blob {
+public:
+    snapshot_blob() = default;
+    snapshot_blob(const snapshot_blob &) = delete;
+    snapshot_blob & operator=(const snapshot_blob &) = delete;
+    ~snapshot_blob() { clear(); }
+
+    const uint8_t * data() const { return ptr_; }
+    size_t size() const { return len_; }
+    bool empty() const { return len_ == 0; }
+
+    void clear() {
+        if (map_) munmap(map_, map_len_);
+        map_ = nullptr; map_len_ = 0;
+        byte_buffer().swap(owned_);
+        ptr_ = nullptr; len_ = 0;
+    }
+    // Owned buffer of n bytes (uninitialised), to be filled by the caller; shrink() fixes the final size.
+    uint8_t * own(size_t n) {
+        clear();
+        owned_.resize(n);
+        ptr_ = owned_.data(); len_ = n;
+        return owned_.data();
+    }
+    void shrink(size_t n) { if (!map_ && n <= owned_.size()) { owned_.resize(n); ptr_ = owned_.data(); len_ = n; } }
+    // Takes over the mapping [map, map + map_len); the snapshot is the n bytes at offset off.
+    void adopt(void * map, size_t map_len, size_t off, size_t n) {
+        clear();
+        map_ = map; map_len_ = map_len;
+        ptr_ = static_cast<const uint8_t *>(map) + off; len_ = n;
+    }
+
+private:
+    byte_buffer     owned_;
+    void *          map_ = nullptr;
+    size_t          map_len_ = 0;
+    const uint8_t * ptr_ = nullptr;
+    size_t          len_ = 0;
+};
+
 } // namespace
 
 struct mllm_engine {
@@ -101,8 +163,9 @@ struct mllm_engine {
     std::string      err;
 
     // prefix cache
+    std::string              prefix_text;   // the text prefix_tokens came from (stored in RAM-mode state files)
     std::vector<llama_token> prefix_tokens;
-    byte_buffer              snapshot;      // RAM / DEVICE (device: small header, data stays in backend buffers)
+    snapshot_blob            snapshot;      // RAM / DEVICE (device: small header, data stays in backend buffers)
     bool prefix_live = false;               // SEQCP: seq 0 currently holds the prefix
 
     int fail(int code, const std::string & msg) {
@@ -203,10 +266,16 @@ extern "C" int mllm_load(const mllm_load_params * p, mllm_engine ** out, mllm_lo
     mp.n_gpu_layers = dev ? -1 : 0;
     mp.load_mode    = (p->device == MLLM_DEV_CPU && p->use_mmap) ? LLAMA_LOAD_MODE_MMAP : LLAMA_LOAD_MODE_NONE;
 
+    t_host_alloc_failed = false;
     auto t0 = clk::now();
     e->model = llama_model_load_from_file(p->model_path, mp);
     double load_ms = ms_since(t0);
-    if (!e->model) { int rc = e->fail(MLLM_E_LOAD, "llama_model_load_from_file failed"); *out = nullptr; delete e; return rc; }
+    if (!e->model) {
+        const bool nomem = t_host_alloc_failed;
+        int rc = e->fail(nomem ? MLLM_E_NOMEM : MLLM_E_LOAD,
+                         nomem ? "llama_model_load_from_file: out of host memory" : "llama_model_load_from_file failed");
+        *out = nullptr; delete e; return rc;
+    }
     e->vocab = llama_model_get_vocab(e->model);
 
     llama_context_params cp = llama_context_default_params();
@@ -228,7 +297,12 @@ extern "C" int mllm_load(const mllm_load_params * p, mllm_engine ** out, mllm_lo
     t0 = clk::now();
     e->ctx = llama_init_from_model(e->model, cp);
     double ctx_ms = ms_since(t0);
-    if (!e->ctx) { int rc = e->fail(MLLM_E_CTX, "llama_init_from_model failed"); mllm_unload(e); *out = nullptr; return rc; }
+    if (!e->ctx) {
+        const bool nomem = t_host_alloc_failed;
+        int rc = e->fail(nomem ? MLLM_E_NOMEM : MLLM_E_CTX,
+                         nomem ? "llama_init_from_model: out of host memory" : "llama_init_from_model failed");
+        mllm_unload(e); *out = nullptr; return rc;
+    }
     e->batch = llama_batch_ext_init(e->ctx);
     e->device_name = dev ? ggml_backend_dev_name(dev) : "CPU";
 
@@ -283,10 +357,9 @@ static int take_snapshot(mllm_engine * e, mllm_prefix_info * info) {
     if (e->lp.prefix_mode == MLLM_PREFIX_RAM || e->lp.prefix_mode == MLLM_PREFIX_DEVICE) {
         const llama_state_seq_flags fl = e->lp.prefix_mode == MLLM_PREFIX_DEVICE ? LLAMA_STATE_SEQ_FLAGS_ON_DEVICE : 0;
         const size_t sz = llama_state_seq_get_size_ext(e->ctx, 0, fl);
-        e->snapshot.resize(sz);
-        const size_t got = llama_state_seq_get_data_ext(e->ctx, e->snapshot.data(), sz, 0, fl);
-        if (got == 0) return e->fail(MLLM_E_STATE, "llama_state_seq_get_data_ext failed");
-        e->snapshot.resize(got);
+        const size_t got = llama_state_seq_get_data_ext(e->ctx, e->snapshot.own(sz), sz, 0, fl);
+        if (got == 0) { e->snapshot.clear(); return e->fail(MLLM_E_STATE, "llama_state_seq_get_data_ext failed"); }
+        e->snapshot.shrink(got);
     }
     e->prefix_live = true;
     if (info) {
@@ -299,6 +372,7 @@ static int take_snapshot(mllm_engine * e, mllm_prefix_info * info) {
 extern "C" int mllm_prefix_set(mllm_engine * e, const char * prefix, mllm_prefix_info * info) {
     if (!e || !prefix) return MLLM_E_ARG;
     if (info) memset(info, 0, sizeof(*info));
+    e->prefix_text = prefix;
     e->prefix_tokens = tokenize(e->vocab, prefix);
     e->snapshot.clear();
     e->prefix_live = false;
@@ -318,11 +392,14 @@ extern "C" int mllm_prefix_set(mllm_engine * e, const char * prefix, mllm_prefix
 }
 
 // RAM-mode state file: the snapshot exactly as mllm_prefix_set took it, so that saving writes e->snapshot as is and
-// loading reads it straight into e->snapshot (one copy from the file, one into the KV / recurrent buffers) instead of
+// loading maps the file and keeps the mapping as e->snapshot (one copy, into the KV / recurrent buffers) instead of
 // llama_state_seq_load_file + a fresh snapshot (three full copies). Layout, little-endian:
-//   "MLLMST01" | uint32 n_tokens | n_tokens x int32 token | uint64 n_bytes | n_bytes snapshot
-// llama_state_seq_set_data_ext validates the blob against the loaded model and context (MLLM_E_STATE on mismatch).
-static const char kStateMagic[8] = {'M', 'L', 'L', 'M', 'S', 'T', '0', '1'};
+//   "MLLMST02" | uint32 n_tokens | n_tokens x int32 token | uint32 n_text | n_text bytes prefix text (UTF-8)
+//   | uint64 n_bytes | n_bytes snapshot
+// The stored text is compared byte for byte with the prefix the caller asks for (microseconds; re-tokenising the
+// 12 KB prefix to compare token counts took 30-60 ms on the emulator), and llama_state_seq_set_data_ext validates the
+// blob against the loaded model and context. Any mismatch is MLLM_E_STATE. MLLMST01 files are MLLM_E_STATE as well.
+static const char kStateMagic[8] = {'M', 'L', 'L', 'M', 'S', 'T', '0', '2'};
 
 extern "C" int mllm_prefix_save(mllm_engine * e, const char * path) {
     if (!e || !path || e->prefix_tokens.empty()) return MLLM_E_ARG;
@@ -331,10 +408,13 @@ extern "C" int mllm_prefix_save(mllm_engine * e, const char * path) {
         FILE * f = fopen(path, "wb");
         if (!f) return e->fail(MLLM_E_STATE, "cannot create state file");
         const uint32_t n_tok = (uint32_t) e->prefix_tokens.size();
+        const uint32_t n_text = (uint32_t) e->prefix_text.size();
         const uint64_t n_bytes = e->snapshot.size();
         bool ok = fwrite(kStateMagic, 1, sizeof kStateMagic, f) == sizeof kStateMagic
                && fwrite(&n_tok, sizeof n_tok, 1, f) == 1
                && fwrite(e->prefix_tokens.data(), sizeof(llama_token), n_tok, f) == n_tok
+               && fwrite(&n_text, sizeof n_text, 1, f) == 1
+               && fwrite(e->prefix_text.data(), 1, n_text, f) == n_text
                && fwrite(&n_bytes, sizeof n_bytes, 1, f) == 1
                && fwrite(e->snapshot.data(), 1, (size_t) n_bytes, f) == n_bytes;
         ok = fflush(f) == 0 && ok;
@@ -352,56 +432,93 @@ extern "C" int mllm_prefix_save(mllm_engine * e, const char * path) {
     return n ? MLLM_OK : e->fail(MLLM_E_STATE, "llama_state_seq_save_file failed");
 }
 
-extern "C" int mllm_prefix_load(mllm_engine * e, const char * path, mllm_prefix_info * info) {
-    if (!e || !path) return MLLM_E_ARG;
+extern "C" int mllm_prefix_load(mllm_engine * e, const char * path, const char * prefix, mllm_prefix_info * info) {
+    if (!e || !path || !prefix) return MLLM_E_ARG;
     if (info) memset(info, 0, sizeof(*info));
     llama_memory_t mem = llama_get_memory(e->ctx);
-    llama_memory_clear(mem, true);
+    e->prefix_text.clear();
     e->prefix_tokens.clear();
     e->snapshot.clear();
     e->prefix_live = false;
     auto t0 = clk::now();
     if (e->lp.prefix_mode == MLLM_PREFIX_RAM) {
-        FILE * f = fopen(path, "rb");
-        if (!f) return e->fail(MLLM_E_STATE, "cannot open state file");
-        char magic[sizeof kStateMagic];
-        uint32_t n_tok = 0;
+        // Metadata only: the KV / recurrent buffers were zeroed when the context was created and the restore writes
+        // every cell it uses (a full data clear here would be a pass over the whole n_ctx cache for nothing).
+        llama_memory_clear(mem, false);
+        // Map the file instead of reading it: the snapshot then IS the page cache (MAP_POPULATE maps it in one go),
+        // and llama_state_seq_set_data_ext copies it once, straight into the cache buffers.
+        const int fd = open(path, O_RDONLY | O_CLOEXEC);
+        if (fd < 0) return e->fail(MLLM_E_STATE, "cannot open state file");
+        struct stat st {};
+        const size_t head = sizeof kStateMagic + sizeof(uint32_t);
+        void * map = MAP_FAILED;
+        size_t len = 0;
+        if (fstat(fd, &st) == 0 && st.st_size > 0 && (uint64_t) st.st_size >= head) {
+            len = (size_t) st.st_size;
+            map = mmap(nullptr, len, PROT_READ, MAP_PRIVATE | MAP_POPULATE, fd, 0);
+        }
+        close(fd);
+        if (map == MAP_FAILED) return e->fail(MLLM_E_STATE, "state file unreadable or truncated");
+        // Every offset is checked against the file size before it is touched (a short file must not fault).
+        const auto * b = static_cast<const uint8_t *>(map);
+        const size_t n_prefix = strlen(prefix);
+        uint32_t n_tok = 0, n_text = 0;
         uint64_t n_bytes = 0;
-        bool ok = fread(magic, 1, sizeof magic, f) == sizeof magic && memcmp(magic, kStateMagic, sizeof magic) == 0
-               && fread(&n_tok, sizeof n_tok, 1, f) == 1 && n_tok > 0 && n_tok <= (uint32_t) e->lp.n_ctx;
+        size_t off = head;
+        bool ok = memcmp(b, kStateMagic, sizeof kStateMagic) == 0;
+        if (ok) {
+            memcpy(&n_tok, b + sizeof kStateMagic, sizeof n_tok);
+            ok = n_tok > 0 && n_tok <= (uint32_t) e->lp.n_ctx && len - off >= (size_t) n_tok * sizeof(llama_token) + sizeof n_text;
+        }
         std::vector<llama_token> toks;
         if (ok) {
             toks.resize(n_tok);
-            ok = fread(toks.data(), sizeof(llama_token), n_tok, f) == n_tok && fread(&n_bytes, sizeof n_bytes, 1, f) == 1;
+            memcpy(toks.data(), b + off, (size_t) n_tok * sizeof(llama_token));
+            off += (size_t) n_tok * sizeof(llama_token);
+            memcpy(&n_text, b + off, sizeof n_text);
+            off += sizeof n_text;
+            ok = len - off >= (size_t) n_text + sizeof n_bytes;
         }
-        if (ok) {                                         // the blob must be exactly the rest of the file
-            const long here = ftell(f);
-            ok = here >= 0 && fseek(f, 0, SEEK_END) == 0 && (uint64_t) (ftell(f) - here) == n_bytes && fseek(f, here, SEEK_SET) == 0;
-        }
+        bool same_prefix = false;
         if (ok) {
-            e->snapshot.resize((size_t) n_bytes);
-            ok = fread(e->snapshot.data(), 1, (size_t) n_bytes, f) == n_bytes;
+            same_prefix = n_text == n_prefix && memcmp(b + off, prefix, n_prefix) == 0;
+            off += n_text;
+            memcpy(&n_bytes, b + off, sizeof n_bytes);
+            off += sizeof n_bytes;
+            ok = n_bytes > 0 && n_bytes == (uint64_t) (len - off);   // the blob must be exactly the rest of the file
         }
-        fclose(f);
-        if (!ok || !llama_state_seq_set_data_ext(e->ctx, e->snapshot.data(), e->snapshot.size(), 0, 0)) {
+        if (!ok || !same_prefix) {
+            munmap(map, len);
+            return e->fail(MLLM_E_STATE, ok ? "state file holds another prefix"
+                                            : "state file unreadable, truncated or not for this model");
+        }
+        e->snapshot.adopt(map, len, off, (size_t) n_bytes);
+        if (!llama_state_seq_set_data_ext(e->ctx, e->snapshot.data(), e->snapshot.size(), 0, 0)) {
             e->snapshot.clear();
             llama_memory_clear(mem, true);
-            return e->fail(MLLM_E_STATE, "state file unreadable, truncated or not for this model");
+            return e->fail(MLLM_E_STATE, "state file not for this model or context");
         }
+        e->prefix_text.assign(prefix, n_prefix);
         e->prefix_tokens = std::move(toks);
         e->prefix_live = true;
         if (info) {
             info->n_tokens       = (int32_t) e->prefix_tokens.size();
-            info->prefill_ms     = ms_since(t0);       // read + restore
+            info->prefill_ms     = ms_since(t0);       // map + check + restore
             info->snapshot_bytes = e->snapshot.size();
         }
         return MLLM_OK;
     }
+    llama_memory_clear(mem, true);
     std::vector<llama_token> toks((size_t) e->lp.n_ctx);
     size_t n_tok = 0;
     if (!llama_state_seq_load_file(e->ctx, path, 0, toks.data(), toks.size(), &n_tok))
         return e->fail(MLLM_E_STATE, "llama_state_seq_load_file failed");
     toks.resize(n_tok);
+    if (toks != tokenize(e->vocab, prefix)) {        // llama.cpp's format stores tokens, not text
+        llama_memory_clear(mem, true);
+        return e->fail(MLLM_E_STATE, "state file holds another prefix");
+    }
+    e->prefix_text = prefix;
     e->prefix_tokens = toks;
     if (info) { info->n_tokens = (int32_t) n_tok; info->prefill_ms = ms_since(t0); }
     return take_snapshot(e, info);
@@ -593,6 +710,7 @@ extern "C" int mllm_bench(mllm_engine * e, int32_t n_prompt, int32_t n_gen, int3
     for (auto & t : toks) { x = x * 1664525u + 1013904223u; t = (llama_token) (x % (uint32_t) nv); }
     llama_memory_t mem = llama_get_memory(e->ctx);
     std::vector<double> pp, tg;
+    e->prefix_live = false;      // memory is cleared below; RAM/DEVICE snapshots stay valid, SEQCP rebuilds lazily
     for (int rep = 0; rep <= std::max(1, reps); ++rep) {         // rep 0 = warm-up
         llama_memory_clear(mem, true);
         auto t0 = clk::now();
@@ -603,12 +721,16 @@ extern "C" int mllm_bench(mllm_engine * e, int32_t n_prompt, int32_t n_gen, int3
         llama_memory_clear(mem, true);
         t0 = clk::now();
         for (int i = 0; i < n_gen; ++i) {
+            // the abort callback only reaches CPU graphs: poll the flag per token too (NPU / GPU)
+            if (e->cancel.load()) return MLLM_E_CANCELLED;
             llama_batch_ext_clear(e->batch);
             const int32_t idx = llama_batch_ext_add_token(e->batch, 0, toks[(size_t) i % toks.size()]);
             const llama_pos pos = i;
             llama_batch_ext_set_pos(e->batch, idx, &pos);
             llama_batch_ext_set_output_logits(e->batch, idx, true);
-            if (llama_process(e->ctx, LLAMA_PROCESS_TYPE_DECODE, e->batch) != 0) return e->fail(MLLM_E_DECODE, "bench decode failed");
+            const int32_t prc = llama_process(e->ctx, LLAMA_PROCESS_TYPE_DECODE, e->batch);
+            if (prc == 2) return MLLM_E_CANCELLED;                // aborted by mllm_cancel
+            if (prc != 0) return e->fail(MLLM_E_DECODE, "llama_process(bench decode) returned " + std::to_string(prc));
         }
         llama_synchronize(e->ctx);
         const double t_tg = ms_since(t0);
@@ -620,7 +742,6 @@ extern "C" int mllm_bench(mllm_engine * e, int32_t n_prompt, int32_t n_gen, int3
     r->tg_ms  = tg[tg.size() / 2];
     r->pp_tps = 1000.0 * n_prompt / r->pp_ms;
     r->tg_tps = 1000.0 * n_gen / r->tg_ms;
-    e->prefix_live = false;      // memory was cleared; RAM/DEVICE snapshots stay valid, SEQCP rebuilds lazily
     llama_memory_clear(mem, true);
     return MLLM_OK;
 }

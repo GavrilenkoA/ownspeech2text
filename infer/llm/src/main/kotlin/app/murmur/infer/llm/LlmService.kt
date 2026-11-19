@@ -27,6 +27,7 @@ import kotlinx.serialization.KSerializer
 import java.io.File
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.Future
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -41,12 +42,16 @@ class LlmService : Service() {
     private val executor: ExecutorService = Executors.newSingleThreadExecutor { r -> Thread(r, "llm-engine") }
     private lateinit var engine: LlmEngine
     private val generating = AtomicBoolean(false)
-    @Volatile private var probeJson: String? = null
+    private lateinit var probeResult: Future<String>
 
     override fun onCreate() {
         super.onCreate()
         InferProcessLifecycle.installQuietCrashHandler(TAG)
         engine = LlmEngine(LlmNative.loadOrNull(), applicationInfo.nativeLibraryDir)
+        // The registered devices cannot change within a process: probe once, as the engine thread's first task (it
+        // runs mllm_global_init), before any load or prefill can be queued. A probe() that arrives while a load runs
+        // then waits only for the init, never behind the load (the client's probe timeout is 2 s, ARCHITECTURE 4.3).
+        probeResult = executor.submit<String> { InferApi.encode(ProcessProbe.serializer(), engine.probe()) }
     }
 
     override fun onBind(intent: Intent?): IBinder = binder
@@ -62,11 +67,7 @@ class LlmService : Service() {
     private val binder = object : ILlmService.Stub() {
         override fun apiVersion(): Int = InferApi.API_VERSION
 
-        // The registered devices cannot change within a process: probe once on the engine thread (it runs
-        // mllm_global_init), then answer from memory so that later probes never wait behind a long prefill.
-        override fun probe(): String = probeJson ?: InferApi.encode(
-            ProcessProbe.serializer(), executor.submit<ProcessProbe> { engine.probe() }.get(),
-        ).also { probeJson = it }
+        override fun probe(): String = probeResult.get()
 
         override fun memory(): String = InferApi.encode(ProcessMemory.serializer(), processMemory())
 

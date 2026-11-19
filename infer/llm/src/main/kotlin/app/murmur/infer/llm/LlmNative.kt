@@ -18,8 +18,11 @@ interface LlmBackend {
     /** stats = [n_tokens, prefill_ms, snapshot_ms, snapshot_bytes]. */
     fun prefixSet(h: Long, prefixUtf8: ByteArray, stats: DoubleArray): Int
     fun prefixSave(h: Long, file: String): Int
-    /** stats = [n_tokens, file_load_ms, snapshot_ms, snapshot_bytes]. */
-    fun prefixLoad(h: Long, file: String, stats: DoubleArray): Int
+    /**
+     * Restores the state file only if it holds exactly [prefixUtf8] (else E_STATE).
+     * stats = [n_tokens, map_check_restore_ms, snapshot_ms, snapshot_bytes].
+     */
+    fun prefixLoad(h: Long, file: String, prefixUtf8: ByteArray, stats: DoubleArray): Int
     /** stats = [n_prompt, n_gen, restore_ms, prefill_ms, ttft_ms, decode_ms, total_ms, stop_reason]. */
     fun generate(h: Long, suffixUtf8: ByteArray, maxTokens: Int, temperature: Float, repeatPenalty: Float,
                  stopsUtf8: Array<ByteArray>?, sink: TokenSink, stats: DoubleArray): Int
@@ -42,6 +45,7 @@ interface LlmBackend {
         const val E_CANCELLED = -6
         const val E_STATE = -7
         const val E_OVERFLOW = -8
+        const val E_NOMEM = -9
 
         /** mllm_device. */
         const val DEV_CPU = 0
@@ -79,7 +83,7 @@ object LlmNative : LlmBackend {
     external override fun tokenCount(h: Long, utf8: ByteArray): Int
     external override fun prefixSet(h: Long, prefixUtf8: ByteArray, stats: DoubleArray): Int
     external override fun prefixSave(h: Long, file: String): Int
-    external override fun prefixLoad(h: Long, file: String, stats: DoubleArray): Int
+    external override fun prefixLoad(h: Long, file: String, prefixUtf8: ByteArray, stats: DoubleArray): Int
     external override fun generate(h: Long, suffixUtf8: ByteArray, maxTokens: Int, temperature: Float, repeatPenalty: Float,
                                    stopsUtf8: Array<ByteArray>?, sink: TokenSink, stats: DoubleArray): Int
     external override fun cancel(h: Long)
