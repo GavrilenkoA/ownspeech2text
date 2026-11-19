@@ -13,14 +13,19 @@ import app.murmur.core.store.BenchmarkResultData
  */
 object BenchScores {
     /**
-     * [BenchLookup] for [app.murmur.core.catalog.ArtifactSelector]: the score of the latest record of (artifact, unit),
-     * or null when there is none or when that latest record is invalid ("Results look wrong on NPU"): a newer invalid
-     * run supersedes an older valid one, so a unit that broke after an update is never chosen for its old speed.
+     * [BenchLookup] for [app.murmur.core.catalog.ArtifactSelector] (ADR-071): the newest record of (artifact, unit)
+     * decides; when it is invalid ("Results look wrong on NPU") the unit has no score, and an older valid run does not
+     * outvote it, so the label the hub shows and the choice agree and a regression after an update is not hidden.
+     * [llmSpeed] follows the same rule. Callers pass [app.murmur.core.store.BenchmarkRepository.latest] (newest per
+     * unit) or every stored record; both give the same answer.
      */
     fun lookup(records: List<BenchmarkRecord>): BenchLookup {
-        val latest = records.groupBy { it.artifactId to it.unit }.mapValues { (_, l) -> l.maxBy { it.atEpochMs } }
-        return BenchLookup { artifact, unit -> latest[artifact to unit]?.let(::score) }
+        val newest = newest(records)
+        return BenchLookup { artifact, unit -> newest[artifact to unit]?.let(::score) }
     }
+
+    private fun newest(records: List<BenchmarkRecord>): Map<Pair<ArtifactId, ComputeUnit>, BenchmarkRecord> =
+        records.groupBy { it.artifactId to it.unit }.mapValues { (_, l) -> l.maxBy { it.atEpochMs } }
 
     /** null for an invalid record (ARCHITECTURE 10: invalid records never score). */
     fun score(record: BenchmarkRecord): Double? {
@@ -35,13 +40,14 @@ object BenchScores {
 
     /**
      * Measured speed of (artifact, unit) for `ActiveLlm.speed` (CleanupBudget, adaptive timeouts): prefill and decode
-     * tok/s of the fixed case in the latest **valid** LLM record. null = never measured validly; the resolver then
-     * uses `DictationConfig.defaultSpeed[unit]`. (The type lives here because :core:benchmark sits below
-     * :core:dictation; the resolver maps it to `LlmSpeed(prefillTps, decodeTps)`.)
+     * tok/s of the fixed case in the newest record of (artifact, unit), the same record [lookup] scores. null = never
+     * measured, or the newest run is invalid (ADR-071); the resolver then uses `DictationConfig.defaultSpeed[unit]`.
+     * (The type lives here because :core:benchmark sits below :core:dictation; the resolver maps it to
+     * `LlmSpeed(prefillTps, decodeTps)`.)
      */
     fun llmSpeed(records: List<BenchmarkRecord>, artifact: ArtifactId, unit: ComputeUnit): MeasuredLlmSpeed? =
-        records.filter { it.artifactId == artifact && it.unit == unit && it.result.valid }
-            .maxByOrNull { it.atEpochMs }
+        newest(records)[artifact to unit]
+            ?.takeIf { it.result.valid }
             ?.let { it.result as? BenchmarkResultData.Llm }
             ?.takeIf { it.prefillTps > 0 && it.decodeTps > 0 }
             ?.let { MeasuredLlmSpeed(prefillTps = it.prefillTps, decodeTps = it.decodeTps) }

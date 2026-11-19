@@ -39,7 +39,7 @@ class BenchScoresTest {
     }
 
     @Test
-    fun latestRecordDecidesAndAnInvalidOneNeverScores() {
+    fun newestRecordDecidesAndAnInvalidOneNeverScores() {
         val records = listOf(
             asr(parakeetNpu, ComputeUnit.NPU, at = 1, rtfx = 40.0),
             asr(parakeetNpu, ComputeUnit.NPU, at = 2, rtfx = 60.0, valid = false), // after an update the NPU went wrong
@@ -47,8 +47,13 @@ class BenchScoresTest {
             asr(parakeetCpu, ComputeUnit.CPU, at = 3, rtfx = 8.0),
         )
         val lookup = BenchScores.lookup(records)
+        // ADR-071: the older valid NPU run does not outvote the newer invalid one.
         assertNull(lookup.score(parakeetNpu, ComputeUnit.NPU))
         assertEquals(125.0, lookup.score(parakeetCpu, ComputeUnit.CPU)!!, 1e-9)
+        // BenchmarkRepository.latest (newest per unit) gives the same answer as every stored record.
+        val newestPerUnit = records.groupBy { it.artifactId to it.unit }.map { (_, l) -> l.maxBy { it.atEpochMs } }
+        val fromLatest = BenchScores.lookup(newestPerUnit)
+        for ((a, u) in records.map { it.artifactId to it.unit }) assertEquals(lookup.score(a, u), fromLatest.score(a, u))
     }
 
     @Test
@@ -66,18 +71,26 @@ class BenchScoresTest {
     }
 
     @Test
-    fun llmScoreIsEndToEndMsAndSpeedComesFromTheLatestValidRecord() {
+    fun llmScoreAndSpeedComeFromTheSameNewestRecord() {
         val records = listOf(
             llm(ComputeUnit.CPU, at = 1, e2e = 2_400.0, prefill = 569.0, decode = 83.8),
             llm(ComputeUnit.CPU, at = 2, e2e = 900.0, prefill = 9_000.0, decode = 900.0, valid = false),
             llm(ComputeUnit.NPU, at = 1, e2e = 1_300.0, prefill = 2_597.0, decode = 40.9),
+            llm(ComputeUnit.GPU, at = 1, e2e = 9_000.0, prefill = 50.0, decode = 5.0, valid = false),
+            llm(ComputeUnit.GPU, at = 2, e2e = 3_000.0, prefill = 300.0, decode = 20.0),
         )
         val lookup = BenchScores.lookup(records)
-        assertNull(lookup.score(qwen, ComputeUnit.CPU)) // latest CPU record is invalid
+        // CPU: the newest run is invalid -> no score and no speed (defaults apply), whatever ran before.
+        assertNull(lookup.score(qwen, ComputeUnit.CPU))
+        assertNull(BenchScores.llmSpeed(records, qwen, ComputeUnit.CPU))
         assertEquals(1_300.0, lookup.score(qwen, ComputeUnit.NPU)!!, 1e-9)
-        assertEquals(MeasuredLlmSpeed(569.0, 83.8), BenchScores.llmSpeed(records, qwen, ComputeUnit.CPU))
         assertEquals(MeasuredLlmSpeed(2_597.0, 40.9), BenchScores.llmSpeed(records, qwen, ComputeUnit.NPU))
-        assertNull(BenchScores.llmSpeed(records, qwen, ComputeUnit.GPU))
+        // GPU: a newer valid run replaces an older invalid one.
+        assertEquals(3_000.0, lookup.score(qwen, ComputeUnit.GPU)!!, 1e-9)
+        assertEquals(MeasuredLlmSpeed(300.0, 20.0), BenchScores.llmSpeed(records, qwen, ComputeUnit.GPU))
+        for (unit in ComputeUnit.entries) {
+            assertEquals(lookup.score(qwen, unit) != null, BenchScores.llmSpeed(records, qwen, unit) != null)
+        }
     }
 
     @Test

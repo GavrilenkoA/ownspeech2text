@@ -4,6 +4,7 @@ import app.murmur.core.catalog.Candidate
 import app.murmur.core.catalog.ModelEntry
 import app.murmur.core.store.BenchmarkRecord
 import kotlinx.coroutines.flow.Flow
+import java.text.Normalizer
 
 /**
  * Benchmark button (BRIEF "Every model has a Benchmark button", D2, ARCHITECTURE.md section 10).
@@ -21,7 +22,11 @@ interface BenchmarkRunner {
      * Cold flow: collecting starts the run; cancelling the collection behaves like [stop].
      */
     fun run(entry: ModelEntry, candidates: List<Candidate>): Flow<BenchProgress>
-    /** Cancels the run at once (the step in flight is abandoned), unloads, shuts the processes down; no [BenchProgress.Finished]. */
+    /**
+     * Cancels the run at once (the step in flight is abandoned), unloads, shuts the processes down; no
+     * [BenchProgress.Finished]. It also stops every flow that [run] returned before this call and that has not started
+     * yet (not collected, or waiting for the run before it): those end without any event. A [run] after [stop] is new.
+     */
     fun stop()
 }
 
@@ -109,10 +114,17 @@ object BenchValidity {
     }
 }
 
-/** WER with one normaliser (lowercase, strip punctuation, numerals as-is), the same as the asr-ocr spike. */
+/**
+ * WER with the normaliser of the asr-ocr spike (asr_lib.norm): NFC, lowercase, ё -> е, hyphen -> space, every character
+ * that is not a letter, digit, underscore or space -> space (Python's `[^\w\s]`), numerals as-is.
+ */
 object WordErrorRate {
+    private val notWord = Regex("[^\\p{L}\\p{N}_\\s]")
+    private val spaces = Regex("\\s+")
+
     fun normalize(s: String): List<String> =
-        s.lowercase().replace(Regex("[\\p{P}\\p{S}]"), " ").split(Regex("\\s+")).filter { it.isNotEmpty() }
+        Normalizer.normalize(s, Normalizer.Form.NFC).lowercase().replace('ё', 'е').replace('-', ' ')
+            .replace(notWord, " ").split(spaces).filter { it.isNotEmpty() }
 
     fun wer(reference: String, hypothesis: String): Double {
         val r = normalize(reference); val h = normalize(hypothesis)

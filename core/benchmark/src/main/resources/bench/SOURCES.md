@@ -25,8 +25,8 @@ FLEURS has no code-switched utterances, so the mixed clip is a Russian utterance
 about 0.7 s of the recordings' own silence between them (the trailing silence of part 1 was cut at 5.58 s to keep the
 clip near 12 s). Its reference is the two transcriptions joined by a space.
 
-Selection rule: dev split, no digits and no `ё` in the transcription (the WER normaliser keeps numerals as written and
-does not fold `ё`), no Latin letters in the Russian ones, 10-12 s (or about 6 s for the halves of the mixed clip),
+Selection rule: dev split, no digits in the transcription (the WER normaliser keeps numerals as written, so "2024" and
+"две тысячи двадцать четыре" would differ; it folds `ё` to `е` like the asr-ocr spike), no Latin letters in the Russian ones, 10-12 s (or about 6 s for the halves of the mixed clip),
 peak level above -11 dBFS where the split offers one (many FLEURS recordings are very quiet).
 
 Host check (sherpa-onnx 2.0.1 CPU, int8, Silero VAD v5 segments with a 0.5 s minimum pause, as the app's batch path):

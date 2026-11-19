@@ -120,6 +120,24 @@ class LlmOcrBenchmarkTest {
     }
 
     @Test
+    fun theTextGateJudgesBothPagesTogether() = runTest {
+        val entry = BenchRig.OCR_DET
+        val ocr = FakeOcrService()
+        val rig = BenchRig(this, FakeEngines(ocr = ocr))
+        val pages = BenchRig.INPUTS.pages.associateBy { it.id }
+        val events = rig.runner.run(entry, rig.candidates(entry)).onEach { e ->
+            if (e is BenchProgress.Step && e.step == BenchStep.OCR_PAGE && !e.done) {
+                val lines = pages.getValue(e.sampleId!!).golden.lines
+                // The cover page is right; one inner line is wrong (42 of 43 lines identical over the run).
+                ocr.lines = if (e.sampleId == "inner") lines.toMutableList().also { it[2] = it[2].copy(text = "Совсем не то") } else lines
+            }
+        }.toList()
+        val r = (events.last() as BenchProgress.Finished).records.single().result as BenchmarkResultData.Ocr
+        assertEquals("ocr_text", r.invalidReason)
+        assertEquals(43, r.boxes)
+    }
+
+    @Test
     fun ocrThatMissesTheGoldenIsInvalid() = runTest {
         val entry = BenchRig.model("pp-ocrv5-cyrillic-mobile-rec") // the recogniser entry runs the same pair
         val wrong = BenchRig(this, FakeEngines(ocr = FakeOcrService(lines = listOf(OcrLine("Лёша Козлов", 0.97, listOf(156, 212, 498, 268))))))
