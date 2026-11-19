@@ -74,6 +74,7 @@ import app.murmur.ui.design.components.ScreenHeader
 import app.murmur.ui.design.components.Skeleton
 import app.murmur.ui.design.elevation
 import app.murmur.ui.design.rememberIsWide
+import kotlin.math.roundToInt
 
 /** Test tags of the dashboard (screenshot and UI tests). */
 object DashboardTags {
@@ -131,7 +132,7 @@ fun DashboardContent(
             .testTag(DashboardTags.SCREEN),
     ) {
         ScreenHeader(stringResource(R.string.dash_title)) {
-            RangeChip(range, actions.onToggleRange, enabled = state is DashboardState.Ready && !state.empty)
+            RangeChip(range, actions.onToggleRange, enabled = true)
         }
         val scroll = rememberScrollState()
         Box(Modifier.weight(1f).fillMaxWidth().verticalScroll(scroll).testTag(DashboardTags.SCROLL)) {
@@ -206,7 +207,8 @@ private fun EmptyContent(bubbleOff: Boolean, rows: List<MetricTexts>, actions: D
                 leadingIcon = MurmurIcons.mic, modifier = Modifier.padding(top = 18.dp).testTag(DashboardTags.TRY),
             )
         }
-        MetricsSection(stringResource(R.string.dash_empty_metrics), rows)
+        // The prototype's empty list has no 2 dp gap under its title (dash-empty).
+        MetricsSection(stringResource(R.string.dash_empty_metrics), rows, titleGap = 0.dp)
     }
 }
 
@@ -263,6 +265,31 @@ private fun LoadingContent() {
         }
     }
 }
+
+/**
+ * CSS line box for one line of Onest: the browser that rendered the frames makes the box exactly the line height and
+ * centres the font's ascent + descent in it (half-leading, negative when the font is taller than the line: Onest is
+ * 1.275 em, so a 44 sp display in a 48 sp line, 20 sp values in 24 sp). Compose keeps the font's full ascent for
+ * such lines and rounds the half-leading differently, which moved the metric rows by 1 px each. This places the text
+ * so that its baseline sits where CSS puts it and reports the line height; baselines move with the text.
+ */
+private fun Modifier.cssLineBox(style: TextStyle): Modifier = layout { m, c ->
+    val p = m.measure(c)
+    val target = style.lineHeight.roundToPx()
+    val size = style.fontSize.toPx()
+    val baseline = p[FirstBaseline]
+    // Wrapped text (large font scales) keeps Compose's layout; the line box applies to one line.
+    if (p.height >= target * 3 / 2 || baseline == androidx.compose.ui.layout.AlignmentLine.Unspecified) {
+        layout(p.width, p.height) { p.place(0, 0) }
+    } else {
+        val cssBaseline = (target - (ONEST_ASCENT + ONEST_DESCENT) * size) / 2f + ONEST_ASCENT * size
+        layout(p.width, target) { p.place(0, cssBaseline.roundToInt() - baseline) }
+    }
+}
+
+/** Onest's hhea / typo ascender and descender (970 / 305 per 1000 units, `ui/design/src/main/res/font`). */
+private const val ONEST_ASCENT = 0.970f
+private const val ONEST_DESCENT = 0.305f
 
 // -------------------------------------------------------------------------------------------- header
 
@@ -329,7 +356,7 @@ private fun Card(
 private fun BigNumber(number: String, unit: String, color: Color, unitColor: Color) {
     val t = MurmurTheme.type
     Row(Modifier.padding(top = 8.dp)) {
-        Text(number, style = t.display.copy(fontFeatureSettings = "tnum"), color = color, modifier = Modifier.alignByBaseline())
+        Text(number, style = t.display, color = color, modifier = Modifier.alignByBaseline().cssLineBox(t.display))
         Spacer(Modifier.width(8.dp))
         Text(unit, style = t.titleSm, color = unitColor, modifier = Modifier.alignByBaseline())
     }
@@ -395,9 +422,9 @@ private fun WeekSection(w: WeekTexts) {
 
 /** "How it's going" (and the empty state's "What you'll see here"): metric rows with 1 dp dividers. */
 @Composable
-private fun MetricsSection(title: String, rows: List<MetricTexts>) {
+private fun MetricsSection(title: String, rows: List<MetricTexts>, titleGap: Dp = 2.dp) {
     Column(Modifier.testTag(DashboardTags.METRICS)) {
-        SectionTitle(title, Modifier.padding(bottom = 2.dp))
+        SectionTitle(title, Modifier.padding(bottom = titleGap))
         rows.forEachIndexed { i, m ->
             if (i > 0) Box(Modifier.fillMaxWidth().height(1.dp).background(MurmurTheme.colors.line))
             MetricRow(m)
@@ -406,9 +433,9 @@ private fun MetricsSection(title: String, rows: List<MetricTexts>) {
 }
 
 /**
- * One metric: name and explanation on the left, the value (20 sp) with its unit (13 sp, ink3) on the right, first
- * baselines aligned. When the value does not fit next to the name's longest word (large text, DESIGN 8) the value
- * moves under the explanation.
+ * One metric: name and explanation on the left, the value (20 sp) with its unit (13 sp, ink3) on the right, the name's
+ * baseline on the value's; the explanation wraps under the name. When the name no longer fits on one line beside the
+ * value (large text, DESIGN 8), the value moves under the explanation.
  */
 @Composable
 private fun MetricRow(m: MetricTexts) {
@@ -418,25 +445,25 @@ private fun MetricRow(m: MetricTexts) {
     val dash = stringResource(R.string.dash_no_value)
     Layout(
         contents = listOf(
-            {
-                Column {
-                    Text(m.title, style = t.rowTitle, color = c.ink)
-                    Text(m.subtitle, style = t.rowSub, color = c.ink3, modifier = Modifier.padding(top = 2.dp))
-                }
-            },
+            { Text(m.title, style = t.rowTitle, color = c.ink) },
+            { Text(m.subtitle, style = t.rowSub, color = c.ink3) },
             {
                 Row {
                     if (m.value == null) {
                         Text(
                             dash, style = MetricValue, color = c.ink3,
-                            modifier = Modifier.alignByBaseline().semantics { contentDescription = noValueCd },
+                            modifier = Modifier.alignByBaseline().cssLineBox(MetricValue)
+                                .semantics { contentDescription = noValueCd },
                         )
                     } else {
-                        Text(m.value, style = MetricValue, color = c.ink, maxLines = 1, modifier = Modifier.alignByBaseline())
+                        Text(
+                            m.value, style = MetricValue, color = c.ink, maxLines = 1,
+                            modifier = Modifier.alignByBaseline().cssLineBox(MetricValue),
+                        )
                         if (m.unit != null) {
                             Text(
                                 m.unit, style = MetricUnit, color = c.ink3, maxLines = 1,
-                                modifier = Modifier.padding(start = 2.dp).alignByBaseline(),
+                                modifier = Modifier.padding(start = 2.dp).alignByBaseline().cssLineBox(MetricUnit),
                             )
                         }
                     }
@@ -444,38 +471,49 @@ private fun MetricRow(m: MetricTexts) {
             },
         ),
         modifier = Modifier.fillMaxWidth().padding(vertical = 14.dp).semantics(mergeDescendants = true) { },
-    ) { (labelM, valueM), constraints ->
-        val label = labelM.single()
+    ) { (titleM, subM, valueM), constraints ->
+        val title = titleM.single()
+        val sub = subM.single()
         val value = valueM.single()
         val width = constraints.maxWidth
         val gap = 16.dp.roundToPx()
+        val subGap = 2.dp.roundToPx()
         val vp = value.measure(Constraints(maxWidth = width))
-        val sideBySide = vp.width + gap + label.minIntrinsicWidth(Constraints.Infinity) <= width
-        if (sideBySide) {
-            val lp = label.measure(Constraints(maxWidth = width - vp.width - gap))
-            val lb = lp[FirstBaseline].takeIf { it != androidx.compose.ui.layout.AlignmentLine.Unspecified } ?: 0
-            val vb = vp[FirstBaseline].takeIf { it != androidx.compose.ui.layout.AlignmentLine.Unspecified } ?: 0
-            val base = maxOf(lb, vb)
-            val ly = base - lb
+        if (title.maxIntrinsicWidth(Constraints.Infinity) + gap + vp.width <= width) {
+            val left = width - vp.width - gap
+            val tp = title.measure(Constraints(maxWidth = left))
+            val sp = sub.measure(Constraints(maxWidth = left))
+            val tb = tp[FirstBaseline]
+            val vb = vp[FirstBaseline]
+            val base = maxOf(tb, vb)
+            val ty = base - tb
             val vy = base - vb
-            val h = maxOf(ly + lp.height, vy + vp.height)
+            val h = maxOf(ty + tp.height + subGap + sp.height, vy + vp.height)
             layout(width, h) {
-                lp.place(0, ly)
+                tp.place(0, ty)
+                sp.place(0, ty + tp.height + subGap)
                 vp.place(width - vp.width, vy)
             }
         } else {
-            val lp = label.measure(Constraints(maxWidth = width))
+            val tp = title.measure(Constraints(maxWidth = width))
+            val sp = sub.measure(Constraints(maxWidth = width))
             val top = 4.dp.roundToPx()
-            layout(width, lp.height + top + vp.height) {
-                lp.place(0, 0)
-                vp.place(0, lp.height + top)
+            val vy = tp.height + subGap + sp.height + top
+            layout(width, vy + vp.height) {
+                tp.place(0, 0)
+                sp.place(0, tp.height + subGap)
+                vp.place(0, vy)
             }
         }
     }
 }
 
+/**
+ * Metric value: 20 sp / 24 / 600, −0.3 tracking. Proportional figures as in the frames (DESIGN 3.2 asks for `tnum`
+ * only where numbers sit in columns; these stand alone).
+ */
 private val MetricValue: TextStyle
-    @Composable get() = MurmurTheme.type.title.copy(lineHeight = 24.sp, letterSpacing = (-0.3).sp, fontFeatureSettings = "tnum")
+    @Composable get() = MurmurTheme.type.title.copy(lineHeight = 24.sp, letterSpacing = (-0.3).sp)
 
 private val MetricUnit: TextStyle
     @Composable get() = MurmurTheme.type.label.copy(fontSize = 13.sp, lineHeight = 16.sp)
