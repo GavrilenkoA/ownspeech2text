@@ -31,6 +31,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import random
 import re
 import sys
 import unicodedata
@@ -578,6 +579,45 @@ def guard_units() -> dict:
              ("позвони олег завтра утром", "Позвони Elena завтра утром.", screen("Elena", "Olya")),
              ("позвони олег завтра утром", "Позвони Elena завтра утром.", screen("Elena", "Olga"))]
     guards = [{"transcript": t, "output": o, "ctx": c, "result": jres(guard.guard(t, o, c))} for t, o, c in pairs]
+    # re.I spellings of the guard's phrases: letters swapped for characters sre equates with them, for ligatures
+    # and other one-to-many foldings it does not apply, and for unrelated cased characters (seeded, deterministic)
+    rng = random.Random(20261119)
+    lig = {"st": "\ufb06\ufb05", "fi": "\ufb01", "ff": "\ufb00", "fl": "\ufb02", "ss": "\u00df\u1e9e"}
+    traps = "\u0130\u0131\u212a\u212b\u017f\u01f0\u0149\u1e96\u13a0\u1c80\u1c82\u1c84\u1c88\u0345\u00b5"
+
+    def respell(phrase: str) -> str:
+        out, i = [], 0
+        while i < len(phrase):
+            two = phrase[i:i + 2].lower()
+            if two in lig and rng.random() < 0.3:
+                out.append(rng.choice(lig[two]))
+                i += 2
+                continue
+            ch, r = phrase[i], rng.random()
+            if ch.isalpha() and r < 0.25:
+                out.append(rng.choice([chr(x) for x in re_i[ord(ch.lower())]]))
+            elif ch.isalpha() and r < 0.35:
+                out.append(rng.choice(traps))
+            else:
+                out.append(ch)
+            i += 1
+        return "".join(out)
+    re_i = {int(k): v for k, v in ignorecase_table().items()}
+    leak = ["Style:", "Text already in the field", "Dictation language:", "Names and terms on screen", "<transcript>",
+            "sure", "certainly", "of course", "here's", "okay, here", "i'm sorry", "i cannot", "as an ai",
+            "Конечно,", "вот исправленный", "исправленный текст", "извините, но", "я не могу", "output:", "edited text:",
+            "текст:", "результат:", "отредактированный текст:"]
+    for _ in range(4):
+        for ph in leak:
+            o = respell(ph) + " Hello there friend"
+            guards.append({"transcript": "hello there friend", "output": o, "ctx": tg, "result": jres(guard.guard("hello there friend", o, tg))})
+    hallu = ["thanks for watching", "thank you for watching!", "продолжение следует...", "please subscribe", "dimatorzok",
+             "[blank_audio]", "субтитры сделал Dima", "редактор субтитров А.Синецкая", "спасибо за просмотр", "[ silence ]",
+             "( music )", "корректор А.Егорова", "подписывайтесь на канал"]
+    for _ in range(4):
+        for ph in hallu:
+            for t in (respell(ph), "Буду в пять. " + respell(ph)):
+                prechecks.append({"transcript": t, "result": jres(guard.precheck(t))})
     return {"words": words, "phonetic_key": keys, "best_sim": sims, "repair": repairs, "precheck": prechecks,
             "fallback_text": fallbacks, "guard": guards}
 
