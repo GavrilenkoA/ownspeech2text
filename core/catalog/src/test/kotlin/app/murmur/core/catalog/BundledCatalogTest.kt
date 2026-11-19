@@ -68,16 +68,16 @@ class BundledCatalogTest {
 
     @Test
     fun everyLlmContextHoldsItsPrefixPlusAFiveMinuteDictation() {
-        // ADR-045 (review blocker): default.v4 prefix = 3,129-3,269 tokens, so n_ctx 4,096 could not clean up 60 s.
+        // ADR-045 (review blocker): default.v4 prefix = 3,116-3,256 tokens, so n_ctx 4,096 could not clean up 60 s.
         for (m in catalog.models.filter { it.kind == ModelKind.LLM }) {
             val l = m.llm!!
             val prefix = assertNotNull(m.id.value, l.prefixTokens).let { l.prefixTokens!! }
             assertTrue("${m.id}: nCtx ${l.nCtx} < $prefix + reserve", l.nCtx >= prefix + LlmTraits.CONTEXT_RESERVE_TOKENS)
             assertEquals(GgufTemplates.nCtxFor(prefix), l.nCtx)
         }
-        // Measured with llama-tokenize on the real GGUFs (2026-11-19); a prompt change must update the catalog.
-        assertEquals(3_240, catalog.model(ModelId("lfm3-1.7b"))!!.llm!!.prefixTokens)
-        assertEquals(3_129, catalog.model(ModelId("qwen3.5-0.8b"))!!.llm!!.prefixTokens)
+        // native/llama/tools/tokenizer_check.py (llama-tokenize on the real GGUFs); a prompt change must update the catalog.
+        assertEquals(3_226, catalog.model(ModelId("lfm3-1.7b"))!!.llm!!.prefixTokens)
+        assertEquals(3_116, catalog.model(ModelId("qwen3.5-0.8b"))!!.llm!!.prefixTokens)
         assertEquals("finetuned.v1", catalog.model(ModelId("murmur-cleanup-qwen3.5-2b"))!!.llm!!.promptProfile)
         assertTrue(catalog.model(ModelId("murmur-cleanup-qwen3-0.6b")) == null)
     }
