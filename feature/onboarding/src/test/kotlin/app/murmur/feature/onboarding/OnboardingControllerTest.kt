@@ -18,6 +18,7 @@ import app.murmur.testing.FakeDeviceProfileRepository
 import app.murmur.testing.FakePermissionMonitor
 import app.murmur.testing.InMemorySettingsRepository
 import app.murmur.testing.contrib.Wp15StagedDownloads
+import androidx.lifecycle.SavedStateHandle
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -68,7 +69,24 @@ class OnboardingControllerTest {
             bubble = bubble, levels = MutableStateFlow(FloatArray(7)), bubbleInput = { inputs += it }, clock = clock,
             accessibilitySettingsOpened = { opened++ },
         )
-        val ctl = OnboardingController(deps, scope)
+        val handle = SavedStateHandle()
+        val ctl = OnboardingController(deps, scope, handle)
+
+        /** A new controller over the same repositories, from what [handle] would hand back after process death. */
+        fun afterProcessDeath(scope: CoroutineScope): OnboardingController =
+            OnboardingController(deps, scope, SavedStateHandle(handle.keys().associateWith { handle.get<Any?>(it) }))
+    }
+
+    private val noTarget = object : InAppTarget {
+        override val snapshot get() = error("not read here")
+        override fun insert(text: String) {}
+    }
+
+    private fun TestScope.dictation(w: World, cleanup: Boolean = true) {
+        w.clock.elapsed += 1_000; w.bubble.value = DictationBubble.Listening(w.clock.elapsed, hold = false, warn = false); runCurrent()
+        w.clock.elapsed += 2_000; w.bubble.value = DictationBubble.Transcribing; runCurrent()
+        w.clock.elapsed += 500; w.bubble.value = DictationBubble.Inserted(noCleanup = !cleanup); runCurrent()
+        w.bubble.value = DictationBubble.Idle; runCurrent()
     }
 
     private fun TestScope.toModels(w: World) {
@@ -190,6 +208,10 @@ class OnboardingControllerTest {
         assertEquals("Parakeet TDT 0.6B v3", r.asr)
         assertEquals("LFM3 1.7B", r.llm)
         w.bubble.value = DictationBubble.Idle; runCurrent()
+        w.ctl.startPractice(object : InAppTarget {
+            override val snapshot get() = error("not read here")
+            override fun insert(text: String) {}
+        })
         w.clock.elapsed = 6_000; w.bubble.value = DictationBubble.Listening(6_000, hold = false, warn = false); runCurrent()
         w.clock.elapsed = 7_000; w.bubble.value = DictationBubble.Transcribing; runCurrent()
         w.clock.elapsed = 7_500; w.bubble.value = DictationBubble.Inserted(noCleanup = true); runCurrent()
@@ -209,5 +231,77 @@ class OnboardingControllerTest {
         runCurrent()
         assertTrue(w.settings.settings.value.onboardingDone)
         assertTrue(done)
+    }
+
+    @Test
+    fun aDictationThisScreenDidNotStartReportsNothing() = runTest {
+        val w = World(backgroundScope)
+        runCurrent()
+        // The overlay inserts into another app: the shared bubble flow shows it, the practice line must not.
+        dictation(w)
+        assertNull(w.ctl.practice.value)
+        // Started here: reported, then the arm is used up.
+        w.ctl.startPractice(noTarget)
+        dictation(w)
+        assertNotNull(w.ctl.practice.value)
+        w.ctl.clearPractice()
+        dictation(w)
+        assertNull("a later dictation elsewhere after the result was cleared", w.ctl.practice.value)
+        // Started here but failed: disarmed, so the next dictation elsewhere reports nothing.
+        w.ctl.startPractice(noTarget)
+        w.bubble.value = DictationBubble.Listening(w.clock.elapsed, hold = false, warn = false); runCurrent()
+        w.bubble.value = DictationBubble.Error(app.murmur.core.dictation.BubbleError.NO_SPEECH, app.murmur.core.dictation.BubbleAction.RETRY); runCurrent()
+        w.bubble.value = DictationBubble.Idle; runCurrent()
+        dictation(w)
+        assertNull(w.ctl.practice.value)
+        // Started here, then the screen was left mid-dictation (clearPractice): its Inserted reports nothing.
+        w.ctl.startPractice(noTarget)
+        w.bubble.value = DictationBubble.Listening(w.clock.elapsed, hold = false, warn = false); runCurrent()
+        w.ctl.clearPractice()
+        w.bubble.value = DictationBubble.Inserted(noCleanup = false); runCurrent()
+        assertNull(w.ctl.practice.value)
+    }
+
+    @Test
+    fun theProgressSurvivesProcessDeathOnASystemScreen() = runTest {
+        val w = World(backgroundScope)
+        w.permissions.set { it.copy(a11yConnected = false, a11yEnabled = false, a11yEverConnected = false) }
+        runCurrent()
+        w.ctl.dispatch(OnboardingEvent.Start)
+        assertEquals(OnboardingStep.ACCESSIBILITY, w.ctl.state.value.step)
+        // "Open Accessibility settings"; Android kills the process while the user is there; the toggle was refused.
+        w.ctl.dispatch(OnboardingEvent.A11ySettingsOpened)
+        w.permissions.set { it.copy(restrictedLikely = true) }
+        val restored = w.afterProcessDeath(backgroundScope)
+        runCurrent()
+        assertEquals("not back at Welcome: the restricted screen", OnboardingStep.RESTRICTED, restored.state.value.step)
+    }
+
+    @Test
+    fun skippedStepsAndMicDenialsSurviveProcessDeath() = runTest {
+        val w = World(backgroundScope)
+        w.permissions.set { it.copy(micGranted = false, notificationsGranted = false, batteryUnrestricted = false) }
+        runCurrent()
+        w.ctl.dispatch(OnboardingEvent.Start)
+        w.ctl.dispatch(OnboardingEvent.MicResult(granted = false, canAskAgain = true))
+        w.ctl.dispatch(OnboardingEvent.MicResult(granted = false, canAskAgain = true))
+        assertTrue(w.ctl.state.value.micBlocked)
+        // The user opens App info to allow the microphone; the process dies there.
+        val atMic = w.afterProcessDeath(backgroundScope)
+        runCurrent()
+        assertEquals(OnboardingStep.MIC, atMic.state.value.step)
+        assertTrue("the button still opens App info", atMic.state.value.micBlocked)
+        assertEquals(2, atMic.state.value.micDenials)
+        // Further on: notifications skipped, then the battery screen of the system.
+        w.permissions.set { it.copy(micGranted = true) }
+        runCurrent()
+        w.ctl.dispatch(OnboardingEvent.Skip)
+        assertEquals(OnboardingStep.BATTERY, w.ctl.state.value.step)
+        w.ctl.select("light")
+        val atBattery = w.afterProcessDeath(backgroundScope)
+        runCurrent()
+        assertEquals(OnboardingStep.BATTERY, atBattery.state.value.step)
+        assertEquals(setOf(OnboardingStep.NOTIFICATIONS), atBattery.state.value.skipped)
+        assertEquals("the pack choice too", "light", atBattery.models.value.selectedId)
     }
 }

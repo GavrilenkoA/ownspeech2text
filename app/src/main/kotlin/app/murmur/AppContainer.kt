@@ -127,10 +127,11 @@ class AppContainer(private val context: Context) {
     private val customModels: CustomModelResolver by lazy { HfCustomModelResolver() }
     /**
      * WIRING SLOT (WP-14, ADR-080): main wires `DefaultBenchmarkRunner(engines, specs = resolver.benchSpecs, ...)` here;
-     * at the merge that runner replaces [RunnerNotWired], and the :testing runner stays for the debug fake container
-     * only (`replacements.benchmarkRunner` when [fakeContainer]). This branch's base has no WP-14 runner yet.
+     * at the merge that runner replaces [RunnerNotWired]. The :testing runner exists only inside the debug fake
+     * container ([FakeData.benchmarkRunner], over the in-memory [benchmarks]); a normal debug build, fake engines
+     * included, never stores its made-up records. This branch's base has no WP-14 runner yet.
      */
-    val benchmarkRunner: BenchmarkRunner by lazy { replacements.benchmarkRunner?.invoke(benchmarks, unitHealth) ?: RunnerNotWired }
+    val benchmarkRunner: BenchmarkRunner by lazy { fake?.benchmarkRunner ?: RunnerNotWired }
 
     // --- prompt (WP-04)
     val prompts by lazy { ClasspathPromptAssets() }

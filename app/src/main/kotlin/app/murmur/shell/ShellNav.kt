@@ -56,6 +56,15 @@ object ShellNav {
         is DeepLink.Models -> listOf(ModelsRoute)
     }
 
+    /**
+     * The hub segment a deep link asks for (a one-shot request the Models screen consumes): Cleanup for an LLM
+     * problem, Speech for every other "Open Models" (OpenTarget.Models: null = Speech); null for other links.
+     */
+    fun segmentFor(link: DeepLink): ModelKind? = when (link) {
+        is DeepLink.Models -> if (link.kind == ModelKind.LLM) ModelKind.LLM else ModelKind.ASR
+        is DeepLink.Entry -> null
+    }
+
     /** Index of [tab] in the bar / rail. */
     fun indexOf(tab: TopRoute): Int = TABS.indexOfFirst { it.route == tab }.coerceAtLeast(0)
 

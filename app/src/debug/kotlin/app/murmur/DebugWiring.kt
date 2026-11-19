@@ -66,7 +66,6 @@ class DebugWiring(private val context: Context, private val scope: CoroutineScop
         return Replacements(
             engines = if (engines) FakeEngines() else null,
             data = data,
-            benchmarkRunner = { repo, _ -> FakeBenchmarkRunner(repo = repo) },
             renderer = if (engines) FakePromptRenderer() else null,
             guard = if (engines) PassThroughGuard() else null,
         )
@@ -94,6 +93,8 @@ class DebugWiring(private val context: Context, private val scope: CoroutineScop
             catalog = catalog, installed = downloads, device = FakeDeviceProfileRepository(profile), unitHealth = unitHealth,
             resolver = FakeModelResolver(health = unitHealth, npuFirst = ComputeUnit.NPU in profile.availableUnits),
             audio = FakeAudioCapture(store = audioStore), memory = FixedMemoryGate(),
+            // Saves its made-up records into the in-memory repository above, never into Room.
+            benchmarkRunner = FakeBenchmarkRunner(repo = benchmarks),
         )
     }
 

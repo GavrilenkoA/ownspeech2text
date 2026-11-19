@@ -1,5 +1,6 @@
 package app.murmur.feature.onboarding
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.murmur.core.catalog.Catalog
@@ -18,7 +19,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.updateAndGet
 import kotlinx.coroutines.launch
 
 /** The models part as the screens need it: the pack choice, its sizes, and the downloads of the chosen pack. */
@@ -43,14 +44,23 @@ data class PracticeResult(val seconds: Double, val asr: String, val llm: String?
  * Onboarding logic around [OnboardingMachine] (survives fold/unfold as a ViewModel; [scope] is injectable for tests).
  * Feeds the machine from [OnboardingDeps.permissions] and from the install states, and performs the models step:
  * pack sizes only after `device.ensure()`, the pack's settings, the downloads, pause and retry.
+ *
+ * The progress the user made ([OnboardingSaved]: step, skipped steps, microphone denials, the pending trip to the
+ * accessibility settings, the chosen pack) is kept in [saved], the ViewModel's SavedStateHandle: Android may kill the
+ * process while the user is on a system screen, and setup then continues where it was instead of at Welcome.
+ * Everything else is read again (permissions, install states).
  */
-class OnboardingController(private val deps: OnboardingDeps, private val scope: CoroutineScope) {
-    private val _state = MutableStateFlow(OnboardingState())
+class OnboardingController(
+    private val deps: OnboardingDeps,
+    private val scope: CoroutineScope,
+    private val saved: SavedStateHandle = SavedStateHandle(),
+) {
+    private val _state = MutableStateFlow(OnboardingSaved.restore(saved))
     val state: StateFlow<OnboardingState> = _state.asStateFlow()
 
     private val device = MutableStateFlow<DeviceProfile?>(null)
     private val catalog = MutableStateFlow<Catalog?>(null)
-    private val chosen = MutableStateFlow<String?>(null)
+    private val chosen = MutableStateFlow(saved.get<String>(OnboardingSaved.CHOSEN))
     private val freeBytes = MutableStateFlow<Long?>(null)
     /** Pack id whose download was started in this run. */
     private val started = MutableStateFlow<String?>(null)
@@ -100,9 +110,15 @@ class OnboardingController(private val deps: OnboardingDeps, private val scope: 
         scope.launch { watchPractice() }
     }
 
-    fun dispatch(e: OnboardingEvent) = _state.update { OnboardingMachine.reduce(it, e) }
+    fun dispatch(e: OnboardingEvent) {
+        val next = _state.updateAndGet { OnboardingMachine.reduce(it, e) }
+        OnboardingSaved.save(saved, next)
+    }
 
-    fun select(packId: String) { chosen.value = packId }
+    fun select(packId: String) {
+        chosen.value = packId
+        saved[OnboardingSaved.CHOSEN] = packId
+    }
 
     fun setWifiOnly(on: Boolean) { scope.launch { deps.settings.update { it.copy(wifiOnlyDownloads = on) } } }
 
@@ -147,24 +163,38 @@ class OnboardingController(private val deps: OnboardingDeps, private val scope: 
         }
     }
 
-    /** Forgets the last practice result (the practice screen was left). */
+    /**
+     * True from [startPractice] until that dictation ends. The bubble flow is the orchestrator's, shared by every
+     * dictation (the overlay in other apps included), so only a dictation this screen started reports a result.
+     */
+    @Volatile private var armed = false
+
+    /** Forgets the last practice result (the practice screen was left); a dictation still running reports nothing. */
     fun clearPractice() {
+        armed = false
         _practice.value = null
     }
 
     fun startPractice(target: InAppTarget) {
         _practice.value = null
+        armed = true
         deps.practice(target)
     }
 
     /**
      * The "Inserted in 1.3 s" line: from the stop (the end of Listening) to Inserted, with the models of the settings
-     * (catalog display names; "→ cleanup" only when cleanup ran).
+     * (catalog display names; "→ cleanup" only when cleanup ran). Only for the dictation [startPractice] armed: one
+     * that ends any other way (error, copied, cancelled back to Idle) disarms it.
      */
     private suspend fun watchPractice() {
         var stoppedAt: Long? = null
         var listening = false
         deps.bubble.collect { b ->
+            if (!armed) {
+                stoppedAt = null
+                listening = false
+                return@collect
+            }
             when (b) {
                 is DictationBubble.Listening -> {
                     listening = b.frozenAtMs == null
@@ -178,10 +208,22 @@ class OnboardingController(private val deps: OnboardingDeps, private val scope: 
                     val from = stoppedAt ?: deps.clock.elapsedMs()
                     val secs = (deps.clock.elapsedMs() - from).coerceAtLeast(0) / 1000.0
                     _practice.value = PracticeResult(secs, asrName(), if (b.noCleanup) null else llmName())
+                    armed = false
                     stoppedAt = null
                     listening = false
                 }
-                else -> { listening = false }
+                is DictationBubble.Error, is DictationBubble.Copied -> {
+                    armed = false
+                    stoppedAt = null
+                    listening = false
+                }
+                // Idle right after the start (the bubble flow still shows the previous state) keeps the arm; Idle
+                // after the dictation has run means it was cancelled.
+                DictationBubble.Idle -> {
+                    if (listening || stoppedAt != null) armed = false
+                    stoppedAt = null
+                    listening = false
+                }
             }
         }
     }
@@ -232,7 +274,42 @@ class OnboardingController(private val deps: OnboardingDeps, private val scope: 
     }
 }
 
-/** ViewModel holder so that the flow survives fold/unfold (the Activity is recreated on a display change). */
-class OnboardingViewModel(deps: OnboardingDeps) : ViewModel() {
-    val controller = OnboardingController(deps, viewModelScope)
+/**
+ * ViewModel holder so that the flow survives fold/unfold (the Activity is recreated on a display change) and, through
+ * [saved], process death while the user is on a system screen.
+ */
+class OnboardingViewModel(deps: OnboardingDeps, saved: SavedStateHandle) : ViewModel() {
+    val controller = OnboardingController(deps, viewModelScope, saved)
+}
+
+/**
+ * The part of [OnboardingState] that survives process death (plain bundle values in a SavedStateHandle). Permissions
+ * and downloads are not kept: they are read again, and the machine moves on from the restored step by itself.
+ */
+internal object OnboardingSaved {
+    const val STEP = "ob.step"
+    const val SKIPPED = "ob.skipped"
+    const val MIC_DENIALS = "ob.micDenials"
+    const val MIC_BLOCKED = "ob.micBlocked"
+    const val AWAITING_A11Y = "ob.awaitingA11yReturn"
+    const val CHOSEN = "ob.chosenPack"
+
+    fun save(h: SavedStateHandle, s: OnboardingState) {
+        h[STEP] = s.step.name
+        h[SKIPPED] = ArrayList(s.skipped.map { it.name })
+        h[MIC_DENIALS] = s.micDenials
+        h[MIC_BLOCKED] = s.micBlocked
+        h[AWAITING_A11Y] = s.awaitingA11yReturn
+    }
+
+    fun restore(h: SavedStateHandle): OnboardingState {
+        fun step(name: String?) = OnboardingStep.entries.firstOrNull { it.name == name }
+        return OnboardingState(
+            step = step(h[STEP]) ?: OnboardingStep.WELCOME,
+            skipped = h.get<ArrayList<String>>(SKIPPED).orEmpty().mapNotNull(::step).toSet(),
+            micDenials = h[MIC_DENIALS] ?: 0,
+            micBlocked = h[MIC_BLOCKED] ?: false,
+            awaitingA11yReturn = h[AWAITING_A11Y] ?: false,
+        )
+    }
 }

@@ -112,6 +112,8 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.androidx.navigation3.runtime)
     implementation(libs.androidx.navigation3.ui)
+    // ViewModels scoped to back-stack entries (NavDisplay's entry decorator).
+    implementation(libs.androidx.lifecycle.viewmodel.navigation3)
     implementation(libs.androidx.material3.adaptive)
     implementation(libs.androidx.material3.adaptive.layout)
     implementation(libs.androidx.material3.adaptive.navigation3)

@@ -92,6 +92,27 @@ class OnboardingMachineTest {
     }
 
     @Test
+    fun aFailedTripRecordedBeforeThisRunShowsTheRestrictedScreen() {
+        // A cold start (or a restore after process death) whose first reading already says restrictedLikely:
+        // A11yStatus kept the trip, so the recovery screen follows at once instead of after a second trip.
+        val restricted = none.copy(micGranted = true, restrictedLikely = true)
+        assertEquals(S.RESTRICTED, run(E.Permissions(restricted), E.Start).step)
+        // The microphone first; the restricted screen once it is granted.
+        val atMic = run(E.Permissions(none.copy(restrictedLikely = true)), E.Start)
+        assertEquals(S.MIC, atMic.step)
+        assertEquals(S.RESTRICTED, run(E.Permissions(restricted), from = atMic).step)
+        // A restored ACCESSIBILITY step with the trip pending (SavedStateHandle) and no reading yet.
+        val restored = OnboardingState(step = S.ACCESSIBILITY, awaitingA11yReturn = true)
+        assertEquals(S.RESTRICTED, run(E.Permissions(restricted), from = restored).step)
+        // "I've done this" goes back to the step and stays there with the same reading (no bounce).
+        val done = run(E.Permissions(restricted), E.Start, E.RestrictedDone)
+        assertEquals(S.ACCESSIBILITY, done.step)
+        assertEquals(S.ACCESSIBILITY, run(E.Permissions(restricted.copy(notificationsGranted = true)), from = done).step)
+        // Connected after all: no recovery screen.
+        assertEquals(S.NOTIFICATIONS, run(E.Permissions(restricted.copy(a11yConnected = true)), E.Start).step)
+    }
+
+    @Test
     fun notificationsGrantedDeniedOrSkipped() {
         val base = none.copy(micGranted = true, a11yConnected = true)
         assertEquals(S.BATTERY, run(E.NotificationsResult(granted = true), from = at(S.NOTIFICATIONS, base)).step)

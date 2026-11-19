@@ -71,6 +71,12 @@ class ShellTest {
         assertNull(DeepLink.parse(DeepLink.OPEN_ENTRY, -1, null))
         assertNull("an ordinary launch", DeepLink.parse(null, null, null))
         assertNull(DeepLink.parse("something", 1, null))
+        // The hub segment the link asks for: Cleanup for an LLM problem, Speech otherwise, nothing for an entry.
+        assertEquals(ModelKind.LLM, ShellNav.segmentFor(DeepLink.Models(ModelKind.LLM)))
+        assertEquals(ModelKind.ASR, ShellNav.segmentFor(DeepLink.Models(null)))
+        assertEquals(ModelKind.ASR, ShellNav.segmentFor(DeepLink.Models(ModelKind.VAD)))
+        assertNull(ShellNav.segmentFor(DeepLink.Entry(EntryId(3))))
+        assertEquals(listOf(ModelsRoute), ShellNav.forLink(DeepLink.Models(ModelKind.LLM)))
         assertEquals(DeepLink.Entry(EntryId(5)), DeepLink.of(OpenTarget.Entry(EntryId(5))))
         assertEquals(DeepLink.Models(ModelKind.ASR), DeepLink.of(OpenTarget.Models(ModelKind.ASR)))
         assertEquals(listOf(HistoryRoute, HistoryEntryRoute(42)), ShellNav.forLink(DeepLink.Entry(EntryId(42))))

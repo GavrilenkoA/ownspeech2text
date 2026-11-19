@@ -26,6 +26,10 @@ import androidx.compose.material3.adaptive.navigation3.ListDetailSceneStrategy
 import androidx.compose.material3.adaptive.navigation3.rememberListDetailSceneStrategy
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
@@ -36,11 +40,14 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
+import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.rememberNavBackStack
+import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.scene.Scene
 import androidx.navigation3.ui.NavDisplay
 import app.murmur.core.model.EntryId
 import app.murmur.core.model.ModelId
+import app.murmur.core.model.ModelKind
 import app.murmur.feature.dashboard.DashboardScreen
 import app.murmur.feature.history.HistoryEntryDetail
 import app.murmur.feature.history.HistoryScreen
@@ -119,9 +126,12 @@ fun AppShell(deps: ShellDeps, links: StateFlow<DeepLink?>, onLinkHandled: () -> 
         backStack.addAll(stack)
     }
 
+    // The hub segment an "Open Models" link asked for, until the Models screen has shown it (saved across fold/unfold).
+    var modelsSegment by rememberSaveable { mutableStateOf<ModelKind?>(null) }
     val link = links.collectAsStateValue()
     LaunchedEffect(link) {
         if (link != null) {
+            modelsSegment = ShellNav.segmentFor(link)
             replace(ShellNav.forLink(link))
             onLinkHandled()
         }
@@ -130,7 +140,10 @@ fun AppShell(deps: ShellDeps, links: StateFlow<DeepLink?>, onLinkHandled: () -> 
 
     val tab = ShellNav.tabOf(backStack)
     val items = TABS.map { NavItem(stringResource(it.label), TAB_ICONS.getValue(it.route)) }
-    val select: (Int) -> Unit = { i -> replace(ShellNav.selectTab(TABS[i].route)) }
+    val select: (Int) -> Unit = { i ->
+        modelsSegment = null
+        replace(ShellNav.selectTab(TABS[i].route))
+    }
     val selectedEntry = (backStack.lastOrNull() as? HistoryEntryRoute)?.let { EntryId(it.id) }
     val selectedModel = (backStack.lastOrNull() as? ModelDetailRoute)?.let { ModelId(it.id) }
     val tryDictation: () -> Unit = { replace(ShellNav.openPractice(backStack.toList())) }
@@ -149,6 +162,9 @@ fun AppShell(deps: ShellDeps, links: StateFlow<DeepLink?>, onLinkHandled: () -> 
             onBack = { ShellNav.back(backStack.toList())?.let(::replace) ?: onExit() },
             modifier = m,
             sceneStrategies = listOf(listDetail),
+            // ViewModels belong to their back-stack entry (kept across fold/unfold, cleared when the entry leaves the
+            // stack): the practice screen's controller stops watching the shared bubble once the screen is closed.
+            entryDecorators = listOf(rememberSaveableStateHolderNavEntryDecorator(), rememberViewModelStoreNavEntryDecorator()),
             transitionSpec = { forward(wide, shiftPx) },
             popTransitionSpec = { backward(wide, shiftPx) },
             predictivePopTransitionSpec = { backward(wide, shiftPx) },
@@ -176,9 +192,15 @@ fun AppShell(deps: ShellDeps, links: StateFlow<DeepLink?>, onLinkHandled: () -> 
                     metadata = ListDetailSceneStrategy.listPane(detailPlaceholder = { EmptyDetail() }) +
                         ListDetailSceneStrategy.preferredPaneSize(Layout.modelsListPane),
                 ) {
-                    // WIRING SLOT (WP-18): the Speech / Cleanup segment of a DeepLink.Models (OpenTarget.Models.kind) is not
-                    // passed yet; ModelsScreen has no parameter for it on this base.
-                    ListPane { ModelsScreen(deps.models, onOpenModel = { replace(ShellNav.openModel(it.value)) }, selected = if (wide) selectedModel else null) }
+                    ListPane {
+                        // WIRING SLOT (WP-18): ModelsScreen(segment, onSegmentShown) is this branch's stub contract
+                        // (CROSS-WP); WP-18 selects the segment and calls onSegmentShown.
+                        ModelsScreen(
+                            deps.models, onOpenModel = { replace(ShellNav.openModel(it.value)) },
+                            selected = if (wide) selectedModel else null,
+                            segment = modelsSegment, onSegmentShown = { modelsSegment = null },
+                        )
+                    }
                 }
                 entry<ModelDetailRoute>(metadata = ListDetailSceneStrategy.detailPane() + mapOf(DETAIL to true)) { r ->
                     DetailPane("detail-model-${r.id}", wide) {

@@ -96,11 +96,19 @@ object OnboardingMachine {
     )
 
     fun reduce(s: OnboardingState, e: OnboardingEvent): OnboardingState = when (e) {
-        OnboardingEvent.Start -> if (s.step == OnboardingStep.WELCOME) s.copy(step = firstOpen(s, from = 0)) else s
-        is OnboardingEvent.Permissions -> onPermissions(s.copy(perms = e.state))
+        OnboardingEvent.Start -> if (s.step == OnboardingStep.WELCOME) failedTrip(s.copy(step = firstOpen(s, from = 0))) else s
+        is OnboardingEvent.Permissions -> onPermissions(
+            s.copy(
+                perms = e.state,
+                // The first reading of this controller (a cold start, or a restore after process death): a recorded
+                // trip to the accessibility settings that came back without the service (A11yStatus keeps it across
+                // process death, ADR-054) is the trip of this run, so the restricted screen follows at once.
+                awaitingA11yReturn = s.awaitingA11yReturn || (s.perms == null && e.state.restrictedLikely && !e.state.a11yConnected),
+            ),
+        )
         is OnboardingEvent.MicResult -> when {
             s.step != OnboardingStep.MIC -> s
-            e.granted -> s.copy(step = next(s, OnboardingStep.MIC))
+            e.granted -> failedTrip(s.copy(step = next(s, OnboardingStep.MIC)))
             else -> {
                 val denials = s.micDenials + 1
                 s.copy(micDenials = denials, micBlocked = !e.canAskAgain || denials >= 2)
@@ -137,17 +145,26 @@ object OnboardingMachine {
     private fun onPermissions(s: OnboardingState): OnboardingState {
         val p = s.perms ?: return s
         return when (s.step) {
-            OnboardingStep.MIC -> if (p.micGranted) s.copy(step = next(s, OnboardingStep.MIC)) else s
-            OnboardingStep.ACCESSIBILITY, OnboardingStep.RESTRICTED -> when {
-                p.a11yConnected -> s.copy(step = next(s, OnboardingStep.ACCESSIBILITY), awaitingA11yReturn = false)
-                // Back from the settings screen, still off, installed from a file: Android refused the toggle.
-                s.step == OnboardingStep.ACCESSIBILITY && s.awaitingA11yReturn && p.restrictedLikely ->
-                    s.copy(step = OnboardingStep.RESTRICTED, awaitingA11yReturn = false)
-                else -> s
-            }
+            OnboardingStep.MIC -> if (p.micGranted) failedTrip(s.copy(step = next(s, OnboardingStep.MIC))) else s
+            OnboardingStep.ACCESSIBILITY, OnboardingStep.RESTRICTED ->
+                if (p.a11yConnected) s.copy(step = next(s, OnboardingStep.ACCESSIBILITY), awaitingA11yReturn = false) else failedTrip(s)
             OnboardingStep.NOTIFICATIONS -> if (p.notificationsGranted) s.copy(step = next(s, OnboardingStep.NOTIFICATIONS)) else s
             OnboardingStep.BATTERY -> if (p.batteryUnrestricted) s.copy(step = next(s, OnboardingStep.BATTERY)) else s
             else -> s
+        }
+    }
+
+    /**
+     * Back from the settings screen ([OnboardingState.awaitingA11yReturn]), still off, installed from a file
+     * ([PermissionState.restrictedLikely]): Android refused the toggle, so the accessibility step becomes the recovery
+     * screen. Checked on every way into the step, so a trip recorded before this run (cold start) is not missed.
+     */
+    private fun failedTrip(s: OnboardingState): OnboardingState {
+        val p = s.perms ?: return s
+        return if (s.step == OnboardingStep.ACCESSIBILITY && s.awaitingA11yReturn && p.restrictedLikely && !p.a11yConnected) {
+            s.copy(step = OnboardingStep.RESTRICTED, awaitingA11yReturn = false)
+        } else {
+            s
         }
     }
 

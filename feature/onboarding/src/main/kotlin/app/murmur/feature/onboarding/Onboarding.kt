@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.murmur.core.catalog.CatalogRepository
 import app.murmur.core.catalog.DeviceProfileRepository
@@ -63,7 +64,7 @@ class OnboardingDeps(
  */
 @Composable
 fun OnboardingScreen(deps: OnboardingDeps, onDone: () -> Unit, modifier: Modifier = Modifier) {
-    val vm: OnboardingViewModel = viewModel { OnboardingViewModel(deps) }
+    val vm: OnboardingViewModel = viewModel { OnboardingViewModel(deps, createSavedStateHandle()) }
     val ctl = vm.controller
     val state by ctl.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -126,13 +127,14 @@ fun OnboardingScreen(deps: OnboardingDeps, onDone: () -> Unit, modifier: Modifie
  */
 @Composable
 fun PracticeScreen(deps: OnboardingDeps, onClose: () -> Unit, modifier: Modifier = Modifier) {
-    val vm: OnboardingViewModel = viewModel(key = PRACTICE_VM) { OnboardingViewModel(deps) }
+    val vm: OnboardingViewModel = viewModel(key = PRACTICE_VM) { OnboardingViewModel(deps, createSavedStateHandle()) }
     val ctl = vm.controller
     val practice by ctl.practice.collectAsStateWithLifecycle()
     val bubble by deps.bubble.collectAsStateWithLifecycle()
     val levels by deps.levels.collectAsStateWithLifecycle()
     BackHandler(onBack = onClose)
-    // The result line belongs to this visit only (the view model outlives the screen).
+    // The result line belongs to this visit only (in the shell the view model is the back-stack entry's, but a host
+    // without entry-scoped view models keeps it for the Activity).
     DisposableEffect(ctl) { onDispose { ctl.clearPractice() } }
     val none = {}
     val actions = ObActions(

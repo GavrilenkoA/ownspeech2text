@@ -17,6 +17,7 @@ import app.murmur.shell.Device.sh
 import app.murmur.shell.Device.waitForTag
 import kotlinx.coroutines.launch
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Rule
@@ -138,7 +139,7 @@ class OnboardingFlowTest {
             throw AssertionError("no result; states $seen", e)
         }
         val text = compose.onNodeWithTag("practice-field").fetchSemanticsNode().config.getOrNull(SemanticsProperties.EditableText)?.text
-        assertTrue("the practice field got the dictation: '$text'", !text.isNullOrBlank())
+        assertEquals("the practice field holds exactly the dictation", PracticeScreenTest.EXPECTED, text)
         compose.onNodeWithTag("practice-result").assertIsDisplayed()
         watch.cancel()
         compose.waitForTag("practice-bubble-ready")
