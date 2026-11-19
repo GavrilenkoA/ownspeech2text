@@ -99,6 +99,7 @@ class OverlayHost(
 
     private var scope: CoroutineScope? = null
     private var attached = false
+    private var destroyed = false
 
     private val controller = BubbleController(clock, ControllerOutput())
     private val recognizer = BubbleGestureRecognizer(ctx.resources.displayMetrics.density) { pillRectOnScreen() }
@@ -137,7 +138,7 @@ class OverlayHost(
     private val dismissSnack = Runnable { removeSnack() }
     private val deadlineRunnable = Runnable { refresh("deadline") }
     private val holdTick = Runnable { handle(recognizer.tick(SystemClock.uptimeMillis())) }
-    private val showTarget = Runnable { dragScene = dragScene?.copy(targetShown = true) }
+    private val showTarget = Runnable { dragScene = dragScene?.let { if (it.hideArmed) it.copy(targetShown = true) else it } }
     private val fadedOut = Runnable { if (lastVisual == BubbleVisual.Hidden) root.alpha = 0f }
 
     init {
@@ -150,7 +151,9 @@ class OverlayHost(
         })
     }
 
+    /** Shows the bubble on this display. Idempotent; allowed again after [detach], never after [destroy]. */
     fun attach() {
+        check(!destroyed) { "OverlayHost for display $displayId was destroyed" }
         if (attached) return
         if (lifecycleRegistry.currentState == Lifecycle.State.INITIALIZED) savedState.performRestore(null)
         lifecycleRegistry.currentState = Lifecycle.State.RESUMED
@@ -185,6 +188,10 @@ class OverlayHost(
         refresh("visibility")
     }
 
+    /**
+     * Removes every window of this display and stops listening; the host can [attach] again later (the service was
+     * interrupted, the display turned off). The owners stay CREATED. For the end of the host use [destroy].
+     */
     fun detach() {
         if (!attached) return
         attached = false
@@ -200,6 +207,20 @@ class OverlayHost(
         scope?.cancel(); scope = null
         lifecycleRegistry.currentState = Lifecycle.State.CREATED
         Log.i(TAG, "bubble_detached display=$displayId")
+    }
+
+    /**
+     * Final: [detach], then the lifecycle goes to DESTROYED (the Compose compositions dispose) and the view models are
+     * cleared. Call it when the display is removed (DisplayListener.onDisplayRemoved) and when the service unbinds.
+     */
+    fun destroy() {
+        if (destroyed) return
+        detach()
+        destroyed = true
+        if (lifecycleRegistry.currentState == Lifecycle.State.INITIALIZED) lifecycleRegistry.currentState = Lifecycle.State.CREATED
+        lifecycleRegistry.currentState = Lifecycle.State.DESTROYED
+        viewModelStore.clear()
+        Log.i(TAG, "bubble_destroyed display=$displayId")
     }
 
     // ------------------------------------------------------------------------------------------------------------
@@ -266,6 +287,7 @@ class OverlayHost(
         setTouchable(bubbleLp, shown && !settling)
         positionBubble(lastShownVisual)
         updateCancel(visual, dragging)
+        if (controller.drag != null) updateDragScene()
 
         main.removeCallbacks(deadlineRunnable)
         controller.nextDeadline(now)?.let { main.postDelayed(deadlineRunnable, (it - now).coerceAtLeast(0L) + 1L) }
@@ -344,6 +366,7 @@ class OverlayHost(
     private fun handle(gestures: List<Gesture>) {
         for (g in gestures) {
             if (g is Gesture.DragEnd) Log.i(TAG, "bubble_drag_end display=$displayId vx_dp_s=${g.vxDpPerSec.roundToInt()}")
+            else if (g !is Gesture.DragMove) Log.i(TAG, "bubble_gesture display=$displayId $g")
             if (g is Gesture.DragStart) startDrag(g.x, g.y) else controller.onGesture(g)
             if (g is Gesture.DragMove || g is Gesture.DragEnd || g == Gesture.DragCancel) updateDragScene()
         }
@@ -359,6 +382,9 @@ class OverlayHost(
         val d = input.bubbleDiameterPx.toFloat()
         val top = circleTop ?: return Offset(d / 2f, d / 2f)
         val left = BubblePlacement.xFor(rightEdge, input.screenW, input.bubbleDiameterPx, input.density)
+        // A pill is moved as itself (the drag layer draws it), so it keeps the grab point anywhere on the pill.
+        val pill = if (lastShownVisual is BubbleVisual.Active) pillRectOnScreen() else null
+        if (pill != null) return Offset(rawX.coerceIn(pill.left, pill.right) - left, rawY.coerceIn(pill.top, pill.bottom) - top)
         return Offset((rawX - left).coerceIn(0f, d), (rawY - top).coerceIn(0f, d))
     }
 
@@ -377,6 +403,9 @@ class OverlayHost(
         val s = controller.drag ?: return
         val input = placementInput()
         val prev = dragScene
+        // The pill being moved, live (a dictation can change state mid-drag); null = the idle bubble: the Ready circle.
+        val pill = controller.dictation.takeIf { it !is DictationBubble.Idle }
+            ?.let { ui.copy(visual = BubbleVisual.Active(it), shown = true) }
         dragScene = DragScene(
             circleX = s.circleX, circleY = s.circleY, diameterPx = input.bubbleDiameterPx, screenW = input.screenW,
             guideTop = BubblePlacement.topLimit(input), guideBottom = BubblePlacement.bottomLimit(input),
@@ -384,7 +413,8 @@ class OverlayHost(
             overTarget = s.overHideTarget,
             targetCenterX = input.screenW / 2f,
             targetCenterY = targetCenter(input),
-            targetShown = prev?.targetShown ?: false, settleTo = null, reducedMotion = reducedMotion,
+            targetShown = (prev?.targetShown ?: false) && s.hideArmed, settleTo = null, reducedMotion = reducedMotion,
+            hideArmed = s.hideArmed, pill = pill,
         )
     }
 
@@ -401,7 +431,8 @@ class OverlayHost(
             flags = flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
         }
         dragView = composeView {
-            dragScene?.let { DragLayer(it, dark) { finishSettle() } }
+            val lv = levels.collectAsState()
+            dragScene?.let { DragLayer(it, dark, lv, clock) { finishSettle() } }
         }.also { v -> runCatching { wm.addView(v, lp) }.onFailure { Log.w(TAG, "drag_layer_failed ${it.javaClass.simpleName}"); dragView = null } }
     }
 
@@ -583,7 +614,7 @@ class OverlayHost(
             }
             settling = true
             main.removeCallbacks(showTarget)
-            dragScene = dragScene?.copy(settleTo = Offset(x.toFloat(), circleTop.toFloat()))
+            dragScene = dragScene?.copy(settleTo = Offset(x.toFloat(), circleTop.toFloat()), settleRightEdge = rightEdge)
             if (dragScene == null) finishSettle()
         }
     }
@@ -625,6 +656,11 @@ class OverlayHost(
         val cancelShown: Boolean,
         /** Alpha of the bubble window's root view (0 while hidden or while the drag layer draws the bubble). */
         val rootAlpha: Float,
+        /** While dragging: the drag layer draws the working/result pill itself (not the Ready circle). */
+        val dragDrawsPill: Boolean,
+        /** While dragging: the hide target is armed and shown. */
+        val dragTargetShown: Boolean,
+        val lifecycle: Lifecycle.State,
     )
 
     fun snapshot(): Snapshot {
@@ -636,6 +672,9 @@ class OverlayHost(
             screenW = input.screenW, screenH = input.screenH, rotation = display.rotation, diameterPx = input.bubbleDiameterPx,
             hiddenUntilMs = controller.hiddenUntilMs, snackbarShown = snackView != null, cancelShown = cancelShown,
             rootAlpha = root.alpha,
+            dragDrawsPill = dragScene?.pill != null,
+            dragTargetShown = dragScene?.let { it.hideArmed && it.targetShown } == true,
+            lifecycle = lifecycleRegistry.currentState,
         )
     }
 

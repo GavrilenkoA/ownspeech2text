@@ -27,6 +27,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -34,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.layout
@@ -48,10 +50,15 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import app.murmur.core.dictation.DictationBubble
 import app.murmur.platform.overlay.BubbleMetrics
 import app.murmur.platform.overlay.BubblePlacement
+import app.murmur.platform.overlay.BubbleVisual
 import app.murmur.platform.overlay.R
+import app.murmur.platform.overlay.TouchRegion
 import app.murmur.ui.design.MurmurTheme
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 /**
@@ -76,24 +83,35 @@ fun CancelButton(dark: Boolean, shown: Boolean, onCancel: () -> Unit) {
                 ),
             contentAlignment = Alignment.Center,
         ) {
-            Box(
-                Modifier
-                    .size(BubbleMetrics.CANCEL_DIAMETER.dp)
-                    .bubbleShadow(CircleShape, dark, reach)
-                    .background(c.surface, CircleShape)
-                    .border(1.dp, c.line, CircleShape),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(BubbleIcons.close, null, Modifier.size(20.dp), tint = c.ink2)
-            }
+            CancelCircle(Modifier.bubbleShadow(CircleShape, dark, reach))
         }
+    }
+}
+
+/** The cancel circle's visual: 40 dp surface circle with a 1 dp line and the x. */
+@Composable
+private fun CancelCircle(shadow: Modifier) {
+    val c = MurmurTheme.colors
+    Box(
+        Modifier
+            .size(BubbleMetrics.CANCEL_DIAMETER.dp)
+            .then(shadow)
+            .background(c.surface, CircleShape)
+            .border(1.dp, c.line, CircleShape),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(BubbleIcons.close, null, Modifier.size(20.dp), tint = c.ink2)
     }
 }
 
 /**
  * The full-screen, untouchable layer shown while dragging (DESIGN 5.3 Dragging, 3.5): 14% scrim, dashed accent guides
- * on both snap edges, the ghost where the bubble will land, the lifted circle (1.08x, e3) and the hide target. All
+ * on both snap edges, the ghost where the bubble will land, the lifted bubble (1.08x, e3) and the hide target. All
  * positions are screen pixels of the bubble's display.
+ *
+ * Dragging the idle bubble lifts the Ready circle and arms the hide target. A working or result pill (DESIGN 5.3:
+ * "can only be dragged") is lifted as itself, live bars, timer and cancel circle included, and the hide target stays
+ * away ([hideArmed] false).
  */
 @Immutable
 data class DragScene(
@@ -114,10 +132,16 @@ data class DragScene(
     /** Release: animate the circle to this top-left, then [DragLayer]'s onSettled. Null while the finger is down. */
     val settleTo: Offset?,
     val reducedMotion: Boolean,
+    /** The hide target is in play (only for the idle bubble). */
+    val hideArmed: Boolean = true,
+    /** The working or result pill being moved (its visual, docked side at the drag start); null = the Ready circle. */
+    val pill: BubbleUi? = null,
+    /** The edge the release snaps to ([settleTo]); the pill re-anchors to it while it settles. */
+    val settleRightEdge: Boolean? = null,
 )
 
 @Composable
-fun DragLayer(scene: DragScene, dark: Boolean, onSettled: () -> Unit) {
+fun DragLayer(scene: DragScene, dark: Boolean, levels: State<FloatArray>, clock: () -> Long, onSettled: () -> Unit) {
     MurmurTheme(darkTheme = dark) {
         CompositionLocalProvider(LocalDark provides dark) {
             val c = MurmurTheme.colors
@@ -148,7 +172,8 @@ fun DragLayer(scene: DragScene, dark: Boolean, onSettled: () -> Unit) {
                     }
                 }
                 HideTarget(scene)
-                LiftedCircle(scene, onSettled)
+                val pill = scene.pill
+                if (pill == null) LiftedCircle(scene, onSettled) else LiftedPill(scene, pill, levels, clock, onSettled)
             }
         }
     }
@@ -158,7 +183,7 @@ fun DragLayer(scene: DragScene, dark: Boolean, onSettled: () -> Unit) {
 private fun HideTarget(scene: DragScene) {
     val c = MurmurTheme.colors
     val density = LocalDensity.current
-    val shown by animateFloatAsState(if (scene.targetShown && scene.settleTo == null) 1f else 0f,
+    val shown by animateFloatAsState(if (scene.hideArmed && scene.targetShown && scene.settleTo == null) 1f else 0f,
         if (scene.reducedMotion) tween(150) else tween(240, easing = Decelerate), label = "target")
     val hot by animateFloatAsState(if (scene.overTarget) 1f else 0f, if (scene.reducedMotion) snap() else tween(150), label = "hot")
     val label = stringResource(R.string.bubble_hide_target)
@@ -234,6 +259,85 @@ private fun LiftedCircle(scene: DragScene, onSettled: () -> Unit) {
 }
 
 /**
+ * A working or result pill moved by the finger: drawn as itself, lifted 1.08x with e3, its docked end on the dragged
+ * circle position (the pill keeps growing toward the side it was docked to, so it never flips under the finger). On
+ * release it springs to the snap edge and re-anchors to it, then the bubble window takes over.
+ */
+@Composable
+private fun LiftedPill(scene: DragScene, pill: BubbleUi, levels: State<FloatArray>, clock: () -> Long, onSettled: () -> Unit) {
+    val density = LocalDensity.current
+    val d = scene.diameterPx.toFloat()
+    val m = pill.metrics
+    val follow = Offset(scene.circleX, scene.circleY)
+    val pos = remember { Animatable(follow, Offset.VectorConverter) }
+    /** 1 = the pill's docked end is the circle's right side (it grows to the left), 0 = its left side. */
+    val anchor = remember { Animatable(if (pill.rightEdge) 1f else 0f) }
+    LaunchedEffect(scene) {
+        val settle = scene.settleTo
+        if (settle == null) { pos.snapTo(follow); return@LaunchedEffect }
+        val toAnchor = if (scene.settleRightEdge ?: pill.rightEdge) 1f else 0f
+        if (scene.reducedMotion) {
+            pos.snapTo(settle); anchor.snapTo(toAnchor)
+        } else coroutineScope {
+            // DESIGN 3.5 snap: spring(400 = StiffnessMediumLow, 0.8).
+            launch { anchor.animateTo(toAnchor, spring(dampingRatio = 0.8f, stiffness = 400f)) }
+            pos.animateTo(settle, spring(dampingRatio = 0.8f, stiffness = 400f))
+        }
+        onSettled()
+    }
+    val band = with(density) { m.shadowPad.dp.toPx() }
+    val inset = with(density) { m.cancelInset.dp.toPx() }
+    val cancelD = with(density) { BubbleMetrics.CANCEL_DIAMETER.dp.toPx() }
+    val cancelUp = with(density) { m.cancelOffsetY.dp.toPx() }
+    val listening = ((pill.visual as? BubbleVisual.Active)?.state as? DictationBubble.Listening)?.hold == false
+    val noActions = remember {
+        object : BubbleActions {
+            override fun tap(region: TouchRegion) = Unit
+            override fun hide() = Unit
+        }
+    }
+    val shadowReach = with(density) { ((BubbleMetrics.CANCEL_HIT - BubbleMetrics.CANCEL_DIAMETER) / 2f).dp.toPx() }
+    Box(
+        Modifier
+            .fillMaxSize()
+            .testTag(TAG_LIFTED)
+            .layout { measurable, constraints ->
+                val p = measurable.measure(constraints.copy(minWidth = 0, minHeight = 0))
+                layout(constraints.maxWidth, constraints.maxHeight) {
+                    val a = anchor.value
+                    // Window-content box (visual + band) whose docked end sits on the circle, centred on its centre line.
+                    val leftAnchored = pos.value.x - band
+                    val rightAnchored = pos.value.x + d + band - p.width
+                    p.place(
+                        (leftAnchored + (rightAnchored - leftAnchored) * a).roundToInt(),
+                        (pos.value.y + d / 2f - p.height / 2f).roundToInt(),
+                    )
+                }
+            },
+    ) {
+        Box(Modifier.graphicsLayer {
+            scaleX = BubbleMetrics.DRAG_LIFT; scaleY = BubbleMetrics.DRAG_LIFT
+            transformOrigin = TransformOrigin(anchor.value, 0.5f)
+        }) {
+            Pill(pill, levels, clock, noActions, lifted = true)
+        }
+    }
+    if (listening) {
+        // The cancel circle rides 50 dp above, its docked-side edge 4 dp inside the pill's docked end.
+        Box(
+            Modifier.offset {
+                val a = anchor.value
+                val leftAnchored = pos.value.x + inset
+                val rightAnchored = pos.value.x + d - inset - cancelD
+                IntOffset((leftAnchored + (rightAnchored - leftAnchored) * a).roundToInt(), (pos.value.y - cancelUp).roundToInt())
+            },
+        ) {
+            CancelCircle(Modifier.bubbleShadow(CircleShape, LocalDark.current, shadowReach))
+        }
+    }
+}
+
+/**
  * DESIGN 5.4 / b-hidden: "Bubble hidden until 15:32" with Undo. Inverse fill, md radius, >= 52 dp, Undo in
  * inverseAccent; announced politely.
  */
@@ -270,3 +374,5 @@ fun HiddenSnackbar(dark: Boolean, text: String, onUndo: () -> Unit) {
 }
 
 const val TAG_UNDO = "bubble.undo"
+/** The lifted pill in the drag layer. */
+const val TAG_LIFTED = "bubble.lifted"

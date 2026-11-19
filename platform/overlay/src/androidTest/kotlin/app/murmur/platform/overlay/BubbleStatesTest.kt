@@ -59,6 +59,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.util.Locale
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
@@ -89,8 +90,11 @@ class BubbleStatesTest {
 
     private var scene by mutableStateOf<Scene?>(null)
     private var widthDp by mutableStateOf(411)
+    private var size by mutableStateOf(BubbleSize.STANDARD)
     /** Full-frame drag layer (width, height in dp) or the snackbar (width in dp), when not null. */
     private var drag by mutableStateOf<Pair<Int, Int>?>(null)
+    /** The pill the drag layer lifts (null = the idle bubble: the Ready circle and the armed hide target). */
+    private var dragPill by mutableStateOf<BubbleVisual?>(null)
     private var snack by mutableStateOf<Int?>(null)
 
     private val noop = object : BubbleActions {
@@ -127,8 +131,8 @@ class BubbleStatesTest {
             val dr = drag
             val sn = snack
             when {
-                sc != null -> key(sc.name, widthDp) { Localized(sc.ru) { Stage(sc, widthDp) } }
-                dr != null -> key("drag", dr) { DragFrame(dr.first, dr.second) }
+                sc != null -> key(sc.name, widthDp, size) { Localized(sc.ru) { Stage(sc, widthDp, size) } }
+                dr != null -> key("drag", dr, dragPill) { DragFrame(dr.first, dr.second, dragPill) }
                 sn != null -> key("snack", sn) { SnackFrame(sn) }
             }
         }
@@ -145,17 +149,17 @@ class BubbleStatesTest {
 
     /** The bubble window as OverlayHost lays it out: circle top 70 dp, window band 6 dp, 8 dp from the right edge. */
     @Composable
-    private fun Stage(sc: Scene, w: Int) {
+    private fun Stage(sc: Scene, w: Int, bubbleSize: BubbleSize) {
         val colors = if (sc.dark) TokenColors.dark else TokenColors.light
         val v = sc.visual
-        val m = BubbleMetrics.of(BubbleSize.STANDARD)
+        val m = BubbleMetrics.of(bubbleSize)
         Box(Modifier.testTag(STAGE).size(w.dp, 150.dp).background(colors.bg)) {
             if (v != null) {
                 val ui = BubbleUi(v, shown = true, rightEdge = true, metrics = m, reducedMotion = false, talkBack = sc.talkBack)
                 val visualTop = CIRCLE_TOP + (m.diameter - m.visualHeight(v)) / 2f
                 Box(Modifier.align(Alignment.TopEnd).padding(
                     end = (m.edgeMargin(v) - m.windowPadEdge(v)).dp, top = (visualTop - m.windowPadTop(v)).dp,
-                )) {
+                ).testTag(WINDOW)) {
                     BubbleWindowContent(ui, sc.dark, levels.collectAsState(), clock, noop)
                 }
                 if (v is BubbleVisual.Active && (v.state as? DictationBubble.Listening)?.hold == false) {
@@ -168,8 +172,8 @@ class BubbleStatesTest {
         }
     }
 
-    private fun show(sc: Scene, w: Int) {
-        scene = sc; widthDp = w
+    private fun show(sc: Scene, w: Int, bubbleSize: BubbleSize = BubbleSize.STANDARD) {
+        scene = sc; widthDp = w; size = bubbleSize
         rule.mainClock.advanceTimeBy(2_000)
         rule.waitForIdle()
     }
@@ -192,8 +196,31 @@ class BubbleStatesTest {
                 show(sc, w)
                 shot("b-${sc.name}--$dev")
                 assertTexts(sc)
-                assertTouchTargets(sc.name)
+                assertTouchTargets(sc.name, BubbleMetrics.of(BubbleSize.STANDARD))
             }
+        }
+    }
+
+    /**
+     * DESIGN 5.6 Small / Large (44 / 52 / 60 dp): pills scale, the hit area and every TalkBack target stay >= 48 dp
+     * (review F8: the Small Ready circle's node was 44 dp). Cover width, light theme.
+     */
+    @Test
+    fun smallAndLargeSizes_textsAndTouchTargets() {
+        for (bubbleSize in listOf(BubbleSize.SMALL, BubbleSize.LARGE)) {
+            val m = BubbleMetrics.of(bubbleSize)
+            for (sc in scenes.filter { !it.dark }) {
+                show(sc, 411, bubbleSize)
+                shot("b-${sc.name}--cover-${bubbleSize.name.lowercase()}")
+                assertTexts(sc)
+                assertTouchTargets("${sc.name}@$bubbleSize", m)
+            }
+            // The visual itself keeps its size: only the touch target grows (44 dp circle, 48 dp node at Small).
+            show(Scene("ready", BubbleVisual.Ready), 411, bubbleSize)
+            val visual = rule.onNodeWithTag(TAG_VISUAL).fetchSemanticsNode()
+            val dp = visual.layoutInfo.density.density
+            assertEquals(m.diameter, visual.size.width / dp, 0.6f)
+            assertEquals(m.diameter, visual.size.height / dp, 0.6f)
         }
     }
 
@@ -224,22 +251,61 @@ class BubbleStatesTest {
     @Test
     fun dragAndHiddenFrames() {
         for ((dev, w) in listOf("cover" to 411, "inner" to 750)) {
-            scene = null; snack = null; drag = w to 740
+            scene = null; snack = null; dragPill = null; drag = w to 740
             rule.mainClock.advanceTimeBy(2_000)
             rule.waitForIdle()
-            Shots.save("b-drag--$dev", capture(DRAG))
+            val circleFrame = capture(DRAG)
+            Shots.save("b-drag--$dev", circleFrame)
+            val dpx = ctx.resources.displayMetrics.density
+            // The hide target's area (bottom centre): its inverse label pill is drawn for the idle bubble.
+            fun targetInk(frame: android.graphics.Bitmap) = countNear(frame, ((w / 2f - 120f) * dpx).roundToInt(),
+                ((740f - BubbleMetrics.HIDE_TARGET_BOTTOM - 40f - BubbleMetrics.HIDE_LABEL_GAP - BubbleMetrics.HIDE_TARGET) * dpx).roundToInt(),
+                ((w / 2f + 120f) * dpx).roundToInt(), ((740f - 40f) * dpx).roundToInt(), TokenColors.light.inverse)
+            assertTrue("hide target drawn for the idle bubble", targetInk(circleFrame) > 200)
+            // Review F3: a working pill is moved as itself (live bars, timer, stop and cancel circle), without the target.
+            dragPill = listening()
+            rule.mainClock.advanceTimeBy(2_000)
+            rule.waitForIdle()
+            val frame = capture(DRAG)
+            Shots.save("b-drag-listen--$dev", frame)
+            // Docked right at the lifted circle (w * 0.46, h * 0.54): the 164 x 52 pill grows to the left of its right end.
+            val right = (w * 0.46f * dpx + 52f * dpx).roundToInt()
+            val top = (740 * 0.54f * dpx).roundToInt()
+            val pillPx = countNear(frame, right - (164f * dpx).roundToInt(), top, right, top + (52f * dpx).roundToInt(), TokenColors.light.accent)
+            val area = 164f * 52f * dpx * dpx
+            assertTrue("accent pixels of the lifted Listening pill: $pillPx of $area", pillPx > area * 0.5f)
+            assertEquals("hide-target pixels while a pill moves", 0, targetInk(frame))
+            dragPill = null
             drag = null; snack = w
             rule.mainClock.advanceTimeBy(1_000)
             rule.waitForIdle()
             Shots.save("b-hidden--$dev", capture(SNACK))
             rule.onNodeWithTag(TAG_UNDO).assert(SemanticsMatcher.keyIsDefined(SemanticsActions.OnClick))
-            assertTouchTargets("hidden")
+            assertTouchTargets("hidden", BubbleMetrics.of(BubbleSize.STANDARD))
         }
     }
 
-    /** b-drag: lifted circle mid-screen, ghost on the right edge, target shown. Pixels at this frame's density. */
+    /** Pixels of [b] in the rectangle within 12 per channel of [color]. */
+    private fun countNear(b: android.graphics.Bitmap, l: Int, t: Int, r: Int, btm: Int, color: androidx.compose.ui.graphics.Color): Int {
+        val argb = color.toArgbInt()
+        var n = 0
+        for (x in l.coerceAtLeast(0) until r.coerceAtMost(b.width)) for (y in t.coerceAtLeast(0) until btm.coerceAtMost(b.height)) {
+            val p = b.getPixel(x, y)
+            if (abs(((p shr 16) and 0xFF) - ((argb shr 16) and 0xFF)) <= 12 && abs(((p shr 8) and 0xFF) - ((argb shr 8) and 0xFF)) <= 12 &&
+                abs((p and 0xFF) - (argb and 0xFF)) <= 12) n++
+        }
+        return n
+    }
+
+    private fun androidx.compose.ui.graphics.Color.toArgbInt(): Int = android.graphics.Color.argb(
+        (alpha * 255).roundToInt(), (red * 255).roundToInt(), (green * 255).roundToInt(), (blue * 255).roundToInt())
+
+    /**
+     * b-drag: lifted circle mid-screen, ghost on the right edge, target shown. With [pill]: that pill lifted at the same
+     * spot (docked right), no hide target. Pixels at this frame's density.
+     */
     @Composable
-    private fun DragFrame(w: Int, h: Int) {
+    private fun DragFrame(w: Int, h: Int, pill: BubbleVisual?) {
         val density = LocalDensity.current.density
         fun px(dp: Float) = dp * density
         val d = (52f * density).roundToInt()
@@ -253,8 +319,12 @@ class BubbleStatesTest {
             ghostX = BubblePlacement.xFor(true, input.screenW, d, density), ghostY = circleTop.roundToInt(),
             overTarget = false, targetCenterX = input.screenW / 2f, targetCenterY = targetCenterY, targetShown = true,
             settleTo = null, reducedMotion = false,
+            hideArmed = pill == null,
+            pill = pill?.let { BubbleUi(it, shown = true, rightEdge = true, metrics = BubbleMetrics.of(BubbleSize.STANDARD), reducedMotion = false, talkBack = false) },
         )
-        Box(Modifier.testTag(DRAG).size(w.dp, h.dp).background(TokenColors.light.bg)) { DragLayer(scene, dark = false) {} }
+        Box(Modifier.testTag(DRAG).size(w.dp, h.dp).background(TokenColors.light.bg)) {
+            DragLayer(scene, dark = false, levels = levels.collectAsState(), clock = clock) {}
+        }
     }
 
     /** b-hidden: the snackbar as OverlayHost places it (12 dp side inset; 380 dp wide on the inner display). */
@@ -290,18 +360,25 @@ class BubbleStatesTest {
         else assertTrue(actions.isEmpty())
     }
 
-    /** DESIGN 4 / 8: every interactive element is at least 48 x 48 dp; the bubble itself is never shorter than 48 dp. */
-    private fun assertTouchTargets(name: String) {
+    /**
+     * DESIGN 4 / 5.6 / 8: every interactive element is at least 48 x 48 dp, measured as TalkBack sees it (bounds clipped
+     * by the ancestors); the bubble window (its hit area) is never under 48 dp; a pill is never shorter than its size.
+     */
+    private fun assertTouchTargets(name: String, m: BubbleMetrics) {
         rule.onAllNodes(androidx.compose.ui.test.hasTestTag(TAG_VISUAL)).fetchSemanticsNodes().forEach { v ->
             val h = v.size.height / v.layoutInfo.density.density
-            assertTrue("$name: visual is $h dp tall", h >= 48f)
+            assertTrue("$name: visual is $h dp tall", h >= m.pillHeight - 0.5f)
+        }
+        rule.onAllNodes(androidx.compose.ui.test.hasTestTag(WINDOW)).fetchSemanticsNodes().forEach { win ->
+            val d = win.layoutInfo.density.density
+            assertTrue("$name: hit area ${win.size}", win.size.width / d >= 47.5f && win.size.height / d >= 47.5f)
         }
         val nodes = rule.onAllNodesWithAction().fetchSemanticsNodes()
         assertTrue("$name: no clickable node", name.startsWith("trans") || name.startsWith("polish") || name.startsWith("hold") || nodes.isNotEmpty())
         for (n in nodes) {
             val d = n.layoutInfo.density.density
-            val w = n.size.width / d
-            val h = n.size.height / d
+            val w = n.boundsInWindow.width / d
+            val h = n.boundsInWindow.height / d
             assertTrue("$name: ${n.config.getOrNull(SemanticsProperties.ContentDescription)} is ${w.roundToInt()}x${h.roundToInt()} dp", w >= 47.5f && h >= 47.5f)
         }
     }
@@ -313,6 +390,7 @@ class BubbleStatesTest {
         const val STAGE = "stage"
         const val DRAG = "dragframe"
         const val SNACK = "snackframe"
+        const val WINDOW = "window"
         const val CIRCLE_TOP = 70f
     }
 }

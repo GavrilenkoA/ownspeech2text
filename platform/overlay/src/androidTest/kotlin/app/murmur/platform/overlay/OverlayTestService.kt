@@ -36,6 +36,18 @@ class OverlayTestService : AccessibilityService() {
         return fieldTop to imeTop
     }
 
+    /** Bounds on screen of the first editable node in [pkg]'s windows (to tap it), or null. */
+    fun editableBounds(pkg: String): Rect? {
+        fun find(n: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
+            if (n == null) return null
+            if (n.isEditable) return n
+            for (i in 0 until n.childCount) find(n.getChild(i))?.let { return it }
+            return null
+        }
+        val node = windows.mapNotNull { it.root }.filter { it.packageName == pkg }.firstNotNullOfOrNull { find(it) } ?: return null
+        return Rect().also { node.getBoundsInScreen(it) }
+    }
+
     companion object {
         val instance = MutableStateFlow<OverlayTestService?>(null)
         @Volatile private var connected = CountDownLatch(1)

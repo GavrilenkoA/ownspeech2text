@@ -53,6 +53,7 @@ class OverlayWindowTest {
     private lateinit var host: OverlayHost
     private var previousServices = ""
     private var previousAutoRotate = ""
+    private var previousHideErrorDialogs = ""
 
     private fun sh(cmd: String): String =
         ua.executeShellCommand(cmd).use { pfd -> android.os.ParcelFileDescriptor.AutoCloseInputStream(pfd).bufferedReader().readText() }
@@ -79,7 +80,7 @@ class OverlayWindowTest {
             if (cond()) return
             SystemClock.sleep(50)
         }
-        fail("timed out waiting for $what")
+        fail("timed out waiting for $what; inputs=$inputs")
     }
 
     private fun focusedInput(fieldTop: Int? = null, imeTop: Int? = null) = VisibilityInput(
@@ -93,16 +94,29 @@ class OverlayWindowTest {
         assertTrue("install :testapps:target first (tools/run_emulator_tests.sh does)", sh("pm path $TARGET_PKG").contains("package:"))
         previousServices = sh("settings get secure enabled_accessibility_services").trim()
         previousAutoRotate = sh("settings get system accelerometer_rotation").trim()
+        previousHideErrorDialogs = sh("settings get global hide_error_dialogs").trim()
+        // A loaded shared server makes system UI ANR now and then; its dialog would take the focus from the target app.
+        sh("settings put global hide_error_dialogs 1")
+        clearSystemDialogs()
         OverlayTestService.reset()
         sh("settings put secure enabled_accessibility_services ${ctx.packageName}/${OverlayTestService::class.java.name}")
         sh("settings put secure accessibility_enabled 1")
         service = OverlayTestService.await(20) ?: error("test accessibility service did not connect")
-        sh("am start -W -n $TARGET_PKG/.TargetActivity")
-        try {
-            waitUntil("target window") { service.windows.any { it.root?.packageName == TARGET_PKG } }
-        } catch (e: AssertionError) {
-            throw AssertionError("${'$'}{e.message}; windows: ${'$'}{describeWindows()}")
+        // Up to three launches: a system dialog that appears meanwhile is closed and the target brought back.
+        var lastError: AssertionError? = null
+        for (attempt in 1..3) {
+            sh("am start -W -n $TARGET_PKG/.TargetActivity")
+            try {
+                waitUntil("target window", 10_000) { service.windows.any { it.root?.packageName == TARGET_PKG } }
+                lastError = null
+                break
+            } catch (e: AssertionError) {
+                lastError = AssertionError("${e.message} (attempt $attempt); windows: ${describeWindows()}")
+                Log.w(TAG, lastError.message.orEmpty())
+                clearSystemDialogs()
+            }
         }
+        lastError?.let { throw it }
         onMain {
             host = OverlayHost(service, Display.DEFAULT_DISPLAY, dictation, levels, { inputs += it }, settings)
             host.attach()
@@ -117,12 +131,39 @@ class OverlayWindowTest {
         if (previousAutoRotate.isNotEmpty() && previousAutoRotate != "null") sh("settings put system accelerometer_rotation $previousAutoRotate")
         if (previousServices.isEmpty() || previousServices == "null") sh("settings delete secure enabled_accessibility_services")
         else sh("settings put secure enabled_accessibility_services $previousServices")
+        if (previousHideErrorDialogs.isEmpty() || previousHideErrorDialogs == "null") sh("settings delete global hide_error_dialogs")
+        else sh("settings put global hide_error_dialogs $previousHideErrorDialogs")
+    }
+
+    /** Wake, unlock and close any system dialog (ANR, crash, notification shade) before the target is launched. */
+    private fun clearSystemDialogs() {
+        sh("input keyevent KEYCODE_WAKEUP")
+        sh("wm dismiss-keyguard")
+        sh("am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS")
+    }
+
+    /**
+     * The keyboard for the target's field: TargetActivity asks for it (stateVisible), but after earlier tests or a
+     * dialog the window may come back without it, so the field is tapped as a user would.
+     */
+    private fun awaitKeyboard() {
+        for (attempt in 1..3) {
+            try {
+                waitUntil("keyboard", 5_000) { service.fieldAndIme().second != null }
+                return
+            } catch (e: AssertionError) {
+                val field = service.editableBounds(TARGET_PKG)
+                Log.w(TAG, "no keyboard yet (attempt $attempt); tapping the field at $field")
+                if (field != null) tap(Pair(field.exactCenterX(), field.exactCenterY()), onOverlay = false)
+            }
+        }
+        waitUntil("keyboard after tapping the field") { service.fieldAndIme().second != null }
     }
 
     @Test
     fun bubbleIsAnAccessibilityOverlayOverTheTargetApp_placedAboveTheKeyboard() {
-        // TargetActivity asks for the keyboard (stateVisible); wait until the IME window is in the window list.
-        waitUntil("keyboard") { service.fieldAndIme().second != null }
+        // Wait until the IME window is in the window list (tapping the field if it does not come up on its own).
+        awaitKeyboard()
         val (fieldTop, imeTop) = service.fieldAndIme()
         Log.i(TAG, "target fieldTop=$fieldTop imeTop=$imeTop")
         assertNotNull("the target's EditText has input focus", fieldTop)
@@ -274,7 +315,9 @@ class OverlayWindowTest {
         // Hold to talk on Ready: press >= 250 ms, release.
         kotlinx.coroutines.runBlocking { settings.update { it.copy(holdToTalk = true) } }
         dictation.value = DictationBubble.Idle
-        waitUntil("Ready again") { snap().visual == BubbleVisual.Ready && !snap().cancelShown }
+        // Ready, drawn by its own (touchable) window, the cancel circle gone; then a beat for the pill -> circle relayout.
+        waitUntil("Ready again") { snap().let { it.visual == BubbleVisual.Ready && !it.cancelShown && it.rootAlpha == 1f } }
+        SystemClock.sleep(300)
         val c = centre(snap())
         swipe(c, c, steps = 1, durationMs = 0, holdAtEndMs = 450)
         waitUntil("hold start/release") { inputs.takeLast(2) == listOf(UserInput.HoldStart, UserInput.HoldRelease) }
@@ -334,8 +377,112 @@ class OverlayWindowTest {
     }
 
     /**
+     * Review F2 + F3: a Listening pill dragged onto the bottom centre is moved as itself (the drag layer draws the
+     * accent pill, not the Ready circle), the hide target never appears, and the release snaps it to an edge: nothing
+     * is hidden, no snackbar, no input reaches the orchestrator.
+     */
+    @Test
+    fun aWorkingPillIsMovedAsItself_andNeverHides() {
+        withoutHoldToTalk()
+        onMain { host.updateVisibility(focusedInput()) }
+        waitUntil("Ready") { snap().visual == BubbleVisual.Ready }
+        dictation.value = DictationBubble.Listening(startedAtMs = System.currentTimeMillis(), hold = false, warn = false)
+        waitUntil("Listening with cancel") { snap().let { it.cancelShown && it.visual is BubbleVisual.Active } }
+        SystemClock.sleep(500)
+        val s = snap(); log("listen-start", s)
+        val d = ctx.resources.displayMetrics.density
+        val targetY = s.screenH - ((56 + 28 + 10 + 32) * d)
+        val to = Pair(s.screenW / 2f, targetY)
+        // Hold over the target for longer than its 300 ms delay.
+        val (down, last) = press(centre(s), to, steps = 25, durationMs = 900, holdAtEndMs = 600)
+        val mid = snap(); log("listen-drag", mid)
+        val shot = checkNotNull(ua.takeScreenshot())
+        Shots.save("overlay-drag-listening", shot)
+        inject(MotionEvent.ACTION_UP, down, to.first, to.second, last + 8)
+        assertEquals(BubbleVisual.Dragging(false), mid.visual)
+        assertTrue("the drag layer draws the pill", mid.dragDrawsPill)
+        assertFalse("no hide target for a working pill", mid.dragTargetShown)
+        // The accent pill is under the finger: its docked (right) end, the stop circle, is where the finger holds it, and
+        // its body (bars, timer on accent) reaches 138 dp to the left. The Ready circle would be surface-coloured there.
+        val accent = app.murmur.ui.design.TokenColors.light.accent
+        val body = accentPixels(shot, (to.first - 60 * d).roundToInt(), to.second.roundToInt(), (20 * d).roundToInt(), accent)
+        assertTrue("accent pixels of the lifted pill's body: $body", body > (40 * d) * (40 * d) * 0.4f)
+
+        waitUntil("settled as Listening") { snap().let { it.visual is BubbleVisual.Active && it.rootAlpha == 1f && it.cancelShown } }
+        val after = snap(); log("listen-settled", after)
+        assertNull("hiddenUntil", settings.settings.value.hiddenUntilEpochMs)
+        assertFalse(after.snackbarShown)
+        assertTrue("no input was sent by moving the pill", inputs.isEmpty())
+    }
+
+    /**
+     * Review F1: with "Show the bubble: Always" and no field, a tap on the Rest tab opens it to Ready (no input to the
+     * orchestrator), and it folds back into the tab 4 s later.
+     */
+    @Test
+    fun theAlwaysTabOpensOnTap_andFoldsBackAfter4s() {
+        withoutHoldToTalk()
+        onMain { host.updateVisibility(focusedInput().copy(editableFocused = false, showAlways = true)) }
+        waitUntil("Rest tab") { snap().visual == BubbleVisual.Rest && snap().rootAlpha == 1f }
+        SystemClock.sleep(500)
+        val s = snap(); log("always-tab", s)
+        val d = ctx.resources.displayMetrics.density
+        // The tab's 48 dp hit area is flush with the right edge, centred on the circle's centre line.
+        tap(Pair(s.screenW - 24 * d, s.circleTop!! + s.diameterPx / 2f))
+        waitUntil("opened to Ready") { snap().visual == BubbleVisual.Ready }
+        val opened = SystemClock.uptimeMillis()
+        log("always-open", snap())
+        assertTrue("opening the tab is overlay-local", inputs.isEmpty())
+        waitUntil("folded back", 10_000) { snap().visual == BubbleVisual.Rest }
+        val after = SystemClock.uptimeMillis() - opened
+        log("always-folded", snap())
+        assertTrue("folded back after $after ms", after in 3_000L..6_000L)
+    }
+
+    /** Pixels within 16 per channel of [color] in the square of half-size [r] around ([cx], [cy]). */
+    private fun accentPixels(b: Bitmap, cx: Int, cy: Int, r: Int, color: androidx.compose.ui.graphics.Color): Int {
+        val cr = (color.red * 255).roundToInt(); val cg = (color.green * 255).roundToInt(); val cb = (color.blue * 255).roundToInt()
+        var n = 0
+        for (dx in -r..r) for (dy in -r..r) {
+            val x = cx + dx; val y = cy + dy
+            if (x !in 0 until b.width || y !in 0 until b.height) continue
+            val p = b.getPixel(x, y)
+            if (abs(((p shr 16) and 0xFF) - cr) <= 16 && abs(((p shr 8) and 0xFF) - cg) <= 16 && abs((p and 0xFF) - cb) <= 16) n++
+        }
+        return n
+    }
+
+    /** Review F9: destroy() is final: lifecycle DESTROYED, view models cleared, windows gone, no second attach. */
+    @Test
+    fun destroyEndsTheLifecycle_clearsViewModels_andRemovesTheWindows() {
+        onMain { host.updateVisibility(focusedInput()) }
+        waitUntil("Ready") { snap().visual == BubbleVisual.Ready }
+        val probe = onMain { androidx.lifecycle.ViewModelProvider(host)[Probe::class.java] }
+        onMain { host.detach() }
+        assertEquals(androidx.lifecycle.Lifecycle.State.CREATED, onMain { host.lifecycle.currentState })
+        assertFalse("detach keeps the view models", probe.cleared)
+        onMain { host.attach() } // detach is reversible
+        waitUntil("Ready again") { snap().visual == BubbleVisual.Ready }
+        onMain { host.destroy() }
+        assertEquals(androidx.lifecycle.Lifecycle.State.DESTROYED, onMain { host.lifecycle.currentState })
+        assertTrue("view models cleared", probe.cleared)
+        waitUntil("bubble window removed") { !sh("dumpsys window windows").contains("MurmurBubble}") }
+        val again = onMain { runCatching { host.attach() }.exceptionOrNull() }
+        assertTrue("attach after destroy: $again", again is IllegalStateException)
+    }
+
+    class Probe : androidx.lifecycle.ViewModel() {
+        @Volatile var cleared = false
+        override fun onCleared() { cleared = true }
+    }
+
+    /**
      * Posture CLOSED / OPENED through the emulator's hinge sensor (TOOLCHAIN 4.5). The console command runs on the
      * host: tools/run_emulator_tests.sh passes `-e hinge host` and answers the WP03_HINGE requests in logcat.
+     *
+     * A survival check only: on the headless emulator the hinge changes device_state but not the display, so nothing
+     * reaches the host and the edge and fraction cannot change here. Re-placement on a real fold is DEVICE_CHECKLIST
+     * DC10; the display-change path itself is covered by the wm size and rotation test.
      */
     @Test
     fun survivesPostureChanges() {
@@ -397,7 +544,26 @@ class OverlayWindowTest {
         ev.recycle()
     }
 
-    private fun tap(p: Pair<Float, Float>) {
+    /**
+     * The controller moves the bubble at once, WindowManager a little later: on a loaded emulator a press injected right
+     * after a snap can land on the app underneath. Wait until an overlay window really covers [p].
+     */
+    private fun awaitOverlayAt(p: Pair<Float, Float>) {
+        val r = android.graphics.Rect()
+        // The bubble (<= 280 dp + band), cancel and snackbar windows; never the full-screen drag layer on its way out.
+        val maxW = (400 * ctx.resources.displayMetrics.density).roundToInt()
+        waitUntil("an overlay window at $p", 5_000) {
+            service.windows.any { w ->
+                w.getBoundsInScreen(r)
+                w.type == AccessibilityWindowInfo.TYPE_ACCESSIBILITY_OVERLAY && r.width() < maxW &&
+                    r.contains(p.first.roundToInt(), p.second.roundToInt())
+            }
+        }
+        SystemClock.sleep(100)
+    }
+
+    private fun tap(p: Pair<Float, Float>, onOverlay: Boolean = true) {
+        if (onOverlay) awaitOverlayAt(p)
         val down = SystemClock.uptimeMillis()
         inject(MotionEvent.ACTION_DOWN, down, p.first, p.second, down)
         SystemClock.sleep(60)
@@ -405,6 +571,13 @@ class OverlayWindowTest {
     }
 
     private fun swipe(from: Pair<Float, Float>, to: Pair<Float, Float>, steps: Int, durationMs: Long, holdAtEndMs: Long) {
+        val (down, last) = press(from, to, steps, durationMs, holdAtEndMs)
+        inject(MotionEvent.ACTION_UP, down, to.first, to.second, last + 8)
+    }
+
+    /** DOWN at [from], MOVEs to [to], a still finger for [holdAtEndMs]; the finger stays down. Returns (down, last). */
+    private fun press(from: Pair<Float, Float>, to: Pair<Float, Float>, steps: Int, durationMs: Long, holdAtEndMs: Long): Pair<Long, Long> {
+        awaitOverlayAt(from)
         // Event times are the finger's own clock (as a touchscreen stamps them), independent of how long each
         // synchronous injection takes on a loaded emulator.
         val down = SystemClock.uptimeMillis()
@@ -425,7 +598,7 @@ class OverlayWindowTest {
                 inject(MotionEvent.ACTION_MOVE, down, to.first, to.second, last)
             }
         }
-        inject(MotionEvent.ACTION_UP, down, to.first, to.second, last + 8)
+        return down to last
     }
 
     private companion object {

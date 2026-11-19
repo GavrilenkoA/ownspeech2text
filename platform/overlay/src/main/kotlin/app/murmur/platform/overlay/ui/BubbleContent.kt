@@ -55,6 +55,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
@@ -70,6 +71,7 @@ import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import app.murmur.core.dictation.DictationBubble
 import app.murmur.core.model.ProductName
@@ -227,8 +229,12 @@ private fun AnimatedContentTransitionScope<BubbleVisual>.morph(reduced: Boolean)
             SizeTransform(clip = true) { _, _ -> spring(dampingRatio = 0.9f, stiffness = 1500f) }
     }
 
+/**
+ * The circle or a pill inside its [BubbleMetrics.shadowPad] band. [lifted]: drawn by the drag layer (DESIGN 5.3
+ * Dragging, e3 instead of e2; the caller scales it 1.08 and clears its semantics).
+ */
 @Composable
-private fun Pill(ui: BubbleUi, levels: State<FloatArray>, clock: () -> Long, actions: BubbleActions) {
+internal fun Pill(ui: BubbleUi, levels: State<FloatArray>, clock: () -> Long, actions: BubbleActions, lifted: Boolean = false) {
     val c = MurmurTheme.colors
     val dark = LocalDark.current
     val m = ui.metrics
@@ -238,33 +244,80 @@ private fun Pill(ui: BubbleUi, levels: State<FloatArray>, clock: () -> Long, act
     val ringColor by animateColorAsState(ring(face, c, dark), colorSpec, label = "bubbleRing")
     val shape = RoundedCornerShape(percent = 50)
     val reach = with(LocalDensity.current) { m.shadowPad.dp.toPx() }
-    AnimatedContent(
-        targetState = ui.visual,
-        contentKey = ::faceOf,
-        modifier = Modifier
-            .padding(m.shadowPad.dp)
-            .testTag(TAG_VISUAL)
-            .bubbleShadow(shape, dark, reach)
-            .background(bg, shape)
-            .border(1.dp, ringColor, shape)
-            .onGloballyPositioned { actions.visualBounds(it.boundsInWindow()) },
-        contentAlignment = if (ui.rightEdge) Alignment.CenterEnd else Alignment.CenterStart,
-        transitionSpec = { morph(ui.reducedMotion) },
-        label = "bubble",
-    ) { v ->
-        when (faceOf(v)) {
-            Face.CIRCLE -> ReadyCircle(ui, actions)
-            Face.LISTEN -> ListeningPill((v as BubbleVisual.Active).state as DictationBubble.Listening, ui, levels, clock, actions)
-            Face.HOLD -> HoldPill(ui, levels)
-            Face.TRANSCRIBING -> WorkingPill(ui, R.string.bubble_transcribing) { TranscribingBars(m) }
-            Face.POLISHING -> WorkingPill(ui, R.string.bubble_polishing) { PolishingDots(m, ui.reducedMotion) }
-            Face.DONE -> {
-                val inserted = (v as BubbleVisual.Active).state as DictationBubble.Inserted
-                DonePill(ui, if (inserted.noCleanup) R.string.bubble_inserted_nocleanup else R.string.bubble_inserted, BubbleIcons.check, c.ok, BubbleCopy.of(v)!!, TouchRegion.BODY, actions)
+    // Error carries two nodes (reason and action button) inside; every other face is one node, laid over the pill at
+    // >= 48 dp inside the band (DESIGN 5.6: the hit area is never below 48 dp, also at Small).
+    val ownSemantics = face != Face.ERROR
+    Box {
+        AnimatedContent(
+            targetState = ui.visual,
+            contentKey = ::faceOf,
+            modifier = Modifier
+                .padding(m.shadowPad.dp)
+                .testTag(TAG_VISUAL)
+                .then(if (lifted) Modifier.shadow(12.dp, shape) else Modifier.bubbleShadow(shape, dark, reach))
+                .background(bg, shape)
+                .border(1.dp, ringColor, shape)
+                .then(if (ownSemantics) Modifier.clearAndSetSemantics { } else Modifier)
+                .onGloballyPositioned { actions.visualBounds(it.boundsInWindow()) },
+            contentAlignment = if (ui.rightEdge) Alignment.CenterEnd else Alignment.CenterStart,
+            transitionSpec = { morph(ui.reducedMotion) },
+            label = "bubble",
+        ) { v ->
+            when (faceOf(v)) {
+                Face.CIRCLE -> ReadyCircle(ui)
+                Face.LISTEN -> ListeningPill((v as BubbleVisual.Active).state as DictationBubble.Listening, ui, levels, clock)
+                Face.HOLD -> HoldPill(ui, levels)
+                Face.TRANSCRIBING -> WorkingPill(ui, R.string.bubble_transcribing) { TranscribingBars(m) }
+                Face.POLISHING -> WorkingPill(ui, R.string.bubble_polishing) { PolishingDots(m, ui.reducedMotion) }
+                Face.DONE -> {
+                    val inserted = (v as BubbleVisual.Active).state as DictationBubble.Inserted
+                    DonePill(ui, if (inserted.noCleanup) R.string.bubble_inserted_nocleanup else R.string.bubble_inserted, BubbleIcons.check, c.ok)
+                }
+                Face.COPIED -> DonePill(ui, R.string.bubble_copied, BubbleIcons.clipboard, c.accentInk)
+                Face.ERROR -> ErrorPill((v as BubbleVisual.Active).state as DictationBubble.Error, ui, actions)
             }
-            Face.COPIED -> DonePill(ui, R.string.bubble_copied, BubbleIcons.clipboard, c.accentInk, BubbleCopy.of(v)!!, TouchRegion.BODY, actions)
-            Face.ERROR -> ErrorPill((v as BubbleVisual.Active).state as DictationBubble.Error, ui, actions)
         }
+        val text = faceText(ui, face)
+        if (text != null) {
+            Box(
+                Modifier.matchParentSize().touchTargetInside(m.shadowPad.dp, BubbleMetrics.TOUCH_MIN.dp).bubbleSemantics(
+                    text.description, text.state, text.live, if (text.activates) ({ actions.tap(TouchRegion.BODY) }) else null,
+                    text.hide, actions::hide,
+                ),
+            )
+        }
+    }
+}
+
+/**
+ * The visual's own rectangle (the parent minus the [band] on every side), grown to at least [min] while it fits in the
+ * parent, centred. It stays inside the window content, so the accessibility bounds (clipped to the ancestors) keep it.
+ */
+private fun Modifier.touchTargetInside(band: androidx.compose.ui.unit.Dp, min: androidx.compose.ui.unit.Dp): Modifier = layout { measurable, c ->
+    val pad = band.roundToPx()
+    val minPx = min.roundToPx()
+    fun span(outer: Int) = (outer - 2 * pad).coerceAtLeast(0).let { maxOf(it, minPx) }.coerceAtMost(outer)
+    val w = span(c.maxWidth)
+    val h = span(c.maxHeight)
+    val p = measurable.measure(Constraints.fixed(w, h))
+    layout(c.maxWidth, c.maxHeight) { p.place((c.maxWidth - w) / 2, (c.maxHeight - h) / 2) }
+}
+
+/** DESIGN 5.3 TalkBack texts of one face. */
+private class FaceText(val description: String, val state: String?, val live: Live, val activates: Boolean, val hide: String?)
+
+/** The texts of every face but Error, whose two nodes (reason, action button) live inside its pill. */
+@Composable
+private fun faceText(ui: BubbleUi, face: Face): FaceText? {
+    return when (face) {
+        Face.CIRCLE -> FaceText(stringResource(R.string.bubble_ready_cd), null, Live.OFF, activates = true,
+            hide = if (ui.talkBack) stringResource(R.string.bubble_hide_action) else null)
+        Face.LISTEN -> FaceText(stringResource(R.string.bubble_finish_cd), stringResource(R.string.bubble_listening), Live.POLITE, true, null)
+        Face.HOLD -> FaceText(stringResource(R.string.bubble_hold_live), null, Live.POLITE, false, null)
+        Face.TRANSCRIBING -> FaceText(stringResource(R.string.bubble_transcribing), null, Live.POLITE, false, null)
+        Face.POLISHING -> FaceText(stringResource(R.string.bubble_polishing), null, Live.POLITE, false, null)
+        Face.DONE, Face.COPIED -> BubbleCopy.of(ui.visual)!!.let { FaceText(stringResource(it.description), null, it.live, true, null) }
+        Face.ERROR -> null
     }
 }
 
@@ -290,14 +343,9 @@ private fun Modifier.bubbleSemantics(
 
 /** DESIGN 5.3 Ready: surface circle, 26 dp ink mark, e2 + 1 dp line. */
 @Composable
-private fun ReadyCircle(ui: BubbleUi, actions: BubbleActions) {
+private fun ReadyCircle(ui: BubbleUi) {
     val m = ui.metrics
-    val desc = stringResource(R.string.bubble_ready_cd)
-    val hide = if (ui.talkBack) stringResource(R.string.bubble_hide_action) else null
-    Box(
-        Modifier.size(m.diameter.dp).bubbleSemantics(desc, null, Live.OFF, { actions.tap(TouchRegion.BODY) }, hide, actions::hide),
-        contentAlignment = Alignment.Center,
-    ) {
+    Box(Modifier.size(m.diameter.dp), contentAlignment = Alignment.Center) {
         Icon(BubbleIcons.mark, null, Modifier.size(m.markReady.dp), tint = MurmurTheme.colors.ink)
     }
 }
@@ -312,17 +360,13 @@ private fun ListeningPill(
     ui: BubbleUi,
     levels: State<FloatArray>,
     clock: () -> Long,
-    actions: BubbleActions,
 ) {
     val c = MurmurTheme.colors
     val m = ui.metrics
-    val desc = stringResource(R.string.bubble_finish_cd)
-    val state = stringResource(R.string.bubble_listening)
     Row(
         Modifier
             .size(m.listeningWidth.dp, m.pillHeight.dp)
-            .padding(start = m.listenPadStart.dp, end = m.listenPadEnd.dp)
-            .bubbleSemantics(desc, state, Live.POLITE, { actions.tap(TouchRegion.BODY) }, null) {},
+            .padding(start = m.listenPadStart.dp, end = m.listenPadEnd.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         LevelBars(levels, m, c.onAccent, ui.reducedMotion)
@@ -376,13 +420,11 @@ private fun HoldPill(ui: BubbleUi, levels: State<FloatArray>) {
     val c = MurmurTheme.colors
     val m = ui.metrics
     val label = stringResource(R.string.bubble_hold)
-    val desc = stringResource(R.string.bubble_hold_live)
     Row(
         Modifier
             .heightIn(min = m.pillHeight.dp)
             .widthIn(max = m.maxWidth.dp)
-            .padding(start = m.listenPadStart.dp, end = m.holdPadEnd.dp)
-            .bubbleSemantics(desc, null, Live.POLITE, null, null) {},
+            .padding(start = m.listenPadStart.dp, end = m.holdPadEnd.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         LevelBars(levels, m, c.onAccent, ui.reducedMotion)
@@ -401,8 +443,7 @@ private fun WorkingPill(ui: BubbleUi, label: Int, indicator: @Composable () -> U
         Modifier
             .heightIn(min = m.pillHeight.dp)
             .widthIn(max = m.maxWidth.dp)
-            .padding(start = m.workPadStart.dp, end = m.workPadEnd.dp)
-            .bubbleSemantics(text, null, Live.POLITE, null, null) {},
+            .padding(start = m.workPadStart.dp, end = m.workPadEnd.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         indicator()
@@ -418,20 +459,15 @@ private fun DonePill(
     label: Int,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     tint: Color,
-    copy: app.murmur.platform.overlay.BubbleText,
-    region: TouchRegion,
-    actions: BubbleActions,
 ) {
     val c = MurmurTheme.colors
     val m = ui.metrics
     val text = stringResource(label)
-    val desc = stringResource(copy.description)
     Row(
         Modifier
             .heightIn(min = m.pillHeight.dp)
             .widthIn(max = m.maxWidth.dp)
-            .padding(start = m.donePadStart.dp, end = m.donePadEnd.dp)
-            .bubbleSemantics(desc, null, copy.live, { actions.tap(region) }, null) {},
+            .padding(start = m.donePadStart.dp, end = m.donePadEnd.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(icon, null, Modifier.size(m.statusIcon.dp), tint = tint)
