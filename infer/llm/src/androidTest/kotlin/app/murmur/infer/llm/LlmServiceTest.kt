@@ -25,6 +25,7 @@ import app.murmur.core.engine.PrefixInfo
 import app.murmur.core.engine.PrefixSpec
 import app.murmur.core.engine.ProcessMemory
 import app.murmur.core.engine.ProcessProbe
+import app.murmur.core.engine.SyntheticBench
 import app.murmur.core.model.ComputeUnit
 import app.murmur.core.model.ModelKind
 import app.murmur.core.model.MurmurError
@@ -269,6 +270,16 @@ class LlmServiceTest {
         report("exit_after_unbind_ms", gone.toString())
         assertTrue("pid $pid", pid != null)
         assertEquals("pidof $processName after unbind", null, pidOf())
+    }
+
+    @Test fun t11_syntheticBenchReportsPrefillAndDecodeSpeed() = withService { s ->
+        load(s)
+        val r = call(SyntheticBench.serializer(), ms(300_000)) { s.bench(64, 16, 1, it) }
+        val b = r.value ?: throw AssertionError("bench failed: ${r.error}")
+        report("bench", "pp64=${"%.1f".format(b.ppTps)} tok/s tg16=${"%.1f".format(b.tgTps)} tok/s")
+        assertTrue(b.ppTps > 0 && b.tgTps > 0 && b.ppMs > 0 && b.tgMs > 0)
+        assertEquals(MurmurError.Internal("llm.bench_args"),
+            call(SyntheticBench.serializer(), ms(10_000)) { s.bench(llm.nCtx, 16, 1, it) }.error)
     }
 
     // ------------------------------------------------------------------ helpers
