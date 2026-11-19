@@ -45,10 +45,13 @@ class BubbleMappingTest {
     fun cleanupBudgetFitsFiveMinutesInTheStockContextAndSkipsWhatCannotFit() {
         val c = DictationConfig()
         val cpu = LlmSpeed(prefillTps = 569.0, decodeTps = 83.8) // Qwen3.5 0.8B CPU, AI Hub S25 (ARCHITECTURE 6)
-        // 5 min of Russian speech = about 5,000 characters; Qwen3.5 default.v4 prefix 3,116 tokens (catalog); nCtx 9,216 (ADR-045).
-        val five = CleanupBudget.plan(5_000, prefixTokens = 3_116, nCtx = 9_216, speed = cpu, config = c)
-        assertTrue(five.toString(), five.fits)
-        assertTrue(five.maxTokens >= five.minTokens)
+        // 5 min of Russian speech = about 5,000 characters. Stock Qwen3.5 default.v1: prefix 1,047 tokens, nCtx 7,168
+        // (catalog 2026-11-20.2, ADR-085); the selectable default.v4 keeps 3,116 / 9,216 (ADR-045).
+        for ((prefix, nCtx) in listOf(1_047 to 7_168, 3_116 to 9_216)) {
+            val five = CleanupBudget.plan(5_000, prefixTokens = prefix, nCtx = nCtx, speed = cpu, config = c)
+            assertTrue(five.toString(), five.fits)
+            assertTrue(five.maxTokens >= five.minTokens)
+        }
         // The old n_ctx 4,096 cannot hold a 60 s dictation with the default.v4 prefix (review blocker).
         assertFalse(CleanupBudget.plan(1_000, prefixTokens = 3_226, nCtx = 4_096, speed = cpu, config = c).fits)
         // Time budget: a slow unit makes a long dictation "too_long" instead of a guaranteed timeout.

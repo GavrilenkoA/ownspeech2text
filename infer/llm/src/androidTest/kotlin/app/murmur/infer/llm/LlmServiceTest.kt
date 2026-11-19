@@ -61,7 +61,7 @@ import java.util.concurrent.TimeUnit
  *   adb shell run-as app.murmur.infer.llm.test mkdir -p no_backup/models/qwen3.5-0.8b@q4_0
  *   adb shell "cat /data/local/tmp/model.gguf | run-as app.murmur.infer.llm.test sh -c 'cat > no_backup/models/qwen3.5-0.8b@q4_0/model.gguf'"
  * Instrumentation arguments: `artifact` (default qwen3.5-0.8b@q4_0; also lfm3-1.7b@q4_0-qad), `timeoutScale`
- * (default 1; LFM3's 3.2k-token prefix prefill takes minutes on the emulator, like Settings.debugTimeoutScale).
+ * (default 1; LFM3's prefix prefill (1.1k tokens with the stock default.v1, 3.2k with default.v4) is slow on the emulator, like Settings.debugTimeoutScale).
  * Methods run in name order: each step relies on the state file of the earlier ones.
  */
 @RunWith(AndroidJUnit4::class)

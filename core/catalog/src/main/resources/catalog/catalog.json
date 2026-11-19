@@ -1,6 +1,6 @@
 {
  "schema": 1,
- "catalogVersion": "2026-11-20.1",
+ "catalogVersion": "2026-11-20.2",
  "generated": "2026-11-20 by core/catalog/tools/build_catalog.py (network-verified)",
  "defaults": {
   "asr": {
@@ -1946,9 +1946,9 @@
    "status": "available",
    "llm": {
     "template": "lfm3",
-    "promptProfile": "default.v4",
-    "nCtx": 9216,
-    "prefixTokens": 3226,
+    "promptProfile": "default.v1",
+    "nCtx": 7168,
+    "prefixTokens": 1072,
     "kvBytesPerToken": 12288,
     "note": "vendor: disabling 'can be inconsistent'"
    },
@@ -1979,8 +1979,8 @@
       "model": "model.gguf"
      },
      "memoryMb": {
-      "npu": 1160,
-      "gpu": 1160,
+      "npu": 1136,
+      "gpu": 1136,
       "cpu": 1480
      },
      "preferredUnit": "npu"
@@ -2011,8 +2011,8 @@
       "model": "model.gguf"
      },
      "memoryMb": {
-      "npu": 1160,
-      "gpu": 1160,
+      "npu": 1136,
+      "gpu": 1136,
       "cpu": 1480
      }
     }
@@ -2053,9 +2053,9 @@
    "status": "available",
    "llm": {
     "template": "lfm2.5",
-    "promptProfile": "default.v4",
-    "nCtx": 9216,
-    "prefixTokens": 3256,
+    "promptProfile": "default.v1",
+    "nCtx": 7168,
+    "prefixTokens": 1101,
     "kvBytesPerToken": 12288
    },
    "artifacts": [
@@ -2085,9 +2085,9 @@
       "model": "model.gguf"
      },
      "memoryMb": {
-      "npu": 860,
-      "gpu": 860,
-      "cpu": 860
+      "npu": 836,
+      "gpu": 836,
+      "cpu": 836
      },
      "preferredUnit": "npu"
     },
@@ -2117,9 +2117,9 @@
       "model": "model.gguf"
      },
      "memoryMb": {
-      "npu": 860,
-      "gpu": 860,
-      "cpu": 860
+      "npu": 836,
+      "gpu": 836,
+      "cpu": 836
      },
      "preferredUnit": "npu"
     },
@@ -2149,9 +2149,9 @@
       "model": "model.gguf"
      },
      "memoryMb": {
-      "npu": 860,
-      "gpu": 860,
-      "cpu": 860
+      "npu": 836,
+      "gpu": 836,
+      "cpu": 836
      }
     }
    ],
@@ -2192,9 +2192,9 @@
    "status": "available",
    "llm": {
     "template": "lfm2.5",
-    "promptProfile": "default.v4",
-    "nCtx": 9216,
-    "prefixTokens": 3256
+    "promptProfile": "default.v1",
+    "nCtx": 7168,
+    "prefixTokens": 1101
    },
    "artifacts": [
     {
@@ -2223,9 +2223,9 @@
       "model": "model.gguf"
      },
      "memoryMb": {
-      "npu": 485,
-      "gpu": 485,
-      "cpu": 485
+      "npu": 461,
+      "gpu": 461,
+      "cpu": 461
      },
      "preferredUnit": "npu"
     }
@@ -2274,9 +2274,9 @@
    "status": "available",
    "llm": {
     "template": "lfm2.5",
-    "promptProfile": "default.v4",
-    "nCtx": 9216,
-    "prefixTokens": 3196
+    "promptProfile": "default.v1",
+    "nCtx": 7168,
+    "prefixTokens": 1072
    },
    "artifacts": [
     {
@@ -2305,9 +2305,9 @@
       "model": "model.gguf"
      },
      "memoryMb": {
-      "npu": 2510,
-      "gpu": 2510,
-      "cpu": 2510
+      "npu": 2486,
+      "gpu": 2486,
+      "cpu": 2486
      },
      "preferredUnit": "npu"
     }
@@ -2343,9 +2343,9 @@
    "status": "available",
    "llm": {
     "template": "qwen3.5",
-    "promptProfile": "default.v4",
-    "nCtx": 9216,
-    "prefixTokens": 3116,
+    "promptProfile": "default.v1",
+    "nCtx": 7168,
+    "prefixTokens": 1047,
     "kvBytesPerToken": 12288
    },
    "artifacts": [
@@ -2375,8 +2375,8 @@
       "model": "model.gguf"
      },
      "memoryMb": {
-      "npu": 1060,
-      "gpu": 1060,
+      "npu": 1036,
+      "gpu": 1036,
       "cpu": 880
      },
      "preferredUnit": "cpu"
@@ -2407,8 +2407,8 @@
       "model": "model.gguf"
      },
      "memoryMb": {
-      "npu": 1060,
-      "gpu": 1060,
+      "npu": 1036,
+      "gpu": 1036,
       "cpu": 880
      },
      "preferredUnit": "cpu"
@@ -2439,8 +2439,8 @@
       "model": "model.gguf"
      },
      "memoryMb": {
-      "npu": 1060,
-      "gpu": 1060,
+      "npu": 1036,
+      "gpu": 1036,
       "cpu": 880
      },
      "preferredUnit": "cpu"
@@ -2476,9 +2476,9 @@
    "status": "available",
    "llm": {
     "template": "qwen3.5",
-    "promptProfile": "default.v4",
-    "nCtx": 9216,
-    "prefixTokens": 3116,
+    "promptProfile": "default.v1",
+    "nCtx": 7168,
+    "prefixTokens": 1047,
     "kvBytesPerToken": 12288
    },
    "artifacts": [
@@ -2508,9 +2508,9 @@
       "model": "model.gguf"
      },
      "memoryMb": {
-      "npu": 1560,
-      "gpu": 1560,
-      "cpu": 1560
+      "npu": 1536,
+      "gpu": 1536,
+      "cpu": 1536
      },
      "preferredUnit": "cpu"
     },
@@ -2540,9 +2540,9 @@
       "model": "model.gguf"
      },
      "memoryMb": {
-      "npu": 1560,
-      "gpu": 1560,
-      "cpu": 1560
+      "npu": 1536,
+      "gpu": 1536,
+      "cpu": 1536
      },
      "preferredUnit": "cpu"
     }
@@ -2577,9 +2577,9 @@
    "status": "available",
    "llm": {
     "template": "qwen3",
-    "promptProfile": "default.v4",
-    "nCtx": 9216,
-    "prefixTokens": 3146,
+    "promptProfile": "default.v1",
+    "nCtx": 7168,
+    "prefixTokens": 1062,
     "kvBytesPerToken": 114688
    },
    "artifacts": [
@@ -2609,9 +2609,9 @@
       "model": "model.gguf"
      },
      "memoryMb": {
-      "npu": 1760,
-      "gpu": 1760,
-      "cpu": 1760
+      "npu": 1536,
+      "gpu": 1536,
+      "cpu": 1536
      },
      "preferredUnit": "npu"
     }
@@ -2646,9 +2646,9 @@
    "status": "available",
    "llm": {
     "template": "qwen3",
-    "promptProfile": "default.v4",
-    "nCtx": 9216,
-    "prefixTokens": 3146,
+    "promptProfile": "default.v1",
+    "nCtx": 7168,
+    "prefixTokens": 1062,
     "kvBytesPerToken": 114688
    },
    "artifacts": [
@@ -2678,9 +2678,9 @@
       "model": "model.gguf"
      },
      "memoryMb": {
-      "npu": 1760,
-      "gpu": 1760,
-      "cpu": 1760
+      "npu": 1536,
+      "gpu": 1536,
+      "cpu": 1536
      },
      "preferredUnit": "npu"
     }

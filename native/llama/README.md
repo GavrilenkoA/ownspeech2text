@@ -13,7 +13,7 @@ Decisions and evidence: `docs/research/verify/llm-npu.md`.
 | `src/murmur_llm.cpp` | its implementation on the new `llama_batch_ext` / `llama_process` API |
 | `include/murmur_llm_jni.h`, `src/murmur_llm_jni.cpp` | the JNI shim of the `:llm` process (`libmurmur_llm_jni.so`, Kotlin `app.murmur.infer.llm.LlmNative`) |
 | `src/murmur_llm_bench.cpp` | CLI that runs the app flow and prints JSON lines (used by `tools/device/llm_npu_smoke.sh`) |
-| `tools/make_prompt.py` | renders a `prompts/` profile (default.v4) and splits it into the cacheable prefix and the per-dictation suffix; `--assets` writes the `:infer:llm` instrumented-test prompts |
+| `tools/make_prompt.py` | renders a `prompts/` profile (default: the catalog's stock profile, default.v1 since ADR-085) and splits it into the cacheable prefix and the per-dictation suffix; `--assets` writes the `:infer:llm` instrumented-test prompts |
 | `tools/tokenizer_check.py` | mandatory host test (ADR-045): catalog `prefixTokens` and prefix + suffix additivity for every shipped vocabulary |
 | `patches/` | local patches (none at the pinned commit) |
 | `gradle/llm-cpu-only.build.gradle.kts` | verified AGP module config for a CPU-only Gradle build (not the recommended path) |
@@ -102,7 +102,7 @@ additivity table, and exits 1 on any mismatch.
 
 ```bash
 B=.cache/native-llama/out/host
-python3 native/llama/tools/make_prompt.py --template lfm3 --profile default.v4 --out-prefix /tmp/p.txt --out-suffix /tmp/s.txt
+python3 native/llama/tools/make_prompt.py --template lfm3 --profile default.v1 --out-prefix /tmp/p.txt --out-suffix /tmp/s.txt
 LD_LIBRARY_PATH=$B/lib tools/heavy $B/bin/murmur-llm-bench -m .cache/ml/llm/LFM3-1.7B-QAD-Q4_0.gguf --ctx 9216 \
   --backend-dir $B/lib --prefix-file /tmp/p.txt --suffix-file /tmp/s.txt -t 6 --modes ram,seqcp,none --reps 3 --print-output
 MLLM_TRACE_TOKENS=1 ...   # prints the first generated token ids incl. special tokens (checks that no <think> is emitted)

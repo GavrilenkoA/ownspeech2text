@@ -87,9 +87,14 @@ object PrivacyReason {
     const val OCR_EMPTY = "ocr_empty"
     const val USER_SETTING = "user_setting"
 
-    /** prompts/render.py NO_SCREEN_LEVEL: the level sent with each reason when there is no screen. */
+    /**
+     * prompts/render.py NO_SCREEN_LEVEL: the level sent with each reason when there is no screen. A password field
+     * is level none and never reaches the LLM (ADR-070; ContextAssembler decides it with skipLlm). user_setting is
+     * not in render.py's table but documented as app_only (docs/ml/CONTEXT_V2.md, ADR-085).
+     */
     fun noScreenLevel(reason: String): String = when (reason) {
-        SECURE_WINDOW, DENYLISTED_APP, PASSWORD_FIELD, USER_SETTING -> PrivacyLevel.APP_ONLY
+        PASSWORD_FIELD -> PrivacyLevel.NONE
+        SECURE_WINDOW, DENYLISTED_APP, USER_SETTING -> PrivacyLevel.APP_ONLY
         else -> PrivacyLevel.FULL
     }
 }

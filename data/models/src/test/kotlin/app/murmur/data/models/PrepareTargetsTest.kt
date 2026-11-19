@@ -76,7 +76,7 @@ class PrepareTargetsTest {
         assertEquals(ComputeUnit.NPU, t.specs.first().unit)
         val llm = t.llm!!
         assertEquals("lfm3", llm.template)
-        assertEquals(9_216, llm.nCtx)
+        assertEquals(7_168, llm.nCtx)
         assertEquals(64, llm.modelSha256.length)
         assertTrue(llm.memoryMb > 0)
         health.markFailed(lfm, ComputeUnit.NPU, "engine.load.llm")

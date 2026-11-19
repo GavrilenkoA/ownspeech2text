@@ -4,8 +4,8 @@ prefix cache assume, for every shipped GGUF vocabulary.
 
   (a) prefix tokens: for every catalog LLM (fine-tunes use their base model's GGUF), the token count of
       render.cache_prefix(llm.promptProfile, llm.template) equals the catalog's llm.prefixTokens.
-  (b) additivity: for every rendered golden (eval corpus v2 + smoke + examples + edge cases, profiles default.v4,
-      default.v4s, finetuned.v1, all four templates), tokens(prefix) + tokens(suffix) == tokens(full). This is what
+  (b) additivity: for every rendered golden (eval corpus v2 + smoke + examples + edge cases, profiles default.v1
+      (stock, ADR-085), default.v4, default.v4s, finetuned.v1, all four templates), tokens(prefix) + tokens(suffix) == tokens(full). This is what
       makes the restored prefix snapshot + suffix prefill equal to prefilling the whole prompt.
   (c) informational gate of the optional "prefill the context while the user speaks" split (WP-10 item 8): the
       same additivity at the end of "<transcript>\n" (prefix + context part vs transcript + assistant opener).
@@ -41,7 +41,7 @@ import tempfile
 HERE = pathlib.Path(__file__).resolve().parent
 REPO = HERE.parents[2]
 CATALOG = REPO / "core/catalog/src/main/resources/catalog/catalog.json"
-PROFILES_B = ("default.v4", "default.v4s", "finetuned.v1")
+PROFILES_B = ("default.v1", "default.v4", "default.v4s", "finetuned.v1")
 TEMPLATES = ("qwen3.5", "qwen3", "lfm3", "lfm2.5")
 
 

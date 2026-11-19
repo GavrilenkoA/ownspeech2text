@@ -171,8 +171,9 @@ class FakeModelResolver(
     var npuFirst: Boolean = false,
     var cpuFallback: Boolean = true,
     var llmSpeed: LlmSpeed? = LlmSpeed(prefillTps = 569.0, decodeTps = 83.8),
-    var nCtx: Int = 9_216,
-    var prefixTokens: Int? = 3_129,
+    // Stock Qwen3.5 with default.v1 (catalog 2026-11-20.2, ADR-085).
+    var nCtx: Int = 7_168,
+    var prefixTokens: Int? = 1_047,
     var health: app.murmur.core.catalog.UnitHealth = app.murmur.core.catalog.UnitHealth.NONE,
     var delayMs: Long = 0,
     var llmMemoryMb: Int = 770,
@@ -212,7 +213,7 @@ class FakeModelResolver(
             llm = if (!llmOn) null else ActiveLlm(
                 spec = llmRanked[0],
                 fallback = llmRanked.getOrNull(1),
-                template = "qwen3.5", profile = "default.v4", memoryMb = llmMemoryMb, nCtx = nCtx, prefixTokens = prefixTokens,
+                template = "qwen3.5", profile = app.murmur.core.catalog.GgufTemplates.STOCK_PROFILE, memoryMb = llmMemoryMb, nCtx = nCtx, prefixTokens = prefixTokens,
                 modelSha256 = "0".repeat(64), speed = llmSpeed,
             ),
             llmUnavailable = if (llmOn) null else if (settings.cleanup == CleanupChoice.None) "none" else "no_model",
@@ -230,7 +231,7 @@ class FakeModelResolver(
             llmCpu.artifactId -> Outcome.Ok(PrepareTargets(
                 kind = ModelKind.LLM,
                 specs = (if (npuFirst) listOf(llmNpu, llmCpu) else listOf(llmCpu)).filter(::usable),
-                llm = LlmPrepare("qwen3.5", "default.v4", nCtx, "0".repeat(64), memoryMb = llmMemoryMb),
+                llm = LlmPrepare("qwen3.5", app.murmur.core.catalog.GgufTemplates.STOCK_PROFILE, nCtx, "0".repeat(64), memoryMb = llmMemoryMb),
             ))
             vad.artifactId -> Outcome.Ok(PrepareTargets(ModelKind.VAD, listOf(vad)))
             ocrDet.artifactId -> Outcome.Ok(PrepareTargets(ModelKind.OCR_DET, listOf(ocrDet), ocrPartner = ocrRec))

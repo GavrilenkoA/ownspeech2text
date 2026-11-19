@@ -6,22 +6,33 @@ import org.junit.Test
 import java.io.File
 
 class PromptAssetsTest {
+    private companion object {
+        /** The stock profile of every stock catalog LLM (= GgufTemplates.STOCK_PROFILE in :core:catalog, ADR-085). */
+        const val STOCK = "default.v1"
+    }
+
     private val assets = ClasspathPromptAssets()
     private val root = File(System.getProperty("murmur.repoRoot") ?: ".")
 
     @Test
     fun packagedPromptsAreByteIdenticalToTheRepo() {
         // D8: what the APK ships is exactly prompts/ (no hand copies).
-        for (rel in listOf("system/default.v4.md", "profiles/default.v4.json", "shots/default.v4.jsonl", "tones/tones.v1.json")) {
+        for (rel in listOf("system/default.v1.md", "profiles/default.v1.json", "system/default.v4.md", "profiles/default.v4.json",
+                "shots/default.v4.jsonl", "tones/tones.v1.json")) {
             assertEquals(rel, File(root, "prompts/$rel").readText(), assets.text(rel))
         }
     }
 
     @Test
     fun shippedProfileParses() {
-        val p = assets.profile("default.v4")
-        assertEquals("default.v4", p.system)
-        assertTrue(assets.shots(p.shots!!).isNotEmpty())
+        // The stock profile is default.v1 (ADR-085: rules + inline examples, no few-shot turns); default.v4 stays a
+        // measured, selectable profile with its shots.
+        val p = assets.profile(STOCK)
+        assertEquals(STOCK, p.system)
+        assertEquals(null, p.shots)
+        val v4 = assets.profile("default.v4")
+        assertEquals("default.v4", v4.system)
+        assertTrue(assets.shots(v4.shots!!).isNotEmpty())
     }
 
     @Test
@@ -33,10 +44,12 @@ class PromptAssetsTest {
     @Test
     fun userOverrideNeverAppliesToFineTunes() {
         // ADR-046: the edited instructions belong to the stock profile they were written for.
+        assertTrue(PromptEditRules.overrideApplies(assets.profile(STOCK), STOCK))
         assertTrue(PromptEditRules.overrideApplies(assets.profile("default.v4"), "default.v4"))
+        assertTrue(!PromptEditRules.overrideApplies(assets.profile(STOCK), "default.v4"))
         assertTrue(!PromptEditRules.overrideApplies(assets.profile("default.v4s"), "default.v4"))
         assertTrue(!PromptEditRules.overrideApplies(assets.profile("finetuned.v1"), "finetuned.v1"))
-        assertTrue(!PromptEditRules.overrideApplies(assets.profile("default.v4"), null))
+        assertTrue(!PromptEditRules.overrideApplies(assets.profile(STOCK), null))
         assertEquals("finetuned.v1", assets.profile("finetuned.v1").system)
     }
 
@@ -48,21 +61,27 @@ class PromptAssetsTest {
         assertEquals("both ctxv2 examples", 2, inputs.size)
         for (inp in inputs) {
             val stem = inp.name.removeSuffix(".input.json")
-            for (tpl in listOf("qwen3.5", "lfm3")) {
-                val expected = File(dir, "$stem.$tpl.default.v4.txt").readText()
+            // render.GOLDEN_V2_PROFILES: the stock default.v1 (ADR-085) and the selectable default.v4.
+            for (profile in listOf(STOCK, "default.v4")) for (tpl in listOf("qwen3.5", "lfm3")) {
+                val expected = File(dir, "$stem.$tpl.$profile.txt").readText()
                 val g = kotlinx.serialization.json.Json.parseToJsonElement(inp.readText()) as kotlinx.serialization.json.JsonObject
                 val ctx = app.murmur.core.context.CtxV2.json.decodeFromJsonElement(app.murmur.core.context.CtxV2.serializer(), g.getValue("context"))
                 val transcript = (g.getValue("transcript") as kotlinx.serialization.json.JsonPrimitive).content
-                Goldens.assertSame("$stem/$tpl", expected, r.render(RenderInput(assets.profile("default.v4"), tpl, ctx, transcript)).full)
+                Goldens.assertSame("$stem/$tpl/$profile", expected, r.render(RenderInput(assets.profile(profile), tpl, ctx, transcript)).full)
             }
         }
     }
 
     @Test
     fun editStateForTheSettingsRow() {
+        val v1 = assets.profile(STOCK)
         val v4 = assets.profile("default.v4")
         val v4s = assets.profile("default.v4s")
         val ft = assets.profile("finetuned.v1")
+        assertEquals(PromptEditState.DEFAULT, PromptEditRules.editState(v1, null))
+        assertEquals(PromptEditState.EDITED, PromptEditRules.editState(v1, STOCK))
+        // ADR-085: an edit made while the catalog shipped default.v4 is "made for an older prompt" under default.v1
+        assertEquals(PromptEditState.MADE_FOR_OLDER_PROMPT, PromptEditRules.editState(v1, "default.v4"))
         assertEquals(PromptEditState.DEFAULT, PromptEditRules.editState(v4, null))
         assertEquals(PromptEditState.EDITED, PromptEditRules.editState(v4, "default.v4"))
         assertTrue(PromptEditRules.isEdited(v4, "default.v4"))
@@ -74,13 +93,13 @@ class PromptAssetsTest {
         // any other profile it was not written for, is "made for an older prompt" (brief: override exists, baseProfile
         // != active profile name). An edit naming the fine-tune itself, which the read-only editor cannot produce, is
         // not applied either and gets the same notice (and its Reset).
-        assertTrue(PromptEditRules.editable(v4) && PromptEditRules.editable(v4s) && !PromptEditRules.editable(ft))
+        assertTrue(PromptEditRules.editable(v1) && PromptEditRules.editable(v4) && PromptEditRules.editable(v4s) && !PromptEditRules.editable(ft))
         assertEquals(PromptEditState.NOT_EDITABLE, PromptEditRules.editState(ft, null))
         assertEquals(PromptEditState.MADE_FOR_OLDER_PROMPT, PromptEditRules.editState(ft, "default.v4"))
         assertEquals(PromptEditState.MADE_FOR_OLDER_PROMPT, PromptEditRules.editState(ft, "finetuned.v1"))
         assertTrue(PromptEditRules.madeForOlderPrompt(ft, "default.v4") && !PromptEditRules.isEdited(ft, "default.v4"))
         // the helpers agree with overrideApplies and with the brief's definitions
-        for (p in listOf(v4, v4s, ft)) for (b in listOf(null, "default.v4", "default.v4s", "finetuned.v1")) {
+        for (p in listOf(v1, v4, v4s, ft)) for (b in listOf(null, STOCK, "default.v4", "default.v4s", "finetuned.v1")) {
             assertEquals(PromptEditRules.overrideApplies(p, b), PromptEditRules.isEdited(p, b))
             assertEquals(b != null && !PromptEditRules.overrideApplies(p, b), PromptEditRules.madeForOlderPrompt(p, b))
         }
@@ -89,17 +108,17 @@ class PromptAssetsTest {
     @Test
     fun systemOverrideReplacesTheShippedTextBeforeThePreferencesBlock() {
         val r = RenderPyPort(assets)
-        val v4 = assets.profile("default.v4")
-        val shipped = File(root, "prompts/system/default.v4.md").readText().trimEnd('\n')
+        val stock = assets.profile(STOCK)
+        val shipped = File(root, "prompts/system/$STOCK.md").readText().trimEnd('\n')
         val block = File(root, "prompts/system/preferences_block.v1.md").readText().trimEnd('\n')
-        assertEquals(shipped, r.systemPrompt(v4, null, null))
+        assertEquals(shipped, r.systemPrompt(stock, null, null))
         // one pass of replace("\r\n", "\n"): "\r\r\n" keeps its first CR; a lone CR stays; only trailing "\n" go
-        assertEquals("Mine.\r\nTwo", r.systemPrompt(v4, null, "Mine.\r\r\nTwo\r\n\n"))
-        assertEquals("Mine.\rTwo ", r.systemPrompt(v4, null, "Mine.\rTwo \r\n\n\n"))
-        assertEquals("Mine." + block.replace("{{PREFERENCES}}", "a\nb"), r.systemPrompt(v4, "a\r\nb", "Mine.\r\n"))
+        assertEquals("Mine.\r\nTwo", r.systemPrompt(stock, null, "Mine.\r\r\nTwo\r\n\n"))
+        assertEquals("Mine.\rTwo ", r.systemPrompt(stock, null, "Mine.\rTwo \r\n\n\n"))
+        assertEquals("Mine." + block.replace("{{PREFERENCES}}", "a\nb"), r.systemPrompt(stock, "a\r\nb", "Mine.\r\n"))
         // the prefix changes with the override, so its snapshot key does too (ADR-060)
-        val plain = r.render(RenderInput(v4, "qwen3.5", null, "x"))
-        val edited = r.render(RenderInput(v4, "qwen3.5", null, "x", systemOverride = "Mine."))
+        val plain = r.render(RenderInput(stock, "qwen3.5", null, "x"))
+        val edited = r.render(RenderInput(stock, "qwen3.5", null, "x", systemOverride = "Mine."))
         assertTrue(plain.prefixKey != edited.prefixKey && plain.suffix == edited.suffix)
         assertTrue(edited.prefix.startsWith("<|im_start|>system\nMine.<|im_end|>\n"))
     }

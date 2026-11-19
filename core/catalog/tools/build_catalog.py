@@ -29,7 +29,7 @@ CACHE = REPO / ".cache/spikes/architect/catalog-files"
 ASR = json.loads((REPO / "docs/research/asr-catalog.json").read_text(encoding="utf-8"))
 LLM = json.loads((REPO / "docs/research/llm-catalog.json").read_text(encoding="utf-8"))
 OFFLINE = "--offline" in sys.argv
-CATALOG_VERSION = "2026-11-20.1"
+CATALOG_VERSION = "2026-11-20.2"
 
 UA = {"User-Agent": "murmur-catalog-builder/1"}
 
@@ -342,17 +342,25 @@ PREFERRED = {"lfm3": "npu", "lfm2.5": "npu", "qwen3.5": "cpu", "qwen3": "npu"}
 CPU_MB = {"lfm3-1.7b": 1250, "qwen3.5-0.8b": 710}
 # x86 emulator peak RSS at n_ctx 9,216 with the prefix built (WP-10 LlmServiceTest, 1,474 / 873 MB), rounded up:
 # a lower bound on the CPU memoryMb until DC2 measures the phone (verification F4: a gate that trusted 1,310 / 770
-# could start a load that lmkd then kills).
+# could start a load that lmkd then kills). Kept as the floor after the stock nCtx shrank to 7,168 (ADR-085): the
+# smaller KV only makes the real peak lower, and DC2 replaces these numbers with the phone's.
 CPU_PEAK_MB = {"lfm3-1.7b": 1480, "qwen3.5-0.8b": 880}
 # ADR-045: tokens of render.cache_prefix(profile, template) with the host llama-tokenize (b12503, --no-bos) on the
-# real GGUFs. Re-measured 2026-11-19 by native/llama/tools/tokenizer_check.py (WP-10) after the default.v4 shots were
-# regenerated (the first measurement, 3,129 / 3,240 / 3,269 / 3,161, used the older shots). LFM2.5-2.6B has its own
-# vocabulary (different tokenizer fingerprint from 1.2B/350M), hence the per-model override.
-# tokenizer_check.py fails when a prompt, profile or template change moves any of these numbers.
-PREFIX_TOKENS = {("default.v4", "qwen3.5"): 3116, ("default.v4", "lfm3"): 3226, ("default.v4", "lfm2.5"): 3256,
-                 ("default.v4", "qwen3"): 3146, ("finetuned.v1", "qwen3.5"): 97, ("finetuned.v1", "lfm3"): 102,
+# real GGUFs. default.v4 re-measured 2026-11-19 by native/llama/tools/tokenizer_check.py (WP-10); default.v1 measured
+# 2026-11-20 the same way when it became the stock profile (ADR-085, docs/ml/PROMPT_EVAL.md section R). default.v4 and
+# default.v4s stay here as measured, selectable profiles. LFM2.5-2.6B has its own vocabulary (different tokenizer
+# fingerprint from 1.2B/350M), hence the per-model override.
+# tokenizer_check.py fails when a prompt, profile or template change moves any catalog number.
+STOCK_PROFILE = "default.v1"  # = GgufTemplates.STOCK_PROFILE (ADR-085)
+PREFIX_TOKENS = {("default.v1", "qwen3.5"): 1047, ("default.v1", "lfm3"): 1072, ("default.v1", "lfm2.5"): 1101,
+                 ("default.v1", "qwen3"): 1062,
+                 ("default.v4", "qwen3.5"): 3116, ("default.v4", "lfm3"): 3226, ("default.v4", "lfm2.5"): 3256,
+                 ("default.v4", "qwen3"): 3146, ("default.v4s", "qwen3.5"): 2001, ("default.v4s", "lfm3"): 2060,
+                 ("default.v4s", "lfm2.5"): 2079, ("default.v4s", "qwen3"): 2024,
+                 ("finetuned.v1", "qwen3.5"): 97, ("finetuned.v1", "lfm3"): 102,
                  ("finetuned.v1", "lfm2.5"): 102, ("finetuned.v1", "qwen3"): 97}
-PREFIX_TOKENS_MODEL = {("default.v4", "lfm2.5-2.6b"): 3196}
+PREFIX_TOKENS_MODEL = {("default.v1", "lfm2.5-2.6b"): 1072, ("default.v4", "lfm2.5-2.6b"): 3196,
+                       ("default.v4s", "lfm2.5-2.6b"): 2044}
 CONTEXT_RESERVE_TOKENS = 5200  # = LlmTraits.CONTEXT_RESERVE_TOKENS (5-minute dictation, ADR-045)
 KV_DEFAULT = 12288
 
@@ -400,7 +408,7 @@ def llm_models() -> list[dict]:
              "license": lic(m),
              "tier": {"default": "recommended", "option": "optional", "experimental": "experimental"}.get(m.get("role"), "planned"),
              "status": "in_training" if planned else "available",
-             "llm": {"template": tmpl, "promptProfile": (profile := "finetuned.v1" if planned else "default.v4"),
+             "llm": {"template": tmpl, "promptProfile": (profile := "finetuned.v1" if planned else STOCK_PROFILE),
                      "nCtx": n_ctx_for(ptok := PREFIX_TOKENS_MODEL.get((profile, m["id"]), PREFIX_TOKENS[(profile, tmpl)])),
                      "prefixTokens": ptok,
                      **({"kvBytesPerToken": m["kv_cache_bytes_per_token_f16"]} if m.get("kv_cache_bytes_per_token_f16") else {}),

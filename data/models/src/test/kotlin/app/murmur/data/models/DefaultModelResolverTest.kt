@@ -109,13 +109,13 @@ class DefaultModelResolverTest {
         assertEquals(lfm to NPU, llm.spec.artifactId to llm.spec.unit)
         assertEquals(lfm to GPU, llm.fallback!!.artifactId to llm.fallback!!.unit)
         assertEquals("lfm3", llm.template)
-        assertEquals("default.v4", llm.profile)
-        assertEquals(9_216, llm.nCtx)
-        assertEquals(3_226, llm.prefixTokens)
+        assertEquals("default.v1", llm.profile)
+        assertEquals(7_168, llm.nCtx)
+        assertEquals(1_072, llm.prefixTokens)
         val gguf = catalog.catalog.value.artifact(lfm)!!.second.files.single()
         assertEquals(gguf.sha256, llm.modelSha256)
         assertEquals(catalog.catalog.value.artifact(lfm)!!.second.memoryMb[NPU], llm.memoryMb)
-        assertEquals(mapOf(LoadOptions.N_CTX to "9216", LoadOptions.THREADS to "4"), llm.spec.options)
+        assertEquals(mapOf(LoadOptions.N_CTX to "7168", LoadOptions.THREADS to "4"), llm.spec.options)
         // GPU fallback keeps mmap; only CPU specs set use_mmap=0 (ADR-031).
         assertNull(llm.fallback!!.options[LoadOptions.USE_MMAP])
         assertNull(llm.speed)
@@ -226,7 +226,7 @@ class DefaultModelResolverTest {
         val q = ok(all.resolve(Settings(cleanup = CleanupChoice.Model(ModelId("qwen3.5-0.8b"))))).llm!!
         assertEquals(qwen to CPU, q.spec.artifactId to q.spec.unit)   // Qwen3.5 prefers CPU (llm spike D4)
         assertEquals("qwen3.5", q.template)
-        assertEquals(3_116, q.prefixTokens)
+        assertEquals(1_047, q.prefixTokens)
     }
 
     @Test

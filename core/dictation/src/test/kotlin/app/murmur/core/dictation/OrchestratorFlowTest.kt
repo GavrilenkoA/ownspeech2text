@@ -39,7 +39,7 @@ class OrchestratorFlowTest {
         assertEquals(cleaned, e.finalText)
         assertEquals(raw, e.rawText)
         assertEquals("accept", e.cleanup?.outcome)
-        assertEquals("default.v4", e.cleanup?.promptVersion)
+        assertEquals("default.v1", e.cleanup?.promptVersion)
         assertEquals(InsertMethod.COMMIT_TEXT, e.insertMethod)
         assertEquals(2, e.contextWords)                                     // "Лёша Козлов": the count only
         assertEquals(2_800L, e.timings.recordMs)

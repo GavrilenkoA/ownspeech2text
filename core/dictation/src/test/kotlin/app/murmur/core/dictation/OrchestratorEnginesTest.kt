@@ -279,7 +279,7 @@ class OrchestratorEnginesTest {
             models.llmSpeed = LlmSpeed(prefillTps = 5_000.0, decodeTps = 1_000.0)
         }
         h.dictate(stopAt = 1_500)
-        val budget = CleanupBudget.plan(raw.length, 3_129, 9_216, LlmSpeed(5_000.0, 1_000.0), DictationConfig())
+        val budget = CleanupBudget.plan(raw.length, 1_047, 7_168, LlmSpeed(5_000.0, 1_000.0), DictationConfig())
         assertTrue("timeout ${budget.timeoutMs}", budget.timeoutMs < 5_000 + 2_000 - 1_500)
         h.assertInserted("accept")
     }

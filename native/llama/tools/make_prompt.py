@@ -4,11 +4,11 @@
 "<|im_start|>user\\n") and the per-dictation suffix (Style line + <context> + <transcript> + assistant opener with
 thinking off). prefix + suffix is byte-identical to render.render_prompt (checked).
 
-  make_prompt.py --template qwen3.5|qwen3|lfm3|lfm2.5 [--profile default.v4]
+  make_prompt.py --template qwen3.5|qwen3|lfm3|lfm2.5 [--profile default.v1]
                  [--input prompts/examples/ctxv2_chat_ru.input.json] --out-prefix P.txt --out-suffix S.txt
   make_prompt.py --assets DIR [--check]      instrumented-test prompts of :infer:llm (see ASSET_CASES)
 
-Used by tools/device/llm_npu_smoke.sh (default.v4 prefix, DC2) and to generate
+Used by tools/device/llm_npu_smoke.sh (stock prefix, DC2) and to generate
 infer/llm/src/androidTest/assets/prompts/ (--check fails when they drift from prompts/).
 """
 import argparse
@@ -20,7 +20,20 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[3]
 EXAMPLES = REPO / "prompts" / "examples"
 ASSET_TEMPLATES = ("qwen3.5", "lfm3")
-ASSET_PROFILE = "default.v4"
+CATALOG = REPO / "core/catalog/src/main/resources/catalog/catalog.json"
+
+
+def stock_profile() -> str:
+    """llm.promptProfile of the stock catalog LLMs (one value for all of them, ADR-085); the assets follow it so that
+    LlmServiceTest finds prefix.<catalog profile>.<template>.txt."""
+    cat = json.loads(CATALOG.read_text(encoding="utf-8"))
+    profiles = {m["llm"]["promptProfile"] for m in cat["models"] if m["kind"] == "llm" and m["family"] != "murmur-cleanup"}
+    if len(profiles) != 1:
+        raise SystemExit(f"stock catalog LLMs use several prompt profiles: {sorted(profiles)}")
+    return profiles.pop()
+
+
+ASSET_PROFILE = stock_profile()
 # (asset case name, example input, transcript override). "emoji" checks the UTF-8 byte path through JNI (D11).
 ASSET_CASES = (
     ("ctxv2_chat_ru", "ctxv2_chat_ru.input.json", None),
@@ -79,7 +92,7 @@ def assets(r, out: Path, check: bool) -> int:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--template", choices=["qwen3.5", "qwen3", "lfm3", "lfm2.5"])
-    ap.add_argument("--profile", default="default.v4")
+    ap.add_argument("--profile", default=ASSET_PROFILE)
     ap.add_argument("--input", default=str(EXAMPLES / "ctxv2_chat_ru.input.json"))
     ap.add_argument("--out-prefix")
     ap.add_argument("--out-suffix")

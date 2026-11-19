@@ -53,7 +53,7 @@ class HfCustomModelResolverTest {
         assertEquals("q4_0", a.quant)
         assertEquals(RuntimeKeys.LLAMA_GGUF, a.runtime)
         assertEquals("qwen3.5", e.llm!!.template)
-        assertEquals("default.v4", e.llm!!.promptProfile)
+        assertEquals(GgufTemplates.STOCK_PROFILE, e.llm!!.promptProfile)
         assertEquals(GgufTemplates.DEFAULT_CUSTOM_NCTX, e.llm!!.nCtx)
         assertEquals(12_288, e.llm!!.kvBytesPerToken)
         assertEquals(emptyList<String>(), CatalogValidator.validateEntry(e))

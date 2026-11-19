@@ -159,7 +159,8 @@ data class LlmTraits(
     /**
      * Context window the :llm process allocates (LoadSpec option n_ctx). Rule (ADR-045): nCtx >=
      * [prefixTokens] + [CONTEXT_RESERVE_TOKENS], rounded up to 1,024, so that a 5-minute dictation (the DESIGN
-     * maximum) fits with its screen context and output. Stock default.v4: 9,216; finetuned.v1: 6,144.
+     * maximum) fits with its screen context and output. Stock default.v1: 7,168 (ADR-085); default.v4: 9,216;
+     * finetuned.v1: 6,144.
      */
     val nCtx: Int,
     /**

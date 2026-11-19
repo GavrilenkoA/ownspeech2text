@@ -133,6 +133,7 @@ class FakesTest {
     @Test
     fun fakeWorldBuildsDeps() {
         val d = FakeWorld().deps()
+        assertTrue(d.prompts.systemPrompt("default.v1").isNotBlank())
         assertTrue(d.prompts.systemPrompt("default.v4").isNotBlank())
     }
 

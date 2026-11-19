@@ -20,7 +20,7 @@ data class CustomModelRequest(
     val displayName: String? = null,
     /** render.py TEMPLATES key; null = from the GGUF general.architecture ([GgufTemplates.templateFor]). */
     val llmTemplate: String? = null,
-    /** prompts profile; null = [GgufTemplates.profileFor] (fine-tunes get finetuned.v1, others default.v4). */
+    /** prompts profile; null = [GgufTemplates.profileFor] (fine-tunes get finetuned.v1, others [GgufTemplates.STOCK_PROFILE]). */
     val promptProfile: String? = null,
 )
 
@@ -52,7 +52,8 @@ object GgufTemplates {
     /** GGUF key written by ml/train/export.py for Murmur fine-tunes (requested from the ML team, ADR-046). */
     const val PROFILE_KEY = "murmur.prompt_profile"
     const val FINETUNE_NAME_PREFIX = "murmur-cleanup-"
-    const val STOCK_PROFILE = "default.v4"
+    /** The stock cleanup profile of every stock catalog LLM (ADR-085: default.v1 since catalog 2026-11-20.2). */
+    const val STOCK_PROFILE = "default.v1"
     const val FINETUNE_PROFILE = "finetuned.v1"
     const val DEFAULT_CUSTOM_NCTX = 9_216
 

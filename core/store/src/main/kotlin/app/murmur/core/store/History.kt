@@ -49,7 +49,7 @@ data class ModelUse(val modelId: ModelId, val artifactId: ArtifactId, val unit: 
 
 data class CleanupUse(
     val model: ModelUse?,
-    /** Prompt profile + "edited" flag, e.g. "default.v4" / "default.v4+edited" (README rule 1). */
+    /** Prompt profile + "edited" flag, e.g. "default.v1" / "default.v1+edited" (README rule 1). */
     val promptVersion: String,
     /** prompts/guard.py action/reason, or "skipped:<code>" (DESIGN "Inserted, no cleanup"). */
     val outcome: String,

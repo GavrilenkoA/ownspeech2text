@@ -39,7 +39,7 @@ class CustomModelLiveTest {
         assertEquals("q4_0", a.quant)
         assertTrue(a.files.single().path, a.files.single().path.endsWith("Q4_0.gguf"))
         assertEquals("qwen3.5", e.llm!!.template)
-        assertEquals("default.v4", e.llm!!.promptProfile)
+        assertEquals("default.v1", e.llm!!.promptProfile)
         assertEquals(12_288, e.llm!!.kvBytesPerToken)
         assertEquals(emptyList<String>(), CatalogValidator.validateEntry(e))
         Log.i("MurmurModelsTest", "custom_llm id=${e.id} rev=${a.files.single().revision} sha256=${a.files.single().sha256} headerBytes=${resolver.lastHeaderBytes}")

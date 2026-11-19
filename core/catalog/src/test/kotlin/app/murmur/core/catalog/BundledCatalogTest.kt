@@ -68,7 +68,8 @@ class BundledCatalogTest {
 
     @Test
     fun everyLlmContextHoldsItsPrefixPlusAFiveMinuteDictation() {
-        // ADR-045 (review blocker): default.v4 prefix = 3,116-3,256 tokens, so n_ctx 4,096 could not clean up 60 s.
+        // ADR-045 (review blocker): a 5-minute dictation must fit after the prefix (default.v4 3,116-3,256 tokens could not
+        // clean up 60 s in n_ctx 4,096). Stock default.v1 (ADR-085): 1,047-1,101 tokens, n_ctx 7,168.
         for (m in catalog.models.filter { it.kind == ModelKind.LLM }) {
             val l = m.llm!!
             val prefix = assertNotNull(m.id.value, l.prefixTokens).let { l.prefixTokens!! }
@@ -76,8 +77,18 @@ class BundledCatalogTest {
             assertEquals(GgufTemplates.nCtxFor(prefix), l.nCtx)
         }
         // native/llama/tools/tokenizer_check.py (llama-tokenize on the real GGUFs); a prompt change must update the catalog.
-        assertEquals(3_226, catalog.model(ModelId("lfm3-1.7b"))!!.llm!!.prefixTokens)
-        assertEquals(3_116, catalog.model(ModelId("qwen3.5-0.8b"))!!.llm!!.prefixTokens)
+        assertEquals(1_072, catalog.model(ModelId("lfm3-1.7b"))!!.llm!!.prefixTokens)
+        assertEquals(1_047, catalog.model(ModelId("qwen3.5-0.8b"))!!.llm!!.prefixTokens)
+        assertEquals(1_101, catalog.model(ModelId("lfm2.5-350m"))!!.llm!!.prefixTokens)
+        assertEquals(1_062, catalog.model(ModelId("qwen3-0.6b"))!!.llm!!.prefixTokens)
+        assertEquals(1_072, catalog.model(ModelId("lfm2.5-2.6b"))!!.llm!!.prefixTokens) // its own vocabulary
+        // ADR-085: every stock (non-fine-tune) LLM ships the stock profile.
+        val stock = catalog.models.filter { it.kind == ModelKind.LLM && it.family != "murmur-cleanup" }
+        assertEquals(8, stock.size)
+        stock.forEach {
+            assertEquals(it.id.value, GgufTemplates.STOCK_PROFILE, it.llm!!.promptProfile)
+            assertEquals(it.id.value, 7_168, it.llm!!.nCtx)
+        }
         assertEquals("finetuned.v1", catalog.model(ModelId("murmur-cleanup-qwen3.5-2b"))!!.llm!!.promptProfile)
         assertTrue(catalog.model(ModelId("murmur-cleanup-qwen3-0.6b")) == null)
     }
@@ -122,7 +133,7 @@ class BundledCatalogTest {
         assertNull(GgufTemplates.templateFor("llama"))
         assertEquals("finetuned.v1", GgufTemplates.profileFor("murmur-cleanup-qwen3.5-0.8b", null))
         assertEquals("default.v5", GgufTemplates.profileFor("murmur-cleanup-x", "default.v5"))
-        assertEquals("default.v4", GgufTemplates.profileFor("Qwen3.5-0.8B", null))
+        assertEquals("default.v1", GgufTemplates.profileFor("Qwen3.5-0.8B", null))
     }
 
     @Test

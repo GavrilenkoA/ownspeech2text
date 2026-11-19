@@ -141,7 +141,7 @@ class EnginePreparerTest {
     @Test fun aPromptEditRebuildsTheSnapshotOnceAfterFiveSecondsOfQuiet() = runTest {
         val h = harness()
         h.at(0)
-        h.w.settings.edit { it.copy(promptOverride = PromptOverride("Пиши коротко.", baseProfile = "default.v4")) }
+        h.w.settings.edit { it.copy(promptOverride = PromptOverride("Пиши коротко.", baseProfile = "default.v1")) }
         h.at(2_000)
         h.w.settings.edit { it.copy(preferences = "Без эмодзи") }
         h.at(6_999)
@@ -154,7 +154,7 @@ class EnginePreparerTest {
         // The next dictation restores it (same key): no second prefill.
         h.dictate(startAt = h.now + 1_000, stopAt = h.now + 3_800)
         assertEquals(1, h.w.engines.llm.prefixCalls.size)
-        assertEquals("default.v4+edited", h.only().cleanup?.promptVersion)
+        assertEquals("default.v1+edited", h.only().cleanup?.promptVersion)
         h.assertNoInternalErrors()
     }
 
