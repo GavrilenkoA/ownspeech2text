@@ -49,6 +49,28 @@ object PromptEditRules {
     fun overrideApplies(profile: PromptProfile, overrideBaseProfile: String?): Boolean =
         overrideBaseProfile != null && !profile.system.startsWith("finetuned") && profile.name == overrideBaseProfile
 
+    /**
+     * What Settings -> Cleanup prompt shows for the active [profile] and the stored override's `baseProfile`
+     * ([overrideBaseProfile], null = no override): [PromptEditState.DEFAULT] / [PromptEditState.EDITED] (the edit
+     * applies), [PromptEditState.MADE_FOR_OLDER_PROMPT] (an edit exists for another profile: "Your edit was made for an
+     * older prompt" with Reset / Keep editing), [PromptEditState.NOT_EDITABLE] (fine-tunes keep their trained prompt;
+     * a stored edit is kept untouched for the stock models).
+     */
+    fun editState(profile: PromptProfile, overrideBaseProfile: String?): PromptEditState = when {
+        profile.system.startsWith("finetuned") -> PromptEditState.NOT_EDITABLE
+        overrideBaseProfile == null -> PromptEditState.DEFAULT
+        overrideApplies(profile, overrideBaseProfile) -> PromptEditState.EDITED
+        else -> PromptEditState.MADE_FOR_OLDER_PROMPT
+    }
+
+    /** "Edited" value of the Cleanup prompt row. */
+    fun isEdited(profile: PromptProfile, overrideBaseProfile: String?): Boolean =
+        editState(profile, overrideBaseProfile) == PromptEditState.EDITED
+
+    /** "Your edit was made for an older prompt" (override exists, baseProfile != active stock profile name). */
+    fun madeForOlderPrompt(profile: PromptProfile, overrideBaseProfile: String?): Boolean =
+        editState(profile, overrideBaseProfile) == PromptEditState.MADE_FOR_OLDER_PROMPT
+
     /** Returns problems (empty = valid). Keys map to strings.xml messages in :feature:settings. */
     fun validateSystem(text: String): List<String> = buildList {
         if (text.isBlank()) add("empty")
@@ -56,3 +78,5 @@ object PromptEditRules {
         if (forbidden.any { text.contains(it) }) add("markup")
     }
 }
+
+enum class PromptEditState { DEFAULT, EDITED, MADE_FOR_OLDER_PROMPT, NOT_EDITABLE }
