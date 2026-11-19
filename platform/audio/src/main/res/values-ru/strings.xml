@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notif_channel_status">Состояние %1$s</string>
+    <string name="notif_channel_status_desc">Одно тихое уведомление, пока диктовка доступна и пока включён микрофон.</string>
+    <string name="notif_ready_title">%1$s готов</string>
+    <string name="notif_action_hide">Скрыть на час</string>
+    <string name="notif_action_start">Начать диктовку</string>
+    <string name="notif_action_show">Показать сейчас</string>
+    <string name="notif_mic_title">Микрофон включён</string>
+    <string name="notif_action_stop">Остановить</string>
+</resources>

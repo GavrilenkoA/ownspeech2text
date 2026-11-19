@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The product name is never written in resources (D10): %1$s is ProductName.NAME. Copy deck: DESIGN.md 7. -->
+    <string name="notif_channel_status">%1$s status</string>
+    <string name="notif_channel_status_desc">One quiet notification while dictation is available, and while the microphone is on.</string>
+    <string name="notif_ready_title">%1$s is ready</string>
+    <string name="notif_action_hide">Hide 1 h</string>
+    <string name="notif_action_start">Start dictation</string>
+    <string name="notif_action_show">Show now</string>
+    <string name="notif_mic_title">Microphone is on</string>
+    <string name="notif_action_stop">Stop</string>
+</resources>
