@@ -145,6 +145,9 @@ build_variant() {
             args=(-DGGML_BACKEND_DL=ON -DGGML_CPU_ALL_VARIANTS=ON -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++) ;;
         *) die "unknown variant $v" ;;
     esac
+    # Bit-reproducible outputs wherever the tree lives (worktree, work dir): no absolute source or build paths
+    # end up in __FILE__ strings (GGML_ASSERT) or debug info.
+    cflags+=" -ffile-prefix-map=$SRC=llama.cpp -ffile-prefix-map=$here=native/llama -ffile-prefix-map=$bdir=build"
     log "configure $v ($abi)"
     local t0=$SECONDS
     "${HEAVY[@]}" "$CMAKE" -S "$here" -B "$bdir" "${common[@]}" "${args[@]}" \

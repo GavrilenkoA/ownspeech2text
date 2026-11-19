@@ -41,6 +41,7 @@ class LlmService : Service() {
     private val executor: ExecutorService = Executors.newSingleThreadExecutor { r -> Thread(r, "llm-engine") }
     private lateinit var engine: LlmEngine
     private val generating = AtomicBoolean(false)
+    @Volatile private var probeJson: String? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -61,8 +62,11 @@ class LlmService : Service() {
     private val binder = object : ILlmService.Stub() {
         override fun apiVersion(): Int = InferApi.API_VERSION
 
-        override fun probe(): String =
-            InferApi.encode(ProcessProbe.serializer(), executor.submit<ProcessProbe> { engine.probe() }.get())
+        // The registered devices cannot change within a process: probe once on the engine thread (it runs
+        // mllm_global_init), then answer from memory so that later probes never wait behind a long prefill.
+        override fun probe(): String = probeJson ?: InferApi.encode(
+            ProcessProbe.serializer(), executor.submit<ProcessProbe> { engine.probe() }.get(),
+        ).also { probeJson = it }
 
         override fun memory(): String = InferApi.encode(ProcessMemory.serializer(), processMemory())
 
