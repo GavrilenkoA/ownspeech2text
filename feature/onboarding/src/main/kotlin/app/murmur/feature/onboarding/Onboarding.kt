@@ -10,7 +10,9 @@ import android.provider.Settings as AndroidSettings
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -116,6 +118,35 @@ fun OnboardingScreen(deps: OnboardingDeps, onDone: () -> Unit, modifier: Modifie
     )
     OnboardingContent(state, ctl, deps, actions, rememberIsWide(), modifier)
 }
+
+/**
+ * "Try a dictation" from the app (History and Dashboard empty states): the practice field and in-app bubble of the
+ * last onboarding step (DESIGN 6.1 ob-ready) without the onboarding chrome (no dots, no checklist, no "All set"). The
+ * shell pushes it like a detail screen; Done and Back call [onClose]. Nothing is stored (ADR-070).
+ */
+@Composable
+fun PracticeScreen(deps: OnboardingDeps, onClose: () -> Unit, modifier: Modifier = Modifier) {
+    val vm: OnboardingViewModel = viewModel(key = PRACTICE_VM) { OnboardingViewModel(deps) }
+    val ctl = vm.controller
+    val practice by ctl.practice.collectAsStateWithLifecycle()
+    val bubble by deps.bubble.collectAsStateWithLifecycle()
+    val levels by deps.levels.collectAsStateWithLifecycle()
+    BackHandler(onBack = onClose)
+    // The result line belongs to this visit only (the view model outlives the screen).
+    DisposableEffect(ctl) { onDispose { ctl.clearPractice() } }
+    val none = {}
+    val actions = ObActions(
+        start = none, requestMic = none, openAccessibility = none, openAppInfo = none, restrictedDone = none,
+        requestNotifications = none, requestBattery = none, skip = none, select = {}, setWifiOnly = {}, download = none,
+        pause = none, retry = none, continueToPractice = none,
+        startPractice = ctl::startPractice,
+        bubbleTap = { deps.bubbleInput(UserInput.Tap) },
+        done = onClose,
+    )
+    Box(modifier) { Ready(rememberIsWide(), bubble, levels, deps.clock, practice, actions, chrome = false) }
+}
+
+private const val PRACTICE_VM = "app.murmur.feature.onboarding.practice"
 
 /** Everything a step can do; plain lambdas so that screenshot tests can render the steps without an Activity. */
 internal class ObActions(

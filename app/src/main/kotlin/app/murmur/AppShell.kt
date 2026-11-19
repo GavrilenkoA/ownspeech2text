@@ -46,6 +46,7 @@ import app.murmur.feature.history.HistoryEntryDetail
 import app.murmur.feature.history.HistoryScreen
 import app.murmur.feature.models.ModelDetail
 import app.murmur.feature.models.ModelsScreen
+import app.murmur.feature.onboarding.PracticeScreen
 import app.murmur.feature.settings.SettingsScreen
 import app.murmur.shell.DeepLink
 import app.murmur.shell.ShellNav
@@ -70,6 +71,8 @@ import kotlinx.serialization.Serializable
 /** Detail destinations: pushed on the cover display, the right pane on the inner display. */
 @Serializable data class HistoryEntryRoute(val id: Long) : NavKey
 @Serializable data class ModelDetailRoute(val id: String) : NavKey
+/** "Try a dictation" (History and Dashboard empty states): the practice field, pushed over the current tab. */
+@Serializable data object PracticeRoute : NavKey
 
 data class Tab(val route: TopRoute, val label: Int)
 
@@ -79,6 +82,8 @@ class ShellDeps(
     val history: app.murmur.feature.history.HistoryDeps,
     val models: app.murmur.feature.models.ModelsDeps,
     val settings: app.murmur.feature.settings.SettingsDeps,
+    /** The practice screen reuses the onboarding's practice field and in-app bubble. */
+    val practice: app.murmur.feature.onboarding.OnboardingDeps,
 )
 
 val TABS = listOf(
@@ -128,6 +133,8 @@ fun AppShell(deps: ShellDeps, links: StateFlow<DeepLink?>, onLinkHandled: () -> 
     val select: (Int) -> Unit = { i -> replace(ShellNav.selectTab(TABS[i].route)) }
     val selectedEntry = (backStack.lastOrNull() as? HistoryEntryRoute)?.let { EntryId(it.id) }
     val selectedModel = (backStack.lastOrNull() as? ModelDetailRoute)?.let { ModelId(it.id) }
+    val tryDictation: () -> Unit = { replace(ShellNav.openPractice(backStack.toList())) }
+    val close: (TopRoute) -> Unit = { root -> replace(ShellNav.back(backStack.toList()) ?: listOf(root)) }
 
     // DESIGN 2: two panes on the inner display (medium width), no gap between them; the list widths are tokens.
     val directive = calculatePaneScaffoldDirectiveWithTwoPanesOnMediumWidth(currentWindowAdaptiveInfoV2())
@@ -147,31 +154,43 @@ fun AppShell(deps: ShellDeps, links: StateFlow<DeepLink?>, onLinkHandled: () -> 
             predictivePopTransitionSpec = { backward(wide, shiftPx) },
             entryProvider = entryProvider {
                 entry<DashboardRoute> {
-                    DashboardScreen(deps.dashboard, onTryDictation = { replace(ShellNav.selectTab(HistoryRoute)) })
+                    DashboardScreen(deps.dashboard, onTryDictation = tryDictation)
                 }
                 entry<HistoryRoute>(
                     metadata = ListDetailSceneStrategy.listPane(detailPlaceholder = { EmptyDetail() }) +
                         ListDetailSceneStrategy.preferredPaneSize(Layout.historyListPane),
                 ) {
-                    ListPane { HistoryScreen(deps.history, onOpenEntry = { replace(ShellNav.openEntry(it)) }, selected = if (wide) selectedEntry else null) }
+                    ListPane {
+                        HistoryScreen(
+                            deps.history, onOpenEntry = { replace(ShellNav.openEntry(it)) },
+                            selected = if (wide) selectedEntry else null, onTryDictation = tryDictation,
+                        )
+                    }
                 }
                 entry<HistoryEntryRoute>(metadata = ListDetailSceneStrategy.detailPane() + mapOf(DETAIL to true)) { r ->
                     DetailPane("detail-entry-${r.id}", wide) {
-                        HistoryEntryDetail(deps.history, EntryId(r.id), onBack = if (wide) null else { { replace(ShellNav.back(backStack.toList()) ?: listOf(HistoryRoute)) } })
+                        HistoryEntryDetail(deps.history, EntryId(r.id), onClose = { close(HistoryRoute) }, pane = wide)
                     }
                 }
                 entry<ModelsRoute>(
                     metadata = ListDetailSceneStrategy.listPane(detailPlaceholder = { EmptyDetail() }) +
                         ListDetailSceneStrategy.preferredPaneSize(Layout.modelsListPane),
                 ) {
+                    // WIRING SLOT (WP-18): the Speech / Cleanup segment of a DeepLink.Models (OpenTarget.Models.kind) is not
+                    // passed yet; ModelsScreen has no parameter for it on this base.
                     ListPane { ModelsScreen(deps.models, onOpenModel = { replace(ShellNav.openModel(it.value)) }, selected = if (wide) selectedModel else null) }
                 }
                 entry<ModelDetailRoute>(metadata = ListDetailSceneStrategy.detailPane() + mapOf(DETAIL to true)) { r ->
                     DetailPane("detail-model-${r.id}", wide) {
-                        ModelDetail(deps.models, ModelId(r.id), onBack = if (wide) null else { { replace(ShellNav.back(backStack.toList()) ?: listOf(ModelsRoute)) } })
+                        // WIRING SLOT (WP-18): ModelDetail follows WP-16's detail convention (onClose, pane).
+                        ModelDetail(deps.models, ModelId(r.id), onClose = { close(ModelsRoute) }, pane = wide)
                     }
                 }
+                // WIRING SLOT (WP-19): Settings lays out its own panes on the inner display (260 dp list).
                 entry<SettingsRoute> { SettingsScreen(deps.settings) }
+                entry<PracticeRoute>(metadata = mapOf(DETAIL to true)) {
+                    PracticeScreen(deps.practice, onClose = { close(ShellNav.tabOf(backStack.toList())) }, Modifier.testTag("shell-practice"))
+                }
             },
         )
     }
@@ -191,8 +210,8 @@ fun AppShell(deps: ShellDeps, links: StateFlow<DeepLink?>, onLinkHandled: () -> 
     } else {
         Column(Modifier.fillMaxSize().background(c.bg).testTag("shell")) {
             content(Modifier.weight(1f).windowInsetsPadding(insets.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)))
-            // The bar pads itself by the gesture inset (72 dp + inset, DESIGN 4).
-            MurmurNavigationBar(items, ShellNav.indexOf(tab), select, Modifier.testTag("nav-bar"))
+            // The bar pads itself by the gesture inset (72 dp + inset, DESIGN 4). A pushed screen covers it (hist-detail).
+            if (!ShellNav.isPushed(backStack.toList())) MurmurNavigationBar(items, ShellNav.indexOf(tab), select, Modifier.testTag("nav-bar"))
         }
     }
 }

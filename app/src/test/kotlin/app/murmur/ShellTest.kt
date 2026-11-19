@@ -5,7 +5,7 @@ import app.murmur.core.model.EntryId
 import app.murmur.core.model.ModelKind
 import app.murmur.shell.DeepLink
 import app.murmur.shell.ShellNav
-import app.murmur.wiring.AndroidPermissionMonitor
+import app.murmur.platform.a11y.EnabledServices
 import app.murmur.wiring.StatusNotificationController
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -43,6 +43,25 @@ class ShellTest {
     }
 
     @Test
+    fun tryADictationPushesThePracticeOverTheCurrentTabOnce() {
+        val fromDashboard = ShellNav.openPractice(listOf(DashboardRoute))
+        assertEquals(listOf(DashboardRoute, PracticeRoute), fromDashboard)
+        assertEquals(DashboardRoute, ShellNav.tabOf(fromDashboard))
+        assertEquals("a second tap does not stack it", fromDashboard, ShellNav.openPractice(fromDashboard))
+        assertEquals(listOf(HistoryRoute, PracticeRoute), ShellNav.openPractice(emptyList()))
+        assertEquals("Back returns to where it was opened", listOf(DashboardRoute), ShellNav.back(fromDashboard))
+    }
+
+    @Test
+    fun pushedScreensCoverTheBottomBar() {
+        assertFalse(ShellNav.isPushed(listOf(HistoryRoute)))
+        assertFalse(ShellNav.isPushed(listOf(SettingsRoute)))
+        assertTrue(ShellNav.isPushed(ShellNav.openEntry(EntryId(1))))
+        assertTrue(ShellNav.isPushed(ShellNav.openModel("m")))
+        assertTrue(ShellNav.isPushed(ShellNav.openPractice(listOf(HistoryRoute))))
+    }
+
+    @Test
     fun deepLinksFromTheBubbleRoundTripThroughIntentExtras() {
         assertEquals(DeepLink.Entry(EntryId(42)), DeepLink.parse(DeepLink.OPEN_ENTRY, 42, null))
         assertEquals(DeepLink.Models(null), DeepLink.parse(DeepLink.OPEN_MODELS, null, null))
@@ -69,13 +88,13 @@ class ShellTest {
     }
 
     @Test
-    fun enabledAccessibilityServicesAreParsedInBothForms() {
+    fun theServiceComponentMatchesBothSettingForms() {
         val pkg = "app.murmur"
         val cls = "app.murmur.platform.a11y.MurmurAccessibilityService"
-        assertTrue(AndroidPermissionMonitor.enabledIn("$pkg/$cls", pkg, cls))
-        assertTrue(AndroidPermissionMonitor.enabledIn("com.other/.Svc:$pkg/.platform.a11y.MurmurAccessibilityService", pkg, cls))
-        assertFalse(AndroidPermissionMonitor.enabledIn("com.other/.Svc", pkg, cls))
-        assertFalse(AndroidPermissionMonitor.enabledIn("", pkg, cls))
-        assertFalse("another package's class of the same name", AndroidPermissionMonitor.enabledIn("app.murmurx/$cls", pkg, cls))
+        assertTrue(EnabledServices.contains("$pkg/$cls", pkg, cls))
+        assertTrue(EnabledServices.contains("com.other/.Svc:$pkg/.platform.a11y.MurmurAccessibilityService", pkg, cls))
+        assertFalse(EnabledServices.contains("com.other/.Svc", pkg, cls))
+        assertFalse(EnabledServices.contains("", pkg, cls))
+        assertFalse("another package's class of the same name", EnabledServices.contains("app.murmurx/$cls", pkg, cls))
     }
 }

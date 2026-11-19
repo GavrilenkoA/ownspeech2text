@@ -19,6 +19,7 @@ import app.murmur.core.dictation.Feedback
 import app.murmur.core.dictation.HapticKind
 import app.murmur.core.dictation.MemoryGate
 import app.murmur.core.dictation.ModelResolver
+import app.murmur.core.dictation.PermissionMonitor
 import app.murmur.core.dictation.SystemConditions
 import app.murmur.core.engine.Engines
 import app.murmur.core.model.MurmurClock
@@ -54,6 +55,7 @@ import app.murmur.feature.onboarding.OnboardingDeps
 import app.murmur.feature.settings.SettingsDeps
 import app.murmur.infer.api.BinderEngines
 import app.murmur.platform.a11y.A11yBridge
+import app.murmur.platform.a11y.A11yStatus
 import app.murmur.platform.a11y.BridgedInserter
 import app.murmur.platform.a11y.BridgedTargetReader
 import app.murmur.platform.audio.AndroidAudioCapture
@@ -118,11 +120,16 @@ class AppContainer(private val context: Context) {
     /** The only owner of the probe (WP-13, ARCHITECTURE 8.4); never throws (CPU-only profile on failure). */
     val deviceProfile: DeviceProfileRepository by lazy { fake?.device ?: DefaultDeviceProfileRepository(context, engines.asrHost, engines.llmHost) }
     val unitHealth: UnitHealthRepository by lazy { fake?.unitHealth ?: FileUnitHealthRepository(ModelsModule.storage(context), ModelsModule.appVersion(context)) }
-    private val resolver: ModelResolver by lazy {
-        fake?.resolver ?: DefaultModelResolver(catalog, installed, deviceProfile, unitHealth, benchmarks) { ModelsModule.storage(context).dir(it).path }
-    }
+    /** The production resolver; kept as its own type for the benchmark runner's specs (ADR-080, `resolver.benchSpecs`). */
+    private val resolver by lazy { DefaultModelResolver(catalog, installed, deviceProfile, unitHealth, benchmarks) { ModelsModule.storage(context).dir(it).path } }
+    /** What the orchestrator and the status notification resolve with: the debug fake container's resolver, else [resolver]. */
+    private val models: ModelResolver by lazy { fake?.resolver ?: resolver }
     private val customModels: CustomModelResolver by lazy { HfCustomModelResolver() }
-    /** WP-14 is not wired yet: debug builds run the :testing runner, release builds report that the runner is missing. */
+    /**
+     * WIRING SLOT (WP-14, ADR-080): main wires `DefaultBenchmarkRunner(engines, specs = resolver.benchSpecs, ...)` here;
+     * at the merge that runner replaces [RunnerNotWired], and the :testing runner stays for the debug fake container
+     * only (`replacements.benchmarkRunner` when [fakeContainer]). This branch's base has no WP-14 runner yet.
+     */
     val benchmarkRunner: BenchmarkRunner by lazy { replacements.benchmarkRunner?.invoke(benchmarks, unitHealth) ?: RunnerNotWired }
 
     // --- prompt (WP-04)
@@ -131,7 +138,8 @@ class AppContainer(private val context: Context) {
     val guard: OutputGuard by lazy { replacements.guard ?: GuardPyPort() }
 
     // --- platform ports implemented here (WP-15)
-    val permissions: AndroidPermissionMonitor by lazy { AndroidPermissionMonitor(context, serviceConnected, appScope) }
+    /** The one permission monitor (A11yStatus-based); MurmurApp and MainActivity refresh it (see its KDoc). */
+    val permissions: PermissionMonitor by lazy { AndroidPermissionMonitor(context) }
     val apps: AppInfoProvider by lazy { PackageAppInfoProvider(context) }
     private val navigator: AppNavigator by lazy { IntentAppNavigator(context) }
     private val statusNotifier by lazy { AndroidStatusNotifier(context) }
@@ -165,7 +173,7 @@ class AppContainer(private val context: Context) {
     val orchestrator: DictationOrchestrator by lazy {
         DictationOrchestrator(
             DictationDeps(
-                clock = clock, settings = settings, models = resolver, engines = engines,
+                clock = clock, settings = settings, models = models, engines = engines,
                 audio = audioCapture, target = BridgedTargetReader(), inserter = BridgedInserter(),
                 context = DefaultContextAssembler(), renderer = renderer, guard = guard, prompts = prompts,
                 history = history, metrics = metrics, audioStore = audioStore, feedback = feedback, memory = memory,
@@ -181,6 +189,7 @@ class AppContainer(private val context: Context) {
         HistoryDeps(
             history = history, settings = settings, audio = audioStore, clock = clock,
             retry = { orchestrator.retry(it) }, repolish = { orchestrator.repolish(it) }, apps = apps,
+            modelName = { id -> catalog.catalog.value.model(id)?.displayName },
         )
     }
     val dashboardDeps: DashboardDeps by lazy {
@@ -206,10 +215,10 @@ class AppContainer(private val context: Context) {
             permissions = permissions, device = deviceProfile,
             practice = { orchestrator.startInApp(it) },
             bubble = orchestrator.bubble, levels = orchestrator.levels, bubbleInput = { orchestrator.onInput(it) },
-            clock = clock, accessibilitySettingsOpened = permissions::noteAccessibilitySettingsOpened,
+            clock = clock, accessibilitySettingsOpened = { A11yStatus.get(context).onSentToAccessibilitySettings() },
         )
     }
-    val shellDeps: ShellDeps by lazy { ShellDeps(dashboardDeps, historyDeps, modelsDeps, settingsDeps) }
+    val shellDeps: ShellDeps by lazy { ShellDeps(dashboardDeps, historyDeps, modelsDeps, settingsDeps, practice = onboardingDeps) }
 
     /**
      * Called once from MurmurApp.onCreate in :main: retention (start-up run, midnight job, shortening watcher, ADR-072)
@@ -217,7 +226,7 @@ class AppContainer(private val context: Context) {
      */
     fun start() {
         if (fake == null) retentionScheduler.start()
-        StatusNotificationController(statusNotifier, serviceConnected, permissions, settings, installed, resolver, catalog).start(appScope)
+        StatusNotificationController(statusNotifier, serviceConnected, permissions, settings, installed, models, catalog).start(appScope)
     }
 
     /** Release builds before WP-14 is wired (WP-20, wave 3): the hub shows the runner as unavailable. */

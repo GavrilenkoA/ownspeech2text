@@ -67,7 +67,8 @@ internal val CHECKLIST = listOf(
  * The onboarding frame (prototype obFrame). Cover (compact width): one column, 24 dp gutters, the dots and "n of 5" at
  * the top (not on the welcome screen), the content scrolling, the call to action pinned to the bottom (thumb zone).
  * Inner (medium+): a 300 dp surface panel with the whole checklist and a centred content column of at most 470 dp.
- * [dotIndex] = -1 for the welcome screen (no progress shown, every checklist entry pending).
+ * [dotIndex] = -1 for the welcome screen (no progress shown, every checklist entry pending). [chrome] false = without
+ * the dots and the checklist (the practice screen opened from the app after onboarding).
  */
 @Composable
 internal fun ObFrame(
@@ -75,6 +76,7 @@ internal fun ObFrame(
     dotIndex: Int,
     testTag: String,
     foot: @Composable ColumnScope.() -> Unit,
+    chrome: Boolean = true,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val c = MurmurTheme.colors
@@ -87,7 +89,7 @@ internal fun ObFrame(
                 .padding(start = 24.dp, end = 24.dp, top = 8.dp, bottom = 16.dp)
                 .testTag(testTag),
         ) {
-            if (dotIndex >= 0) DotsRow(dotIndex)
+            if (chrome && dotIndex >= 0) DotsRow(dotIndex)
             Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()), content = content)
             Column(Modifier.fillMaxWidth().padding(top = 16.dp), verticalArrangement = Arrangement.spacedBy(4.dp), content = foot)
         }
@@ -99,7 +101,7 @@ internal fun ObFrame(
                 .windowInsetsPadding(WindowInsets.safeDrawing)
                 .testTag(testTag),
         ) {
-            Checklist(dotIndex)
+            if (chrome) Checklist(dotIndex)
             Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.TopCenter) {
                 Column(
                     Modifier

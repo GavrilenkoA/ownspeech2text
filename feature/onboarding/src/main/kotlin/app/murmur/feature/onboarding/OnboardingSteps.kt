@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
@@ -558,13 +559,14 @@ private fun Paused(wide: Boolean, m: ModelsUi, a: ObActions) {
 // ------------------------------------------------------------------ 6 practice
 
 @Composable
-private fun Ready(
+internal fun Ready(
     wide: Boolean,
     bubble: DictationBubble,
     levels: FloatArray,
     clock: MurmurClock,
     result: PracticeResult?,
     a: ObActions,
+    chrome: Boolean = true,
 ) {
     val c = MurmurTheme.colors
     val t = MurmurTheme.type
@@ -575,11 +577,12 @@ private fun Ready(
     val start = {
         a.startPractice(PracticeTarget(ctx.packageName, label, clock, read = { field.value }, write = { field.value = it }))
     }
-    ObFrame(wide, dotIndex = 5, testTag = "ob-ready", foot = {
+    ObFrame(wide, dotIndex = 5, testTag = if (chrome) "ob-ready" else "practice", chrome = chrome, foot = {
         PrimaryCta(stringResource(R.string.ob_ready_cta), a.done, "ob-cta")
         Fine(stringResource(R.string.ob_ready_fine))
     }) {
-        Kicker(stringResource(R.string.ob_ready_kicker), top = 20.dp)
+        // Onboarding: the "All set" kicker over the title. The practice screen keeps the same title position.
+        if (chrome) Kicker(stringResource(R.string.ob_ready_kicker), top = 20.dp) else Spacer(Modifier.height(20.dp))
         ObTitle(stringResource(R.string.ob_ready_title))
         Lead(stringResource(R.string.ob_ready_lead))
         val fieldCd = stringResource(R.string.ob_ready_field_cd)

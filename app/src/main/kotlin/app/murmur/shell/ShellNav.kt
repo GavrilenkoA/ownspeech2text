@@ -8,6 +8,7 @@ import app.murmur.HistoryRoute
 import app.murmur.MainActivity
 import app.murmur.ModelDetailRoute
 import app.murmur.ModelsRoute
+import app.murmur.PracticeRoute
 import app.murmur.SettingsRoute
 import app.murmur.TABS
 import app.murmur.TopRoute
@@ -32,6 +33,12 @@ object ShellNav {
     fun openEntry(id: EntryId): List<NavKey> = listOf(HistoryRoute, HistoryEntryRoute(id.value))
 
     fun openModel(id: String): List<NavKey> = listOf(ModelsRoute, ModelDetailRoute(id))
+
+    /** "Try a dictation": the practice screen over the current stack (once); Back returns to where it was opened. */
+    fun openPractice(stack: List<NavKey>): List<NavKey> = stack.ifEmpty { listOf(HistoryRoute) }.filter { it != PracticeRoute } + PracticeRoute
+
+    /** A pushed screen is on top (detail or practice): on the cover display it covers the bottom bar (hist-detail). */
+    fun isPushed(stack: List<NavKey>): Boolean = stack.size > 1
 
     /**
      * System Back: close the detail; from another tab's root go to History (the start destination, DESIGN decision 4);

@@ -7,6 +7,7 @@ import app.murmur.core.store.SettingsRepository
 import app.murmur.data.models.ModelDownloads
 import app.murmur.data.models.ModelJobHost
 import app.murmur.platform.a11y.A11yServiceHost
+import app.murmur.platform.a11y.NotificationStart
 import app.murmur.platform.audio.StatusAction
 import app.murmur.platform.audio.StatusActionHandler
 import kotlinx.coroutines.launch
@@ -32,6 +33,7 @@ class MurmurApp : Application(), A11yServiceHost, ModelJobHost, StatusActionHand
     override val modelDownloads: ModelDownloads get() = main().modelDownloads
     override fun onServiceState(connected: Boolean) {
         main().serviceConnected.value = connected
+        main().permissions.refresh()
         // ExternalStop(A11Y_OFF) for a running dictation (ARCHITECTURE 4.4); a no-op when Idle.
         if (!connected) runCatching { main().orchestrator.onAccessibilityLost() }
     }
@@ -42,7 +44,8 @@ class MurmurApp : Application(), A11yServiceHost, ModelJobHost, StatusActionHand
         when (action) {
             is StatusAction.Hide -> c.appScope.launch { c.settings.update { it.copy(hiddenUntilEpochMs = action.untilEpochMs) } }
             StatusAction.ShowNow -> c.appScope.launch { c.settings.update { it.copy(hiddenUntilEpochMs = null) } }
-            StatusAction.StartDictation -> c.orchestrator.onInput(UserInput.NotificationStart)
+            // Closes the shade and posts UserInput.NotificationStart (WP-02, ADR-079); never posted from here directly.
+            StatusAction.StartDictation -> NotificationStart.start(this)
             // "Stop" on the microphone notification = a tap on the Listening pill (finish).
             StatusAction.StopDictation -> c.orchestrator.onInput(UserInput.Tap)
         }

@@ -147,6 +147,11 @@ class OnboardingController(private val deps: OnboardingDeps, private val scope: 
         }
     }
 
+    /** Forgets the last practice result (the practice screen was left). */
+    fun clearPractice() {
+        _practice.value = null
+    }
+
     fun startPractice(target: InAppTarget) {
         _practice.value = null
         deps.practice(target)

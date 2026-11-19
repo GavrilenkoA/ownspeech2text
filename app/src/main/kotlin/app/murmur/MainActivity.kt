@@ -13,6 +13,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import app.murmur.feature.onboarding.OnboardingScreen
+import app.murmur.platform.a11y.A11yStatus
 import app.murmur.shell.DeepLink
 import app.murmur.ui.design.MurmurTheme
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -35,6 +36,16 @@ class MainActivity : ComponentActivity() {
                 Root(container)
             }
         }
+    }
+
+    /**
+     * Every return to the app: a trip to the accessibility settings ends here (A11yStatus, ADR-054; it survives process
+     * death), then the permission reading is refreshed before any screen's own resume effect reads it.
+     */
+    override fun onResume() {
+        super.onResume()
+        A11yStatus.get(this).onReturnedToApp()
+        (application as MurmurApp).container?.permissions?.refresh()
     }
 
     override fun onNewIntent(intent: Intent) {
