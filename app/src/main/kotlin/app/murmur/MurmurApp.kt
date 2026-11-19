@@ -28,6 +28,7 @@ class MurmurApp : Application(), A11yServiceHost, ModelJobHost {
     override val modelDownloads: ModelDownloads get() = main().modelDownloads
     override fun onServiceState(connected: Boolean) {
         main().serviceConnected.value = connected
+        main().permissions.refresh()
         // ExternalStop(A11Y_OFF) for a running dictation (ARCHITECTURE 4.4); a no-op when Idle. WP-11 implements.
         if (!connected) runCatching { main().orchestrator.onAccessibilityLost() }
     }

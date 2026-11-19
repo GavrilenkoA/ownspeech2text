@@ -123,11 +123,18 @@ class AppContainer(private val context: Context) {
         override fun sound(kind: HapticKind) {}
     }
 
-    /** WP-15: Intent to MainActivity with the shell's deep-link extras (open History entry / Models). */
-    private val navigator = AppNavigator { _: OpenTarget -> TODO("WP-15") }
+    /**
+     * Opens the app (launcher activity, new task). WP-15 adds the shell's deep-link extras (History entry / Models);
+     * until then every target opens the start screen instead of crashing a result-pill tap.
+     */
+    private val navigator = AppNavigator { _: OpenTarget ->
+        context.packageManager.getLaunchIntentForPackage(context.packageName)
+            ?.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            ?.let { runCatching { context.startActivity(it) } }
+    }
 
-    /** WP-15: PermissionMonitor over PackageManager / NotificationManager / PowerManager / Settings.Secure + RestrictedSettingsProbe. */
-    private val permissions: PermissionMonitor by lazy { TODO("WP-15") }
+    /** Microphone / notifications / accessibility (A11yStatus) / battery; MurmurApp refreshes it on service state changes. */
+    val permissions: PermissionMonitor by lazy { AndroidPermissionMonitor(context) }
 
     /** Preflight row 6: free storage (filesDir volume) and thermal status. */
     private val system = object : SystemConditions {
