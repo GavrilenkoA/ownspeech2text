@@ -70,7 +70,9 @@ object A11yTestSupport {
 
     fun launchOtherApp() {
         staleWindows = appWindowIds()
-        val out = shell("am start -W -n $OTHER_APP/.TargetActivity")
+        // -S: a fresh window each time; a TargetActivity left from an earlier run would come back with a window id
+        // that is already in staleWindows.
+        val out = shell("am start -S -W -n $OTHER_APP/.TargetActivity")
         if (!out.contains("Status: ok")) fail("$OTHER_APP is not installed (platform/a11y/tools/run_emulator_tests.sh installs it): $out")
     }
 
