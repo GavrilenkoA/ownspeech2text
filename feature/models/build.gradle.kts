@@ -15,3 +15,9 @@ dependencies {
     testImplementation(project(":testing"))
     androidTestImplementation(project(":testing"))
 }
+
+tasks.withType<Test>().configureEach {
+    // NoModelLiteralsTest scans the module's own main sources (D3: no model-specific code).
+    systemProperty("murmur.modelsSrc", projectDir.resolve("src/main").absolutePath)
+    inputs.dir(projectDir.resolve("src/main")).withPathSensitivity(PathSensitivity.RELATIVE).withPropertyName("modelsSrc")
+}
