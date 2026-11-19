@@ -53,13 +53,17 @@ class OrtOcrModels(
 
     init {
         try {
+            val detQnn = det.runtime == RuntimeKeys.ORT_QNN_PPOCR_DET
+            val recQnn = rec.runtime == RuntimeKeys.ORT_QNN_PPOCR_REC
+            // no QNN EP in this process: say so before any file is read (UnitUnavailable(NPU), not a missing file)
+            val ep = if (detQnn || recQnn) stage(if (detQnn) ModelKind.OCR_DET else ModelKind.OCR_REC) { qnn().requireAvailable() } else null
             dictionary = stage(ModelKind.OCR_REC) { OcrDictionary.fromInferenceYml(file(rec, ROLE_DICT).readText()) }
             detector = stage(ModelKind.OCR_DET) {
-                if (det.runtime == RuntimeKeys.ORT_QNN_PPOCR_DET) QnnDetector.open(det, qnn()) else CpuStage(session(det, options))
+                if (detQnn) QnnDetector.open(det, ep!!) else CpuStage(session(det, options))
             }
             try {
                 recognizer = stage(ModelKind.OCR_REC) {
-                    if (rec.runtime == RuntimeKeys.ORT_QNN_PPOCR_REC) QnnRecognizer.open(rec, qnn(), config.recBuckets, config.recHeight)
+                    if (recQnn) QnnRecognizer.open(rec, ep!!, config.recBuckets, config.recHeight)
                     else CpuStage(session(rec, options))
                 }
                 classes = recognizer.classes
