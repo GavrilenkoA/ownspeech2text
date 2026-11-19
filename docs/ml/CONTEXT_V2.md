@@ -40,6 +40,22 @@ accessibility API. Nothing else describes the screen.
   Both cases must exist in training and eval data.
 - `app` and `field` come from accessibility and are exact. Everything in `screen` is noisy.
 
+### Privacy level without a screen
+
+When `screen` is absent, `privacy.reason` says why and the phone sends the level that
+`prompts/render.py` `NO_SCREEN_LEVEL` gives for that reason (ADR-070, ADR-085). The Kotlin port is
+`PrivacyReason.noScreenLevel` in `core/context` (`CtxV2.kt`); `CtxV2JsonTest.noScreenLevelMatchesRenderPy`
+reads the Python table and fails when the two differ.
+
+| `privacy.reason` | `privacy.level` | Notes |
+|---|---|---|
+| `secure_window` | `app_only` | FLAG_SECURE window: no screenshot possible |
+| `denylisted_app` | `app_only` | the user's or the built-in app denylist |
+| `screenshot_error` | `full` | capture failed; nothing on screen was withheld on purpose |
+| `ocr_empty` | `full` | OCR found no usable line |
+| `password_field` | `none` | the LLM is never run (ADR-070 `skipLlm`), so such a ctx is never rendered and appears in no eval or training example |
+| `user_setting` | `app_only` | screen context switched off in Settings (the only "off" the settings offer); documented here and in `context.schema.v2.json`, not in `NO_SCREEN_LEVEL` itself |
+
 ## Shared modules (Python reference = the spec the Android code is ported from)
 
 | Path | Owner | Interface |

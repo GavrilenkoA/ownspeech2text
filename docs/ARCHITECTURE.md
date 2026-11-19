@@ -28,9 +28,11 @@ to be replaced by a measurement).
 5. **Default models:** ASR Parakeet TDT 0.6B v3 (NPU context binary on SM8750, CPU int8 elsewhere and as
    fallback); cleanup LFM3 1.7B Q4_0 (NPU by default) per the catalog, Qwen3.5 0.8B preferred on CPU. Final unit
    per model from the on-phone benchmark. ADR-014, ADR-029.
-6. **The context window fits the shipped prompt (ADR-045).** The default.v4 prefix is 3,116-3,256 tokens (VERIFIED
-   with `llama-tokenize` on the real GGUFs, re-measured by WP-10's `tokenizer_check.py`, ADR-083), so every LLM gets `nCtx = roundUp(prefixTokens + 5,200, 1,024)` (stock
-   9,216, fine-tunes 6,144): room for a 5-minute dictation with its screen context and output. A pure
+6. **The context window fits the shipped prompt (ADR-045).** The stock profile is default.v1 plus the guard (ADR-085,
+   docs/ml/PROMPT_EVAL.md section R): its prefix is 1,047-1,101 tokens (default.v4, still selectable: 3,116-3,256;
+   VERIFIED with `llama-tokenize` on the real GGUFs by WP-10's `tokenizer_check.py`, ADR-083), so every LLM gets
+   `nCtx = roundUp(prefixTokens + 5,200, 1,024)` (stock 7,168 since catalog 2026-11-20.2, default.v4 9,216, fine-tunes
+   6,144): room for a 5-minute dictation with its screen context and output. A pure
    `CleanupBudget` decides before every call whether the request fits and finishes in time; otherwise the raw
    transcript is inserted ("Inserted, no cleanup", `skipped:too_long`).
 7. **Load failures fall back without a download (ADR-050).** The resolver hands the executor a primary and a
@@ -78,7 +80,7 @@ to be replaced by a measurement).
           binder ────┼───────────────────────────────┬─────────────────────────────────────────────────────────
                      ▼                               ▼
    :asr  AsrService: sherpa-onnx (QNN | CPU),     :llm  LlmService: llama.cpp + ggml-hexagon (NPU | GPU | CPU)
-         Silero VAD + Segmenter, OcrHandler         prefix snapshot cache (n_ctx 9,216), greedy decode
+         Silero VAD + Segmenter, OcrHandler         prefix snapshot cache (n_ctx 7,168), greedy decode
          ◀── PCM pipe, SharedMemory frame          ◀── prefix + suffix text, ──▶ streamed pieces
 ```
 
@@ -416,8 +418,9 @@ t+10..90  RecordingFgs started; AudioRecord.startRecording        (platform spik
 t+70..210 first buffer → MicStarted; PreflightPassed → Listening (PCM buffered in :main + pipe)
 [t+0..0.3 s] bind :asr + :llm (process start) [I]
 [t+0.3..1.3 s] :asr loads Parakeet QNN context (+VAD, OCR)        (0.5-1.2 s SM8850 sherpa log [I])
-[t+0.3..3 s] :llm loads LFM3 Q4_0 (n_ctx 9,216) into rpcmem + restores the prefix snapshot from disk
-             (snapshot 43.0 MB LFM3 / 58.6 MB Qwen3.5 0.8B, mapped restore median 11-50 ms on the x86 emulator, VERIFIED
+[t+0.3..3 s] :llm loads LFM3 Q4_0 (n_ctx 7,168) into rpcmem + restores the prefix snapshot from disk
+             (snapshot 43.0 MB LFM3 / 58.6 MB Qwen3.5 0.8B measured with the default.v4 prefix; default.v1's is a third
+             as long, so the KV part shrinks accordingly; mapped restore median 11-50 ms on the x86 emulator, VERIFIED
              WP-10, ADR-083; phone < 100 ms UNVERIFIED-ON-DEVICE, DC2/DC8; load UNVERIFIED-ON-DEVICE)
 [t+0.6 s] window screenshot (6-70 ms call + copy), SharedMemory → :asr OCR (det 960 + ~20 lines) [I] 0.4-1 s
 [ongoing] each VAD pause closes a segment → decoded (NPU) → Committed
@@ -427,7 +430,7 @@ stop tap → Finishing: tail decode → Transcript → precheck → (wait ≤ 80
 
 ### 6.2 After-stop budget, 10 s dictation, warm (≈ 25 Russian words; 34 tokens Qwen3.5, 46 tokens LFM3; llm-models 6)
 
-The prefix (3,116-3,226 tokens) is never prefilled here: it is restored from the snapshot built at Preparing.
+The prefix (1,047-1,072 tokens with the stock default.v1; 3,116-3,226 with default.v4) is never prefilled here: it is restored from the snapshot built at Preparing.
 
 | Step | NPU path (Parakeet NPU + LFM3 NPU) | CPU path (Parakeet CPU + Qwen3.5 0.8B CPU) | Source |
 |---|---|---|---|
@@ -440,7 +443,8 @@ The prefix (3,116-3,226 tokens) is never prefilled here: it is restored from the
 
 ### 6.3 After-stop budget, 60 s dictation, warm (≈ 150 words; 204 tokens Qwen3.5, 278 tokens LFM3)
 
-Context check (ADR-045): LFM3 prefix 3,226 + suffix ≈ 790 + output ≤ 1.5 × 278 + 64 = 481 → 4,497 tokens ≤ n_ctx 9,216.
+Context check (ADR-045): LFM3 default.v1 prefix 1,072 + suffix ≈ 790 + output ≤ 1.5 × 278 + 64 = 481 → 2,343 tokens ≤
+n_ctx 7,168 (default.v4: 3,226 + 790 + 481 = 4,497 ≤ 9,216).
 With the old n_ctx 4,096 this case could not run (review blocker, VERIFIED by token count).
 
 | Step | NPU path | CPU path (Qwen3.5 0.8B) |
@@ -457,7 +461,7 @@ With the old n_ctx 4,096 this case could not run (review blocker, VERIFIED by to
 |---|---|---|
 | A. 3 s dictation, first after > 60 s idle, NPU path | LLM load (1.05 GB copied into rpcmem, mmap off; UNVERIFIED-ON-DEVICE, estimate 1-3 s) + snapshot load from disk started at the press; after stop = max(0, load_end − stop) + 10 s budget rows | 1.3-1.6 s + 0-0.3 s wait |
 | B. same on the CPU path (Qwen3.5, `use_mmap=0`, 0.5 GB read + repack) | load ≈ 0.5-1.5 s, finished before the stop | ≈ 1.2-1.6 s |
-| C. first dictation after a prompt / preferences edit or a unit change, before the background re-prepare finished | full prefix prefill: LFM3 NPU 3,226 / 2,597 = 1.24 s; LFM3 CPU 3,226 / 368 = 8.8 s; Qwen3.5 CPU 3,116 / 569 = 5.5 s (AI Hub S25) | + max(0, prefill_end − stop); > 10 s → "Inserted, no cleanup" (`skipped:llm_not_ready`) |
+| C. first dictation after a prompt / preferences edit or a unit change, before the background re-prepare finished | full prefix prefill (stock default.v1): LFM3 NPU 1,072 / 2,597 = 0.41 s; LFM3 CPU 1,072 / 368 = 2.9 s; Qwen3.5 CPU 1,047 / 569 = 1.8 s (AI Hub S25; default.v4 was 1.24 / 8.8 / 5.5 s) | + max(0, prefill_end − stop); > 10 s → "Inserted, no cleanup" (`skipped:llm_not_ready`) |
 | D. NPU load fails (first time on this phone, if install-time Preparing did not catch it) | fallback to GPU/CPU of the same GGUF (no download). When the failure is a death of the process, the executor first reads its exit record (ADR-083, ADR-084): on a device that reports lmkd kills (`isLowMemoryKillReportSupported`) it polls up to 2 s for the record, so a late or missing record delays the fallback by up to 2 s; without that support it reads once and does not wait | + one CPU load (≈ 1-2 s [I]); after a death + up to 2 s for the exit record (UNVERIFIED-ON-DEVICE: DC measures when the record arrives, then the wait is shortened) |
 
 Preparing (8.5) makes C rare: it rebuilds the snapshot within ≈ 5 s of the edit while no dictation runs. DC8
@@ -494,10 +498,10 @@ shipped template (WP-10 host test). Every number in section 6 is UNVERIFIED-ON-D
 | `:main` dictating | + 17 MB frame + 17 MB SharedMemory copy (freed after OCR) + ≤ 10 MB PCM buffer + encoder ≈ 170 MB | computed |
 | `:asr` Parakeet NPU + VAD + OCR | ≈ 0.6-1.0 GB (context binaries 653 MB on disk) + ORT arenas 60-140 MB [I] | catalog memoryMb 900 |
 | `:asr` Parakeet CPU int8 fallback | 1.3 GB | host peak RSS VERIFIED (asr-ocr 3) |
-| `:llm` LFM3 Q4_0 NPU | ≈ 1.1-1.2 GB rpcmem (weights copied, not mmapped) + 77 MiB compute + KV 9,216 × 12 KB = 108 MB + prefix snapshot in RAM ≈ 50 MB | llm spike 3.3, 5.4; KV formula VERIFIED (GGUF dims) |
-| `:llm` LFM3 CPU (`use_mmap=0`) | 1.25 GB at n_ctx 4,096 VERIFIED + 60 MB more KV = 1.31 GB; x86 emulator peak RSS with n_ctx 9,216 and the prefix built: 1.47 GB (WP-10) | catalog memoryMb 1,480 (catalog 2026-11-20.1: the emulator peak rounded up as a lower bound; re-check on the phone, DC2) |
+| `:llm` LFM3 Q4_0 NPU | ≈ 1.1-1.2 GB rpcmem (weights copied, not mmapped) + 77 MiB compute + KV 7,168 × 12 KB = 84 MB + prefix snapshot in RAM ≈ 50 MB | llm spike 3.3, 5.4; KV formula VERIFIED (GGUF dims) |
+| `:llm` LFM3 CPU (`use_mmap=0`) | 1.25 GB at n_ctx 4,096 VERIFIED + 60 MB more KV = 1.31 GB; x86 emulator peak RSS with n_ctx 9,216 and the prefix built: 1.47 GB (WP-10) | catalog memoryMb 1,480 (catalog 2026-11-20.1: the emulator peak rounded up as a lower bound, kept as the floor at n_ctx 7,168 by ADR-085; re-check on the phone, DC2) |
 | `:llm` Qwen3.5 0.8B CPU | 0.71 GB VERIFIED + 60 MB KV = 0.77 GB (+ ≈ 20 MB DeltaNet state in the snapshot); x86 emulator peak RSS 0.87 GB (WP-10) | catalog memoryMb 880 (same rule and caveat) |
-| `:llm` Qwen3 0.6B/1.7B (full attention, 112 KB/token) | + 1.0 GB KV at 9,216 | catalog memoryMb 1,760 (hedge models) |
+| `:llm` Qwen3 0.6B/1.7B (full attention, 112 KB/token) | + 0.77 GB KV at 7,168 | catalog memoryMb 1,536 (hedge models) |
 | **Peak total** | **≈ 2.5 GB (NPU+NPU) … 2.3 GB (Parakeet CPU + Qwen3.5 CPU) … 2.8 GB (Parakeet CPU + LFM3 CPU)** | sum |
 | Idle (after 60 s) | `:main` only, ≈ 100 MB | D5 |
 
@@ -597,8 +601,8 @@ small non-LFS files are hashed after download), detects the layout (`SherpaLayou
 Q4_0 preferred), reads the GGUF header with a Range request: `general.architecture` → template
 (`GgufTemplates`: qwen35 → qwen3.5, qwen3 → qwen3, lfm3 → lfm3, lfm2 → lfm2.5; anything else is rejected: render.py has
 no other template), prompt profile = `murmur.prompt_profile` key (requested from ML for `ml/train/export.py`), else
-`finetuned.v1` when `general.name` starts with `murmur-cleanup-`, else `default.v4`. nCtx = `GgufTemplates.nCtxFor`
-of the prefix tokens measured at Preparing (9,216 until then). The entry (origin `custom`) is stored in Room and
+`finetuned.v1` when `general.name` starts with `murmur-cleanup-`, else the stock profile (`GgufTemplates.STOCK_PROFILE`, default.v1 since ADR-085). nCtx =
+`GgufTemplates.nCtxFor` of the prefix tokens measured at Preparing (9,216 until then, enough for any stock profile). The entry (origin `custom`) is stored in Room and
 behaves like any catalog model, including Preparing and Benchmark.
 
 ### 8.7 Catalog refresh
