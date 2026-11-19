@@ -36,6 +36,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import app.murmur.ui.design.Motion
 import app.murmur.ui.design.MurmurIcons
@@ -255,7 +256,7 @@ fun MurmurSwitch(
         Box(
             Modifier
                 .padding(top = 6.dp)
-                .offset(x = thumbX + 2.dp)
+                .offset { IntOffset((thumbX + 2.dp).roundToPx(), 0) }
                 .size(20.dp)
                 .clip(MurmurShapes.full)
                 .background(thumb),

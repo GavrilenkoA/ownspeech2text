@@ -29,6 +29,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -456,7 +457,7 @@ private val samplePeaks = FloatArray(120) { i -> (abs(sin(i * 0.6) * cos(i * 0.1
 @Composable
 private fun PlayerSection() {
     var playing by remember { mutableStateOf(true) }
-    var pos by remember { mutableStateOf(4_000L) }
+    var pos by remember { mutableLongStateOf(4_000L) }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         AudioPlayer(samplePeaks, pos, 12_000L, playing, { playing = !playing }, { pos = it })
         AudioPlayer(samplePeaks, 0L, 12_000L, false, {}, {})
