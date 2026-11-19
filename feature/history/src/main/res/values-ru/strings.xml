@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="hist_title">История</string>
+    <string name="hist_search_cd">Поиск по истории</string>
+    <plurals name="hist_retention_line">
+        <item quantity="one">Диктовки хранятся на телефоне %d день, затем удаляются автоматически.</item>
+        <item quantity="few">Диктовки хранятся на телефоне %d дня, затем удаляются автоматически.</item>
+        <item quantity="many">Диктовки хранятся на телефоне %d дней, затем удаляются автоматически.</item>
+        <item quantity="other">Диктовки хранятся на телефоне %d дня, затем удаляются автоматически.</item>
+    </plurals>
+    <string name="hist_today">Сегодня</string>
+    <string name="hist_yesterday">Вчера</string>
+    <string name="hist_deletes_tonight">Удалится сегодня ночью</string>
+    <plurals name="hist_count">
+        <item quantity="one">%d диктовка</item>
+        <item quantity="few">%d диктовки</item>
+        <item quantity="many">%d диктовок</item>
+        <item quantity="other">%d диктовки</item>
+    </plurals>
+    <plurals name="hist_result_count">
+        <item quantity="one">%d результат</item>
+        <item quantity="few">%d результата</item>
+        <item quantity="many">%d результатов</item>
+        <item quantity="other">%d результата</item>
+    </plurals>
+    <plurals name="hist_search_caption">
+        <item quantity="one">%d результат · итоговый текст и оригинальные расшифровки</item>
+        <item quantity="few">%d результата · итоговый текст и оригинальные расшифровки</item>
+        <item quantity="many">%d результатов · итоговый текст и оригинальные расшифровки</item>
+        <item quantity="other">%d результата · итоговый текст и оригинальные расшифровки</item>
+    </plurals>
+    <plurals name="hist_search_hint">
+        <item quantity="one">Поиск по диктовкам за %d день</item>
+        <item quantity="few">Поиск по диктовкам за %d дня</item>
+        <item quantity="many">Поиск по диктовкам за %d дней</item>
+        <item quantity="other">Поиск по диктовкам за %d дня</item>
+    </plurals>
+    <plurals name="hist_search_empty">
+        <item quantity="one">За последний %d день ничего не найдено</item>
+        <item quantity="few">За последние %d дня ничего не найдено</item>
+        <item quantity="many">За последние %d дней ничего не найдено</item>
+        <item quantity="other">За последние %d дня ничего не найдено</item>
+    </plurals>
+    <string name="hist_search_empty_body">Поиск идёт по итоговому тексту и оригинальной расшифровке. Более старые диктовки уже удалены.</string>
+    <string name="hist_all_apps">Все приложения</string>
+    <string name="hist_match_original">В оригинале:</string>
+    <string name="hist_status_copied">Скопировано</string>
+    <string name="hist_status_failed">Ошибка</string>
+    <string name="hist_failed_nospeech">Речь не распознана. Запись сохранена, можно повторить.</string>
+    <string name="hist_failed_nospeech_noaudio">Речь не распознана.</string>
+    <string name="hist_failed_other">Не удалось завершить диктовку. Запись сохранена, можно повторить.</string>
+    <string name="hist_failed_other_noaudio">Не удалось завершить диктовку.</string>
+    <string name="hist_empty_title">Пока пусто</string>
+    <plurals name="hist_empty_body">
+        <item quantity="one">Нажмите на кнопку в любом приложении и говорите. Каждая диктовка появится здесь вместе с записью и будет храниться %d день.</item>
+        <item quantity="few">Нажмите на кнопку в любом приложении и говорите. Каждая диктовка появится здесь вместе с записью и будет храниться %d дня.</item>
+        <item quantity="many">Нажмите на кнопку в любом приложении и говорите. Каждая диктовка появится здесь вместе с записью и будет храниться %d дней.</item>
+        <item quantity="other">Нажмите на кнопку в любом приложении и говорите. Каждая диктовка появится здесь вместе с записью и будет храниться %d дня.</item>
+    </plurals>
+    <string name="hist_try_dictation">Попробовать диктовку</string>
+    <string name="hist_off_title">История выключена</string>
+    <string name="hist_off_body">Выбрано «Не хранить историю». Текст копируется и вставляется, на телефоне ничего не сохраняется.</string>
+    <string name="hist_error_title">Не удалось открыть историю</string>
+    <string name="hist_error_body">Сейчас не получилось прочитать диктовки.</string>
+    <string name="hist_retry">Повторить</string>
+    <plurals name="hist_selected">
+        <item quantity="one">Выбрано: %d</item>
+        <item quantity="few">Выбрано: %d</item>
+        <item quantity="many">Выбрано: %d</item>
+        <item quantity="other">Выбрано: %d</item>
+    </plurals>
+    <string name="hist_cancel_selection">Отменить выбор</string>
+    <string name="hist_select">Выбрать</string>
+    <string name="hist_selected_state">Выбрано</string>
+    <string name="hist_copy">Копировать</string>
+    <string name="hist_share">Поделиться</string>
+    <string name="hist_delete">Удалить</string>
+    <string name="hist_share_title">Поделиться диктовкой</string>
+    <string name="hist_seg_final">Итог</string>
+    <string name="hist_seg_original">Оригинал</string>
+    <string name="hist_seg_changes">Правки</string>
+    <string name="hist_diff_added">добавлено</string>
+    <string name="hist_diff_removed">удалено</string>
+    <string name="hist_diff_none">Без изменений</string>
+    <string name="hist_context">Использованный контекст</string>
+    <string name="hist_ctx_app">Приложение</string>
+    <string name="hist_ctx_app_chat">%1$s · чат с %2$s</string>
+    <string name="hist_ctx_screen">Текст с экрана</string>
+    <plurals name="hist_ctx_screen_words">
+        <item quantity="one">%d слово · не сохраняется</item>
+        <item quantity="few">%d слова · не сохраняется</item>
+        <item quantity="many">%d слов · не сохраняется</item>
+        <item quantity="other">%d слова · не сохраняется</item>
+    </plurals>
+    <string name="hist_ctx_screen_unused">Не использовался</string>
+    <string name="hist_ctx_tone">Тон</string>
+    <string name="hist_tone_casual">Разговорный</string>
+    <string name="hist_tone_neutral">Нейтральный</string>
+    <string name="hist_tone_formal">Деловой</string>
+    <string name="hist_tone_verbatim">Дословно</string>
+    <string name="hist_tone_default">По умолчанию</string>
+    <string name="hist_ctx_models">Модели</string>
+    <string name="hist_ctx_timing">Время</string>
+    <string name="hist_timing_two">%1$s + %2$s после остановки</string>
+    <string name="hist_timing_one">%1$s после остановки</string>
+    <string name="hist_seconds">%1$s с</string>
+    <string name="hist_deletes_on">Удалится вместе с записью %1$s</string>
+    <string name="hist_deletes_on_noaudio">Удалится %1$s</string>
+    <string name="hist_date_at_time">%1$s в %2$s</string>
+    <string name="hist_day_time">%1$s, %2$s</string>
+    <string name="hist_repolish">Править заново</string>
+    <string name="hist_try_again">Повторить</string>
+    <string name="hist_recording_unavailable">Запись недоступна</string>
+    <string name="hist_delete_title">Удалить диктовку?</string>
+    <plurals name="hist_delete_title_many">
+        <item quantity="one">Удалить %d диктовку?</item>
+        <item quantity="few">Удалить %d диктовки?</item>
+        <item quantity="many">Удалить %d диктовок?</item>
+        <item quantity="other">Удалить %d диктовки?</item>
+    </plurals>
+    <string name="hist_delete_body">Текст и запись удалятся с телефона. Текст, уже вставленный в %1$s, останется там.</string>
+    <string name="hist_delete_body_many">Тексты и записи удалятся с телефона. Текст, уже вставленный в другие приложения, останется там.</string>
+    <string name="hist_cancel">Отмена</string>
+    <string name="hist_deleted_snack">Диктовка удалена вместе с записью</string>
+    <plurals name="hist_deleted_snack_many">
+        <item quantity="one">Удалена %d диктовка вместе с записью</item>
+        <item quantity="few">Удалены %d диктовки вместе с записями</item>
+        <item quantity="many">Удалено %d диктовок вместе с записями</item>
+        <item quantity="other">Удалены %d диктовки вместе с записями</item>
+    </plurals>
+    <string name="hist_undo">Отменить</string>
+    <string name="hist_retry_nospeech">Не расслышал</string>
+    <string name="hist_retry_failed">Не удалось повторить. Запись не изменилась.</string>
+    <string name="hist_repolish_failed">Не удалось править заново. Текст не изменился.</string>
+    <string name="hist_repolish_no_model">Чтобы править заново, выберите модель правки в разделе «Модели».</string>
+</resources>
