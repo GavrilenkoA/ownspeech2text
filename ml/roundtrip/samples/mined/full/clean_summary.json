@@ -1,0 +1,20 @@
+{
+ "rows_in": 10605,
+ "rows_kept": 8878,
+ "excluded_by_rule": {
+  "R1_piper_ru": 1034,
+  "R2_tts_flag": 691,
+  "R4_loop": 2
+ },
+ "clips_kept": 968,
+ "rules": {
+  "LOOP_REPEATS": 4,
+  "CHAR_LOOP": 5,
+  "CLIP_BEST_WER": 0.5,
+  "MIN_CLIP_MODELS": 3,
+  "SKIP_RUN": 3,
+  "SKIP_SHARE": 0.667,
+  "keep_piper_ru": false,
+  "flags": 72
+ }
+}

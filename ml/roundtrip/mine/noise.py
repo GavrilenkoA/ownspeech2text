@@ -345,6 +345,13 @@ class NoiseModel:
                     v = " ".join(parts)
                 if lower:
                     v = v.lower()
+                if spell_digits and self._p(model, "digits", "hyp_digit_rate", default=1.0) == 0.0:
+                    # Latin kept, but a recogniser never seen writing a digit spells them here too
+                    # ("Gemini 2.5 Pro" -> "Gemini two point five Pro")
+                    sl = "en" if lang == "en" else "ru"
+                    v = re.sub(r"\d+(?:[.,]\d+)?" if sl == "en" else r"\d+",
+                               lambda mm: spell_numeric_token(mm.group(0), sl, "", variant=0) or mm.group(0), v)
+                    v = re.sub(r"\s+", " ", v).strip()
             else:
                 # how the term is said (probe lexicon reading, "JSON" -> "джейсон"), else a transliteration
                 readings = [r for r in lexicon_readings(term) if not re.search(r"[A-Za-z]", r)]
