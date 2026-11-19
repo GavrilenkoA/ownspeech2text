@@ -187,3 +187,5 @@ Merged on `integration/wave1` in this pass: main 392d313 (stock prompt default.v
   Orchestrator, AsrService and overlay hunks are already on integration in their final form (ADR-086): do not apply them.
 - When the only installed ASR (or LLM) is marked failed, the dictation ends `model.asr_missing`; the error copy should
   lead to the model hub, where "Try again" re-tests the unit (ADR-086 item 4, WP-18).
+- `app/src/debug/kotlin/app/murmur/DebugWiring.kt:118` (sample history entry with promptVersion "default.v4"): use
+  "default.v1" for entries that stand for new dictations (cosmetic; pass-5 verification F4).
