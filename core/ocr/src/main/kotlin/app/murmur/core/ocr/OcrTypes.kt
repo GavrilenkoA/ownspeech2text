@@ -12,8 +12,37 @@ data class OcrLine(val text: String, val conf: Double, val box: List<Int>) {
     init { require(box.size == 4) { "box must be [x0,y0,x1,y1]" } }
 }
 
+/**
+ * [stats] is the timing side channel of the pipeline (numbers only, D9): filled by [OcrPipeline.run], read by the
+ * benchmark (WP-14) from the `recognizeScreen` reply. It is not part of CONTEXT_V2 `screen`: ctx assembly uses
+ * [size] and [lines] only. Null (and absent from the JSON) when nothing was measured.
+ */
 @Serializable
-data class ScreenText(val size: List<Int>, val lines: List<OcrLine>)
+data class ScreenText(val size: List<Int>, val lines: List<OcrLine>, val stats: OcrStats? = null)
+
+/**
+ * Timings and counts of one [OcrPipeline.run]. [detMs] = detector pre-processing + inference + DB post-processing;
+ * [recMs] = crops + recogniser calls + CTC for [recLines] lines; [totalMs] includes the text post-processing.
+ */
+@Serializable
+data class OcrStats(
+    /** Detector input [w, h] after the resize rule (README section 2). */
+    val detInput: List<Int>,
+    val detMs: Double,
+    /** Boxes after DB post-processing, before exclusion rectangles. */
+    val boxes: Int,
+    /** Boxes dropped by exclusion rectangles. */
+    val excluded: Int,
+    /** Lines sent to the recogniser (= boxes - excluded). */
+    val recLines: Int,
+    val recMs: Double,
+    /** Recogniser calls (one per batch). */
+    val recCalls: Int,
+    val totalMs: Double,
+) {
+    /** Recogniser cost per line, 0 when nothing was recognised. */
+    val recMsPerLine: Double get() = if (recLines == 0) 0.0 else recMs / recLines
+}
 
 /** Axis-aligned rectangle in screenshot pixels, half-open [x0, x1) x [y0, y1). */
 @Serializable
@@ -39,4 +68,9 @@ class ScreenImage(
 
 /** Intermediate stages, exposed for the parity test against ml/ocr/golden (stage-level comparison). */
 data class DetBox(val rect: Rect, val score: Double)
+
+/** A recognised line before post-processing ([text] raw CTC output, [conf] unrounded). */
 data class RecLine(val rect: Rect, val text: String, val conf: Double)
+
+/** Script of a token or of the whole screen (homoglyph repair, ml/ocr/postprocess.py "cyr" / "lat"). */
+enum class Script { CYR, LAT }

@@ -2,9 +2,7 @@ package app.murmur.infer.asr.ocr
 
 import android.content.Context
 import android.os.SharedMemory
-import app.murmur.core.model.MurmurError
 import app.murmur.infer.api.IResultCallback
-import app.murmur.infer.api.InferApi
 
 /**
  * The seam between AsrService (WP-06) and OCR (WP-07): AsrService forwards loadOcr / recognizeScreen / unloadAll to
@@ -19,18 +17,8 @@ interface OcrHandler {
     fun unload()
 }
 
-/** WP-07 replaces [create]'s body with its real handler (OrtOcrModels + OcrPipeline). */
 object OcrHandlers {
-    fun create(context: Context): OcrHandler = StubOcrHandler
-}
-
-/** Answers every call with EngineRuntimeMissing so that the rest of the pipeline runs without OCR ("no screen"). */
-object StubOcrHandler : OcrHandler {
-    private val missing = InferApi.encodeError(MurmurError.EngineRuntimeMissing("ort/ppocr"))
-    override fun load(detSpecJson: String, recSpecJson: String, cb: IResultCallback) = cb.onError(missing)
-    override fun recognize(pixels: SharedMemory, width: Int, height: Int, excludeJson: String, cb: IResultCallback) {
-        pixels.close()
-        cb.onError(missing)
-    }
-    override fun unload() {}
+    /** ORT CPU EP + the Kotlin port of ml/ocr ([OrtOcrHandler]). */
+    @Suppress("UNUSED_PARAMETER") // the context is part of the seam (WP-21's QNN handler needs nativeLibraryDir)
+    fun create(context: Context): OcrHandler = OrtOcrHandler()
 }
