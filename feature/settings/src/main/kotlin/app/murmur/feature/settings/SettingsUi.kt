@@ -37,6 +37,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
@@ -84,6 +85,8 @@ object SettingsTags {
     const val DETAIL = "settings-detail"
     const val PROMPT = "settings-prompt-editor"
     const val PROMPT_FIELD = "settings-prompt-field"
+    /** The inner Cleanup pane's preview: an excerpt clipped at 236 dp on purpose (prototype .editor max-height). */
+    const val PROMPT_PREVIEW = "settings-prompt-preview"
     const val PREFS_FIELD = "settings-prefs-field"
     const val PROMPT_SAVE = "settings-prompt-save"
     const val PROMPT_TEST = "settings-prompt-test"
@@ -331,9 +334,7 @@ private fun DetailPane(category: SettingsCategory, ui: SettingsUi, actions: Sett
         if (category == SettingsCategory.CLEANUP && ui.prompt != null) {
             Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 20.dp)) {
                 Overline(stringResource(R.string.settings_prompt_preview), Modifier.padding(start = 4.dp, end = 4.dp, bottom = 8.dp))
-                PromptBox(Modifier.heightIn(max = 236.dp)) {
-                    Text(ui.prompt.previewText, style = editorStyle(), color = MurmurTheme.colors.ink)
-                }
+                PromptPreview(ui.prompt.previewText)
             }
         }
     }
@@ -341,7 +342,7 @@ private fun DetailPane(category: SettingsCategory, ui: SettingsUi, actions: Sett
 
 /** The mono editor box (prototype .editor): surface, 1 dp line2 (2 dp err when [error]), md radius, 14/14/10 padding. */
 @Composable
-internal fun PromptBox(modifier: Modifier = Modifier, error: Boolean = false, content: @Composable () -> Unit) {
+internal fun PromptBox(modifier: Modifier = Modifier, error: Boolean = false, bottomPadding: Dp = 10.dp, content: @Composable () -> Unit) {
     val c = MurmurTheme.colors
     Box(
         modifier
@@ -349,7 +350,7 @@ internal fun PromptBox(modifier: Modifier = Modifier, error: Boolean = false, co
             .clip(MurmurShapes.md)
             .background(c.surface)
             .border(if (error) 2.dp else 1.dp, if (error) c.err else c.line2, MurmurShapes.md)
-            .padding(start = 14.dp, end = 14.dp, top = 14.dp, bottom = 10.dp),
+            .padding(start = 14.dp, end = 14.dp, top = 14.dp, bottom = bottomPadding),
     ) { content() }
 }
 
@@ -634,4 +635,37 @@ internal val SheetOptionsPadding: Dp = 8.dp
  */
 @Composable
 internal fun editorStyle(): androidx.compose.ui.text.TextStyle =
-    MurmurTheme.type.editor.copy(fontFeatureSettings = "liga 0, calt 0, tnum")
+    MurmurTheme.type.editor.copy(
+        fontFeatureSettings = "liga 0, calt 0, tnum",
+        // Greedy breaking like a code editor (and the browser that rendered the frames); the default high-quality
+        // strategy wraps mono lines a word early.
+        lineBreak = androidx.compose.ui.text.style.LineBreak.Simple,
+        // Subpixel advances: hinted mono glyphs round 15.6 px to 16 px at 13 sp x 2, and a 43-column line no longer
+        // fits the 336 dp editor that the frames (and the font's 0.6 em advance) give it.
+        textMotion = androidx.compose.ui.text.style.TextMotion.Animated,
+    )
+
+/**
+ * The inner Cleanup pane's read-only excerpt (prototype: `.editor` with max-height 236 px and overflow hidden). As in
+ * CSS, a long text runs on into the bottom padding and is cut at the border; a short one keeps the 10 dp padding.
+ */
+@Composable
+private fun PromptPreview(text: String) {
+    val c = MurmurTheme.colors
+    Layout(
+        content = { Text(text, style = editorStyle(), color = c.ink, modifier = Modifier.testTag(SettingsTags.PROMPT_PREVIEW)) },
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(MurmurShapes.md)
+            .background(c.surface)
+            .border(1.dp, c.line2, MurmurShapes.md),
+    ) { measurables, constraints ->
+        val side = 14.dp.roundToPx()
+        val top = 14.dp.roundToPx()
+        val bottom = 10.dp.roundToPx()
+        val w = constraints.maxWidth
+        val p = measurables.single().measure(androidx.compose.ui.unit.Constraints(maxWidth = (w - 2 * side).coerceAtLeast(0)))
+        val h = minOf(top + p.height + bottom, 236.dp.roundToPx())
+        layout(w, h) { p.place(side, top) }
+    }
+}

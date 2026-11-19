@@ -184,6 +184,8 @@ class SettingsScreenshotTest {
         val bad = mutableListOf<String>()
         rule.runOnIdle {
             for (n in nodes) {
+                // The inner prompt preview is a deliberately clipped excerpt (the frame clips it the same way).
+                if (n.config.getOrNull(SemanticsProperties.TestTag) == SettingsTags.PROMPT_PREVIEW) continue
                 val results = mutableListOf<TextLayoutResult>()
                 n.config[SemanticsActions.GetTextLayoutResult].action?.invoke(results)
                 val r = results.firstOrNull() ?: continue
