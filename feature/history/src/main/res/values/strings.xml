@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- History (DESIGN 6.3, copy deck DESIGN 7 hist_*). Keys without a copy-deck row are marked "no frame": they are
+     composed from the deck's wording and sent to the design owner. Never write the product name literally (D10). -->
+<resources>
+    <string name="hist_title">History</string>
+    <string name="hist_search_cd">Search history</string>
+    <plurals name="hist_retention_line">
+        <item quantity="one">Dictations stay on this phone for %d day, then delete automatically.</item>
+        <item quantity="other">Dictations stay on this phone for %d days, then delete automatically.</item>
+    </plurals>
+    <string name="hist_today">Today</string>
+    <string name="hist_yesterday">Yesterday</string>
+    <string name="hist_deletes_tonight">Deletes tonight</string>
+    <plurals name="hist_count">
+        <item quantity="one">%d dictation</item>
+        <item quantity="other">%d dictations</item>
+    </plurals>
+    <plurals name="hist_result_count">
+        <item quantity="one">%d result</item>
+        <item quantity="other">%d results</item>
+    </plurals>
+    <plurals name="hist_search_caption">
+        <item quantity="one">%d result · final text and original transcripts</item>
+        <item quantity="other">%d results · final text and original transcripts</item>
+    </plurals>
+    <plurals name="hist_search_hint">
+        <item quantity="one">Search %d day of dictations</item>
+        <item quantity="other">Search %d days of dictations</item>
+    </plurals>
+    <plurals name="hist_search_empty">
+        <item quantity="one">No matches in the last %d day</item>
+        <item quantity="other">No matches in the last %d days</item>
+    </plurals>
+    <string name="hist_search_empty_body">Search looks through the final text and the original transcript. Older dictations are already deleted.</string>
+    <string name="hist_all_apps">All apps</string>
+    <!-- no frame: prefix of a search hit found only in the original transcript -->
+    <string name="hist_match_original">Original:</string>
+    <string name="hist_status_copied">Copied</string>
+    <string name="hist_status_failed">Failed</string>
+    <string name="hist_failed_nospeech">No speech detected. The recording is kept, so you can try again.</string>
+    <string name="hist_failed_nospeech_noaudio">No speech detected.</string>
+    <!-- no frame -->
+    <string name="hist_failed_other">Couldn\'t finish this dictation. The recording is kept, so you can try again.</string>
+    <string name="hist_failed_other_noaudio">Couldn\'t finish this dictation.</string>
+    <string name="hist_empty_title">Nothing here yet</string>
+    <plurals name="hist_empty_body">
+        <item quantity="one">Tap the bubble in any app and speak. Each dictation shows up here with its audio for %d day.</item>
+        <item quantity="other">Tap the bubble in any app and speak. Each dictation shows up here with its audio for %d days.</item>
+    </plurals>
+    <string name="hist_try_dictation">Try a dictation</string>
+    <!-- no frame: retention "Don't keep history" -->
+    <string name="hist_off_title">History is off</string>
+    <string name="hist_off_body">You chose “Don\'t keep history”. Text is copied and inserted, nothing is saved on this phone.</string>
+    <string name="hist_error_title">Couldn\'t open history</string>
+    <string name="hist_error_body">Your dictations could not be read just now.</string>
+    <string name="hist_retry">Retry</string>
+    <!-- multi-select (no frame) -->
+    <plurals name="hist_selected">
+        <item quantity="one">%d selected</item>
+        <item quantity="other">%d selected</item>
+    </plurals>
+    <string name="hist_cancel_selection">Cancel selection</string>
+    <string name="hist_select">Select</string>
+    <string name="hist_selected_state">Selected</string>
+    <string name="hist_copy">Copy</string>
+    <string name="hist_share">Share</string>
+    <string name="hist_delete">Delete</string>
+    <string name="hist_share_title">Share dictation</string>
+    <string name="hist_seg_final">Final</string>
+    <string name="hist_seg_original">Original</string>
+    <string name="hist_seg_changes">Changes</string>
+    <string name="hist_diff_added">added</string>
+    <string name="hist_diff_removed">removed</string>
+    <string name="hist_diff_none">No changes</string>
+    <string name="hist_context">Context used</string>
+    <string name="hist_ctx_app">App</string>
+    <string name="hist_ctx_app_chat">%1$s · chat with %2$s</string>
+    <string name="hist_ctx_screen">Screen text</string>
+    <plurals name="hist_ctx_screen_words">
+        <item quantity="one">%d word · not stored</item>
+        <item quantity="other">%d words · not stored</item>
+    </plurals>
+    <string name="hist_ctx_screen_unused">Not used</string>
+    <string name="hist_ctx_tone">Tone</string>
+    <string name="hist_tone_casual">Casual</string>
+    <string name="hist_tone_neutral">Neutral</string>
+    <string name="hist_tone_formal">Formal</string>
+    <string name="hist_tone_verbatim">Verbatim</string>
+    <string name="hist_tone_default">Default</string>
+    <string name="hist_ctx_models">Models</string>
+    <string name="hist_ctx_timing">Timing</string>
+    <string name="hist_timing_two">%1$s + %2$s after stop</string>
+    <string name="hist_timing_one">%1$s after stop</string>
+    <string name="hist_seconds">%1$s s</string>
+    <string name="hist_deletes_on">Deletes with its audio on %1$s</string>
+    <string name="hist_deletes_on_noaudio">Deletes on %1$s</string>
+    <string name="hist_date_at_time">%1$s at %2$s</string>
+    <string name="hist_day_time">%1$s, %2$s</string>
+    <string name="hist_repolish">Re-polish</string>
+    <string name="hist_try_again">Try again</string>
+    <string name="hist_recording_unavailable">Recording not available</string>
+    <string name="hist_delete_title">Delete this dictation?</string>
+    <plurals name="hist_delete_title_many">
+        <item quantity="one">Delete %d dictation?</item>
+        <item quantity="other">Delete %d dictations?</item>
+    </plurals>
+    <string name="hist_delete_body">The text and the recording are removed from this phone. Text already pasted into %1$s stays there.</string>
+    <string name="hist_delete_body_many">The texts and the recordings are removed from this phone. Text already pasted into other apps stays there.</string>
+    <string name="hist_cancel">Cancel</string>
+    <string name="hist_deleted_snack">Dictation deleted, with its audio</string>
+    <plurals name="hist_deleted_snack_many">
+        <item quantity="one">%d dictation deleted, with its audio</item>
+        <item quantity="other">%d dictations deleted, with their audio</item>
+    </plurals>
+    <string name="hist_undo">Undo</string>
+    <string name="hist_retry_nospeech">Didn\'t catch that</string>
+    <string name="hist_retry_failed">Couldn\'t try again. The entry is unchanged.</string>
+    <string name="hist_repolish_failed">Couldn\'t re-polish. The text is unchanged.</string>
+    <string name="hist_repolish_no_model">Choose a cleanup model in Models to re-polish.</string>
+    <!-- A Retry / Re-polish failure shown on the list: "Telegram: Couldn't re-polish. The text is unchanged." -->
+    <string name="hist_event_app">%1$s: %2$s</string>
+</resources>
