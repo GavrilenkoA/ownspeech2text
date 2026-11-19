@@ -63,17 +63,25 @@ class PcmPumpTest {
         val reader = Reader(input, gate).apply { start() }
         val pump = PcmPump(out)
         val chunks = (0 until 250).map { chunk(it) } // 5 s of 20 ms frames
-        var worstNs = 0L
-        val start = System.nanoTime()
+        val offerNs = LongArray(chunks.size)
+        var backlogAtRelease = 0L
+        val begin = System.nanoTime()
+        // The stalled reader is released by the clock, not by the writer loop: an offer() that waited for the pipe
+        // shows up as one offer of about a second (the pipe fills after ~2 s, the reader starts at 3 s), not a hang.
+        val release = Thread {
+            TimeUnit.NANOSECONDS.sleep(begin + STALL_NS - System.nanoTime())
+            backlogAtRelease = pump.pendingSamples
+            gate.countDown()
+        }.apply { isDaemon = true }
+        release.start()
         chunks.forEachIndexed { i, c ->
-            if (i == 100) gate.countDown() // the reader starts 2 s late: the pipe filled after ~1 s, the ring holds the rest
             val t0 = System.nanoTime()
             assertTrue(pump.offer(c))
-            worstNs = maxOf(worstNs, System.nanoTime() - t0)
-            val next = start + (i + 1) * 20_000_000L
-            val sleep = next - System.nanoTime()
+            offerNs[i] = System.nanoTime() - t0
+            val sleep = begin + (i + 1) * FRAME_NS - System.nanoTime()
             if (sleep > 0) TimeUnit.NANOSECONDS.sleep(sleep)
         }
+        release.join()
         pump.close()
         assertTrue(pump.awaitClosed(5_000))
         assertTrue(reader.eof.await(5, TimeUnit.SECONDS))
@@ -83,8 +91,16 @@ class PcmPumpTest {
         assertEquals(0L, pump.droppedSamples)
         assertEquals(250L * 320, pump.writtenSamples)
         assertFalse(pump.overflowed)
-        // offer() is a copy into the ring: far below one frame even with JIT warm-up on a loaded host.
-        assertTrue("worst offer ${worstNs / 1000} us", worstNs < 5_000_000)
+        // offer() is a copy into the ring. Wall-clock samples on a CPU-saturated host include the odd preemption,
+        // so the copy cost is asserted on the 95th percentile, and "never waits for the pipe" on the worst sample
+        // with a bound far below the ~1 s a blocking offer would take but far above a scheduler hiccup.
+        val sorted = offerNs.sorted()
+        val p95 = sorted[sorted.size * 95 / 100]
+        val worst = sorted.last()
+        assertTrue("p95 offer ${p95 / 1000} us", p95 < 5_000_000)
+        assertTrue("worst offer ${worst / 1000} us", worst < 200_000_000)
+        // The scenario really happened: the pipe was full and the ring/spill held audio while the reader stalled.
+        assertTrue("backlog at release $backlogAtRelease samples", backlogAtRelease >= 20L * 320)
     }
 
     @Test
@@ -249,5 +265,10 @@ class PcmPumpTest {
         pump.abort()
         assertTrue(pump.awaitClosed(5_000))
         reader.join(5_000)
+    }
+
+    private companion object {
+        const val FRAME_NS = 20_000_000L
+        const val STALL_NS = 3_000_000_000L
     }
 }
