@@ -183,8 +183,9 @@ private fun DetailTopBar(s: DetailUiState, pane: Boolean, vm: HistoryViewModel, 
         DayKind.YESTERDAY -> stringResource(R.string.hist_yesterday)
         DayKind.DATE -> formats.dayShort(created.toLocalDate())
     }
+    // "Telegram · Today, 14:32 · 0:12"; without a conversation the title is already the app name.
     val subtitle = listOfNotNull(
-        s.appName,
+        s.appName.takeIf { s.title != it },
         stringResource(R.string.hist_day_time, day, formats.time(created)),
         s.durationMs?.let { formatClock(it) },
     ).joinToString(" · ")
@@ -414,37 +415,65 @@ private fun KeyValueTable(rows: List<Pair<String, @Composable () -> Unit>>) {
     }
 }
 
-/** Bottom action bar: 12/20/14 padding, line above, surface. Copy (primary) + Re-polish; Failed: Try again. */
+/**
+ * Bottom action bar: 12/20/14 padding, line above, surface. Copy (primary, takes the rest of the row) + Re-polish;
+ * Failed: Try again (+ Re-polish when there is an original transcript). When large text (DESIGN 8) leaves the primary
+ * button less than its label needs, the buttons stack, each the full width.
+ */
 @Composable
 private fun ActionBar(s: DetailUiState, onCopy: () -> Unit, onRepolish: () -> Unit, onRetry: () -> Unit) {
     val c = MurmurTheme.colors
     val line = c.line
-    Row(
-        Modifier
+    val repolishBusy = s.busy == Busy.REPOLISH
+    val showRepolish = !s.failed || !s.entry?.rawText.isNullOrBlank()
+    Layout(
+        content = {
+            if (s.failed) {
+                MurmurButton(
+                    stringResource(R.string.hist_try_again), onRetry, leadingIcon = MurmurIcons.refresh,
+                    enabled = s.canRetry || s.busy == Busy.RETRY, loading = s.busy == Busy.RETRY,
+                )
+            } else {
+                MurmurButton(stringResource(R.string.hist_copy), onCopy, leadingIcon = MurmurIcons.copy)
+            }
+            if (showRepolish) {
+                MurmurButton(
+                    stringResource(R.string.hist_repolish), onRepolish, style = ButtonStyle.Secondary,
+                    leadingIcon = MurmurIcons.refresh, enabled = s.canRepolish || repolishBusy, loading = repolishBusy,
+                )
+            }
+        },
+        modifier = Modifier
             .fillMaxWidth()
             .background(c.surface)
             .drawBehind { drawLine(line, Offset(0f, 0f), Offset(size.width, 0f), 1.dp.toPx()) }
             .padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 14.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (s.failed) {
-            MurmurButton(
-                stringResource(R.string.hist_try_again), onRetry, modifier = Modifier.weight(1f),
-                leadingIcon = MurmurIcons.refresh, enabled = s.canRetry || s.busy == Busy.RETRY, loading = s.busy == Busy.RETRY,
-            )
-            if (!s.entry?.rawText.isNullOrBlank()) {
-                MurmurButton(
-                    stringResource(R.string.hist_repolish), onRepolish, style = ButtonStyle.Secondary,
-                    leadingIcon = MurmurIcons.refresh, enabled = s.canRepolish || s.busy == Busy.REPOLISH, loading = s.busy == Busy.REPOLISH,
-                )
+    ) { ms, constraints ->
+        val gap = 8.dp.roundToPx()
+        val width = constraints.maxWidth
+        val primary = ms[0]
+        val secondary = ms.getOrNull(1)
+        if (secondary == null) {
+            val p = primary.measure(Constraints.fixedWidth(width))
+            return@Layout layout(width, p.height) { p.place(0, 0) }
+        }
+        val secondW = secondary.maxIntrinsicWidth(Constraints.Infinity)
+        val primaryNeed = primary.maxIntrinsicWidth(Constraints.Infinity)
+        if (secondW + gap + primaryNeed <= width) {
+            val sp = secondary.measure(Constraints.fixedWidth(secondW))
+            val pp = primary.measure(Constraints.fixedWidth(width - secondW - gap))
+            val h = maxOf(sp.height, pp.height)
+            layout(width, h) {
+                pp.place(0, (h - pp.height) / 2)
+                sp.place(width - secondW, (h - sp.height) / 2)
             }
         } else {
-            MurmurButton(stringResource(R.string.hist_copy), onCopy, modifier = Modifier.weight(1f), leadingIcon = MurmurIcons.copy)
-            MurmurButton(
-                stringResource(R.string.hist_repolish), onRepolish, style = ButtonStyle.Secondary,
-                leadingIcon = MurmurIcons.refresh, enabled = s.canRepolish || s.busy == Busy.REPOLISH, loading = s.busy == Busy.REPOLISH,
-            )
+            val pp = primary.measure(Constraints.fixedWidth(width))
+            val sp = secondary.measure(Constraints.fixedWidth(width))
+            layout(width, pp.height + gap + sp.height) {
+                pp.place(0, 0)
+                sp.place(0, pp.height + gap)
+            }
         }
     }
 }

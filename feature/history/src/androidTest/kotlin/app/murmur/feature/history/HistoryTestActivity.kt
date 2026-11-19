@@ -16,6 +16,7 @@ class HistoryTestActivity : ComponentActivity() {
     class Config(
         val world: HistoryWorld,
         val dark: Boolean = false,
+        val fontScale: Float = 1f,
         val content: @Composable (HistoryWorld) -> Unit = { HistoryListDetail(it.deps, onTryDictation = {}, bottomBar = { TestNavBar() }) },
     )
 
@@ -26,7 +27,7 @@ class HistoryTestActivity : ComponentActivity() {
             navigationBarStyle = if (cfg.dark) SystemBarStyle.dark(Color.TRANSPARENT) else SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT),
         )
         super.onCreate(savedInstanceState)
-        setContent { FrameShell(cfg.dark) { cfg.content(cfg.world) } }
+        setContent { FrameShell(cfg.dark, cfg.fontScale) { cfg.content(cfg.world) } }
     }
 
     companion object {

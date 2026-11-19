@@ -113,6 +113,21 @@ class HistoryScreensTest {
         shot("hist-dark")
     }
 
+    /** DESIGN 8: at 200 % text rows grow, the clamp stays 3 lines, targets stay >= 48 dp, nothing is unnamed. */
+    @Test
+    fun largeText() {
+        val w = world()
+        HistoryTestActivity.config = HistoryTestActivity.Config(w, fontScale = 2f)
+        scenario = ActivityScenario.launch(HistoryTestActivity::class.java)
+        rule.waitForIdle()
+        rule.onNodeWithTag(HistoryTags.row(w.ids[0])).assertIsDisplayed()
+        checkScreen("hist-fs200")
+        openFirst(w)
+        rule.onNodeWithText("Original").performClick()
+        rule.waitForIdle()
+        checkScreen("hist-detail-fs200")
+    }
+
     @Test
     fun oldestDayShowsDeletesTonight() {
         val w = world()
@@ -343,7 +358,8 @@ class HistoryScreensTest {
         rule.onNodeWithText("2 selected").assertIsDisplayed()
         shot("hist-select")
         assertTargets("hist-select")
-        rule.onNode(hasContentDescription("Delete") and hasClickAction()).performClick()
+        // The selection bar's Delete (on the inner display the detail pane has its own).
+        rule.onNode(hasContentDescription("Delete") and hasClickAction() and hasAnyAncestor(hasTestTag(HistoryTags.SCREEN))).performClick()
         rule.onNodeWithText("Delete 2 dictations?").assertIsDisplayed()
         rule.onNode(hasText("Delete") and hasClickAction() and hasAnyAncestor(isDialog())).performClick()
         rule.waitForIdle()
@@ -361,12 +377,12 @@ class HistoryScreensTest {
         rule.onNodeWithTag(HistoryTags.row(gmail)).performClick()
         rule.waitForIdle()
         rule.onNodeWithTag(HistoryTags.DETAIL).assertIsDisplayed()
-        rule.onNodeWithText("Gmail · Today, 13:05 · 0:18").assertIsDisplayed()
+        rule.onNodeWithText("Today, 13:05 · 0:18").assertIsDisplayed()
         rule.onNodeWithText("Original").performClick()
         scenario!!.recreate()
         rule.waitForIdle()
         rule.onNodeWithTag(HistoryTags.DETAIL).assertIsDisplayed()
-        rule.onNodeWithText("Gmail · Today, 13:05 · 0:18").assertIsDisplayed()
+        rule.onNodeWithText("Today, 13:05 · 0:18").assertIsDisplayed()
         rule.onNodeWithTag(HistoryTags.READING).assertTextEquals(Wp16HistoryFixture.ITEMS[1].raw!!)
     }
 

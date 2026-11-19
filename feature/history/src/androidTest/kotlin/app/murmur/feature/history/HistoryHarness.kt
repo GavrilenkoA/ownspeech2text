@@ -28,6 +28,8 @@ import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.unit.dp
 import app.murmur.core.model.EntryId
@@ -106,11 +108,15 @@ class HistoryWorld(context: Context, seed: Boolean = true, retentionDays: Int = 
  * bottom bar. English (UK) like the frames ("Monday, 16 November", 24-hour time) regardless of the emulator locale.
  */
 @Composable
-fun FrameShell(dark: Boolean = false, content: @Composable () -> Unit) {
+fun FrameShell(dark: Boolean = false, fontScale: Float = 1f, content: @Composable () -> Unit) {
     val base = LocalContext.current
     val config = remember(base) { Configuration(base.resources.configuration).apply { setLocale(Locale.UK) } }
     val localized = remember(config) { base.createConfigurationContext(config) }
-    CompositionLocalProvider(LocalContext provides localized, LocalConfiguration provides config, LocalResources provides localized.resources) {
+    val density = LocalDensity.current
+    CompositionLocalProvider(
+        LocalContext provides localized, LocalConfiguration provides config, LocalResources provides localized.resources,
+        LocalDensity provides Density(density.density, density.fontScale * fontScale),
+    ) {
         MurmurTheme(darkTheme = dark) {
             val c = MurmurTheme.colors
             val top = maxOf(WindowInsets.statusBars.asPaddingValues().calculateTopPadding(), 36.dp)
