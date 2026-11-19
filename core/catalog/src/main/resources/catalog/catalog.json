@@ -1,7 +1,7 @@
 {
  "schema": 1,
  "catalogVersion": "2026-11-19.1",
- "generated": "2026-11-18 by core/catalog/tools/build_catalog.py (network-verified); prefixTokens hand-edited 2026-11-19 to the generator's PREFIX_TOKENS (not re-verified, regenerate with network access)",
+ "generated": "2026-11-19 by core/catalog/tools/build_catalog.py (network-verified)",
  "defaults": {
   "asr": {
    "ru+en": "parakeet-tdt-0.6b-v3",
