@@ -88,6 +88,7 @@ class SettingsStoreTest {
         promptOverride = PromptOverride(systemText = "Исправь ошибки, сохрани смысл.\nKeep English terms.", baseProfile = "default.v4"),
         preferences = "Пиши «ё», не «е». Use Oxford commas.",
         tonePerApp = mapOf("org.telegram.messenger" to Tone.CASUAL, "com.google.android.gm" to Tone.FORMAL, "com.termux" to Tone.VERBATIM),
+        defaultTone = Tone.FORMAL,
         useScreen = false,
         retentionDays = 3,
         keepRecordings = false,
