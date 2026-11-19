@@ -11,8 +11,10 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <memory>
 #include <mutex>
 #include <string>
+#include <utility>
 #include <vector>
 
 #ifdef __ANDROID__
@@ -74,6 +76,18 @@ size_t utf8_incomplete_tail(const std::string & s) {
     return 0;
 }
 
+// std::allocator that default-initialises: resize() of a byte buffer that is overwritten right away (state snapshot,
+// state file read) then skips the zero-fill pass over tens of MB.
+template <typename T>
+struct uninit_allocator : std::allocator<T> {
+    template <typename U> struct rebind { using other = uninit_allocator<U>; };
+    uninit_allocator() = default;
+    template <typename U> uninit_allocator(const uninit_allocator<U> &) {}
+    template <typename U> void construct(U * p) { ::new (static_cast<void *>(p)) U; }
+    template <typename U, typename... A> void construct(U * p, A &&... a) { ::new (static_cast<void *>(p)) U(std::forward<A>(a)...); }
+};
+using byte_buffer = std::vector<uint8_t, uninit_allocator<uint8_t>>;
+
 } // namespace
 
 struct mllm_engine {
@@ -88,7 +102,7 @@ struct mllm_engine {
 
     // prefix cache
     std::vector<llama_token> prefix_tokens;
-    std::vector<uint8_t>     snapshot;      // RAM / DEVICE (device: small header, data stays in backend buffers)
+    byte_buffer              snapshot;      // RAM / DEVICE (device: small header, data stays in backend buffers)
     bool prefix_live = false;               // SEQCP: seq 0 currently holds the prefix
 
     int fail(int code, const std::string & msg) {
