@@ -4,6 +4,7 @@ import app.murmur.core.model.InferProcess
 import app.murmur.core.model.MurmurError
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.Json
+import kotlin.math.roundToLong
 
 /** Binder contract constants shared by clients (:main) and services (:asr, :llm). */
 object InferApi {
@@ -38,7 +39,7 @@ object InferApi {
  * Client-side timeouts for binder round trips (ARCHITECTURE.md 4.3). The prefix prefill and the synthetic benchmark
  * scale with the work (review 2026-11-19: a fixed 30 s killed the 3.1k-token default.v4 prefill on the emulator).
  * [scale] = Settings.debugTimeoutScale in debug builds (1.0 in release). A timeout means "treat the process as dead":
- * shutdown() + Err(Timeout(stage)).
+ * shutdown() + Err(Timeout(stage)) (see [BinderCall] for the one exception, OCR).
  */
 data class BinderTimeouts(
     val bindMs: Long = 3_000,
@@ -49,15 +50,31 @@ data class BinderTimeouts(
     /** Floor prefill speed for timeouts when no benchmark exists (tok/s; emulator Qwen3.5 measured ~60, LFM3 ~15). */
     val prefillFloorTps: Double = 40.0,
     val decodeFloorTps: Double = 5.0,
+    /** IAsrSession.finish: base + per second of audio after the last committed segment (DictationConfig.asrFinalTimeoutMs). */
+    val asrFinalBaseMs: Long = 4_000,
+    val asrFinalPerAudioSec: Double = 0.5,
+    /** shutdown(): how long to wait for the process to exit by itself before it is killed. Not scaled. */
+    val exitWaitMs: Long = 2_000,
     val scale: Double = 1.0,
 ) {
     /** setPrefix: max(30 s, 2 x tokens / speed); a restore from disk is milliseconds, a prefill is the slow case. */
     fun prefixMs(prefixTokens: Int, prefillTps: Double? = null): Long =
-        (maxOf(30_000.0, 2.0 * prefixTokens / (prefillTps ?: prefillFloorTps) * 1000) * scale).toLong()
+        (maxOf(30_000.0, 2.0 * prefixTokens / (prefillTps?.takeIf { it > 0 } ?: prefillFloorTps) * 1000) * scale).roundToLong()
 
     /** bench(nPrompt, nGen, reps): (nPrompt / pp + nGen / tg) x reps x 2, at the floor speeds, at least 30 s. */
     fun benchMs(nPrompt: Int, nGen: Int, reps: Int): Long =
-        (maxOf(30_000.0, (nPrompt / prefillFloorTps + nGen / decodeFloorTps) * reps * 2 * 1000) * scale).toLong()
+        (maxOf(30_000.0, (nPrompt / prefillFloorTps + nGen / decodeFloorTps) * reps * 2 * 1000) * scale).roundToLong()
 
-    fun scaled(ms: Long): Long = (ms * scale).toLong()
+    /** IAsrSession.finish: 4 s + 0.5 s per second of [tailAudioMs] (the audio not yet committed as a segment). */
+    fun asrFinalMs(tailAudioMs: Long): Long =
+        scaled(asrFinalBaseMs + (tailAudioMs.coerceAtLeast(0) / 1000.0 * asrFinalPerAudioSec * 1000).roundToLong())
+
+    fun scaled(ms: Long): Long = (ms * scale).roundToLong()
+
+    companion object {
+        /** :main-side token estimate of a prefix for [prefixMs] (CleanupBudget.TOKENS_PER_CHAR, conservative). */
+        const val TOKENS_PER_CHAR = 0.40
+
+        fun estimateTokens(text: String): Int = kotlin.math.ceil(text.length * TOKENS_PER_CHAR).toInt()
+    }
 }
