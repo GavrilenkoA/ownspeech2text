@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
@@ -448,14 +449,14 @@ private fun SheetSection(wide: Boolean) {
     Box(
         Modifier
             .fillMaxWidth()
-            .then(if (wide) Modifier.height(420.dp) else Modifier)
             .clip(MurmurShapes.lg)
             .background(MurmurTheme.colors.bg)
             .background(MurmurTheme.colors.scrim)
             .padding(top = if (wide) 0.dp else 24.dp),
         contentAlignment = if (wide) Alignment.CenterEnd else Alignment.BottomCenter,
     ) {
-        SheetSurface(side = wide) {
+        // Side sheet: 420 dp tall, or taller when large text needs it.
+        SheetSurface(side = wide, modifier = if (wide) Modifier.heightIn(min = 420.dp) else Modifier) {
             Column(Modifier.padding(horizontal = 24.dp)) {
                 Text("Keep history for", style = MurmurTheme.type.title, color = MurmurTheme.colors.ink)
                 Text(

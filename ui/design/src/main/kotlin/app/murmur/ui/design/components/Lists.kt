@@ -33,8 +33,9 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -189,17 +190,75 @@ fun ListRow(
                 Icon(leadingIcon, null, tint = c.ink2, modifier = Modifier.size(22.dp))
             }
         }
-        Column(Modifier.weight(1f)) {
-            Text(title, style = t.rowTitle, color = titleColor ?: c.ink)
-            if (subtitle != null) {
-                Text(
-                    subtitle, style = t.rowSub, color = rowSecondaryInk(c, selected),
-                    modifier = Modifier.padding(top = 2.dp),
-                )
-            }
-        }
-        RowTrailingContent(trailing, selected)
+        TitleAndTrailing(
+            title = {
+                Column {
+                    Text(title, style = t.rowTitle, color = titleColor ?: c.ink)
+                    if (subtitle != null) {
+                        Text(
+                            subtitle, style = t.rowSub, color = rowSecondaryInk(c, selected),
+                            modifier = Modifier.padding(top = 2.dp),
+                        )
+                    }
+                }
+            },
+            trailing = if (trailing == RowTrailing.None) null else {
+                {
+                    Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                        RowTrailingContent(trailing, selected)
+                    }
+                }
+            },
+            modifier = Modifier.weight(1f),
+        )
     }
+}
+
+/**
+ * Title column and trailing content of a row, 14 dp apart. The trailing part keeps its full width when everything
+ * fits (as a plain Row would). When it does not (large text, narrow panes), the trailing part yields down to its
+ * longest word before the title has to break inside one; only if even the two longest words do not fit side by side
+ * does the title break, while the trailing part keeps its longest word (up to 60 % of the width).
+ */
+@Composable
+private fun TitleAndTrailing(title: @Composable () -> Unit, trailing: (@Composable () -> Unit)?, modifier: Modifier) {
+    Layout(
+        contents = listOf(title, trailing ?: {}),
+        modifier = modifier,
+    ) { (titleM, trailingM), constraints ->
+        val tm = titleM.single()
+        val rm = trailingM.singleOrNull()
+        if (rm == null) {
+            val p = tm.measure(constraints.copy(minWidth = constraints.maxWidth))
+            return@Layout layout(constraints.maxWidth, p.height) { p.place(0, 0) }
+        }
+        val gap = 14.dp.roundToPx()
+        val avail = (constraints.maxWidth - gap).coerceAtLeast(0)
+        val trailingW = trailingWidth(
+            avail,
+            titleMin = tm.minIntrinsicWidth(Constraints.Infinity), titleMax = tm.maxIntrinsicWidth(Constraints.Infinity),
+            trailingMin = rm.minIntrinsicWidth(Constraints.Infinity), trailingMax = rm.maxIntrinsicWidth(Constraints.Infinity),
+        )
+        val rp = rm.measure(Constraints(maxWidth = trailingW))
+        val tp = tm.measure(Constraints(minWidth = avail - trailingW, maxWidth = avail - trailingW))
+        val h = maxOf(tp.height, rp.height, constraints.minHeight)
+        layout(constraints.maxWidth, h) {
+            tp.place(0, (h - tp.height) / 2)
+            rp.place(constraints.maxWidth - rp.width, (h - rp.height) / 2)
+        }
+    }
+}
+
+/** Width of a row's trailing part; see [TitleAndTrailing]. Min = longest word, max = one line. */
+internal fun trailingWidth(avail: Int, titleMin: Int, titleMax: Int, trailingMin: Int, trailingMax: Int): Int {
+    if (avail <= 0) return 0
+    // Everything on one line, or the title can wrap between words while the trailing part stays whole.
+    if (titleMax + trailingMax <= avail || titleMin + trailingMax <= avail) return trailingMax.coerceAtMost(avail)
+    // Trailing wraps between its words; it takes what the title's longest word leaves, at least its own longest.
+    if (titleMin + trailingMin <= avail) return (avail - titleMin).coerceIn(trailingMin, trailingMax)
+    // Some word must break: keep the trailing value's longest word whole (a cut status or value reads worse than a
+    // wrapped title), but leave the title at least 40 %.
+    return trailingMin.coerceAtMost(avail * 3 / 5)
 }
 
 /**
@@ -220,11 +279,11 @@ private fun RowScope.RowTrailingContent(trailing: RowTrailing, selected: Boolean
         RowTrailing.None -> Unit
         is RowTrailing.Chevron -> {
             if (trailing.value != null) {
-                Text(trailing.value, style = t.body, color = secondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(trailing.value, style = t.body, color = secondary)
             }
             Icon(MurmurIcons.chevR, null, tint = secondary, modifier = Modifier.size(20.dp))
         }
-        is RowTrailing.Value -> Text(trailing.text, style = t.body, color = trailing.color ?: secondary, maxLines = 1)
+        is RowTrailing.Value -> Text(trailing.text, style = t.body, color = trailing.color ?: secondary)
         is RowTrailing.Switch -> MurmurSwitch(trailing.checked, onCheckedChange = null)
         is RowTrailing.Radio -> MurmurRadio(trailing.selected, onClick = null)
         is RowTrailing.Status -> StatusLabel(trailing.text, trailing.kind, icon = trailing.icon)

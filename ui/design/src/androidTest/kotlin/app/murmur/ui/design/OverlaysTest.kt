@@ -94,15 +94,30 @@ class OverlaysTest {
         repeat(10) {
             if (!systemDialogShown()) {
                 Thread.sleep(300)
-                if (!systemDialogShown()) {
-                    save(requireNotNull(ui.takeScreenshot()), name)
+                val shot = requireNotNull(ui.takeScreenshot())
+                // A blank frame (display asleep or not yet drawn) is no evidence either.
+                if (!systemDialogShown() && !isBlank(shot)) {
+                    save(shot, name)
                     return
                 }
+                shell("input keyevent KEYCODE_WAKEUP")
             }
             ui.executeShellCommand("am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS").close()
             Thread.sleep(1_000)
         }
-        throw AssertionError("a system dialog stayed over the $name screenshot")
+        throw AssertionError("no clean $name screenshot: a system dialog stayed on screen or the display stayed blank")
+    }
+
+    /** True when nearly all of [b] is black: the display was asleep or nothing was drawn yet. */
+    private fun isBlank(b: Bitmap): Boolean {
+        var black = 0
+        var total = 0
+        for (y in 0 until b.height step 16) for (x in 0 until b.width step 16) {
+            val p = b.getPixel(x, y)
+            total++
+            if (android.graphics.Color.red(p) + android.graphics.Color.green(p) + android.graphics.Color.blue(p) < 24) black++
+        }
+        return black > total * 0.95
     }
 
     /** True while an ANR or other system error dialog is among the windows on screen. */
@@ -194,7 +209,7 @@ class OverlaysTest {
      * the sheet is gone (side sheet: 240 ms slide out to the right; bottom sheet: the M3 hide animation).
      */
     @Test
-    fun scrimTapPlaysTheExitThenDismisses() {
+    fun scrimTapPlaysTheExitThenDismisses() = withAnimatorScale("1") {
         var dismissed = 0
         var open by mutableStateOf(true)
         rule.setContent {
@@ -277,6 +292,21 @@ class OverlaysTest {
         rule.mainClock.autoAdvance = true
         rule.waitForIdle()
         assertEquals(SnackbarResult.Dismissed, result)
+    }
+
+    /**
+     * Runs [block] with the system animator duration scale at [scale]. The test AVDs run with animations off (scale
+     * 0), and Compose scales every animation by it, so an exit animation is only observable with the scale at 1.
+     */
+    private fun withAnimatorScale(scale: String, block: () -> Unit) {
+        val before = shell("settings get global animator_duration_scale").trim()
+        shell("settings put global animator_duration_scale $scale")
+        try {
+            rule.waitForIdle()
+            block()
+        } finally {
+            shell("settings put global animator_duration_scale ${if (before == "null" || before.isEmpty()) "1" else before}")
+        }
     }
 
     private fun SemanticsNode.findAll(match: (SemanticsNode) -> Boolean): Boolean = match(this) || children.any { it.findAll(match) }

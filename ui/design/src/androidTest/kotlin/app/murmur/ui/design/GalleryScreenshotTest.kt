@@ -296,7 +296,8 @@ class GalleryScreenshotTest {
         val text = n.config.getOrNull(SemanticsProperties.Text)?.joinToString { it.text }
             ?: n.config.getOrNull(SemanticsProperties.ContentDescription)?.joinToString()
             ?: n.children.firstNotNullOfOrNull { c -> c.config.getOrNull(SemanticsProperties.Text)?.joinToString { it.text } }
-        return "#${n.id} '${text}' ${n.size.width / density}x${n.size.height / density} dp"
+        val at = n.positionInRoot
+        return "#${n.id} '${text}' ${n.size.width / density}x${n.size.height / density} dp at ${at.x / density},${at.y / density} dp"
     }
 
     private companion object {

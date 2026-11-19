@@ -170,6 +170,7 @@ fun StatusLabel(text: String, kind: StatusKind, modifier: Modifier = Modifier, i
     }
     Row(modifier, horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
         if (icon != null) Icon(icon, null, tint = color, modifier = Modifier.size(14.dp))
-        Text(text, style = MurmurTheme.type.labelSm, color = color, maxLines = 1)
+        // No line limit: in a narrow row trailing slot a long status wraps rather than being cut.
+        Text(text, style = MurmurTheme.type.labelSm, color = color)
     }
 }
