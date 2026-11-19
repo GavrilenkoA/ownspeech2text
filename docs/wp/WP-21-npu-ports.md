@@ -96,3 +96,13 @@ Still in work: WP-03, 10, 15, 16, 17, 20 (early paths).
 Merged on `integration/wave1` in this pass: WP-03 (in addition to WP-01, 02, 04, 05, 06, 07, 08, 09, 11, 12, 13, 14).
 Still in work: WP-10, 15, 16, 17, 20 (early paths).
 - No WP-03 contract touches the NPU ports.
+
+## Integration notes (wave-1 integration pass 4; ADR-083 in DECISIONS)
+
+Merged on `integration/wave1` in this pass: WP-10 (in addition to WP-01..09, 11, 12, 13, 14).
+Still in work: WP-15, 16, 17, 20 (early paths).
+- ADR-083 applies to the NPU ports too: an lmkd kill of `:asr` during an NPU load (exit reason low memory) is
+  `OutOfMemory(kind)` in the executor, Preparing and the benchmark, never a unit failure; any other death during the
+  load still marks the unit (ADR-066).
+- `:llm` NPU path (WP-10): `UnitUnavailable(NPU)` on the emulator, then a CPU load in the same process works; the
+  `npu` build is `HEXAGON_SDK_DIR=.cache/spikes/llm-npu/work/hexagon-sdk native/llama/build_android.sh npu`.

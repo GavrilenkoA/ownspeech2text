@@ -84,3 +84,10 @@ Merged on `integration/wave1` in this pass: WP-03 (in addition to WP-01, 02, 04,
 Still in work: WP-10, 15, 16, 17, 20 (early paths).
 - No WP-03 contract changes the History inputs. The bubble's Error "Open" action arrives as
   `UserInput.ResultAction` → `Effect.Open(OpenTarget)` as before (ADR-061).
+
+## Integration notes (wave-1 integration pass 4; ADR-083 in DECISIONS)
+
+Merged on `integration/wave1` in this pass: WP-10 (in addition to WP-01..09, 11, 12, 13, 14).
+Still in work: WP-15, 16, 17, 20 (early paths).
+- No WP-10 contract touches History. `cleanup_outcome = skipped:low_memory` now also follows a low-memory kill of
+  `:llm` during its load (ADR-083); the label stays the same.

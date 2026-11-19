@@ -3,7 +3,8 @@
 Collected from the work-package reports at integration. Each item: the question in plain words, what the architect
 recommends, and whether it blocks anything. Answer in any order; "go with the recommendation" is a valid answer.
 
-Updated: wave-1 integration pass 3 (2026-11-19; WP-01, 02, 03, 04, 05, 06, 07, 08, 09, 11, 12, 13, 14 merged).
+Updated: wave-1 integration pass 4 (2026-11-20; WP-01..14 merged). Pass 4 (WP-10) added no open question: its two
+owner items were decided or done here (last section).
 
 ## Models and ML
 
@@ -94,6 +95,14 @@ Updated: wave-1 integration pass 3 (2026-11-19; WP-01, 02, 03, 04, 05, 06, 07, 0
   then folds back, whether "Tuck in" is on or off; with TalkBack on it stays open (ADR-081, from WP-03 review).
 - A bubble that is listening, transcribing or polishing can be moved but not dragged onto "hide for 1 hour"
   (dropping it there used to start the hour silently while the dictation went on; ADR-081).
+
+- When the phone runs short of memory while loading the cleanup model, Android usually kills the model process instead
+  of refusing the memory (WP-10). Murmur now treats such a kill (the system records it as "low memory") like any other
+  out-of-memory: the dictation falls back or inserts without cleanup, and the model is tried again on the next
+  dictation. Before, one such moment disabled the model on that unit until the next app update. Any other crash
+  during a load still disables the unit (ADR-083). Blocks nothing; the phone check is in the device checklist.
+- The catalog with the re-measured prompt sizes (WP-10) was regenerated with network access and re-verified against
+  Hugging Face / GitHub at integration (catalog 2026-11-19.1); nothing is left to do (ADR-083).
 
 ## Still open from architecture v2 (unchanged, listed for completeness)
 

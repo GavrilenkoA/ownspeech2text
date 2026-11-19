@@ -109,3 +109,9 @@ Still in work: WP-10, 15, 16, 17, 20 (early paths).
 - "Sound and vibration": Vibration and Both vibrate (CONFIRM on start, CLOCK_TICK on Inserted / Copied and on the hide
   magnet, REJECT on Error); Sound and Off do not; Sound plays nothing until the earcons exist (ADR-062).
 - Bubble size Small / Standard / Large: the Small Ready circle is 44 dp with a 48 dp touch target (checked by WP-03).
+
+## Integration notes (wave-1 integration pass 4; ADR-083 in DECISIONS)
+
+Merged on `integration/wave1` in this pass: WP-10 (in addition to WP-01..09, 11, 12, 13, 14).
+Still in work: WP-15, 16, 17, 20 (early paths).
+- No WP-10 contract touches Settings. `debugTimeoutScale` is what WP-10's LFM3 emulator run needs (scale 4).

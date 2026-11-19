@@ -49,6 +49,9 @@ and `murmur_app_smoke.sh`):
 - DC9: LLM unit wall time (`notes wall.ms`) < 60 s; `llm.warmup.ms + llm.case.ms + llm.synthetic.ms` + `llm.prefix.ms` account for it, fixed-case decodeTps ≈ `llm.tg128.tps` (WP-14).
 - DC5: fold/unfold with the bubble hidden (no field focused, "Show always" off): no 2 s BLAST stall; a hidden bubble is alpha 0 + `FLAG_NOT_TOUCHABLE`, never `View.GONE` (`MurmurBubble` log) (WP-03).
 - DC10: after the real fold/unfold the bubble re-places on the same edge with proportional y, or at the position stored for that display (cover vs inner); the emulator only proves it survives (WP-03).
+- DC2/DC8: a disk restore of the prefix snapshot (MLLMST02, mapped) has `PrefixInfo.prefillMs` < 100 ms on the phone: 58.6 MB Qwen3.5 0.8B / 43.0 MB LFM3 (emulator medians 50 / 11-41 ms, outliers 120-232 ms) (WP-10).
+- DC8: `:llm` probe units include NPU, `htp.arch=v79`, `cpu.variant=libggml-cpu-android_armv8.6_1.so`, `native.build` `llama.cpp b12520 ff6b8d176186 ggml-hexagon npu`, `LoadInfo.deviceName=HTP0`; a bench cancel on HTP returns within 200 ms (decode polls per token) (WP-10).
+- DC8: build the npu libraries with `HEXAGON_SDK_DIR=.cache/spikes/llm-npu/work/hexagon-sdk` to reuse the cached 742 MB SDK (the script's default is `.cache/native-llama/hexagon-sdk`) (WP-10).
 
 Legal items that block shipping NPU libraries (not technical, owner reads once; until then DC8 APKs stay local):
 - Hexagon SDK Community Edition licence for redistributing `libggml-htp-v79.so` (needs a Qualcomm account to read).

@@ -171,3 +171,22 @@ Still in work: WP-10, 15, 16, 17, 20 (early paths).
   hinge posture, `wm size reset` is 1080). The orchestrator's internal errors are logged as `MurmurDictation
   internal_error <class> <- <cause>… at <frame>` (ADR-082, no message text); an e2e run should fail on any such line.
   A bubble that could not attach logs `bubble_retry_later display=N` and is retried on the display's next change.
+
+## Integration notes (wave-1 integration pass 4; ADR-083 in DECISIONS)
+
+Merged on `integration/wave1` in this pass: WP-10 (in addition to WP-01..09, 11, 12, 13, 14).
+Still in work: WP-15, 16, 17, 20 (early paths).
+- Wave 3 (`AppContainer` taken over from WP-15): keep `exits = AndroidProcessExits(context)` in `DictationDeps` and
+  `DefaultBenchmarkRunner` (ADR-083).
+- WP-10 is merged: the WP-14 emulator benchmark entry point (`.cache/spikes/wp-14/BenchmarkOnEmulatorTest.kt`) can now
+  be committed under `app/src/androidTest/kotlin/app/murmur/e2e/` (see the pass-2 note). The real e2e run needs the
+  x86_64 llama libraries: `tools/heavy nice native/llama/build_android.sh cpu-x86_64` writes
+  `.cache/native/jniLibs/llama/x86_64` (clean build ≈ 7 min at load ~36; `-Pmurmur.nativeLibsDir=` to point elsewhere).
+- WP-10's own suite: `am instrument -w -e class app.murmur.infer.llm.LlmServiceTest
+  app.murmur.infer.llm.test/androidx.test.runner.AndroidJUnitRunner` with the model copied through run-as into
+  `no_backup/models/qwen3.5-0.8b@q4_0/model.gguf` (OK 15 tests, ≈ 5 min; LFM3 with `-e artifact lfm3-1.7b@q4_0-qad
+  -e timeoutScale 4`, ≈ 8 min).
+- DEVICE_CHECKLIST (yours): WP-10 proposes a new step "load LFM3 on the CPU while the system is low on memory and record
+  what :main sees"; with ADR-083 the expected result is `OutOfMemory(LLM)` (exit reason `REASON_LOW_MEMORY` read by
+  `AndroidProcessExits`), no `UnitHealth` mark, CPU tried again on the next press. Also: an e2e assertion that
+  `unit-health.json` stays empty after an lmkd kill of `:llm` during its load, if the emulator can provoke one.

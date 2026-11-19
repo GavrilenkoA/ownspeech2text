@@ -158,3 +158,16 @@ Still in work: WP-10, 15, 16, 17, 20 (early paths).
 - `AppContainer` passes `onInternalError = { Log.e("MurmurDictation", internalErrorLine(it)) }` to the orchestrator
   (integration pass 3: unexpected errors in its loop were swallowed without a trace; ADR-082: class names and the
   throwing frame only, never the message). Keep it at the merge; `internalErrorLine` lives in `app/.../ErrorLog.kt`.
+
+## Integration notes (wave-1 integration pass 4; ADR-083 in DECISIONS)
+
+Merged on `integration/wave1` in this pass: WP-10 (in addition to WP-01..09, 11, 12, 13, 14).
+Still in work: WP-15, 16, 17, 20 (early paths).
+- `AppContainer` gained `private val exits: ProcessExits by lazy { AndroidProcessExits(context) }` (ADR-083), passed
+  as `DictationDeps(exits = exits)` and `DefaultBenchmarkRunner(exits = exits)`; `AndroidProcessExits.kt` is new in
+  `app/src/main/kotlin/app/murmur/`. Your branch edits `AppContainer.kt`: keep both arguments at the merge (without them
+  a low-memory kill of `:llm` during a load marks the unit failed until the next app version).
+- `:infer:llm` brings consumer R8 keep rules (`LlmNative` natives, `TokenSink.onPiece`); if you enable release minify,
+  nothing else is needed for the LLM, but run the release APK once (a missing rule shows as probe `native=missing`).
+- The integration tree has no `.cache/native/jniLibs`: debug APKs carry no llama libraries and the `:llm` probe
+  reports the runtime missing. Onboarding / hub copy must handle "LLM runtime missing" (it is the emulator default).

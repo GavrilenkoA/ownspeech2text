@@ -11,6 +11,7 @@ import kotlinx.serialization.Serializable
  * unload (llm spike JNI rule).
  */
 interface LlmEngine {
+    /** A load refused host memory is `OutOfMemory(LLM)` on any unit (ADR-066, ADR-083); device memory errors are `UnitUnavailable`. */
     suspend fun load(spec: LoadSpec): Outcome<LoadInfo>
     /**
      * Prefill the request-independent prefix (system + preferences + few-shot turns) and snapshot it.
@@ -21,7 +22,10 @@ interface LlmEngine {
     fun generate(request: LlmRequest): Flow<LlmEvent>
     fun cancel()
     suspend fun unload()
-    /** Benchmark button (WP-14): synthetic prefill/decode speed of the loaded model (binder timeout BinderTimeouts.benchMs). */
+    /**
+     * Benchmark button (WP-14): synthetic prefill/decode speed of the loaded model (binder timeout BinderTimeouts.benchMs).
+     * A [cancel] during either phase ends it with `LlmFailed("cancelled")` (ADR-083).
+     */
     suspend fun bench(nPrompt: Int, nGen: Int, reps: Int): Outcome<SyntheticBench>
 }
 
@@ -39,7 +43,8 @@ data class PrefixSpec(
  * The persisted prefix snapshot is valid only for the exact model file, prefix text, unit, native runtime build and
  * context parameters (review 2026-11-19): any of them changing must miss the cache. Built in :main (the renderer
  * gives [prefixSha] = sha256(prefix text); the probe gives [nativeBuildId]). On a state-file load error
- * (murmur_llm MLLM_E_STATE) :llm deletes the file, prefills again and saves (WP-10).
+ * (murmur_llm MLLM_E_STATE, also a file of another format or for another prefix text) :llm deletes the file,
+ * prefills again and saves (WP-10, ADR-083).
  */
 object PrefixCacheKey {
     fun of(modelSha256: String, prefixSha256: String, unit: ComputeUnit, nativeBuildId: String, nCtx: Int,
@@ -51,6 +56,10 @@ object PrefixCacheKey {
             .joinToString("") { "%02x".format(it) }
 }
 
+/**
+ * [prefillMs] = the engine's wall time for the call (a disk restore: map, compare the stored prefix text, restore;
+ * ADR-083), [bytes] = size of the snapshot (the state file on a restore).
+ */
 @Serializable
 data class PrefixInfo(val tokens: Int, val prefillMs: Long, val restoredFromDisk: Boolean, val bytes: Long)
 

@@ -1,6 +1,6 @@
 # Murmur architecture
 
-Version 2.1 · 2026-11-19 (wave-1 integration passes 1-3: ADR-064..082) · Owner: architect. Binding for all work packages (`docs/wp/`). Owner decisions D1-D12 are
+Version 2.1 · 2026-11-19 (wave-1 integration passes 1-4: ADR-064..083) · Owner: architect. Binding for all work packages (`docs/wp/`). Owner decisions D1-D12 are
 quoted verbatim at the top of `docs/DECISIONS.md`; conflicts and their evidence are ADR-nnn there; review findings and
 their resolution are under "Review responses" there. Everything that only the phone can prove: `docs/DEVICE_CHECKLIST.md`
 (steps DC1-DC10).
@@ -28,8 +28,8 @@ to be replaced by a measurement).
 5. **Default models:** ASR Parakeet TDT 0.6B v3 (NPU context binary on SM8750, CPU int8 elsewhere and as
    fallback); cleanup LFM3 1.7B Q4_0 (NPU by default) per the catalog, Qwen3.5 0.8B preferred on CPU. Final unit
    per model from the on-phone benchmark. ADR-014, ADR-029.
-6. **The context window fits the shipped prompt (ADR-045).** The default.v4 prefix is 3,129-3,269 tokens (VERIFIED
-   with `llama-tokenize` on the real GGUFs), so every LLM gets `nCtx = roundUp(prefixTokens + 5,200, 1,024)` (stock
+6. **The context window fits the shipped prompt (ADR-045).** The default.v4 prefix is 3,116-3,256 tokens (VERIFIED
+   with `llama-tokenize` on the real GGUFs, re-measured by WP-10's `tokenizer_check.py`, ADR-083), so every LLM gets `nCtx = roundUp(prefixTokens + 5,200, 1,024)` (stock
    9,216, fine-tunes 6,144): room for a 5-minute dictation with its screen context and output. A pure
    `CleanupBudget` decides before every call whether the request fits and finishes in time; otherwise the raw
    transcript is inserted ("Inserted, no cleanup", `skipped:too_long`).
@@ -215,14 +215,15 @@ OCR is loaded in `:asr` right after the ASR model (it is 10 MB) and used once pe
 | | `IAsrSession.finish(cb)` / `cancel()` | → `Transcript` | `asrFinalTimeoutMs(tail)` = 4 s + 0.5 s per tail second |
 | | `recognizeScreen(SharedMemory, w, h, exclude, cb)` | ARGB_8888 ints, read-only mapping → `ScreenText`; newest frame wins (an older one → `OcrFailed("superseded")`) | 4 s (`ocrBudgetMs`); a timeout returns `Timeout(OCR)` and never kills `:asr` (ADR-069) |
 | | `unloadAll()` | — | 2 s |
-| `ILlmService` | `load(spec, cb)` | `LoadSpec` (options `n_ctx`, `threads`, `use_mmap`, `power_mode`) → `LoadInfo` | 30 s |
-| | `setPrefix(prefixSpec, cb)` | `PrefixSpec{text, cacheKey}` → `PrefixInfo{tokens, restoredFromDisk}` | `prefixMs(tokens)` = max(30 s, 2 × tokens / pp), pp = benchmark prefill or 40 tok/s |
+| `ILlmService` | `load(spec, cb)` | `LoadSpec` (options `n_ctx`, `threads`, `use_mmap`, `power_mode`) → `LoadInfo`; host memory refused → `OutOfMemory(LLM)` on any unit (`MLLM_E_NOMEM`) | 30 s |
+| | `setPrefix(prefixSpec, cb)` | `PrefixSpec{text, cacheKey}` → `PrefixInfo{tokens, prefillMs (engine wall time), restoredFromDisk, bytes}` | `prefixMs(tokens)` = max(30 s, 2 × tokens / pp), pp = benchmark prefill or 40 tok/s |
 | | `generate(request, ILlmStreamCallback)` | `LlmRequest{suffix, maxTokens, minTokens}` → `onPiece(text)`*, `onDone(text, LlmStats)` / `onError` | the adaptive LLM timer (5.3) |
-| | `bench(nPrompt, nGen, reps, cb)` | → `SyntheticBench` | `benchMs` = max(30 s, (nPrompt/40 + nGen/5) × reps × 2 s) |
+| | `bench(nPrompt, nGen, reps, cb)` | → `SyntheticBench`; `cancel()` in either phase → `LlmFailed("cancelled")` | `benchMs` = max(30 s, (nPrompt/40 + nGen/5) × reps × 2 s) |
 | | `cancel()` / `unload()` | — | 2 s |
 
 Rules: every method returns immediately; work runs on the service's engine thread; results come back through
-`oneway` callbacks. Text is a `String` over binder (UTF-16 parcel, emoji-safe) and UTF-8 bytes at JNI (llm spike
+`oneway` callbacks. `:llm` computes its probe as the engine thread's first task, so `probe()` never waits behind a
+load or prefill (ADR-083). Text is a `String` over binder (UTF-16 parcel, emoji-safe) and UTF-8 bytes at JNI (llm spike
 D11). Binder transactions stay far below 1 MB (largest: prompt prefix ≈ 12 KB of text). The 17 MB frame never goes
 through a parcel: `:main` copies the `ARGB_8888` bitmap into `SharedMemory`, `setProtect(PROT_READ)`, passes the
 fd, closes its copy after the callback. Clients bind with `bindContext()` = the accessibility service when connected,
@@ -245,8 +246,8 @@ truncated and never inserted (`fallback:truncated`).
 |---|---|---|
 | `:asr` dies while Listening | `onServiceDisconnected`/`onBindingDied`, `EPIPE` on the pipe → `ProcessDied(ASR)` | keep recording; re-bind once; new session; replay the session buffer from sample 0; second death → stop at the user's stop, `Failed(ProcessDied(ASR))`, entry kept with audio ("Try again") |
 | `:asr` dies or times out in Finishing | same / `Timeout(ASR_FINAL)` | first time: `shutdown()`, re-bind, replay full PCM to a fresh session, `finish()`; second: Failed with audio |
-| ASR load fails (`EngineLoadFailed`, `UnitUnavailable(NPU)`, process death during load) | `loadAsr` error | executor: `UnitHealth.markFailed(artifact, unit)` (not for `OutOfMemory`, ADR-066), load `ActiveModels.asrFallback` (the model's other installed artifact) and replay the buffer; bubble keeps Listening. No fallback installed → `AsrLoadFailed(UnitUnavailable(NPU))`: keep recording, at stop "Couldn't load the speech model" + Open → hub row "Download the CPU version (671 MB)"; audio kept |
-| LLM load fails on a unit (`EngineLoadFailed`, rpcmem/VTCM/op rejection, PD refusal, death during load) | `load` error or `ProcessDied(LLM)` during load | executor: `markFailed(artifact, unit)`, load `ActiveLlm.fallback` (same GGUF on GPU, then CPU: no download), restore or build the prefix; cleanup proceeds if ready within `LLM_READY`; all failed → "Inserted, no cleanup", `skipped:llm_load` |
+| ASR load fails (`EngineLoadFailed`, `UnitUnavailable(NPU)`, process death during load) | `loadAsr` error (a death with a low-memory exit record is `OutOfMemory(ASR)`, ADR-083) | executor: `UnitHealth.markFailed(artifact, unit)` (not for `OutOfMemory`, ADR-066), load `ActiveModels.asrFallback` (the model's other installed artifact) and replay the buffer; bubble keeps Listening. No fallback installed → `AsrLoadFailed(UnitUnavailable(NPU))`: keep recording, at stop "Couldn't load the speech model" + Open → hub row "Download the CPU version (671 MB)"; audio kept |
+| LLM load fails on a unit (`EngineLoadFailed`, rpcmem/VTCM/op rejection, PD refusal, death during load) | `load` error or `ProcessDied(LLM)` during load; a death whose exit record says low memory (lmkd) and a load refused host memory are `OutOfMemory(LLM)`: fallback tried, no mark (ADR-066, ADR-083) | executor: `markFailed(artifact, unit)`, load `ActiveLlm.fallback` (same GGUF on GPU, then CPU: no download), restore or build the prefix; cleanup proceeds if ready within `LLM_READY`; all failed → "Inserted, no cleanup", `skipped:llm_load` |
 | `:llm` dies after it was ready (before cleanup) | `ProcessDied(LLM)` | reload once (`ReloadLlm`: re-bind, load, prefix from disk); second death → no cleanup |
 | `:llm` dies or times out in Polishing | `ProcessDied(LLM)` / adaptive timer | `cancel()`; no `onDone` within 1 s → `shutdown(:llm)`; insert the raw transcript (`skipped:llm_died` / `skipped:timeout`) |
 | LLM still loading when the transcript is ready | `LLM_READY` timer (10 s) | insert raw (`skipped:llm_not_ready`); the load continues so the next dictation is warm |
@@ -416,7 +417,8 @@ t+70..210 first buffer → MicStarted; PreflightPassed → Listening (PCM buffer
 [t+0..0.3 s] bind :asr + :llm (process start) [I]
 [t+0.3..1.3 s] :asr loads Parakeet QNN context (+VAD, OCR)        (0.5-1.2 s SM8850 sherpa log [I])
 [t+0.3..3 s] :llm loads LFM3 Q4_0 (n_ctx 9,216) into rpcmem + restores the prefix snapshot from disk
-             (snapshot ≈ 50-60 MB for 3.1-3.2k tokens [I, scaled from 17-34 MB at 1.1k, VERIFIED host 4-11 ms]; load UNVERIFIED-ON-DEVICE)
+             (snapshot 43.0 MB LFM3 / 58.6 MB Qwen3.5 0.8B, mapped restore median 11-50 ms on the x86 emulator, VERIFIED
+             WP-10, ADR-083; phone < 100 ms UNVERIFIED-ON-DEVICE, DC2/DC8; load UNVERIFIED-ON-DEVICE)
 [t+0.6 s] window screenshot (6-70 ms call + copy), SharedMemory → :asr OCR (det 960 + ~20 lines) [I] 0.4-1 s
 [ongoing] each VAD pause closes a segment → decoded (NPU) → Committed
 stop tap → Finishing: tail decode → Transcript → precheck → (wait ≤ 800 ms for OCR) → CleanupBudget → render (ctx v2)
@@ -425,7 +427,7 @@ stop tap → Finishing: tail decode → Transcript → precheck → (wait ≤ 80
 
 ### 6.2 After-stop budget, 10 s dictation, warm (≈ 25 Russian words; 34 tokens Qwen3.5, 46 tokens LFM3; llm-models 6)
 
-The prefix (3,129-3,240 tokens) is never prefilled here: it is restored from the snapshot built at Preparing.
+The prefix (3,116-3,226 tokens) is never prefilled here: it is restored from the snapshot built at Preparing.
 
 | Step | NPU path (Parakeet NPU + LFM3 NPU) | CPU path (Parakeet CPU + Qwen3.5 0.8B CPU) | Source |
 |---|---|---|---|
@@ -438,7 +440,7 @@ The prefix (3,129-3,240 tokens) is never prefilled here: it is restored from the
 
 ### 6.3 After-stop budget, 60 s dictation, warm (≈ 150 words; 204 tokens Qwen3.5, 278 tokens LFM3)
 
-Context check (ADR-045): LFM3 prefix 3,240 + suffix ≈ 790 + output ≤ 1.5 × 278 + 64 = 481 → 4,511 tokens ≤ n_ctx 9,216.
+Context check (ADR-045): LFM3 prefix 3,226 + suffix ≈ 790 + output ≤ 1.5 × 278 + 64 = 481 → 4,497 tokens ≤ n_ctx 9,216.
 With the old n_ctx 4,096 this case could not run (review blocker, VERIFIED by token count).
 
 | Step | NPU path | CPU path (Qwen3.5 0.8B) |
@@ -455,7 +457,7 @@ With the old n_ctx 4,096 this case could not run (review blocker, VERIFIED by to
 |---|---|---|
 | A. 3 s dictation, first after > 60 s idle, NPU path | LLM load (1.05 GB copied into rpcmem, mmap off; UNVERIFIED-ON-DEVICE, estimate 1-3 s) + snapshot load from disk started at the press; after stop = max(0, load_end − stop) + 10 s budget rows | 1.3-1.6 s + 0-0.3 s wait |
 | B. same on the CPU path (Qwen3.5, `use_mmap=0`, 0.5 GB read + repack) | load ≈ 0.5-1.5 s, finished before the stop | ≈ 1.2-1.6 s |
-| C. first dictation after a prompt / preferences edit or a unit change, before the background re-prepare finished | full prefix prefill: LFM3 NPU 3,240 / 2,597 = 1.25 s; LFM3 CPU 3,240 / 368 = 8.8 s; Qwen3.5 CPU 3,129 / 569 = 5.5 s (AI Hub S25) | + max(0, prefill_end − stop); > 10 s → "Inserted, no cleanup" (`skipped:llm_not_ready`) |
+| C. first dictation after a prompt / preferences edit or a unit change, before the background re-prepare finished | full prefix prefill: LFM3 NPU 3,226 / 2,597 = 1.24 s; LFM3 CPU 3,226 / 368 = 8.8 s; Qwen3.5 CPU 3,116 / 569 = 5.5 s (AI Hub S25) | + max(0, prefill_end − stop); > 10 s → "Inserted, no cleanup" (`skipped:llm_not_ready`) |
 | D. NPU load fails (first time on this phone, if install-time Preparing did not catch it) | fallback to GPU/CPU of the same GGUF (no download) | + one CPU load (≈ 1-2 s [I]) |
 
 Preparing (8.5) makes C rare: it rebuilds the snapshot within ≈ 5 s of the edit while no dictation runs. DC8
@@ -493,8 +495,8 @@ shipped template (WP-10 host test). Every number in section 6 is UNVERIFIED-ON-D
 | `:asr` Parakeet NPU + VAD + OCR | ≈ 0.6-1.0 GB (context binaries 653 MB on disk) + ORT arenas 60-140 MB [I] | catalog memoryMb 900 |
 | `:asr` Parakeet CPU int8 fallback | 1.3 GB | host peak RSS VERIFIED (asr-ocr 3) |
 | `:llm` LFM3 Q4_0 NPU | ≈ 1.1-1.2 GB rpcmem (weights copied, not mmapped) + 77 MiB compute + KV 9,216 × 12 KB = 108 MB + prefix snapshot in RAM ≈ 50 MB | llm spike 3.3, 5.4; KV formula VERIFIED (GGUF dims) |
-| `:llm` LFM3 CPU (`use_mmap=0`) | 1.25 GB at n_ctx 4,096 VERIFIED + 60 MB more KV = 1.31 GB | catalog memoryMb |
-| `:llm` Qwen3.5 0.8B CPU | 0.71 GB VERIFIED + 60 MB KV = 0.77 GB (+ ≈ 20 MB DeltaNet state in the snapshot) | catalog memoryMb |
+| `:llm` LFM3 CPU (`use_mmap=0`) | 1.25 GB at n_ctx 4,096 VERIFIED + 60 MB more KV = 1.31 GB; x86 emulator peak RSS with n_ctx 9,216 and the prefix built: 1.47 GB (WP-10) | catalog memoryMb (1,250: below the emulator peak, re-check on the phone, DC2) |
+| `:llm` Qwen3.5 0.8B CPU | 0.71 GB VERIFIED + 60 MB KV = 0.77 GB (+ ≈ 20 MB DeltaNet state in the snapshot); x86 emulator peak RSS 0.87 GB (WP-10) | catalog memoryMb (710, same caveat) |
 | `:llm` Qwen3 0.6B/1.7B (full attention, 112 KB/token) | + 1.0 GB KV at 9,216 | catalog memoryMb 1,760 (hedge models) |
 | **Peak total** | **≈ 2.5 GB (NPU+NPU) … 2.3 GB (Parakeet CPU + Qwen3.5 CPU) … 2.8 GB (Parakeet CPU + LFM3 CPU)** | sum |
 | Idle (after 60 s) | `:main` only, ≈ 100 MB | D5 |
@@ -552,8 +554,9 @@ benchmark records, and "Ran on" from the benchmark. The unit preference is store
 `noBackupFilesDir/models/<artifactId>/` holds the files, `<name>.part` while downloading (its length is the resume
 offset), archives extracted in place then deleted, `installed.json` written last and atomically (the artifact is
 installed iff it exists, with the verified sha256 of each file), and `prefix-<key>.state` LLM snapshots
-(`PrefixCacheKey.of(model sha256, sha256(prefix), unit, native build id, n_ctx, kv type, n_batch)`; a load error
-deletes the file and rebuilds it). `unit-health.json` (reset per app version). Never in backups, never in the APK
+(`PrefixCacheKey.of(model sha256, sha256(prefix), unit, native build id, n_ctx, kv type, n_batch)`; format MLLMST02 =
+snapshot + prefix text, mapped read-only and restored from the mapping after a byte compare of the text; a load
+error, another format or another prefix text deletes the file and rebuilds it, ADR-083). `unit-health.json` (reset per app version). Never in backups, never in the APK
 (BRIEF). Peak disk = archive + extracted (×2 for the NPU tarballs).
 
 ### 8.4 Device profile
