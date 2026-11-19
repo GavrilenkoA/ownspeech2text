@@ -193,8 +193,7 @@ fun AppShell(deps: ShellDeps, links: StateFlow<DeepLink?>, onLinkHandled: () -> 
                         ListDetailSceneStrategy.preferredPaneSize(Layout.modelsListPane),
                 ) {
                     ListPane {
-                        // WIRING SLOT (WP-18): ModelsScreen(segment, onSegmentShown) is this branch's stub contract
-                        // (CROSS-WP); WP-18 selects the segment and calls onSegmentShown.
+                        // A deep link's Speech / Cleanup request is shown once, then cleared (ADR-087).
                         ModelsScreen(
                             deps.models, onOpenModel = { replace(ShellNav.openModel(it.value)) },
                             selected = if (wide) selectedModel else null,
@@ -204,7 +203,6 @@ fun AppShell(deps: ShellDeps, links: StateFlow<DeepLink?>, onLinkHandled: () -> 
                 }
                 entry<ModelDetailRoute>(metadata = ListDetailSceneStrategy.detailPane() + mapOf(DETAIL to true)) { r ->
                     DetailPane("detail-model-${r.id}", wide) {
-                        // WIRING SLOT (WP-18): ModelDetail follows WP-16's detail convention (onClose, pane).
                         ModelDetail(deps.models, ModelId(r.id), onClose = { close(ModelsRoute) }, pane = wide)
                     }
                 }

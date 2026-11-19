@@ -93,6 +93,31 @@ class ModelsInteractionTest {
         }
     }
 
+    /** Integration pass 6 (ADR-087): the shell's one-shot Speech / Cleanup request from a deep link. */
+    @Test
+    fun aSegmentRequestShowsThatSegmentOnceAndThenKeepsTheUsersChoice() {
+        val w = World(allAsr + llm.artifacts.map { it.id })
+        var segment by mutableStateOf<ModelKind?>(ModelKind.LLM)
+        var shown = 0
+        rule.setContent {
+            MurmurTheme(darkTheme = false) {
+                ModelsScreen(w.deps, onOpenModel = {}, segment = segment, onSegmentShown = { shown++; segment = null })
+            }
+        }
+        rule.waitForIdle()
+        assertEquals(1, shown)
+        // "None" exists only on the Cleanup segment.
+        rule.onNodeWithTag(HubTags.NONE_ROW).assertExists()
+        rule.onNodeWithText(s(R.string.models_tab_speech)).performClick()
+        rule.waitForIdle()
+        assertTrue(rule.onAllNodes(hasTestTag(HubTags.NONE_ROW)).fetchSemanticsNodes().isEmpty())
+        assertEquals(1, shown)
+        rule.runOnIdle { segment = ModelKind.LLM }
+        rule.waitForIdle()
+        assertEquals(2, shown)
+        rule.onNodeWithTag(HubTags.NONE_ROW).assertExists()
+    }
+
     @Test
     fun noneAndRadioSelectTheCleanupModel() {
         val w = World(allAsr + llm.artifacts.map { it.id } + otherLlm.artifacts.map { it.id })

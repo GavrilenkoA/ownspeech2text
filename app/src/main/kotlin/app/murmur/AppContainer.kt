@@ -202,7 +202,7 @@ class AppContainer(private val context: Context) {
     val modelsDeps: ModelsDeps by lazy {
         ModelsDeps(
             catalog = catalog, installed = installed, benchmarks = benchmarks, runner = benchmarkRunner, settings = settings,
-            custom = customModels, device = deviceProfile.profile, health = unitHealth,
+            custom = customModels, device = deviceProfile.profile, health = unitHealth, ensureDevice = deviceProfile::ensure,
         )
     }
     val settingsDeps: SettingsDeps by lazy {
