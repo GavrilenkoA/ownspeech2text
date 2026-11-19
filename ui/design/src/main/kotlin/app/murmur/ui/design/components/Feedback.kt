@@ -45,7 +45,6 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
@@ -178,9 +177,7 @@ fun Banner(
                     append(" ")
                     append(body)
                 },
-                // Greedy line breaking, as the browser that rendered the frames breaks (Compose's default
-                // balances lines and wraps earlier, e.g. dash-off's "…after an update or").
-                style = MurmurTheme.type.body.copy(lineBreak = LineBreak.Simple),
+                style = MurmurTheme.type.body,
                 color = c.ink,
             )
             if (actionLabel != null && onAction != null) {
