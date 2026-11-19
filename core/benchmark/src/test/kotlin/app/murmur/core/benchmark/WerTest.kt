@@ -12,6 +12,16 @@ class WerTest {
     }
 
     @Test
+    fun normaliserIsTheSpikes() {
+        // Expected values printed by asr_lib.norm of the asr-ocr spike for the same inputs.
+        assertEquals(listOf("все", "таки", "ее_дом", "2024"), WordErrorRate.normalize("Всё-таки ЕЁ_дом, 2024!"))
+        assertEquals(listOf("все"), WordErrorRate.normalize("вс\u0435\u0308")) // decomposed ё: NFC, then folded
+        assertEquals(listOf("привет", "мир", "да"), WordErrorRate.normalize("Привет,\u00a0мир — «да»"))
+        assertEquals(0.0, WordErrorRate.wer("всё", "все"), 1e-9)
+        assertEquals(0.0, WordErrorRate.wer("Её нет", "ее нет"), 1e-9)
+    }
+
+    @Test
     fun validityGateRejectsFastButWrongResults() {
         assertNull(BenchValidity.asr(0.074, cpuWer = 0.076))
         assertEquals("wer_high", BenchValidity.asr(0.9, cpuWer = null))
