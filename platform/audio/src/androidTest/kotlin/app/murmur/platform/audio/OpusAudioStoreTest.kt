@@ -67,16 +67,19 @@ class OpusAudioStoreTest {
         val raw = OpusAudioStore.decode(file)
         val rawMs = (System.nanoTime() - t2) / 1_000_000
         val snr = PcmMath.snr(pcm, decoded, maxLag = 1_600, edge = 1_600)
+        val rawPcm = OpusAudioStore.decodeToPcm16k(file)!!
         val encoder = codec.encoderName()
         Log.i(MicCaptureTest.TAG, "codec=${ref.codec} encoder=$encoder file=${file.name} bytes=${file.length()} " +
             "kbit_s=${file.length() * 8 / 30_000.0} duration_ms=${ref.durationMs} decoder_rate=${raw.sampleRate} " +
             "decoder_channels=${raw.channels} decoded=${decoded.size}/${pcm.size} snr_db=${"%.2f".format(snr.db)} " +
-            "lag=${snr.lag} enc_ms=$encMs dec_ms=$decMs decoder_only_ms=$rawMs")
+            "lag=${snr.lag} unaligned_decoded=${rawPcm.size} enc_ms=$encMs dec_ms=$decMs " +
+            "decoder_only_ms=$rawMs")
         assertEquals(codec.label, ref.codec)
         assertEquals(30_000L, ref.durationMs)
         assertEquals(file.length(), ref.bytes)
         maxBytes?.let { assertTrue("${file.length()} bytes <= $it", file.length() <= it) }
         assertTrue("decoded ${decoded.size} >= 99 % of ${pcm.size}", decoded.size >= pcm.size * 99 / 100)
+        assertEquals("decoded back to the recorded length", pcm.size, decoded.size)
         assertTrue("SNR ${snr.db} dB >= 20 dB", snr.db >= 20.0)
         assertTrue(store.exists(ref))
         store.delete(ref)
@@ -97,6 +100,44 @@ class OpusAudioStoreTest {
 
     @Test
     fun aacFallback30sToneDecodesBack() = runBlocking { roundTrip(HistoryCodec.AAC, maxBytes = 120 * 1024L) }
+
+    /**
+     * 5 s that hop to a new frequency (300 Hz - 3 kHz, seeded) every 40 ms with continuous phase: unlike the periodic
+     * tone, the best lag of this signal is unique, so it shows whether readPcm is sample-aligned with the capture.
+     */
+    private fun hopping5s(): ShortArray {
+        val rnd = java.util.Random(7)
+        var phase = 0.0
+        var f = 1_000.0
+        return ShortArray(PcmFormat.msToSamples(5_000).toInt()) { i ->
+            if (i % 640 == 0) f = 300.0 + rnd.nextDouble() * 2_700
+            phase += 2 * PI * f / PcmFormat.SAMPLE_RATE
+            (7_000 * sin(phase)).toInt().toShort()
+        }
+    }
+
+    private suspend fun alignment(codec: HistoryCodec) {
+        val store = store(codec, "align-${codec.label}")
+        val pcm = hopping5s()
+        val ref = encode(store, AudioKey.of(1_763_800_000_000, SessionId(2)).value, pcm)!!
+        val unaligned = OpusAudioStore.decodeToPcm16k(File(ref.path))!!
+        val decoded = store.readPcm(ref)!!
+        val before = PcmMath.snr(pcm, unaligned, maxLag = 3_200, edge = 1_600)
+        val after = PcmMath.snr(pcm, decoded, maxLag = 3_200, edge = 1_600)
+        Log.i(MicCaptureTest.TAG, "alignment codec=${codec.label} unaligned_len=${unaligned.size} unaligned_lag=${before.lag} " +
+            "len=${decoded.size}/${pcm.size} lag=${after.lag} snr_db=${"%.2f".format(after.db)}")
+        assertEquals("decoded back to the recorded length", pcm.size, decoded.size)
+        assertTrue("readPcm is aligned: best lag ${after.lag} (before ${before.lag})", after.lag in -1..1)
+        // A perceptual codec at 24 kbit/s keeps little waveform SNR on 40 ms frequency hops; > 3 dB still shows that the
+        // best lag is a real match (noise or a wrong offset gives <= 0 dB).
+        assertTrue("the match at that lag is real: ${after.db} dB", after.db > 3.0)
+    }
+
+    @Test
+    fun readPcmIsAlignedWithTheCapturedSamplesOpus() = runBlocking { alignment(HistoryCodec.OPUS) }
+
+    @Test
+    fun readPcmIsAlignedWithTheCapturedSamplesAac() = runBlocking { alignment(HistoryCodec.AAC) }
 
     @Test
     fun sameSessionDifferentCreationTimesGiveTwoFiles() = runBlocking {

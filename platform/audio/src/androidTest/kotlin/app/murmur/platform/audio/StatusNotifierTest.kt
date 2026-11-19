@@ -3,6 +3,9 @@ package app.murmur.platform.audio
 import android.Manifest
 import android.app.Notification
 import android.app.NotificationManager
+import android.os.Handler
+import android.os.HandlerThread
+import android.os.SystemClock
 import android.service.notification.StatusBarNotification
 import android.util.Log
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -21,6 +24,11 @@ import java.util.concurrent.TimeUnit
 
 @RunWith(AndroidJUnit4::class)
 class StatusNotifierTest {
+    private companion object {
+        /** setWindow(RTC, t, 60 s): the platform may stretch the window; measured on the emulator, see the report. */
+        const val ALARM_WAIT_MS = 120_000L
+    }
+
     private val context = Shell.context
     private val nm = context.getSystemService(NotificationManager::class.java)
     private val notifier = AndroidStatusNotifier(context)
@@ -89,6 +97,49 @@ class StatusNotifierTest {
         assertEquals("Show now", posted()!!.notification.actions[0].title.toString())
         val after = Shell.waitFor(4_000, { posted()?.notification?.actions?.get(0)?.title?.toString() }) { it == "Hide 1 h" }
         assertEquals("Hide 1 h", after)
+    }
+
+    /**
+     * The in-process timer runs on the uptime clock and dies with the process; the wall-clock alarm does not. Here the
+     * timer's thread is gone right after show() (as after a process death), and the alarm alone must flip it back.
+     */
+    @Test
+    fun theWallClockAlarmFlipsItBackWithoutTheInProcessTimer() {
+        val thread = HandlerThread("timer-that-dies").also { it.start() }
+        val n = AndroidStatusNotifier(context, timer = Handler(thread.looper))
+        val until = System.currentTimeMillis() + 2_000
+        n.show("m", until)
+        thread.quitSafely()
+        val alarm = pendingUnhideAlarm()
+        Log.i(MicCaptureTest.TAG, "unhide_alarm=" + alarm.joinToString(" | ") { it.trim() })
+        assertTrue("an RTC alarm to the receiver is set", alarm.isNotEmpty())
+        assertEquals("Show now", posted()!!.notification.actions[0].title.toString())
+        val t0 = SystemClock.uptimeMillis()
+        val after = Shell.waitFor(ALARM_WAIT_MS, { posted()?.notification?.actions?.get(0)?.title?.toString() }) { it == "Hide 1 h" }
+        Log.i(MicCaptureTest.TAG, "unhide_by_alarm after_ms=${System.currentTimeMillis() - until} waited_ms=${SystemClock.uptimeMillis() - t0}")
+        assertEquals("Hide 1 h", after)
+        assertTrue("the alarm is gone once it fired", pendingUnhideAlarm().isEmpty())
+    }
+
+    @Test
+    fun anAlarmNeverBringsBackAHiddenNotification() {
+        notifier.show("m", System.currentTimeMillis() + 1_000)
+        notifier.hide()
+        assertTrue("hide() cancels the alarm", pendingUnhideAlarm().isEmpty())
+        // Even a late delivery of the alarm's broadcast does nothing once the notification is gone.
+        AndroidStatusNotifier(context).flipBackIfShown("m")
+        Thread.sleep(1_500)
+        assertNull(nm.activeNotifications.firstOrNull { it.id == AndroidStatusNotifier.NOTIFICATION_ID })
+    }
+
+    /** Our entry in the "N pending alarms:" section of dumpsys alarm (the history sections keep fired ones). */
+    private fun pendingUnhideAlarm(): List<String> {
+        val lines = Shell.run("dumpsys alarm").lines()
+        val from = lines.indexOfFirst { it.trim().endsWith("pending alarms:") }
+        if (from < 0) return emptyList()
+        val pending = lines.drop(from + 1).takeWhile { it.startsWith("    ") }
+        val i = pending.indexOfFirst { it.contains("action.UNHIDE") }
+        return if (i < 0) emptyList() else pending.subList(maxOf(0, i - 1), minOf(pending.size, i + 2))
     }
 
     @Test

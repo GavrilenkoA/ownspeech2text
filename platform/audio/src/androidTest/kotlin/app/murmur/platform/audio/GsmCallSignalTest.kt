@@ -14,12 +14,14 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
 import java.util.Collections
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * A real telephony call on the emulator while recording (`adb emu gsm call`). The call has to come from the host's
@@ -41,8 +43,11 @@ class GsmCallSignalTest {
         val modes = AndroidAudioModeSource(context)
         val seen = Collections.synchronizedList(ArrayList<String>())
         val t0 = SystemClock.uptimeMillis()
+        val firstCall = AtomicLong(-1)
         val watch = modes.observe(Executors.newSingleThreadExecutor()) {
-            seen += "${CallModes.name(it)}@${SystemClock.uptimeMillis() - t0}ms"
+            val now = SystemClock.uptimeMillis()
+            if (CallModes.isCall(it)) firstCall.compareAndSet(-1, now)
+            seen += "${CallModes.name(it)}@${now - t0}ms"
         }
         val store = OpusAudioStore(context, dir = File(context.filesDir, "history/audio-gsm-test"))
         val h = (AndroidAudioCapture(context, store).start(SessionId(1), false, "unused") as Outcome.Ok).value
@@ -54,7 +59,12 @@ class GsmCallSignalTest {
         Thread.sleep(8_000) // the script accepts the call, then hangs up: record the modes of the whole call
         val r = h.stop()
         watch.close()
-        Log.i(MicCaptureTest.TAG, "WP09_CALL_DONE modes=$seen recorded_ms=${r.durationMs}")
+        // Device clock: the system's mode change, seen by an independent listener, -> our signal (negative: ours first).
+        val firstCallModeAt = firstCall.get()
+        val modeToSignal = at - firstCallModeAt
+        Log.i(MicCaptureTest.TAG, "WP09_CALL_DONE modes=$seen recorded_ms=${r.durationMs} mode_to_signal_ms=$modeToSignal")
         assertEquals(CaptureSignal.CallStarted, s)
+        assertTrue("a call mode was seen", firstCallModeAt >= 0)
+        assertTrue("mode change -> CallStarted $modeToSignal ms <= 1000 ms", modeToSignal <= 1_000)
     }
 }
