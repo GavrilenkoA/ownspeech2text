@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The bubble's copy (DESIGN 7 copy deck, TalkBack texts of DESIGN 5.3). Every key starts with bubble_ so that it
+     never collides with a feature module's key after resource merging (action_* of the deck -> bubble_action_*).
+     The product name is never written here (D10): it comes in as %1$s from ProductName.NAME. -->
+<resources>
+    <!-- Visible labels -->
+    <string name="bubble_listening">Listening</string>
+    <string name="bubble_hold">Release to finish</string>
+    <string name="bubble_transcribing">Transcribing</string>
+    <string name="bubble_polishing">Polishing</string>
+    <string name="bubble_inserted">Inserted</string>
+    <string name="bubble_inserted_nocleanup">Inserted, no cleanup</string>
+    <string name="bubble_copied">Copied. Paste it anywhere</string>
+    <string name="bubble_err_nospeech">Didn\'t catch that</string>
+    <string name="bubble_err_micbusy">Microphone is busy</string>
+    <string name="bubble_err_nomodel">Download a speech model first</string>
+    <string name="bubble_err_load">Couldn\'t load the speech model</string>
+    <!-- Not in the copy deck (ARCHITECTURE 5.5 "transcription failed + Open entry"); proposed, sent to the design owner. -->
+    <string name="bubble_err_transcription">Couldn\'t transcribe that</string>
+    <!-- Not in the copy deck (BubbleError.GENERIC: preflight and other failures); proposed, sent to the design owner. -->
+    <string name="bubble_err_generic">Dictation didn\'t work</string>
+    <string name="bubble_action_retry">Retry</string>
+    <string name="bubble_action_open">Open</string>
+    <string name="bubble_action_undo">Undo</string>
+    <string name="bubble_hide_target">Drag here to hide for 1 hour</string>
+    <!-- %1$s = local clock time, e.g. 15:32 -->
+    <string name="bubble_hidden_snack">Bubble hidden until %1$s</string>
+
+    <!-- TalkBack (DESIGN 5.3 "TalkBack text", DESIGN 8) -->
+    <!-- %1$s = product name -->
+    <string name="bubble_rest_cd">%1$s. Double-tap to show the dictation button</string>
+    <string name="bubble_ready_cd">Start dictation. Double-tap to talk, double-tap again to finish</string>
+    <string name="bubble_finish_cd">Finish dictation</string>
+    <string name="bubble_cancel_cd">Cancel and discard</string>
+    <string name="bubble_hold_live">Listening. Release to finish</string>
+    <string name="bubble_copied_live">Copied to clipboard</string>
+    <string name="bubble_drag_cd">Dragging. Release at the bottom to hide</string>
+    <string name="bubble_hide_action">Hide for 1 hour</string>
+</resources>
