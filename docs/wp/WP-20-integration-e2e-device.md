@@ -123,3 +123,24 @@ Merged on `integration/wave1`: WP-01, 05, 06, 07, 08, 09, 11, 12, 13. Still in w
   after "Couldn't load the speech model" → Transcribing → Polishing → Inserted in the same field; Retry of a 5:00
   entry reads its audio well under 10 s (`storedAudioReadTimeoutMs`) (WP-11). (10) The binder order of
   binderDied / onServiceDisconnected / EPIPE vs a failing `finish()` on real process deaths (WP-11).
+
+## Integration notes (wave-1 integration pass 2; ADR-078..080 in DECISIONS)
+
+Merged on `integration/wave1` in this pass: WP-04, WP-02, WP-14 (in addition to WP-01, 05, 06, 07, 08, 09, 11, 12, 13).
+Still in work: WP-03, 10, 20 (early paths).
+- Capture kind is now reported (ADR-079): `ScreenImage.kind` (WINDOW / DISPLAY) from `ScreenshotChain`, passed as
+  `ScreenOutcome.Text(text, capture)`; `A11ySnapshot.windowBoundsInScreen` is filled. The pass-1 note about
+  `capture = null` is obsolete. Shared fakes: `FakeTargetReader.captureKind` (default WINDOW),
+  `SimpleContextAssembler.lastScreen`, `FakeWorld.context`.
+- Notification start e2e (case g): the action goes WP-09 `StatusActionReceiver` → `StatusActionHandler` (MurmurApp)
+  → `NotificationStart.start(context)`; WP-02's own receiver is gone (ADR-079). WP-02's emulator suite:
+  `platform/a11y/tools/run_emulator_tests.sh <serial>` (also installs `:testapps:target`; file-install vs adb-install
+  restricted-settings runs).
+- Wave-3 wiring: `AppContainer.benchmarkRunner` exists (ADR-080). The WP-14 emulator benchmark entry point
+  (`.cache/spikes/wp-14/BenchmarkOnEmulatorTest.kt`) needs WP-10's real `:llm`; commit it under
+  `app/src/androidTest/kotlin/app/murmur/e2e/` once WP-10 is merged (it copies models into the test APK's files with
+  run-as and needs `useLegacyPackaging` for the native libraries).
+- WP-04's ART runner `core/prompt/tools/run_on_art.sh <serial>` (≈ 2 min, expected `OK (36 tests)`) proves the prompt
+  and guard ports on ART/ICU; add it to the device pass (see DEVICE_CHECKLIST DC8 addition).
+- DEVICE_CHECKLIST: this pass's device notes (WP-02, 04, 14) were added as one-line additions to DC5, DC8, DC9 and
+  DC10 under "Wave-1 additions"; fold them into the rows with the others.

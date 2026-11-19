@@ -40,6 +40,13 @@ and `murmur_app_smoke.sh`):
 - DC8: `recognize()` 17 MB SharedMemory round trip ms on both displays (emulator 29-56 ms median) (WP-05).
 - DC8: cancel a dictation during Arming, wait `idleUnloadSec` + 2 s → `pidof app.murmur:asr` empty; after a forced LLM timeout (`debugTimeoutScale 0.1`) note whether logcat shows `process still alive after 2000 ms; killing` (WP-05).
 - DC8: Parakeet NPU through `AsrService`: `LoadInfo.deviceName == "qnn"`, `Transcript.unit == NPU`, `finish()` ≤ 3 s after EOF (WP-06).
+- DC5: with the `FLAG_SECURE` app, force the display-capture path: only the app area is black and `FrameCheck` gives `SecureWindow` (on the emulator the status bar is still drawn) (WP-02).
+- DC5: split screen on the inner display (target + another app): the ctx log's OCR lines come only from the target's half (display fallback excludes other apps' windows) (WP-02).
+- DC10: fold/unfold and cover/inner switches keep one bubble per display (`display_added` / `display_removed` in the `MurmurA11y` log), once WP-03's overlay is in (WP-02).
+- DC8: `core/prompt/tools/run_on_art.sh <Fold7 serial>` (≈ 2 min) → `OK (36 tests)`: prompts and guard verdicts byte-exact on Samsung's ICU/ART (emulator API 36 is OK) (WP-04).
+- DC9: ASR records on the mixed clip (3 VAD segments) have `tailMs` well below the clip's processMs and no `asr.tail.whole_decode` note (WP-14).
+- DC9: OCR CPU and NPU records are both valid; if NPU shows `ocr_text`, note the differing lines and the CER (feeds ADR-080's small-sample gate) (WP-14).
+- DC9: LLM unit wall time (`notes wall.ms`) < 60 s; `llm.warmup.ms + llm.case.ms + llm.synthetic.ms` + `llm.prefix.ms` account for it, fixed-case decodeTps ≈ `llm.tg128.tps` (WP-14).
 
 Legal items that block shipping NPU libraries (not technical, owner reads once; until then DC8 APKs stay local):
 - Hexagon SDK Community Edition licence for redistributing `libggml-htp-v79.so` (needs a Qualcomm account to read).

@@ -82,3 +82,18 @@ Merged on `integration/wave1`: WP-01, 05, 06, 07, 08, 09, 11, 12, 13. Still in w
 - "Hidden in" = `Settings.hiddenInPackages` → `ContextSettings.excludedPackages` (the built-in denylist is always
   added). "Use what's on screen" off → ctx privacy `app_only` / `user_setting`; a secure window → `app_only` /
   `secure_window` (ADR-070) — the "What the model also receives" panel should describe these levels.
+
+## Integration notes (wave-1 integration pass 2; ADR-078..080 in DECISIONS)
+
+Merged on `integration/wave1` in this pass: WP-04, WP-02, WP-14 (in addition to WP-01, 05, 06, 07, 08, 09, 11, 12, 13).
+Still in work: WP-03, 10, 20 (early paths).
+- Cleanup prompt (ADR-078): use `PromptEditRules.editState(profile, override?.baseProfile)` for the row value and
+  `PromptEditRules.editable(profile)` for the editor: false for `finetuned.*` → read-only editor, no "Keep editing".
+  `MADE_FOR_OLDER_PROMPT` also appears on a fine-tune when an edit for a stock profile is stored. Until the owner
+  answers `docs/OWNER_QUESTIONS.md` (prompt edit on a fine-tune), show on a fine-tune the read-only shipped prompt
+  and the line "Your edit is kept for the standard prompt" **without** Reset (Reset would delete an edit that applies
+  again after switching back); on stock profiles show "Your edit was made for an older prompt" + Reset as designed.
+- Named tones (ADR-020/078): a tone without its own text in `prompts/tones/tones.v1.json` (`named.<tone>.text`) keeps
+  the category default and the preview flag; the schema waits for the prompt owner.
+- "What the model also receives" panel: a screenshot that failed because the target app left the front
+  (`TargetChanged`) is `full` + `screenshot_error` like any screenshot error (ADR-079).

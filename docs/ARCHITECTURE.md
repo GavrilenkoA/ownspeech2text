@@ -99,7 +99,7 @@ to be replaced by a measurement).
 | core | `:core:audio` | JVM | PCM format, `PcmChunk`, `VadModel`, `Segmenter` (WP-06), `LevelMeter` (WP-09) |
 | core | `:core:engine` | JVM | `AsrEngine/AsrSession/AsrEvent/Transcript`, `LlmEngine/LlmRequest/LlmStats`, `PrefixCacheKey`, `LoadOptions`, `OcrService`, `InferenceHost`, `LoadSpec`, `Engines` |
 | core | `:core:store` | JVM | repositories + records: history, metrics, `DeliveryMetrics`, settings, install state, benchmark (with validity), audio store, `RetentionPolicy`, `StatsCalculator` (WP-12) |
-| core | `:core:benchmark` | JVM | `BenchmarkRunner`, steps, `BenchValidity`, WER, summary sentence (WP-14) |
+| core | `:core:benchmark` | JVM | `BenchmarkRunner`, steps, `BenchValidity`, WER, summary sentence, `BenchScores` (the one selection score + measured LLM speed, used by the resolver) (WP-14) |
 | core | `:core:dictation` | JVM | states/events/effects, `BubbleMapping`, `DictationConfig`, `CleanupBudget`, ports (capture, target, inserter, resolver, navigator, permissions, status notifier, preparer, in-app target), `DictationOrchestrator` (WP-11) |
 | test | `:testing` | JVM | deterministic fakes of every contract + `FakeWorld` + `VirtualClock` (WP-11 owns; `contrib/` per WP) |
 | infer | `:infer:api` | Android | AIDL, `InferApi` (JSON, versions, adaptive `BinderTimeouts`), `ServiceConnector`, binder clients `AsrClient/LlmClient/BinderEngines` (WP-05) |
@@ -107,7 +107,7 @@ to be replaced by a measurement).
 | infer | `:infer:llm` | Android | `LlmService` (`:llm`), `LlmNative` JNI facade (WP-10); NPU/FastRPC manifest entries |
 | data | `:data:db` | Android | Room DB (history, metrics, benchmark, custom_model), DataStore settings, retention job (WP-12) |
 | data | `:data:models` | Android | storage layout, UIDT download job, verify/extract, catalog repo, model resolver, device-profile probe, unit health, HF custom models (WP-13) |
-| platform | `:platform:a11y` | Android | accessibility service, target snapshot, screenshot, insertion ladder, clipboard, bridges, `RestrictedSettingsProbe` (WP-02) |
+| platform | `:platform:a11y` | Android | accessibility service, target snapshot, screenshot, insertion ladder, clipboard, bridges, `NotificationStart`, `A11yStatus` / `RestrictedSettingsProbe` (WP-02) |
 | platform | `:platform:overlay` | Android+Compose | bubble visuals, visibility policy, placement/snap math, overlay window host, `Feedback` (WP-03) |
 | platform | `:platform:audio` | Android | AudioRecord capture + signals, microphone FGS, Opus history store, status notification (WP-09) |
 | ui | `:ui:design` | Android+Compose | tokens generated from `docs/design/tokens.json`, `MurmurTheme`, fonts, icons, components, `AppInfoProvider` contract (WP-01) |
@@ -610,11 +610,16 @@ At press: `A11ySnapshot` = focused `TYPE_APPLICATION` window (never `rootInActiv
 label (`<queries>` LAUNCHER; fallback window title), window title (conversation), focused editable via
 `findFocus(FOCUS_INPUT)` with BFS fallback for Compose/WebView, `EditorInfo` from the accessibility IME,
 `before_cursor` = `getSurroundingText(1000, 0, 0)` cut at the selection (0-8 ms), password flag, field bounds,
-exclusion rects (IME, own overlay, status bar). NOTIFICATION start: the same after the shade collapsed
-(`snapshotAfterShade`). At +600 ms: re-resolve the window, `takeScreenshotOfWindow` (contains only app pixels: no
-keyboard, bubble or bars); error 3 → one retry after ≥ 340 ms; error 5 → `findFocus(...).windowId`, then
-`takeScreenshot(display)` + exclusion rects; error 6 or a black frame → `SecureWindow` (no screen). HardwareBuffer →
-`ARGB_8888` copy → `SharedMemory`. No PNG on the dictation path.
+exclusion rects (IME, own overlay, status bar), window bounds (`windowBoundsInScreen`). NOTIFICATION start: the
+status notification's receiver (WP-09) → the host's `StatusActionHandler` → `NotificationStart.start(context)` (WP-02:
+closes the shade, posts `UserInput.NotificationStart`); the snapshot is taken after the shade collapsed
+(`snapshotAfterShade`, ADR-079). At +600 ms: re-resolve the window, `takeScreenshotOfWindow` (contains only app
+pixels: no keyboard, bubble or bars); error 3 → one retry after ≥ 340 ms; error 5 → `findFocus(...).windowId` only when
+that window is the target's package, then `takeScreenshot(display)` + exclusion rects (other apps' windows included)
+only while the target app is in front, else `TargetChanged` (no screen, like a screenshot error); error 6, or a black
+app area in a display capture → `SecureWindow` (no screen). The frame reports its path (`ScreenImage.kind` WINDOW /
+DISPLAY), which `CaptureFrame` uses for field.box (ADR-079). HardwareBuffer → `ARGB_8888` copy → `SharedMemory`. No PNG
+on the dictation path.
 
 ### 9.2 Privacy filters (WP-08, before any screenshot)
 
@@ -625,7 +630,7 @@ keyboard, bubble or bars); error 3 → one retry after ≥ 340 ms; error 5 → `
 | "Use what's on screen" off | no screenshot; `privacy app_only` (no screen, no field text) |
 | number / phone field | bubble hidden; a press is refused (`dictationAllowed = false` → `NoEditableField`) |
 | secure window (error 6 or a black frame) | `screen` absent; `privacy app_only`, reason `secure_window` (no field text; render.py `NO_SCREEN_LEVEL`, ADR-070) |
-| screenshot failed / OCR empty or late | `screen` absent; `privacy full` (field context kept), reason `screenshot_error` / `ocr_empty`; the executor passes the cause as `ScreenOutcome` |
+| screenshot failed (incl. `TargetChanged`: the target left the front before the capture) / OCR empty or late | `screen` absent; `privacy full` (field context kept), reason `screenshot_error` / `ocr_empty`; the executor passes the cause as `ScreenOutcome` |
 | Murmur's own UI | bubble hidden; only the in-app practice (`StartMode.IN_APP`) dictates into Murmur, `app_only` |
 
 ### 9.3 OCR (WP-07)
@@ -650,7 +655,10 @@ cached prefix (system + preferences + few-shot turns) + suffix (`Style:` line, `
 assistant opener with thinking off). `RenderedPrompt.prefixKey` = sha256(prefix); `:main` builds the snapshot key with
 `PrefixCacheKey.of(...)` (8.3). The user's edited instructions replace `system/<stem>.md` (after `rstrip("\n")`,
 before the preferences block) only when `PromptEditRules.overrideApplies(profile, override.baseProfile)`: the stock
-profile it was written for, never `finetuned.*` (ADR-046).
+profile it was written for, never `finetuned.*` (ADR-046). Settings shows `PromptEditRules.editState` (DEFAULT / EDITED
+/ MADE_FOR_OLDER_PROMPT / NOT_EDITABLE) and opens the editor read-only when `editable(profile)` is false (fine-tunes,
+ADR-078). The Kotlin ports never use `Pattern.CASE_INSENSITIVE` for a Python `re.I` pattern: Android's ICU folds case
+fully (ligatures, dotted İ), so `Py.ignoreCase` spells out sre's character classes (ADR-078).
 
 ---
 
@@ -664,13 +672,17 @@ Target: < 60 s per unit on the phone; every usable unit is measured when the use
 |---|---|---|---|
 | ASR | cold/warm load ms; clips (FLEURS dev CC-BY-4.0, ≈ 10-12 s each: ru, en, mixed; only clips whose languages are all in `languages.codes`; resampled for 8 kHz models) pushed through the same `AsrSession` **as fast as `accept()` allows**, one warm-up + one measured pass per clip; RTF× = audio ms / Σ decode ms; tail ms of the last segment; WER vs the reference; peak memory (VmHWM + PSS + system availMem drop); unit actually used (`LoadInfo.deviceName`) | median WER ≤ 20 % and ≤ the same model's CPU WER + 5 pp when a CPU record exists | Faster than real time (×), Load time, Peak memory, Ran on, per-sample times |
 | LLM | cold load; synthetic pp (512 tokens) and tg (128 tokens) via `mllm_bench`; fixed cleanup case (real system prefix + ≈ 60-word ru transcript + 200-token context): TTFT, prefill tok/s, decode tok/s, end-to-end ms; op placement share on HTP | non-empty, guard ACCEPT, mostly Cyrillic, stop reason EOG | Writing speed, Reading speed, First word, Peak memory, "A 60-word dictation is cleaned up in about N s" (`BenchSummary`) |
-| OCR | ms per bundled screenshot (cover 1080×2520 and inner 1968×2184), boxes found, load, memory | boxes > 0 and texts match the golden within the README tolerance | ms per screenshot (OCR rows under "Support models") |
+| OCR | ms per bundled screenshot (cover 1080×2520 and inner 1968×2184), boxes found, load, memory | boxes > 0, line count, boxes ±2 px, conf ±0.02 per page; over the run at most ceil(2 % of the lines) differing texts and CER ≤ 0.5 % over all characters (`OcrGoldenMatch`, ADR-080) | ms per screenshot (OCR rows under "Support models") |
 
 Results: `BenchmarkRecord(artifact, unit, appVersion, Build.FINGERPRINT, time, result{…, valid, invalidReason})` in
 Room. The **newest** record per (artifact, unit) feeds `ArtifactSelector`, the LLM speed of `CleanupBudget` and
 the adaptive timeouts when it is valid (an invalid newest record gives no score and no speed, ADR-071); a valid record clears `UnitHealth` for that unit; invalid ones are shown ("Results look wrong
 on NPU") and ignored. The phone must stay awake and Murmur in the foreground during a run (DESIGN). Thermal status
-before/after is stored in the record notes.
+before/after and the measurement details (wall time, LLM warm-up / case / synthetic split, per-page OCR ms, whether
+an ASR tail is the whole decode) are stored in `BenchmarkRecord.notes` (keys `BenchNotes`; Room column
+`benchmark.notes`, schema 2, ADR-080). The ASR tail is timed from the session's last progress event before its final
+segment to the return of `finish()`. One score implementation: `core:benchmark` `BenchScores` (lookup + `llmSpeed`),
+used by the resolver.
 
 ---
 
@@ -694,7 +706,8 @@ before/after is stored in the record notes.
 Tables (`data/db/.../Entities.kt`, Room schema exported to `data/db/schemas/`): `history` (one row per dictation:
 app, conversation, status, final/raw text, language, models + units, prompt version, cleanup outcome, tone, audio ref,
 timings, insert method, failure code, revision, `context_words` = a count only, ADR-043, pending_delete), `metrics`
-(numbers only, see below), `benchmark`, `custom_model`. Settings: one typed DataStore document (`Settings`, section 13).
+(numbers only, see below), `benchmark` (result JSON + `notes` JSON, schema 2), `custom_model`. Schema changes bump the
+Room version with a migration and a `SchemaMigrationTest` case (1 → 2 is an auto-migration, ADR-080). Settings: one typed DataStore document (`Settings`, section 13).
 Audio files are named by `AudioKey` (`<createdAtEpochMs>-<session>`), so a `:main` restart never overwrites an older
 entry's audio.
 

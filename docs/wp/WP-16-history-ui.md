@@ -70,3 +70,10 @@ Merged on `integration/wave1`: WP-01, 05, 06, 07, 08, 09, 11, 12, 13. Still in w
   while it runs. A successful retry writes no second metrics row (owner question in `docs/OWNER_QUESTIONS.md`).
 - Search: pass the raw query; the repository folds it like the stored `search_text` (`Words.fold`: Python casefold,
   ё → е, ADR-072).
+
+## Integration notes (wave-1 integration pass 2; ADR-078..080 in DECISIONS)
+
+Merged on `integration/wave1` in this pass: WP-04, WP-02, WP-14 (in addition to WP-01, 05, 06, 07, 08, 09, 11, 12, 13).
+Still in work: WP-03, 10, 20 (early paths).
+- No contract of WP-02/04/14 reaches History directly. A dictation whose screenshot failed because the user switched
+  apps (`TargetChanged`) is stored like any other (no screen context; ADR-079).

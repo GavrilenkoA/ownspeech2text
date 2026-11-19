@@ -110,3 +110,22 @@ Merged on `integration/wave1`: WP-01, 05, 06, 07, 08, 09, 11, 12, 13. Still in w
 - Practice dictation (ADR-070): the orchestrator asks the assembler with `ContextSettings.inAppPractice = true`; the
   `InAppTarget` snapshot's package must be the app's own package (anything else is decided like a normal app, without
   screenshot).
+
+## Integration notes (wave-1 integration pass 2; ADR-078..080 in DECISIONS)
+
+Merged on `integration/wave1` in this pass: WP-04, WP-02, WP-14 (in addition to WP-01, 05, 06, 07, 08, 09, 11, 12, 13).
+Still in work: WP-03, 10, 20 (early paths).
+- WP-02 (ADR-079): `MurmurApp` already implements `A11yServiceHost`; `onUserInput`, `ownUiPackages` and `bubbleFor`
+  have defaults (bubble = WP-03 `OverlayHost`; until WP-03 merges the service runs without a bubble and logs
+  `bubble_attach_failed ... NotImplementedError`). `PermissionMonitor` reads `A11yStatus.get(context).read()`
+  (enabled in Settings.Secure, connected now, ever connected, `restrictedLikely`, `enabledButDead`); open the
+  accessibility settings with `A11yStatus.openAccessibilitySettings(activity)` (or call `onSentToAccessibilitySettings()`)
+  and call `onReturnedToApp()` from the screen that resumes afterwards (the trip survives process death).
+  `restrictedLikely` is false once the service has connected on this install.
+- Notification start (ADR-079): there is one receiver, WP-09's `StatusActionReceiver`. In
+  `MurmurApp.onStatusAction(StatusAction.StartDictation)` call `app.murmur.platform.a11y.NotificationStart.start(this)`
+  (closes the shade, posts `UserInput.NotificationStart`); do not post the input yourself.
+- WP-04: `RenderPyPort` / `GuardPyPort` are the real ports (no TODO left in `:core:prompt`).
+- WP-14 (ADR-080): `AppContainer.benchmarkRunner` is wired (`DefaultBenchmarkRunner` over the production engines,
+  `resolver.benchSpecs`, `AndroidBenchEnvironment`); pass it to `ModelsDeps`. Keep the screen awake during a run.
+- Room schema is now version 2 (benchmark.notes, auto-migration): nothing to do in `:app`.

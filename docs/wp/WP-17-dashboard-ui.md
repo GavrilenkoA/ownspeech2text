@@ -55,3 +55,9 @@ Merged on `integration/wave1`: WP-01, 05, 06, 07, 08, 09, 11, 12, 13. Still in w
   seeds realistic metrics for screenshot tests. Word counts are `guard.py _words` of the NFC text (ADR-072).
 - A successful Retry updates the history entry but writes no second metrics row, so its words are not added again
   (ADR-064; owner question).
+
+## Integration notes (wave-1 integration pass 2; ADR-078..080 in DECISIONS)
+
+Merged on `integration/wave1` in this pass: WP-04, WP-02, WP-14 (in addition to WP-01, 05, 06, 07, 08, 09, 11, 12, 13).
+Still in work: WP-03, 10, 20 (early paths).
+- No contract of WP-02/04/14 changes the Dashboard inputs.

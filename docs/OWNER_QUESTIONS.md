@@ -3,7 +3,7 @@
 Collected from the work-package reports at integration. Each item: the question in plain words, what the architect
 recommends, and whether it blocks anything. Answer in any order; "go with the recommendation" is a valid answer.
 
-Updated: wave-1 integration pass 1 (2026-11-19; WP-01, 05, 06, 07, 08, 09, 11, 12, 13 merged).
+Updated: wave-1 integration pass 2 (2026-11-19; WP-01, 02, 04, 05, 06, 07, 08, 09, 11, 12, 13, 14 merged).
 
 ## Models and ML
 
@@ -33,16 +33,35 @@ Updated: wave-1 integration pass 1 (2026-11-19; WP-01, 05, 06, 07, 08, 09, 11, 1
    numbers row, which costs a schema change.
    Blocks nothing (WP-17 shows whatever the rows hold).
 
+5. **What should Settings show for the cleanup prompt while a fine-tuned model is active and you have an edit for the
+   standard prompt?** (WP-04, WP-19) Fine-tunes keep the prompt they were trained on, so your edit is not used with
+   them and their editor is read-only. The brief's rule labels this case "Your edit was made for an older prompt" and
+   offers Reset; Reset would delete an edit that works again as soon as you switch back to a standard model.
+   *Recommendation:* on a fine-tune show the read-only shipped prompt with "Your edit is kept for the standard prompt"
+   and no Reset; keep "made for an older prompt" + Reset for the standard prompts only. WP-19 is told to build the
+   recommendation unless you decide otherwise.
+   Blocks nothing (copy and one button).
+
 ## Design and accessibility
 
-5. **With "Remove animations" on, may the 150 ms cross-fades become instant?** (WP-01) Compose scales every animation
+6. **With "Remove animations" on, may the 150 ms cross-fades become instant?** (WP-01) Compose scales every animation
    by the system animator scale, so DESIGN 3.5's reduced-motion fades disappear when the user turns animations off.
    *Recommendation:* yes, follow the system (that is what the setting asks for); keeping the fades needs a custom clock.
    Blocks nothing.
-6. **Darken two app-tile colours?** (WP-01) White letters on `#B9861E` (3.23:1) and `#3C7EBF` (4.26:1) are below the
+7. **Darken two app-tile colours?** (WP-01) White letters on `#B9861E` (3.23:1) and `#3C7EBF` (4.26:1) are below the
    4.5:1 text contrast. The tiles are treated as decorative today (3:1 graphic contrast passes).
    *Recommendation:* the design owner darkens both in `docs/design/tokens.json` so the letters pass as text.
    Blocks nothing.
+
+## Prompt
+
+8. **Which file and schema should hold the texts of the named tones (Casual / Neutral / Formal / Verbatim)?** (WP-04,
+   ADR-020) The app looks for `named.<tone>.text` in `prompts/tones/tones.v1.json`, the place `prompts/render.py`
+   `load_tones` reads; no texts exist yet, so a chosen tone falls back to the app category's default and the Settings
+   preview says so. A test fails as soon as `prompts/tones` gains a file or a section, so a new file cannot be missed.
+   *Recommendation:* the prompt owner adds the four texts as `named.<tone>.text` in `tones.v1.json` (no new file); if a
+   `tones.v2.json` is preferred, say so and the port follows.
+   **Blocks:** only the named tones themselves (WP-19's tone picker shows "preview" until then). Nothing else.
 
 ## Decided by the architect in this pass (say if you disagree)
 
@@ -51,6 +70,13 @@ Updated: wave-1 integration pass 1 (2026-11-19; WP-01, 05, 06, 07, 08, 09, 11, 1
 - A secure window (banking apps, FLAG_SECURE) sends the cleanup model only the app name, no field text (ADR-070).
 - A unit whose newest benchmark looks wrong is not chosen, even if an older run was fine (ADR-071).
 - Retry runs visibly through the bubble and inserts into the focused field (ADR-064).
+- OCR benchmark on the phone: over the two bundled screenshots (43 lines) one line may differ by a few characters
+  (a rounding difference on the NPU) and the result still counts as valid; a second differing line, or a line that is
+  wrong, marks it "Results look wrong" (ADR-080, from WP-14). The OCR parity test itself stays strict (ADR-077).
+- The notification's "Start dictation" goes through the status notification's own action handler (one receiver), which
+  also closes the notification shade before the target app is read (ADR-079).
+- If you switch apps in the 0.6 s before the screenshot, no screen text is used for that dictation (the screenshot
+  never shows another app; ADR-079).
 
 ## Still open from architecture v2 (unchanged, listed for completeness)
 

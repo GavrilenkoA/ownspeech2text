@@ -96,3 +96,16 @@ Merged on `integration/wave1`: WP-01, 05, 06, 07, 08, 09, 11, 12, 13. Still in w
 - Streaming ASR (T-one, Nemotron) runs with the VAD when it is installed and then reports speech time; the VAD is
   queued only for batch runtimes (ADR-065). OCR benchmark validity uses `OcrTolerance` with the CER gated on the
   non-identical lines (ADR-077).
+
+## Integration notes (wave-1 integration pass 2; ADR-078..080 in DECISIONS)
+
+Merged on `integration/wave1` in this pass: WP-04, WP-02, WP-14 (in addition to WP-01, 05, 06, 07, 08, 09, 11, 12, 13).
+Still in work: WP-03, 10, 20 (early paths).
+- Benchmark (ADR-080): `ModelsDeps` gets the real `DefaultBenchmarkRunner`. The bench-run checklist can show a fifth
+  row `SAMPLE_MIXED` (ru+en models); `BenchmarkRecord.notes` carries measurement details (`BenchNotes`: thermal
+  before/after, wall time, `llm.warmup.ms` / `llm.case.ms` / `llm.synthetic.ms`, per-page OCR ms, `asr.tail.whole_decode`
+  = the tail shown is an upper bound). `stop()` also stops a run that has not started yet (it ends with no events).
+- **Correction to the pass-1 note above:** the OCR *benchmark* validity is `OcrGoldenMatch` (ADR-080): over the run at
+  most ceil(2 % of the lines) differing texts and CER ≤ 0.5 % over all characters; `OcrTolerance` (ADR-077) is the
+  parity test only. One rounding character on NPU no longer shows "Results look wrong".
+- One score implementation: `core:benchmark` `BenchScores` (newest record per (artifact, unit)); the resolver uses it.
