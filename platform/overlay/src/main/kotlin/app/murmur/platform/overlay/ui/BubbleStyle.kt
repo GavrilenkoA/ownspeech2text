@@ -78,19 +78,14 @@ private fun drawOutline(c: android.graphics.Canvas, outline: Outline, size: Size
     when (outline) {
         is Outline.Rectangle -> c.drawRect(0f, 0f, size.width, size.height, paint)
         is Outline.Rounded -> {
+            // One uniform round rect (HWUI blurs it on the GPU; a shadowed path stalled the emulator's renderer).
+            // A side whose two corners are square is the docked screen edge (the Rest tab): the rect runs past it by the
+            // radius, and the window edge clips it, so the visible shape is the same.
             val r = outline.roundRect
-            if (r.topLeftCornerRadius == r.topRightCornerRadius && r.topLeftCornerRadius == r.bottomLeftCornerRadius &&
-                r.topLeftCornerRadius == r.bottomRightCornerRadius
-            ) {
-                c.drawRoundRect(r.left, r.top, r.right, r.bottom, r.topLeftCornerRadius.x, r.topLeftCornerRadius.y, paint)
-            } else {
-                val path = android.graphics.Path()
-                path.addRoundRect(r.left, r.top, r.right, r.bottom, floatArrayOf(
-                    r.topLeftCornerRadius.x, r.topLeftCornerRadius.y, r.topRightCornerRadius.x, r.topRightCornerRadius.y,
-                    r.bottomRightCornerRadius.x, r.bottomRightCornerRadius.y, r.bottomLeftCornerRadius.x, r.bottomLeftCornerRadius.y,
-                ), android.graphics.Path.Direction.CW)
-                c.drawPath(path, paint)
-            }
+            val radius = maxOf(r.topLeftCornerRadius.x, r.topRightCornerRadius.x, r.bottomLeftCornerRadius.x, r.bottomRightCornerRadius.x)
+            val left = if (r.topLeftCornerRadius.x == 0f && r.bottomLeftCornerRadius.x == 0f) r.left - radius else r.left
+            val right = if (r.topRightCornerRadius.x == 0f && r.bottomRightCornerRadius.x == 0f) r.right + radius else r.right
+            c.drawRoundRect(left, r.top, right, r.bottom, radius, radius, paint)
         }
         is Outline.Generic -> c.drawPath(outline.path.asAndroidPath(), paint)
     }

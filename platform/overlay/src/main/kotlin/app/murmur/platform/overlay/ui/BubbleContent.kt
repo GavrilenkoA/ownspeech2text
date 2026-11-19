@@ -46,6 +46,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -155,13 +156,11 @@ fun BubbleWindowContent(
 @Composable
 private fun RestTab(ui: BubbleUi, actions: BubbleActions) {
     val c = MurmurTheme.colors
-    val dark = LocalDark.current
     val inner = 12.dp
     val shape = if (ui.rightEdge) RoundedCornerShape(topStart = inner, bottomStart = inner)
     else RoundedCornerShape(topEnd = inner, bottomEnd = inner)
     val desc = stringResource(R.string.bubble_rest_cd, ProductName.NAME)
     val hide = stringResource(R.string.bubble_hide_action)
-    val reach = with(LocalDensity.current) { BubbleMetrics.TAB_PAD_Y.dp.toPx() }
     Box(
         Modifier
             .padding(vertical = BubbleMetrics.TAB_PAD_Y.dp)
@@ -178,9 +177,10 @@ private fun RestTab(ui: BubbleUi, actions: BubbleActions) {
         Box(
             Modifier
                 .size(BubbleMetrics.TAB_WIDTH.dp, BubbleMetrics.TAB_HEIGHT.dp)
-                .graphicsLayer { alpha = 0.92f }
-                .bubbleShadow(shape, dark, reach)
-                .background(c.inverse, shape)
+                // e1 (1 dp): an elevation shadow fits the tab's 2 dp band.
+                .shadow(1.dp, shape)
+                // Prototype `.bub.tab` opacity .92 on the fill; the mark stays fully opaque for legibility.
+                .background(c.inverse.copy(alpha = 0.92f), shape)
                 .onGloballyPositioned { actions.visualBounds(it.boundsInWindow()) },
             contentAlignment = Alignment.Center,
         ) {
@@ -243,6 +243,7 @@ private fun Pill(ui: BubbleUi, levels: State<FloatArray>, clock: () -> Long, act
         contentKey = ::faceOf,
         modifier = Modifier
             .padding(m.shadowPad.dp)
+            .testTag(TAG_VISUAL)
             .bubbleShadow(shape, dark, reach)
             .background(bg, shape)
             .border(1.dp, ringColor, shape)
@@ -457,7 +458,8 @@ private fun ErrorPill(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Row(
-            Modifier.weight(1f, fill = false).bubbleSemantics(reason, null, Live.ASSERTIVE, { actions.tap(TouchRegion.BODY) }, null) {},
+            Modifier.weight(1f, fill = false).heightIn(min = BubbleMetrics.TOUCH_MIN.dp)
+                .bubbleSemantics(reason, null, Live.ASSERTIVE, { actions.tap(TouchRegion.BODY) }, null) {},
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(BubbleIcons.alert, null, Modifier.size(m.statusIcon.dp), tint = c.err)
@@ -509,7 +511,7 @@ private fun Label(text: String, color: Color, m: BubbleMetrics) {
 @Composable
 internal fun LevelBars(levels: State<FloatArray>, m: BubbleMetrics, color: Color, reducedMotion: Boolean) {
     val w = m.barCount * m.barWidth + (m.barCount - 1) * m.barGap
-    Canvas(Modifier.size(w.dp, m.barMax.dp).testTag(TAG_LEVELS)) {
+    Canvas(Modifier.size(w.dp, m.barMax.dp)) {
         val l = levels.value
         val bw = m.barWidth.dp.toPx()
         val gap = m.barGap.dp.toPx()
@@ -587,6 +589,7 @@ private fun PolishingDots(m: BubbleMetrics, reducedMotion: Boolean) {
 }
 
 const val TAG_BUBBLE = "bubble"
+/** The pill / circle shape itself (its bounds are the visual, without the window's shadow band). */
+const val TAG_VISUAL = "bubble.visual"
 const val TAG_ACTION = "bubble.action"
-const val TAG_LEVELS = "bubble.levels"
 const val TAG_CANCEL = "bubble.cancel"

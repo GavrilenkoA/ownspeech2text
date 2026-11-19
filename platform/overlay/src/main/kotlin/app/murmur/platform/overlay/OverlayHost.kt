@@ -599,12 +599,30 @@ class OverlayHost(
         }
     }
 
-    /** What an instrumented test reads back (positions are logged as well: bubble_placed / bubble_snapped). */
-    data class Snapshot(val visual: BubbleVisual, val rightEdge: Boolean, val circleTop: Int?, val yFraction: Float?, val windowX: Int, val windowY: Int)
+    /** What an instrumented test reads back (positions are logged as well: bubble_placed / bubble_snapped). Main thread. */
+    data class Snapshot(
+        val visual: BubbleVisual,
+        val rightEdge: Boolean,
+        val circleTop: Int?,
+        val yFraction: Float?,
+        val screenW: Int,
+        val screenH: Int,
+        val rotation: Int,
+        val diameterPx: Int,
+        val hiddenUntilMs: Long?,
+        val snackbarShown: Boolean,
+        val cancelShown: Boolean,
+    )
 
     fun snapshot(): Snapshot {
+        val input = placementInput()
         val top = circleTop
-        return Snapshot(controller.visual(), rightEdge, top, top?.let { BubblePlacement.fractionOf(it, placementInput()) }, bubbleLp.x, bubbleLp.y)
+        return Snapshot(
+            visual = controller.visual(), rightEdge = rightEdge, circleTop = top,
+            yFraction = top?.let { BubblePlacement.fractionOf(it, input) },
+            screenW = input.screenW, screenH = input.screenH, rotation = display.rotation, diameterPx = input.bubbleDiameterPx,
+            hiddenUntilMs = controller.hiddenUntilMs, snackbarShown = snackView != null, cancelShown = cancelShown,
+        )
     }
 
     private companion object {
