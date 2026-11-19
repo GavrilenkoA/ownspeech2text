@@ -9,6 +9,8 @@ import app.murmur.core.context.ContextSettings
 import app.murmur.core.context.FieldKinds
 import app.murmur.core.context.PrivacyDecision
 import app.murmur.core.context.PrivacyLevel
+import app.murmur.core.context.PrivacyReason
+import app.murmur.core.context.ScreenOutcome
 import app.murmur.core.engine.AsrSession
 import app.murmur.core.engine.AsrSessionOptions
 import app.murmur.core.engine.Engines
@@ -309,6 +311,7 @@ class DictationOrchestrator(
         r.ended = true
         r.contextJob?.cancel()
         r.screen = null
+        r.screenOutcome = null
         r.captureJobs.forEach { it.cancel() }
         r.pumpJob?.cancel()
         // The session PCM (up to 9.6 MB for 5 min) is only for replay inside the session; Retry reads the stored file.
@@ -446,10 +449,23 @@ class DictationOrchestrator(
         // A retry from this app (History) or an excluded one has no target: no field context, clipboard only.
         r.target = snap?.takeIf { !excludedApp }
         val decision = when {
-            mode == StartMode.IN_APP -> PrivacyDecision(PrivacyLevel.APP_ONLY, takeScreenshot = false, reason = "in_app", skipLlm = false)
-            snap == null || excludedApp -> PrivacyDecision(PrivacyLevel.NONE, takeScreenshot = false, reason = "retry", skipLlm = false)
-            else -> deps.context.decide(snap, ContextSettings(useScreen = settings.useScreen, excludedPackages = excluded))
+            // No target (a retry from this app or an excluded one): no ctx is rendered, the decision only gates the LLM.
+            snap == null || excludedApp -> PrivacyDecision(PrivacyLevel.NONE, takeScreenshot = false, reason = null, skipLlm = false)
+            // IN_APP: the practice field in this app (own package) -> app_only, no screenshot (ARCHITECTURE 9.2).
+            else -> deps.context.decide(snap, ContextSettings(
+                useScreen = settings.useScreen && mode != StartMode.IN_APP,
+                excludedPackages = settings.hiddenInPackages,
+                inAppPractice = mode == StartMode.IN_APP,
+            ))
         }
+        // The assembler's own refusals (number/phone fields; the checks above already caught password and excluded).
+        if (!decision.dictationAllowed && !retry) return fail(
+            when (decision.reason) {
+                PrivacyReason.PASSWORD_FIELD -> MurmurError.PasswordField
+                PrivacyReason.DENYLISTED_APP -> MurmurError.AppExcluded
+                else -> MurmurError.NoEditableField
+            },
+        )
         r.decision = decision
         val models = when (val m = deps.models.resolve(settings)) {
             is Outcome.Err -> return fail(m.error)
@@ -794,13 +810,15 @@ class DictationOrchestrator(
         if (target == null || decision == null) { post(DictationEvent.ContextReady(s, false, 0)); return }
         val t0 = deps.clock.elapsedMs()
         val shot = deps.target.screenshot(target)
-        val screen = (shot as? Outcome.Ok)?.value?.let { image ->
-            withTimeoutOrNull(r.config.scaled(r.config.ocrBudgetMs)) {
-                if (r.ocrLoaded.await()) deps.engines.ocr.recognize(image).getOrNull() else null
-            }
-        }?.takeIf { it.lines.isNotEmpty() }
+        val outcome: ScreenOutcome = when (shot) {
+            is Outcome.Err -> if (shot.error == MurmurError.SecureWindow) ScreenOutcome.SecureWindow else ScreenOutcome.Failed
+            is Outcome.Ok -> withTimeoutOrNull(r.config.scaled(r.config.ocrBudgetMs)) {
+                if (r.ocrLoaded.await()) deps.engines.ocr.recognize(shot.value).getOrNull() else null
+            }?.let { ScreenOutcome.Text(it) } ?: ScreenOutcome.Failed
+        }
         if (shot is Outcome.Ok) r.ocrMs = deps.clock.elapsedMs() - t0
-        val ctx = deps.context.assemble(target, decision, screen, null)
+        val ctx = deps.context.assemble(target, decision, outcome, null)
+        r.screenOutcome = outcome
         r.screen = ctx.screen?.let { ScreenText(it.size, it.lines) }
         val words = ctx.screen?.lines?.sumOf { line -> line.text.split(WHITESPACE).count { it.isNotEmpty() } } ?: 0
         r.contextWords = words
@@ -817,7 +835,9 @@ class DictationOrchestrator(
         val profile = cleaner.profile(llm)
         val override = cleaner.systemOverride(profile, r.settings)
         r.promptVersion = cleaner.promptVersion(profile, override)
-        val ctx = r.target?.let { tg -> r.decision?.let { d -> deps.context.assemble(tg, d, r.screen, t.language) } }
+        // No outcome yet = the screenshot was planned but OCR missed CONTEXT_WAIT (Failed), or none was planned.
+        val outcome = r.screenOutcome ?: if (r.decision?.takeScreenshot == true) ScreenOutcome.Failed else ScreenOutcome.NotTaken
+        val ctx = r.target?.let { tg -> r.decision?.let { d -> deps.context.assemble(tg, d, outcome, t.language) } }
         r.cleanupUsedScreen = ctx?.screen != null
         val res = cleaner.run(llm, t.text, ctx, r.settings.preferences, override, e.budget)
         r.llmMs = res.llmMs

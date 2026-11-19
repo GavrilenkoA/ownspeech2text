@@ -74,6 +74,8 @@ internal class SessionRun(
     // Context (I4: in memory only)
     var contextJob: Job? = null
     var screen: ScreenText? = null
+    /** How the screen capture ended (cause of a missing screen for ctx v2 privacy, WP-08 ScreenOutcome). */
+    var screenOutcome: app.murmur.core.context.ScreenOutcome? = null
     var ocrMs: Long? = null
     var contextWords: Int? = null
 

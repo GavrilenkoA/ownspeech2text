@@ -54,6 +54,11 @@ class PreflightTest {
         assertEquals(HapticKind.REJECT, h.w.feedback.haptics.last())
     }
 
+    /** The assembler refuses number fields (PrivacyDecision.dictationAllowed = false, WP-08) -> no field to dictate into. */
+    @Test fun numberFieldIsRefusedByTheAssembler() = runTest {
+        harness { target.target = telegram.copy(field = telegram.field?.copy(inputType = 0x00000002)) }.refused(MurmurError.NoEditableField)
+    }
+
     @Test fun noTargetSnapshot() = runTest {
         harness { target.target = null }.refused(MurmurError.NoEditableField)
     }

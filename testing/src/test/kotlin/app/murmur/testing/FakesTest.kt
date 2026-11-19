@@ -153,4 +153,19 @@ class FakesTest {
         assertEquals(npuValid, repo.latestValid(id, ComputeUnit.NPU))
         assertEquals(cpuNew, repo.latestValid(id, ComputeUnit.CPU))
     }
+
+    @Test
+    fun fakeAssemblerKeepsTheCauseOfAMissingScreen() {
+        val a = SimpleContextAssembler()
+        val snap = FakeTargetReader.defaultTarget()
+        val d = a.decide(snap, app.murmur.core.context.ContextSettings())
+        val secure = a.assemble(snap, d, app.murmur.core.context.ScreenOutcome.SecureWindow, null)
+        assertEquals(app.murmur.core.context.Privacy("app_only", "secure_window"), secure.privacy)
+        assertNull(secure.field)
+        val failed = a.assemble(snap, d, app.murmur.core.context.ScreenOutcome.Failed, null)
+        assertEquals(app.murmur.core.context.Privacy("full", "screenshot_error"), failed.privacy)
+        val own = a.decide(FakeTargetReader.defaultTarget("app.murmur"), app.murmur.core.context.ContextSettings())
+        assertTrue(!own.dictationAllowed)
+        assertTrue(a.decide(FakeTargetReader.defaultTarget("app.murmur"), app.murmur.core.context.ContextSettings(inAppPractice = true)).dictationAllowed)
+    }
 }

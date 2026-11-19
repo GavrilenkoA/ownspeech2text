@@ -22,7 +22,10 @@ import app.murmur.core.context.CtxV2
 import app.murmur.core.context.FieldInfo
 import app.murmur.core.context.LanguageInfo
 import app.murmur.core.context.PrivacyDecision
+import app.murmur.core.context.Privacy
 import app.murmur.core.context.PrivacyLevel
+import app.murmur.core.context.PrivacyReason
+import app.murmur.core.context.ScreenOutcome
 import app.murmur.core.context.Screen
 import app.murmur.core.dictation.ActiveLlm
 import app.murmur.core.dictation.ActiveModels
@@ -91,22 +94,54 @@ class PassThroughGuard(override val fillers: Set<String> = setOf("э", "ээ", "
     }
 }
 
-/** Minimal rules: password -> none + skip LLM; excluded app -> app_only; screen setting off -> app_only. */
-class SimpleContextAssembler : ContextAssembler {
+/**
+ * Minimal rules with the real codes (PrivacyReason, ARCHITECTURE 9.2): password -> none + skip LLM, dictation refused;
+ * excluded app -> app_only, refused; own package -> allowed only for the practice; screen setting off -> app_only.
+ * A missing screen keeps its cause through [ScreenOutcome] (secure window -> app_only, as render.py NO_SCREEN_LEVEL).
+ */
+class SimpleContextAssembler(private val ownPackage: String = "app.murmur") : ContextAssembler {
     override fun decide(snapshot: A11ySnapshot, settings: ContextSettings): PrivacyDecision = when {
-        snapshot.field?.isPassword == true -> PrivacyDecision(PrivacyLevel.NONE, false, "password", skipLlm = true)
-        snapshot.pkg in settings.excludedPackages -> PrivacyDecision(PrivacyLevel.APP_ONLY, false, "denylist", skipLlm = false)
-        !settings.useScreen -> PrivacyDecision(PrivacyLevel.APP_ONLY, false, "setting_off", skipLlm = false)
-        else -> PrivacyDecision(PrivacyLevel.FULL, true, null, skipLlm = false)
+        snapshot.field?.isPassword == true ->
+            PrivacyDecision(PrivacyLevel.NONE, false, PrivacyReason.PASSWORD_FIELD, skipLlm = true, dictationAllowed = false)
+        snapshot.pkg in settings.excludedPackages ->
+            PrivacyDecision(PrivacyLevel.APP_ONLY, false, PrivacyReason.DENYLISTED_APP, skipLlm = false, dictationAllowed = false)
+        snapshot.pkg == ownPackage ->
+            PrivacyDecision(PrivacyLevel.APP_ONLY, false, PrivacyReason.DENYLISTED_APP, skipLlm = false, dictationAllowed = settings.inAppPractice)
+        !settings.useScreen -> PrivacyDecision(PrivacyLevel.APP_ONLY, false, PrivacyReason.USER_SETTING, skipLlm = false,
+            dictationAllowed = bubbleAllowed(snapshot))
+        else -> PrivacyDecision(PrivacyLevel.FULL, true, null, skipLlm = false, dictationAllowed = bubbleAllowed(snapshot))
     }
 
-    override fun assemble(snapshot: A11ySnapshot, decision: PrivacyDecision, screen: ScreenText?, asrLanguage: String?) = CtxV2(
-        app = AppInfo(snapshot.pkg, snapshot.label, null),
-        field = snapshot.field?.takeIf { decision.level == PrivacyLevel.FULL }?.let { FieldInfo(kind = "message", hint = it.hint, beforeCursor = it.beforeCursor) },
-        screen = screen?.takeIf { decision.level == PrivacyLevel.FULL }?.let { Screen(it.size, it.lines) },
-        language = LanguageInfo(asrLanguage),
-        privacy = if (decision.level == PrivacyLevel.FULL) null else app.murmur.core.context.Privacy(decision.level, decision.reason),
-    )
+    /** Number / phone / date fields: no dictation (the real FieldKinds rule). */
+    private fun bubbleAllowed(snapshot: A11ySnapshot) = snapshot.field?.let { app.murmur.core.context.FieldKinds.bubbleAllowed(it.inputType) } ?: true
+
+    @Deprecated("Pass a ScreenOutcome.", ReplaceWith("assemble(snapshot, decision, screen?.let { ScreenOutcome.Text(it) } ?: ScreenOutcome.Failed, asrLanguage)"))
+    override fun assemble(snapshot: A11ySnapshot, decision: PrivacyDecision, screen: ScreenText?, asrLanguage: String?) =
+        assemble(snapshot, decision, screen?.let { ScreenOutcome.Text(it) } ?: if (decision.takeScreenshot) ScreenOutcome.Failed else ScreenOutcome.NotTaken, asrLanguage)
+
+    override fun assemble(snapshot: A11ySnapshot, decision: PrivacyDecision, screen: ScreenOutcome, asrLanguage: String?): CtxV2 {
+        val text = (screen as? ScreenOutcome.Text)?.text?.takeIf { decision.level == PrivacyLevel.FULL && it.lines.isNotEmpty() }
+        val privacy = when {
+            decision.level != PrivacyLevel.FULL -> Privacy(decision.level, decision.reason)
+            text != null -> Privacy(PrivacyLevel.FULL, null)
+            else -> {
+                val reason = when (screen) {
+                    ScreenOutcome.SecureWindow -> PrivacyReason.SECURE_WINDOW
+                    is ScreenOutcome.Text -> PrivacyReason.OCR_EMPTY
+                    else -> PrivacyReason.SCREENSHOT_ERROR
+                }
+                Privacy(PrivacyReason.noScreenLevel(reason), reason)
+            }
+        }
+        return CtxV2(
+            app = AppInfo(snapshot.pkg, snapshot.label, null),
+            field = snapshot.field?.takeIf { privacy.level == PrivacyLevel.FULL }
+                ?.let { FieldInfo(kind = "message", hint = it.hint, beforeCursor = it.beforeCursor) },
+            screen = text?.let { Screen(it.size, it.lines) },
+            language = LanguageInfo(asrLanguage),
+            privacy = privacy,
+        )
+    }
 }
 
 class FakeCatalogRepository(initial: Catalog = CatalogParser.bundled()) : CatalogRepository {
