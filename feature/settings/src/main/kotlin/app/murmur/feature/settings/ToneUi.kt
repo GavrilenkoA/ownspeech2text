@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -22,6 +23,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -37,6 +39,7 @@ import app.murmur.ui.design.components.AppTileSize
 import app.murmur.ui.design.components.BadgeKind
 import app.murmur.ui.design.components.ListRow
 import app.murmur.ui.design.components.MurmurBadge
+import app.murmur.ui.design.components.MinTouch
 import app.murmur.ui.design.components.MurmurChip
 import app.murmur.ui.design.components.Overline
 
@@ -92,7 +95,8 @@ internal fun ToneScreen(vm: SettingsViewModel, ui: SettingsUi, actions: Settings
                 Modifier.padding(16.dp),
             )
             Column(Modifier.padding(horizontal = 20.dp)) {
-                Overline(stringResource(R.string.tone_glossary), Modifier.padding(vertical = 8.dp))
+                // The prototype's 8 dp top margin collapses into the group's 16 dp bottom margin.
+                Overline(stringResource(R.string.tone_glossary), Modifier.padding(bottom = 8.dp))
                 Tone.entries.forEach { tone ->
                     Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text(toneLabel(tone), style = t.label, color = c.ink, modifier = Modifier.width(72.dp))
@@ -153,7 +157,7 @@ private fun ToneRowLayout(
     val t = MurmurTheme.type
     var open by remember { mutableStateOf(false) }
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp).testTag(SettingsTags.row(tag)),
+        Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(horizontal = 16.dp, vertical = 10.dp).testTag(SettingsTags.row(tag)),
         horizontalArrangement = Arrangement.spacedBy(14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -170,7 +174,7 @@ private fun ToneRowLayout(
             val cd = stringResource(R.string.tone_chip_cd, title, toneName)
             MurmurChip(
                 toneName, onClick = { open = true }, dropdown = true,
-                modifier = Modifier.testTag(SettingsTags.toneChip(tag)).semantics { contentDescription = cd },
+                modifier = Modifier.hitOverhang().testTag(SettingsTags.toneChip(tag)).semantics { contentDescription = cd },
             )
             DropdownMenu(
                 expanded = open,
@@ -199,4 +203,15 @@ private fun ToneRowLayout(
             }
         }
     }
+}
+
+/**
+ * The chip's 48 dp touch band takes no layout height (prototype: a 36 dp chip in a 56 dp row with 10 dp padding);
+ * the extra 6 dp above and below reach into the row's padding, where taps still land on the chip.
+ */
+private fun Modifier.hitOverhang(): Modifier = layout { measurable, constraints ->
+    val p = measurable.measure(constraints)
+    val over = (MinTouch - 36.dp).roundToPx() / 2
+    val h = (p.height - 2 * over).coerceAtLeast(0)
+    layout(p.width, h) { p.place(0, -over) }
 }

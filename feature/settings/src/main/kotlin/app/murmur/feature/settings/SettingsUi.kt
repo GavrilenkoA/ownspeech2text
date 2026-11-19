@@ -35,6 +35,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
@@ -61,7 +63,6 @@ import app.murmur.ui.design.MurmurShapes
 import app.murmur.ui.design.MurmurTheme
 import app.murmur.ui.design.components.Banner
 import app.murmur.ui.design.components.BannerKind
-import app.murmur.ui.design.components.InsetDivider
 import app.murmur.ui.design.components.ListRow
 import app.murmur.ui.design.components.MurmurSnackbarHost
 import app.murmur.ui.design.components.MurmurSnackbarState
@@ -105,10 +106,17 @@ internal class GroupItem(val indented: Boolean = true, val content: @Composable 
  */
 @Composable
 internal fun SettingsGroup(items: List<GroupItem>, modifier: Modifier = Modifier) {
+    val line = MurmurTheme.colors.line
     Column(modifier.clip(MurmurShapes.lg).background(MurmurTheme.colors.surface)) {
         items.forEachIndexed { i, item ->
-            if (i > 0) InsetDivider(start = if (item.indented && items[i - 1].indented) 54.dp else 16.dp)
-            item.content()
+            // Prototype `.group .row + .row::before`: the 1 dp rule is drawn over the top of the row, it takes no height.
+            val inset = if (i == 0) null else if (item.indented && items[i - 1].indented) 54.dp else 16.dp
+            Box(
+                if (inset == null) Modifier else Modifier.drawWithContent {
+                    drawContent()
+                    drawRect(line, topLeft = Offset(inset.toPx(), 0f), size = Size(size.width - inset.toPx(), 1.dp.toPx()))
+                },
+            ) { item.content() }
         }
     }
 }
@@ -132,6 +140,7 @@ internal fun SettingsRoot(
     onSubScreenChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
     initialSheet: SheetKind? = null,
+    initialPromptDialog: PromptDialog? = null,
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
     val sub by vm.sub.collectAsStateWithLifecycle()
@@ -174,7 +183,7 @@ internal fun SettingsRoot(
                 CategoryPane(shownCategory, showDebug, versionName, onSelect = vm::selectCategory)
                 Box(Modifier.weight(1f).fillMaxHeight()) {
                     when (sub) {
-                        SubScreen.PROMPT -> PromptEditorHost(vm, wide = true)
+                        SubScreen.PROMPT -> PromptEditorHost(vm, wide = true, initialPromptDialog)
                         SubScreen.TONE -> ToneScreen(vm, ui, actions, wide = true)
                         null -> DetailPane(shownCategory, ui, actions)
                     }
@@ -182,7 +191,7 @@ internal fun SettingsRoot(
             }
         } else {
             when (sub) {
-                SubScreen.PROMPT -> PromptEditorHost(vm, wide = false)
+                SubScreen.PROMPT -> PromptEditorHost(vm, wide = false, initialPromptDialog)
                 SubScreen.TONE -> ToneScreen(vm, ui, actions, wide = false)
                 null -> CoverList(ui, actions, showDebug)
             }
@@ -323,7 +332,7 @@ private fun DetailPane(category: SettingsCategory, ui: SettingsUi, actions: Sett
             Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 20.dp)) {
                 Overline(stringResource(R.string.settings_prompt_preview), Modifier.padding(start = 4.dp, end = 4.dp, bottom = 8.dp))
                 PromptBox(Modifier.heightIn(max = 236.dp)) {
-                    Text(ui.prompt.previewText, style = MurmurTheme.type.editor, color = MurmurTheme.colors.ink)
+                    Text(ui.prompt.previewText, style = editorStyle(), color = MurmurTheme.colors.ink)
                 }
             }
         }
@@ -618,3 +627,11 @@ internal fun SubTopBar(title: String, wide: Boolean, onClose: () -> Unit, action
 internal fun SubBackHandler(onBack: () -> Unit) = BackHandler(onBack = onBack)
 
 internal val SheetOptionsPadding: Dp = 8.dp
+
+/**
+ * The editor type (13/20 mono) with JetBrains Mono's ligatures off: an editor shows the characters as typed, so
+ * `<|im_start|>` must not turn into arrows (contextual alternates) and `->` must stay two characters.
+ */
+@Composable
+internal fun editorStyle(): androidx.compose.ui.text.TextStyle =
+    MurmurTheme.type.editor.copy(fontFeatureSettings = "liga 0, calt 0, tnum")

@@ -24,6 +24,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
@@ -48,6 +50,8 @@ import app.murmur.ui.design.Elevation
 import app.murmur.ui.design.MurmurIcons
 import app.murmur.ui.design.MurmurShapes
 import app.murmur.ui.design.MurmurTheme
+import app.murmur.ui.design.Sizes
+import app.murmur.ui.design.components.MinTouch
 import app.murmur.ui.design.elevation
 import app.murmur.ui.design.components.Banner
 import app.murmur.ui.design.components.BannerKind
@@ -61,10 +65,10 @@ import java.text.NumberFormat
 
 /** The editor for the open [SettingsViewModel.promptEditor] (nothing while it is being created). */
 @Composable
-internal fun PromptEditorHost(vm: SettingsViewModel, wide: Boolean) {
+internal fun PromptEditorHost(vm: SettingsViewModel, wide: Boolean, initialDialog: PromptDialog? = null) {
     val editor by vm.promptEditor.collectAsStateWithLifecycle()
     val ui by vm.ui.collectAsStateWithLifecycle()
-    editor?.let { PromptEditorScreen(it, wide, useScreen = ui.settings.useScreen, onClose = vm::closeSub) }
+    editor?.let { PromptEditorScreen(it, wide, useScreen = ui.settings.useScreen, onClose = vm::closeSub, initialDialog = initialDialog) }
 }
 
 /**
@@ -103,7 +107,7 @@ internal fun PromptEditorScreen(editor: PromptEditor, wide: Boolean, useScreen: 
                     value = ui.text,
                     onValueChange = editor::setText,
                     readOnly = !ui.editable,
-                    textStyle = MurmurTheme.type.editor.copy(color = c.ink),
+                    textStyle = editorStyle().copy(color = c.ink),
                     cursorBrush = SolidColor(c.accent),
                     modifier = Modifier.fillMaxWidth().testTag(SettingsTags.PROMPT_FIELD).semantics { contentDescription = editorLabel },
                 )
@@ -207,10 +211,18 @@ private fun TwoActionBanner(title: String, body: String, first: String, onFirst:
                     append(" ")
                     append(body)
                 },
-                style = MurmurTheme.type.body, color = c.ink,
+                style = MurmurTheme.type.body.copy(lineBreak = LineBreak.Simple), color = c.ink,
             )
-            // As in the design system's banner, the text buttons hang 12 dp left so their labels line up with the text.
-            Row(Modifier.offset(x = (-12).dp).padding(top = 2.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            // As the design system's banner action (prototype .banner .acts {margin: 6px 0 -6px -12px}): 40 dp text
+            // buttons 6 dp under the text, hanging 12 dp left; their 48 dp touch targets overhang by 4 dp.
+            Row(
+                Modifier.offset(x = (-12).dp).layout { m, cst ->
+                    val p = m.measure(cst)
+                    val hit = ((MinTouch - Sizes.buttonSm) / 2).roundToPx()
+                    layout(p.width, p.height - 2 * hit) { p.place(0, 6.dp.roundToPx() - hit) }
+                },
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
                 MurmurButton(first, onFirst, style = ButtonStyle.Text, size = ButtonSize.Small, modifier = Modifier.testTag("settings-older-reset"))
                 MurmurButton(second, onSecond, style = ButtonStyle.Text, size = ButtonSize.Small, modifier = Modifier.testTag("settings-older-keep"))
             }
@@ -234,6 +246,8 @@ private fun Preferences(ui: PromptEditorUi, editor: PromptEditor) {
             BasicTextField(
                 value = ui.preferences,
                 onValueChange = editor::setPreferences,
+                // Three lines: room for a few habits, and a 60 dp touch target.
+                minLines = 3,
                 textStyle = t.body.copy(color = c.ink),
                 cursorBrush = SolidColor(c.accent),
                 modifier = Modifier.fillMaxWidth().testTag(SettingsTags.PREFS_FIELD).semantics { contentDescription = label },

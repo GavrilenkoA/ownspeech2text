@@ -37,7 +37,7 @@
     <string name="settings_feedback_sound_note">No sounds ship yet, so this is silent for now</string>
     <string name="settings_feedback_both_note">Vibration now, sounds once they ship</string>
     <string name="settings_typing">Typing speed</string>
-    <string name="settings_typing_sub">For the time saved on the Dashboard</string>
+    <string name="settings_typing_sub">For time saved on the Dashboard</string>
     <!-- %1$s = words per minute, formatted for the locale -->
     <string name="settings_typing_value">%1$s wpm</string>
     <string name="settings_typing_title">Your typing speed</string>

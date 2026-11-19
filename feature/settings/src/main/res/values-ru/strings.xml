@@ -33,7 +33,7 @@
     <string name="settings_feedback_sound_note">Звуков пока нет, поэтому сейчас тихо</string>
     <string name="settings_feedback_both_note">Пока только вибрация, звуки появятся позже</string>
     <string name="settings_typing">Скорость набора</string>
-    <string name="settings_typing_sub">Для расчёта сэкономленного времени в сводке</string>
+    <string name="settings_typing_sub">Для сэкономленного времени в сводке</string>
     <string name="settings_typing_value">%1$s сл/мин</string>
     <string name="settings_typing_title">Ваша скорость набора</string>
     <string name="settings_typing_body">Сэкономленное время сравнивает диктовку с набором тех же слов с этой скоростью.</string>
