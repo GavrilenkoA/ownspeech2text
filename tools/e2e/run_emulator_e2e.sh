@@ -8,10 +8,14 @@
 #   harness  the harness itself: target app logging (its own TargetAppTest), host bridge, fold/rotation/call/shade,
 #            SIGKILL of :asr/:llm, service on/off (EmulatorHarnessTest), PrivacyManifestTest, no app network traffic
 #   fast     FastE2eTest on the :testing fake engines (debug fake mode): tap, listen, tap -> text in the target,
-#            history row, bubble Listening -> Polishing -> Inserted. Both AVDs.
+#            history row, bubble Listening -> Polishing -> Inserted; RetryE2eTest: an ASR out-of-memory -> Failed with
+#            the recording -> Retry on the Error pill -> Inserted into the same field, row updated in place. Both AVDs.
 #   matrix   TargetMatrixE2eTest: every field kind of the target, password and FLAG_SECURE (fakes)
-#   events   PlatformEventsE2eTest (a)-(g) during Listening (fakes; murmur_fold7_inner; needs the host bridge)
-#   events-real  the same tests on the real CPU engines (models pushed as for real; kills are SIGKILLs of :asr/:llm)
+#   events   PlatformEventsE2eTest (a)-(g) during Listening, plus an :asr death during Finishing (fakes;
+#            murmur_fold7_inner; needs the host bridge); then AsrLoadDeathE2eTest (an :asr death during the model
+#            load ends the dictation, and the next one) in an instrumentation run of its own
+#   events-real  the same tests on the real CPU engines (models pushed as for real; kills are SIGKILLs of :asr/:llm).
+#            Every real-engine suite (events-real, real) starts from cleared app data with the models pushed again.
 #   real     RealE2eTest: GigaAM RNN-T + VAD + OCR + Qwen3.5 0.8B on CPU, FLEURS ru clip, then the privacy checks
 #            (no app network bytes after the model push, no transcript word in the app's log lines)
 #   privacy  PrivacyManifestTest + the network check, without a dictation
@@ -217,7 +221,7 @@ fi
 
 if has_suite fast; then
   fake_mode on
-  instrument fast "$PKG.test" "app.murmur.e2e.FastE2eTest"
+  instrument fast "$PKG.test" "app.murmur.e2e.FastE2eTest,app.murmur.e2e.RetryE2eTest"
 fi
 
 if has_suite matrix; then
@@ -229,6 +233,8 @@ if has_suite events; then
   start_bridge
   fake_mode on
   instrument events "$PKG.test" "app.murmur.e2e.PlatformEventsE2eTest" -e e2e.bridge 1
+  # A run of its own: :asr must start cold so that the kill lands in the model load.
+  instrument events-load-death "$PKG.test" "app.murmur.e2e.AsrLoadDeathE2eTest"
 fi
 
 if has_suite privacy; then
@@ -240,26 +246,33 @@ if has_suite privacy; then
   else result_row privacy-network FAIL "app uid $app_uid: $before -> $after bytes"; overall=1; fi
 fi
 
-real_prepared=0
-real_world() { # real engines: the FLEURS clip + the pinned models, pushed once per run
+clip_ready=0
+real_world() { # real engines: fresh app data + the pinned models, before EVERY real-engine suite
   start_bridge
   fake_mode off
-  [ "$real_prepared" = 1 ] && return
-  # Fresh app data, as after an install: the device profile is cached per app version and a rebuilt APK keeps it.
+  # Fresh app data, as after an install: the device profile is cached per app version and a rebuilt APK keeps it. Also
+  # before the second real suite of one run: whatever an earlier suite left behind (a hung session, a dead :asr the
+  # orchestrator still counts as warm, unit health marks) must not decide the next suite's result. pm clear also
+  # stops every app process, so the models are pushed again.
   "${ADB[@]}" shell pm clear "$PKG" >/dev/null
   "${ADB[@]}" shell pm grant "$PKG" android.permission.RECORD_AUDIO
   "${ADB[@]}" shell pm grant "$PKG" android.permission.POST_NOTIFICATIONS
-  python3 -I "$root/tools/e2e/fleurs_clip.py" "$out/fleurs" || die "FLEURS clip"
-  "${ADB[@]}" push "$out/fleurs/fleurs-ru.wav" "$DEVICE_DIR/fleurs-ru.wav" >/dev/null
-  "${ADB[@]}" push "$out/fleurs/fleurs-ru.txt" "$DEVICE_DIR/fleurs-ru.txt" >/dev/null
-  "${ADB[@]}" shell chmod 644 "$DEVICE_DIR/fleurs-ru.wav" "$DEVICE_DIR/fleurs-ru.txt"
-  python3 -I "$root/tools/e2e/push_models.py" "$SERIAL" "${REAL_ARTIFACTS[@]}" | tee "$out/push_models.txt" || die "model push"
-  real_prepared=1
+  if [ "$clip_ready" = 0 ]; then
+    python3 -I "$root/tools/e2e/fleurs_clip.py" "$out/fleurs" || die "FLEURS clip"
+    "${ADB[@]}" push "$out/fleurs/fleurs-ru.wav" "$DEVICE_DIR/fleurs-ru.wav" >/dev/null
+    "${ADB[@]}" push "$out/fleurs/fleurs-ru.txt" "$DEVICE_DIR/fleurs-ru.txt" >/dev/null
+    "${ADB[@]}" shell chmod 644 "$DEVICE_DIR/fleurs-ru.wav" "$DEVICE_DIR/fleurs-ru.txt"
+    clip_ready=1
+  fi
+  python3 -I "$root/tools/e2e/push_models.py" "$SERIAL" "${REAL_ARTIFACTS[@]}" | tee -a "$out/push_models.txt" || die "model push"
+  [ -z "$("${ADB[@]}" shell pidof "$PKG:asr" "$PKG:llm" | tr -d '\r')" ] || die "app processes still running after pm clear"
 }
 
 if has_suite events-real; then
   real_world
   instrument events-real "$PKG.test" "app.murmur.e2e.PlatformEventsE2eTest" -e e2e.bridge 1 -e e2e.timeoutScale "$TIMEOUT_SCALE"
+  real_world
+  instrument events-real-load-death "$PKG.test" "app.murmur.e2e.AsrLoadDeathE2eTest" -e e2e.timeoutScale "$TIMEOUT_SCALE"
 fi
 
 if has_suite real; then
