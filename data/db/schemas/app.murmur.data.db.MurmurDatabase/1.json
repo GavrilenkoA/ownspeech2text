@@ -2,11 +2,11 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "d34aa91bfe74dce9c874653a2255f25e",
+    "identityHash": "9c1bf5c12941c01518cb318219943af9",
     "entities": [
       {
         "tableName": "history",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `created_at` INTEGER NOT NULL, `local_day` TEXT NOT NULL, `pkg` TEXT NOT NULL, `app_label` TEXT, `conversation` TEXT, `status` TEXT NOT NULL, `final_text` TEXT, `raw_text` TEXT, `language` TEXT, `asr_model` TEXT, `asr_artifact` TEXT, `asr_unit` TEXT, `llm_model` TEXT, `llm_artifact` TEXT, `llm_unit` TEXT, `prompt_version` TEXT, `cleanup_outcome` TEXT, `tone` TEXT, `audio_path` TEXT, `audio_ms` INTEGER, `audio_bytes` INTEGER, `audio_codec` TEXT, `record_ms` INTEGER NOT NULL, `speech_ms` INTEGER NOT NULL, `stop_to_done_ms` INTEGER, `asr_tail_ms` INTEGER, `llm_ms` INTEGER, `ocr_ms` INTEGER, `insert_method` TEXT, `failure_code` TEXT, `revision` INTEGER NOT NULL, `context_words` INTEGER, `pending_delete` INTEGER NOT NULL)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `created_at` INTEGER NOT NULL, `local_day` TEXT NOT NULL, `pkg` TEXT NOT NULL, `app_label` TEXT, `conversation` TEXT, `status` TEXT NOT NULL, `final_text` TEXT, `raw_text` TEXT, `language` TEXT, `asr_model` TEXT, `asr_artifact` TEXT, `asr_unit` TEXT, `llm_model` TEXT, `llm_artifact` TEXT, `llm_unit` TEXT, `prompt_version` TEXT, `cleanup_outcome` TEXT, `tone` TEXT, `audio_path` TEXT, `audio_ms` INTEGER, `audio_bytes` INTEGER, `audio_codec` TEXT, `record_ms` INTEGER NOT NULL, `speech_ms` INTEGER NOT NULL, `stop_to_done_ms` INTEGER, `asr_tail_ms` INTEGER, `llm_ms` INTEGER, `ocr_ms` INTEGER, `insert_method` TEXT, `failure_code` TEXT, `revision` INTEGER NOT NULL, `context_words` INTEGER, `pending_delete` INTEGER NOT NULL, `search_text` TEXT NOT NULL)",
         "fields": [
           {
             "fieldPath": "id",
@@ -186,6 +186,12 @@
             "columnName": "pending_delete",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "searchText",
+            "columnName": "search_text",
+            "affinity": "TEXT",
+            "notNull": true
           }
         ],
         "primaryKey": {
@@ -343,7 +349,7 @@
       },
       {
         "tableName": "benchmark",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `artifact` TEXT NOT NULL, `unit` TEXT NOT NULL, `app_version` TEXT NOT NULL, `fingerprint` TEXT NOT NULL, `at_ms` INTEGER NOT NULL, `result` TEXT NOT NULL)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `artifact` TEXT NOT NULL, `unit` TEXT NOT NULL, `app_version` TEXT NOT NULL, `fingerprint` TEXT NOT NULL, `at_ms` INTEGER NOT NULL, `valid` INTEGER NOT NULL, `invalid_reason` TEXT, `result` TEXT NOT NULL)",
         "fields": [
           {
             "fieldPath": "id",
@@ -382,6 +388,17 @@
             "notNull": true
           },
           {
+            "fieldPath": "valid",
+            "columnName": "valid",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "invalidReason",
+            "columnName": "invalid_reason",
+            "affinity": "TEXT"
+          },
+          {
             "fieldPath": "result",
             "columnName": "result",
             "affinity": "TEXT",
@@ -396,13 +413,15 @@
         },
         "indices": [
           {
-            "name": "index_benchmark_artifact",
+            "name": "index_benchmark_artifact_unit_at_ms",
             "unique": false,
             "columnNames": [
-              "artifact"
+              "artifact",
+              "unit",
+              "at_ms"
             ],
             "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_benchmark_artifact` ON `${TABLE_NAME}` (`artifact`)"
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_benchmark_artifact_unit_at_ms` ON `${TABLE_NAME}` (`artifact`, `unit`, `at_ms`)"
           }
         ]
       },
@@ -439,7 +458,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'd34aa91bfe74dce9c874653a2255f25e')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '9c1bf5c12941c01518cb318219943af9')"
     ]
   }
 }

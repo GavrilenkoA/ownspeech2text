@@ -8,6 +8,11 @@ ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
 }
 
+android {
+    // MigrationTestHelper reads the exported schema JSON from the test APK's assets.
+    sourceSets.getByName("androidTest").assets.directories.add("$projectDir/schemas")
+}
+
 dependencies {
     api(project(":core:store"))
     implementation(project(":core:model"))
@@ -17,6 +22,7 @@ dependencies {
     ksp(libs.androidx.room.compiler)
     implementation(libs.androidx.datastore)
     testImplementation(project(":testing"))
+    androidTestImplementation(project(":testing"))
     androidTestImplementation(libs.androidx.room.testing)
     androidTestImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(libs.androidx.test.core)

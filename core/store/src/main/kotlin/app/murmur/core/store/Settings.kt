@@ -77,6 +77,10 @@ sealed interface CleanupChoice {
 }
 
 interface SettingsRepository {
+    /** Hot, never blocks; before the stored document is read it holds the defaults (a few ms after app start). */
     val settings: StateFlow<Settings>
+    /** Atomic read-modify-write; concurrent calls are applied one after another, none is lost. */
     suspend fun update(transform: (Settings) -> Settings)
+    /** The stored document, waiting for the first read if needed (for decisions that must not see the defaults). */
+    suspend fun current(): Settings = settings.value
 }
