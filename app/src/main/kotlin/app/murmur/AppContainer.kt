@@ -39,6 +39,8 @@ import app.murmur.data.models.DefaultDeviceProfileRepository
 import app.murmur.data.models.FileUnitHealthRepository
 import app.murmur.data.models.DefaultInstalledModelsRepository
 import app.murmur.data.models.DefaultModelResolver
+import app.murmur.data.models.ModelDownloads
+import app.murmur.data.models.RoomCustomModelStore
 import app.murmur.data.models.ModelsModule
 import app.murmur.infer.api.BinderEngines
 import app.murmur.platform.a11y.A11yBridge
@@ -76,8 +78,10 @@ class AppContainer(private val context: Context) {
     val settings: SettingsRepository by lazy { DataStoreSettingsRepository(context) }
 
     // --- models
-    val catalog: CatalogRepository by lazy { DefaultCatalogRepository() }
-    val installed: InstalledModelsRepository by lazy { DefaultInstalledModelsRepository(context, ModelsModule.storage(context)) }
+    val catalog: CatalogRepository by lazy { DefaultCatalogRepository(store = RoomCustomModelStore(db), scope = appScope) }
+    /** Downloads of this process; MurmurApp hands it to ModelDownloadJob (ModelJobHost). Preparing = the orchestrator. */
+    val modelDownloads: ModelDownloads by lazy { ModelsModule.downloads(context, catalog) { orchestrator } }
+    val installed: InstalledModelsRepository by lazy { DefaultInstalledModelsRepository(modelDownloads) }
     // --- engines (real binder clients, or :testing fakes in debug fake mode)
     val engines: Engines by lazy { debug.fakeEnginesOrNull() ?: BinderEngines(bindContext) }
     /** The only owner of the probe (WP-13, ARCHITECTURE 8.4); never throws (CPU-only profile on failure). */

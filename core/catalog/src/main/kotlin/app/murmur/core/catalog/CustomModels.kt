@@ -70,6 +70,15 @@ object GgufTemplates {
         val need = prefixTokens + LlmTraits.CONTEXT_RESERVE_TOKENS
         return ((need + 1023) / 1024) * 1024
     }
+
+    /**
+     * A custom LLM entry after Preparing measured its prefix (PrefixInfo.tokens): prefixTokens set and nCtx re-derived
+     * by [nCtxFor]. The caller stores it again with CatalogRepository.addCustom (upsert). Non-LLM entries unchanged.
+     */
+    fun withMeasuredPrefix(entry: ModelEntry, prefixTokens: Int): ModelEntry {
+        val l = entry.llm ?: return entry
+        return entry.copy(llm = l.copy(prefixTokens = prefixTokens, nCtx = nCtxFor(prefixTokens)))
+    }
 }
 
 /** Pure layout detection used by the resolver (unit-testable without network). */

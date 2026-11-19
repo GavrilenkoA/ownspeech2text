@@ -59,6 +59,8 @@ sealed class MurmurError {
     @Serializable data class DownloadFailed(val httpStatus: Int?, override val detail: String?) : MurmurError() { override val code = "dl.failed"; override val retryable = true }
     @Serializable data object ChecksumMismatch : MurmurError() { override val code = "dl.checksum"; override val retryable = true }
     @Serializable data object NoNetwork : MurmurError() { override val code = "dl.offline"; override val retryable = true }
+    /** The user paused the download, or its job is gone (app update, force stop); the .part files are kept. */
+    @Serializable data object DownloadPaused : MurmurError() { override val code = "dl.paused"; override val retryable = true }
     @Serializable data class CatalogInvalid(override val detail: String?) : MurmurError() { override val code = "catalog.invalid"; override val retryable = false }
 
     // --- data

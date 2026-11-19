@@ -33,6 +33,18 @@ object RuntimeKeys {
         LITERT_NPU, LITERT_LM_GPU, QNN_AIHUB_WHISPER,
     )
 
+    /**
+     * Keys this build's inference processes implement (sherpa-onnx, llama.cpp, ONNX Runtime). Used as the runtime
+     * set of a [DeviceProfile.cpuOnly] profile when the probe could not run, so CPU artifacts stay usable.
+     */
+    val implemented: Set<String> = setOf(
+        SHERPA_OFFLINE_TRANSDUCER, SHERPA_OFFLINE_CTC, SHERPA_OFFLINE_WHISPER, SHERPA_OFFLINE_QWEN3_ASR,
+        SHERPA_ONLINE_TRANSDUCER, SHERPA_ONLINE_TONE, LLAMA_GGUF, ORT_PPOCR_DET, ORT_PPOCR_REC, ORT_SILERO_VAD,
+    )
+
+    /** Batch ASR runtimes are fed VAD pause-cut segments (D4), so they need the VAD model installed. */
+    fun isBatchAsr(runtime: String): Boolean = runtime.startsWith("sherpa/offline-")
+
     /** Which inference process hosts a runtime (ADR-005: QNN users in :asr, ggml-hexagon alone in :llm). */
     fun process(runtime: String): InferProcess? = when {
         runtime.startsWith("sherpa/") || runtime.startsWith("ort/") -> InferProcess.ASR

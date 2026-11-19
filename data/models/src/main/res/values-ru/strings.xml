@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="models_dl_channel">Загрузка моделей</string>
+    <string name="models_dl_queued">Ожидает загрузки: %1$s</string>
+    <string name="models_dl_downloading">Загрузка: %1$s</string>
+    <string name="models_dl_progress">%1$s из %2$s</string>
+    <string name="models_dl_verifying">Проверка файлов: %1$s</string>
+    <string name="models_dl_preparing">Подготовка: %1$s</string>
+    <string name="models_dl_done">%1$s готова</string>
+    <string name="models_dl_paused">Загрузка приостановлена: %1$s</string>
+    <string name="models_dl_paused_network">Пауза, нет соединения</string>
+    <string name="models_dl_paused_storage">Недостаточно места</string>
+    <string name="models_dl_failed">Не удалось загрузить: %1$s</string>
+    <string name="models_dl_damaged">Загрузка повреждена. %1$s удалил её.</string>
+</resources>

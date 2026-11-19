@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- The test APK plays the app: its Application hosts ModelDownloads (ModelJobHost), so that a job the system
+         restarts after process death finds the same wiring. VisibleActivity makes the app visible for UIDT scheduling. -->
+    <application android:name="app.murmur.data.models.TestModelsApp">
+        <!-- Exported in the test APK only, so that kill_resume.sh can start it from the shell. -->
+        <activity android:name="app.murmur.data.models.VisibleActivity" android:exported="true" />
+    </application>
+</manifest>
