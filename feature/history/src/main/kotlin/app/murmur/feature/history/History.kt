@@ -21,6 +21,9 @@ import app.murmur.feature.history.ui.EntryDetail
 import app.murmur.feature.history.ui.HistoryListDetailLayout
 import app.murmur.feature.history.ui.HistoryListPane
 import app.murmur.ui.design.AppInfoProvider
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 
 /** What :app passes in (ADR-010: constructor injection, no DI framework). */
 class HistoryDeps(
@@ -38,7 +41,16 @@ class HistoryDeps(
      * (`CatalogRepository.catalog.value`, custom models included). null = the model id is shown.
      */
     val modelName: (ModelId) -> String? = { null },
+    /**
+     * Work that must outlive the screen: a delete whose Undo window is still open when the view model is cleared (the
+     * user left the screen; the snackbar is gone, so the delete is final) is committed here at once. :app passes
+     * `AppContainer.appScope`; the default is this module's own process-lifetime scope.
+     */
+    val appScope: CoroutineScope = HistoryProcessScope,
 )
+
+/** Lives as long as the process (never cancelled), like `AppContainer.appScope`. */
+private val HistoryProcessScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
 /**
  * The History tab's list pane (DESIGN 6.3): header with search, retention line, day groups, search with app

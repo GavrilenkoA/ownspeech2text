@@ -133,4 +133,5 @@
     <string name="hist_retry_failed">Не удалось повторить. Запись не изменилась.</string>
     <string name="hist_repolish_failed">Не удалось править заново. Текст не изменился.</string>
     <string name="hist_repolish_no_model">Чтобы править заново, выберите модель правки в разделе «Модели».</string>
+    <string name="hist_event_app">%1$s: %2$s</string>
 </resources>

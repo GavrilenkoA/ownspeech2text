@@ -29,6 +29,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
@@ -38,6 +39,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -84,12 +86,16 @@ import app.murmur.ui.design.components.MurmurChip
 import app.murmur.ui.design.components.MurmurDialog
 import app.murmur.ui.design.components.MurmurIconButton
 import app.murmur.ui.design.components.MurmurSnackbar
+import app.murmur.ui.design.components.MurmurSnackbarHost
+import app.murmur.ui.design.components.MurmurSnackbarState
 import app.murmur.ui.design.components.SNACKBAR_ACTION_MS
 import app.murmur.ui.design.components.ScreenHeader
 import app.murmur.ui.design.components.SearchField
 import app.murmur.ui.design.components.Skeleton
 import app.murmur.ui.design.components.StatusKind
 import app.murmur.ui.design.components.StatusLabel
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.launch
 
 /** Test tags (instrumented tests and the shell's tests). */
 object HistoryTags {
@@ -104,6 +110,10 @@ object HistoryTags {
     const val READING = "history-reading"
     const val PLAYER = "history-player"
     const val NO_RECORDING = "history-no-recording"
+    /** The Final / Original / Changes control when large text makes it scroll sideways. */
+    const val SEGMENTS_SCROLL = "history-segments-scroll"
+    /** Snackbars of the list pane (Retry / Re-polish failures of an entry that is not open). */
+    const val LIST_SNACK = "history-list-snack"
     fun row(id: EntryId) = "history-row-${id.value}"
 }
 
@@ -121,6 +131,24 @@ internal fun HistoryListPane(
     val context = LocalContext.current
     val undoWindow = rememberUndoWindowMs()
     var confirmMany by rememberSaveable { mutableStateOf(false) }
+    // Hoisted, so the lists keep their scroll position across state changes (search keystrokes, loading).
+    val listState = rememberLazyListState()
+    val searchListState = rememberLazyListState()
+    val snack = remember { MurmurSnackbarState() }
+    val messages by rememberUpdatedState(eventMessages())
+    val withApp = stringResource(R.string.hist_event_app)
+
+    // Retry / Re-polish failures of entries whose detail is not on screen (the user moved on, or the inner display's
+    // detail pane shows another entry): shown here with the app's name, so none is lost.
+    LaunchedEffect(vm) {
+        combine(vm.failures, vm.openEntry) { list, open -> list.filter { it.id != open } }.collect { list ->
+            for (e in list) {
+                if (!vm.consume(e)) continue
+                val text = vm.appNameOf(e.id)?.let { withApp.format(it, messages(e)) } ?: messages(e)
+                launch { snack.show(text) }
+            }
+        }
+    }
 
     BackHandler(enabled = state.selecting) { vm.clearSelection() }
     BackHandler(enabled = !state.selecting && state.search != null) { vm.closeSearch() }
@@ -145,7 +173,7 @@ internal fun HistoryListPane(
             }
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 if (search != null) {
-                    SearchBody(search, state, selected, vm, onOpenEntry)
+                    SearchBody(search, state, selected, vm, onOpenEntry, searchListState)
                 } else {
                     when (state.mode) {
                         ListMode.LOADING -> LoadingRows()
@@ -161,6 +189,7 @@ internal fun HistoryListPane(
                             onAction = onTryDictation,
                         )
                         ListMode.LIST -> DayList(
+                            listState = listState,
                             days = state.days,
                             state = state,
                             selected = selected,
@@ -173,7 +202,10 @@ internal fun HistoryListPane(
                 }
             }
         }
-        UndoSnackbar(state, vm, Modifier.align(Alignment.BottomCenter))
+        Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth()) {
+            MurmurSnackbarHost(snack, Modifier.testTag(HistoryTags.LIST_SNACK))
+            UndoSnackbar(state, vm, Modifier)
+        }
     }
 
     if (confirmMany && state.selecting) {
@@ -228,6 +260,7 @@ private fun UndoSnackbar(state: HistoryUiState, vm: HistoryViewModel, modifier: 
 
 @Composable
 private fun DayList(
+    listState: LazyListState,
     days: List<DayGroup>,
     state: HistoryUiState,
     selected: EntryId?,
@@ -239,7 +272,6 @@ private fun DayList(
     val formats = rememberHistoryFormats()
     val today = stringResource(R.string.hist_today)
     val yesterday = stringResource(R.string.hist_yesterday)
-    val listState = rememberLazyListState()
     LazyColumn(Modifier.fillMaxSize().testTag(HistoryTags.LIST), state = listState, contentPadding = PaddingValues(bottom = 24.dp)) {
         if (header != null) item(key = "note") { header() }
         for (g in days) {
@@ -432,8 +464,16 @@ private fun SearchHeader(search: SearchUiState, retentionDays: Int, vm: HistoryV
 }
 
 @Composable
-private fun SearchBody(search: SearchUiState, state: HistoryUiState, selected: EntryId?, vm: HistoryViewModel, onOpenEntry: (EntryId) -> Unit) {
+private fun SearchBody(
+    search: SearchUiState,
+    state: HistoryUiState,
+    selected: EntryId?,
+    vm: HistoryViewModel,
+    onOpenEntry: (EntryId) -> Unit,
+    listState: LazyListState,
+) {
     val c = MurmurTheme.colors
+    // null only until the first answer; later queries keep the previous results until theirs arrive.
     val results = search.results ?: return
     if (search.active && results.isEmpty()) {
         Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 40.dp).testTag(HistoryTags.NO_RESULTS)) {
@@ -444,6 +484,7 @@ private fun SearchBody(search: SearchUiState, state: HistoryUiState, selected: E
         return
     }
     DayList(
+        listState = listState,
         days = results,
         state = state,
         selected = selected,

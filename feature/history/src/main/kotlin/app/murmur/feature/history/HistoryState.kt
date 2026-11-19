@@ -131,10 +131,13 @@ sealed interface AudioUi {
 
 enum class Busy { RETRY, REPOLISH }
 
-/** One-shot results the screen shows as a snackbar. */
+/** Results the screen shows once as a snackbar (kept in [HistoryViewModel.failures] until shown). */
 sealed interface HistoryEvent {
-    data class RetryFailed(val id: EntryId, val error: MurmurError) : HistoryEvent
-    data class RepolishFailed(val id: EntryId, val error: MurmurError) : HistoryEvent
+    /** The entry the action ran on. */
+    val id: EntryId
+
+    data class RetryFailed(override val id: EntryId, val error: MurmurError) : HistoryEvent
+    data class RepolishFailed(override val id: EntryId, val error: MurmurError) : HistoryEvent
 }
 
 internal fun failureKind(code: String?): FailureKind = if (code == MurmurError.NoSpeech.code) FailureKind.NO_SPEECH else FailureKind.OTHER

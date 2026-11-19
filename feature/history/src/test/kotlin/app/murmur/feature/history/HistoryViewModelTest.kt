@@ -10,6 +10,7 @@ import app.murmur.core.model.MurmurError
 import app.murmur.core.model.Outcome
 import app.murmur.core.store.EntryStatus
 import app.murmur.core.store.HistoryEntry
+import app.murmur.core.store.HistoryRepository
 import app.murmur.core.store.Settings
 import app.murmur.testing.FakeClock
 import app.murmur.testing.InMemoryAudioStore
@@ -21,9 +22,11 @@ import app.murmur.testing.contrib.Wp16HistoryFixture.TODAY
 import app.murmur.testing.contrib.Wp16HistoryFixture.ZONE
 import app.murmur.ui.design.StaticAppInfoProvider
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
@@ -71,8 +74,8 @@ class HistoryViewModelTest {
         var repolishGate: CompletableDeferred<Outcome<EntryId>>? = null
         var ids: List<EntryId> = emptyList()
 
-        fun deps(clock: MurmurClock) = HistoryDeps(
-            history = history,
+        fun deps(clock: MurmurClock, appScope: CoroutineScope, repository: HistoryRepository = history) = HistoryDeps(
+            history = repository,
             settings = settings,
             audio = audio,
             clock = clock,
@@ -80,10 +83,16 @@ class HistoryViewModelTest {
             repolish = { id -> repolishes += id; repolishGate?.await() ?: Outcome.Ok(id) },
             apps = StaticAppInfoProvider(Wp16HistoryFixture.LABELS),
             modelName = { Wp16HistoryFixture.MODEL_NAMES[it] },
+            appScope = appScope,
         )
     }
 
-    private fun TestScope.setUp(world: World, clock: MurmurClock, seed: Boolean = true): HistoryViewModel {
+    private fun TestScope.setUp(
+        world: World,
+        clock: MurmurClock,
+        seed: Boolean = true,
+        repository: HistoryRepository = world.history,
+    ): HistoryViewModel {
         val dispatcher = StandardTestDispatcher(testScheduler)
         Dispatchers.setMain(dispatcher)
         if (seed) {
@@ -91,7 +100,7 @@ class HistoryViewModelTest {
             runCurrent()
             check(job.isCompleted)
         }
-        val vm = provide { HistoryViewModel(world.deps(clock), compute = dispatcher) }
+        val vm = provide { HistoryViewModel(world.deps(clock, backgroundScope, repository), compute = dispatcher) }
         backgroundScope.launch { vm.state.collect {} }
         backgroundScope.launch { vm.detail.collect {} }
         runCurrent()
@@ -218,7 +227,7 @@ class HistoryViewModelTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         backgroundScope.launch { Wp16HistoryFixture.seed(w.history, w.audio) }
         runCurrent()
-        val deps = w.deps(fixedClock())
+        val deps = w.deps(fixedClock(), backgroundScope)
         val vm = provide { HistoryViewModel(HistoryDeps(flaky, deps.settings, deps.audio, deps.clock, deps.retry, deps.repolish, deps.apps), compute = StandardTestDispatcher(testScheduler)) }
         backgroundScope.launch { vm.state.collect {} }
         runCurrent()
@@ -451,7 +460,8 @@ class HistoryViewModelTest {
         val w = World()
         val vm = setUp(w, fixedClock())
         val events = mutableListOf<HistoryEvent>()
-        backgroundScope.launch { vm.events.collect { events += it } }
+        // What a screen does: take each failure out and show it.
+        backgroundScope.launch { vm.failures.collect { list -> list.forEach { if (vm.consume(it)) events += it } } }
         vm.open(w.ids[5])
         runCurrent()
         vm.retry(w.ids[5])
@@ -509,5 +519,127 @@ class HistoryViewModelTest {
         runCurrent()
         assertTrue(vm.detail.value!!.missing)
         assertEquals("Gmail", vm.appNameOf(w.ids[1]))
+    }
+
+    // ------------------------------------------------------------------ review fixes
+
+    /** R16-1: leaving the screen inside the Undo window commits the delete at once (the snackbar is gone). */
+    @Test
+    fun aDeleteStillPendingWhenTheViewModelIsClearedIsCommitted() = runTest {
+        val w = World()
+        val vm = setUp(w, fixedClock())
+        val id = w.ids[0]
+        val ref = w.history.snapshot().first { it.id == id }.audio!!
+        vm.delete(setOf(id))
+        runCurrent()
+        assertNotNull(vm.state.value.pendingDelete)
+        store.clear()
+        runCurrent()
+        assertFalse("the recording is removed", w.audio.exists(ref))
+        assertFalse("the row is removed", w.history.snapshot().any { it.id == id })
+        // Nothing else was touched.
+        assertEquals(12, w.history.snapshot().size)
+    }
+
+    /** R16-1: a delete confirmed right before the view model is cleared (not started yet) still runs and commits. */
+    @Test
+    fun aDeleteConfirmedJustBeforeTheViewModelIsClearedIsCommitted() = runTest {
+        val w = World()
+        val vm = setUp(w, fixedClock())
+        val id = w.ids[1]
+        val ref = w.history.snapshot().first { it.id == id }.audio!!
+        vm.delete(setOf(id))
+        store.clear()
+        runCurrent()
+        assertFalse(w.audio.exists(ref))
+        assertFalse(w.history.snapshot().any { it.id == id })
+    }
+
+    /** R16-1: an undone delete is not committed by onCleared. */
+    @Test
+    fun anUndoneDeleteSurvivesTheViewModelBeingCleared() = runTest {
+        val w = World()
+        val vm = setUp(w, fixedClock())
+        val id = w.ids[0]
+        val ref = w.history.snapshot().first { it.id == id }.audio!!
+        vm.delete(setOf(id))
+        runCurrent()
+        vm.undo()
+        store.clear()
+        runCurrent()
+        advanceTimeBy(60_000)
+        runCurrent()
+        assertTrue(w.audio.exists(ref))
+        assertTrue(w.history.snapshot().any { it.id == id })
+    }
+
+    /** R16-4: a failure that lands after the user opened another entry stays until a screen takes it. */
+    @Test
+    fun aFailureForAnEntryNoLongerOpenIsKeptUntilShown() = runTest {
+        val w = World()
+        val vm = setUp(w, fixedClock())
+        val (telegram, gmail) = w.ids[0] to w.ids[1]
+        val gate = CompletableDeferred<Outcome<EntryId>>()
+        w.repolishGate = gate
+        vm.open(telegram)
+        runCurrent()
+        vm.repolish(telegram)
+        runCurrent()
+        vm.closeDetail(telegram)
+        vm.open(gmail)
+        runCurrent()
+        gate.complete(Outcome.Err(MurmurError.LlmFailed("timeout")))
+        runCurrent()
+        assertEquals(gmail, vm.openEntry.value)
+        val failure = vm.failures.value.single()
+        assertEquals(HistoryEvent.RepolishFailed(telegram, MurmurError.LlmFailed("timeout")), failure)
+        // Still there later (nobody collected it), gone once shown, and shown only once.
+        advanceTimeBy(60_000)
+        runCurrent()
+        assertEquals(listOf(failure), vm.failures.value)
+        assertTrue(vm.consume(failure))
+        assertFalse(vm.consume(failure))
+        assertTrue(vm.failures.value.isEmpty())
+        // closeDetail of an entry that is not the open one leaves the open one alone.
+        vm.closeDetail(telegram)
+        assertEquals(gmail, vm.openEntry.value)
+        vm.closeDetail(gmail)
+        assertNull(vm.openEntry.value)
+    }
+
+    /** R16-5: while the next query loads, the previous results stay (no empty frame, the list keeps its place). */
+    @Test
+    fun searchKeepsThePreviousResultsWhileTheNextQueryLoads() = runTest {
+        val w = World()
+        val gate = CompletableDeferred<Unit>()
+        val slow = object : HistoryRepository by w.history {
+            override fun search(query: String, pkg: String?): Flow<List<HistoryEntry>> =
+                if (query == "созвон в") flow { gate.await(); emitAll(w.history.search(query, pkg)) } else w.history.search(query, pkg)
+        }
+        val vm = setUp(w, fixedClock(), repository = slow)
+        vm.openSearch()
+        runCurrent()
+        assertEquals(13, vm.state.value.search!!.count)
+        vm.setQuery("созвон")
+        runCurrent()
+        val first = vm.state.value.search!!
+        assertEquals(2, first.count)
+        vm.setQuery("созвон в")
+        runCurrent()
+        val loading = vm.state.value.search!!
+        assertEquals("созвон в", loading.query)
+        assertNotNull("the previous results stay while the query loads", loading.results)
+        assertEquals(first.results, loading.results)
+        gate.complete(Unit)
+        runCurrent()
+        val done = vm.state.value.search!!
+        assertEquals("созвон в", done.query)
+        assertEquals(1, done.count)
+        // Closing and reopening search starts fresh: the whole list, not the old results.
+        vm.closeSearch()
+        runCurrent()
+        vm.openSearch()
+        runCurrent()
+        assertEquals(13, vm.state.value.search!!.count)
     }
 }

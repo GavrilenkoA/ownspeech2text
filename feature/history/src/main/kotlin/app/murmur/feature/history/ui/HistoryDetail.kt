@@ -16,12 +16,18 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -31,9 +37,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -79,7 +94,10 @@ private enum class TextMode { FINAL, ORIGINAL, CHANGES }
 /** One entry (DESIGN 6.3 detail). [pane]: inner display's detail pane (no back arrow, surface background). */
 @Composable
 internal fun EntryDetail(vm: HistoryViewModel, id: EntryId, onClose: () -> Unit, modifier: Modifier = Modifier, pane: Boolean = false) {
-    LaunchedEffect(id) { vm.open(id) }
+    DisposableEffect(vm, id) {
+        vm.open(id)
+        onDispose { vm.closeDetail(id) }
+    }
     val detail by vm.detail.collectAsStateWithLifecycle()
     val c = MurmurTheme.colors
     val s = detail?.takeIf { it.id == id }
@@ -87,13 +105,19 @@ internal fun EntryDetail(vm: HistoryViewModel, id: EntryId, onClose: () -> Unit,
     val undoWindow = rememberUndoWindowMs()
     var confirm by rememberSaveable { mutableStateOf(false) }
     val context = LocalContext.current
-    val messages = eventMessages()
+    val messages by rememberUpdatedState(eventMessages())
 
-    LaunchedEffect(s?.missing) { if (s?.missing == true) onClose() }
+    // Back, a delete made here and the entry disappearing all close the detail: the host hears it once. (A navigation
+    // host keeps an exiting destination composed during its transition; a second call would pop another entry.)
+    val latestOnClose by rememberUpdatedState(onClose)
+    var closed by remember(id) { mutableStateOf(false) }
+    val close: () -> Unit = remember(id) { { if (!closed) { closed = true; latestOnClose() } } }
+
+    LaunchedEffect(s?.missing) { if (s?.missing == true) close() }
+    // This entry's Retry / Re-polish failures; those of other entries are left for the list pane.
     LaunchedEffect(vm, id) {
-        vm.events.collect { e ->
-            val eid = when (e) { is HistoryEvent.RetryFailed -> e.id; is HistoryEvent.RepolishFailed -> e.id }
-            if (eid == id) launch { snack.show(messages(e)) }
+        vm.failures.collect { list ->
+            for (e in list) if (e.id == id && vm.consume(e)) launch { snack.show(messages(e)) }
         }
     }
 
@@ -106,7 +130,7 @@ internal fun EntryDetail(vm: HistoryViewModel, id: EntryId, onClose: () -> Unit,
             .testTag(HistoryTags.DETAIL),
     ) {
         if (s == null || s.loading || s.entry == null) {
-            if (!pane) TopBar(title = "", onBack = onClose)
+            if (!pane) TopBar(title = "", onBack = close)
             return@Column
         }
         val entry = s.entry
@@ -116,7 +140,7 @@ internal fun EntryDetail(vm: HistoryViewModel, id: EntryId, onClose: () -> Unit,
             TextMode.ORIGINAL -> entry.rawText
             else -> entry.finalText
         }.orEmpty()
-        DetailTopBar(s, pane, vm, onClose, onShare = { shareText(context, shownText.ifEmpty { entry.finalText.orEmpty() }) }, onDelete = { confirm = true })
+        DetailTopBar(s, pane, vm, close, onShare = { shareText(context, shownText.ifEmpty { entry.finalText.orEmpty() }) }, onDelete = { confirm = true })
         Box(Modifier.weight(1f).fillMaxWidth()) {
             Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
                 DetailBody(s, textMode, onMode = { mode = it.ordinal })
@@ -141,7 +165,7 @@ internal fun EntryDetail(vm: HistoryViewModel, id: EntryId, onClose: () -> Unit,
             onConfirm = {
                 confirm = false
                 vm.delete(setOf(id), undoWindow)
-                onClose()
+                close()
             },
             dismissLabel = stringResource(R.string.hist_cancel),
             onDismiss = { confirm = false },
@@ -151,7 +175,7 @@ internal fun EntryDetail(vm: HistoryViewModel, id: EntryId, onClose: () -> Unit,
 }
 
 @Composable
-private fun eventMessages(): (HistoryEvent) -> String {
+internal fun eventMessages(): (HistoryEvent) -> String {
     val noSpeech = stringResource(R.string.hist_retry_nospeech)
     val noRecording = stringResource(R.string.hist_recording_unavailable)
     val retryFailed = stringResource(R.string.hist_retry_failed)
@@ -214,12 +238,12 @@ private fun DetailBody(s: DetailUiState, mode: TextMode, onMode: (TextMode) -> U
     Column(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = if (hasTextsOf(entry)) 0.dp else 4.dp)) {
         val hasTexts = !entry.finalText.isNullOrBlank() && !entry.rawText.isNullOrBlank()
         if (hasTexts) {
-            SegmentedControl(
+            // The 48 dp control holds the 40 dp track with 4 dp above and below: that margin is the prototype's
+            // 4 dp top padding, and its 18 dp gap to the text is 14 dp below the hit area.
+            TextModeControl(
                 options = listOf(stringResource(R.string.hist_seg_final), stringResource(R.string.hist_seg_original), stringResource(R.string.hist_seg_changes)),
-                selectedIndex = mode.ordinal,
+                selected = mode.ordinal,
                 onSelect = { onMode(TextMode.entries[it]) },
-                // The 48 dp control holds the 40 dp track with 4 dp above and below: that margin is the prototype's
-                // 4 dp top padding, and its 18 dp gap to the text is 14 dp below the hit area.
             )
         }
         val textTop = if (hasTexts) 14.dp else 18.dp
@@ -253,6 +277,76 @@ private fun DetailBody(s: DetailUiState, mode: TextMode, onMode: (TextMode) -> U
         Recording(s.audio, Modifier.padding(top = 20.dp))
     }
 }
+
+/**
+ * The Final / Original / Changes control. When large text (DESIGN 8) leaves a segment narrower than its label on one
+ * line, the segmented control would break a word in the middle ("Origin|al"); then it keeps the width its labels need
+ * and scrolls sideways inside the pane instead (the selected segment is scrolled into view).
+ */
+@Composable
+private fun TextModeControl(options: List<String>, selected: Int, onSelect: (Int) -> Unit) {
+    val measurer = rememberTextMeasurer()
+    val style = MurmurTheme.type.segment
+    val density = LocalDensity.current
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val labels = remember(options, style, density) {
+            options.map { measurer.measure(it, style, maxLines = 1, softWrap = false, density = density).size.width }
+        }
+        // SegmentedControl: 3 dp track padding at both ends, 2 dp between segments, 12 dp label padding per side;
+        // 2 dp of slack for rounding.
+        val need = with(density) { labels.sum().toDp() } + SEG_LABEL_PAD * 2 * options.size +
+            SEG_GAP * (options.size - 1) + SEG_TRACK_PAD * 2 + 2.dp
+        if (need <= maxWidth) {
+            SegmentedControl(options, selected, onSelect)
+        } else {
+            val scroll = rememberScrollState()
+            LaunchedEffect(selected, labels) {
+                val pad = with(density) { (SEG_LABEL_PAD * 2).roundToPx() }
+                val gap = with(density) { SEG_GAP.roundToPx() }
+                val start = with(density) { SEG_TRACK_PAD.roundToPx() } + (0 until selected).sumOf { labels[it] + pad + gap }
+                val end = start + labels[selected] + pad
+                val viewport = scroll.viewportSize
+                when {
+                    start < scroll.value -> scroll.animateScrollTo(start)
+                    end > scroll.value + viewport -> scroll.animateScrollTo((end - viewport).coerceAtLeast(0))
+                }
+            }
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .scrollEdgeFade(scroll)
+                    .horizontalScroll(scroll)
+                    .testTag(HistoryTags.SEGMENTS_SCROLL),
+            ) {
+                SegmentedControl(options, selected, onSelect, Modifier.width(need))
+            }
+        }
+    }
+}
+
+/** Fades the side that can still scroll (24 dp), so a cut segment reads as "more this way", not as clipped. */
+private fun Modifier.scrollEdgeFade(scroll: ScrollState): Modifier = this
+    .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
+    .drawWithContent {
+        drawContent()
+        val edge = 24.dp.toPx()
+        if (scroll.value < scroll.maxValue) {
+            drawRect(
+                Brush.horizontalGradient(listOf(Color.Black, Color.Transparent), startX = size.width - edge, endX = size.width),
+                topLeft = Offset(size.width - edge, 0f), size = Size(edge, size.height), blendMode = BlendMode.DstIn,
+            )
+        }
+        if (scroll.value > 0) {
+            drawRect(
+                Brush.horizontalGradient(listOf(Color.Transparent, Color.Black), startX = 0f, endX = edge),
+                size = Size(edge, size.height), blendMode = BlendMode.DstIn,
+            )
+        }
+    }
+
+private val SEG_LABEL_PAD = 12.dp
+private val SEG_GAP = 2.dp
+private val SEG_TRACK_PAD = 3.dp
 
 private fun hasTextsOf(e: app.murmur.core.store.HistoryEntry) = !e.finalText.isNullOrBlank() && !e.rawText.isNullOrBlank()
 

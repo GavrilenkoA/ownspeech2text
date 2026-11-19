@@ -47,6 +47,7 @@ import app.murmur.ui.design.components.MurmurNavigationBar
 import app.murmur.ui.design.components.MurmurNavigationRail
 import app.murmur.ui.design.components.NavItem
 import app.murmur.ui.design.rememberIsWide
+import kotlinx.coroutines.CompletableDeferred
 import java.util.Locale
 import java.util.concurrent.CopyOnWriteArrayList
 
@@ -89,6 +90,8 @@ class HistoryWorld(context: Context, seed: Boolean = true, retentionDays: Int = 
     val clock = FakeClock(Wp16HistoryFixture.NOW, Wp16HistoryFixture.ZONE)
     val retries = CopyOnWriteArrayList<EntryId>()
     val repolishes = CopyOnWriteArrayList<EntryId>()
+    /** When set, Re-polish waits for it and returns its outcome. */
+    @Volatile var repolishGate: CompletableDeferred<Outcome<EntryId>>? = null
     val ids: List<EntryId> = if (seed) kotlinx.coroutines.runBlocking { Wp16HistoryFixture.seed(history, audio) } else emptyList()
     val deps = HistoryDeps(
         history = history,
@@ -96,7 +99,7 @@ class HistoryWorld(context: Context, seed: Boolean = true, retentionDays: Int = 
         audio = audio,
         clock = clock,
         retry = { id -> retries += id; Outcome.Ok(id) },
-        repolish = { id -> repolishes += id; Outcome.Ok(id) },
+        repolish = { id -> repolishes += id; repolishGate?.await() ?: Outcome.Ok(id) },
         apps = LetterTileApps(context),
         modelName = { Wp16HistoryFixture.MODEL_NAMES[it] },
     )

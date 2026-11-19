@@ -34,6 +34,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import app.murmur.core.model.EntryId
 import app.murmur.feature.history.ui.HistoryTags
 import app.murmur.testing.contrib.Wp16HistoryFixture
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -126,6 +127,11 @@ class HistoryScreensTest {
         rule.onNodeWithText("Original").performClick()
         rule.waitForIdle()
         checkScreen("hist-detail-fs200")
+        // No segment label breaks inside a word (the control scrolls sideways when the labels do not fit).
+        for (label in listOf("Final", "Original", "Changes")) {
+            assertEquals("lines of the '$label' segment", 1, lineCount(label))
+        }
+        rule.onNodeWithTag(HistoryTags.READING).assertTextEquals(Wp16HistoryFixture.H1_RAW)
     }
 
     @Test
@@ -231,6 +237,39 @@ class HistoryScreensTest {
         rule.onNode(hasContentDescription("Pause playback")).performClick()
         rule.waitForIdle()
         assertNotEquals("0:00 / 0:12", position())
+        // Pause gives the audio focus back.
+        assertFalse(holdsAudioFocus())
+    }
+
+    /** R16-3: playback asks for transient audio focus, pauses when another player takes it and when the app stops. */
+    @Test
+    fun playerFollowsAudioFocusAndTheLifecycle() {
+        val w = world()
+        launch(w)
+        openFirst(w)
+        val play = hasContentDescription("Play recording")
+        val pause = hasContentDescription("Pause playback")
+        rule.onNode(play).performClick()
+        rule.waitUntil(5_000) { rule.onAllNodes(pause).fetchSemanticsNodes().isNotEmpty() }
+        assertTrue("transient focus while playing", holdsAudioFocus())
+        // Another player takes the focus: the recording pauses.
+        val am = context.getSystemService(android.media.AudioManager::class.java)
+        val other = android.media.AudioFocusRequest.Builder(android.media.AudioManager.AUDIOFOCUS_GAIN)
+            .setOnAudioFocusChangeListener { }.build()
+        assertEquals(android.media.AudioManager.AUDIOFOCUS_REQUEST_GRANTED, am.requestAudioFocus(other))
+        try {
+            rule.waitUntil(5_000) { rule.onAllNodes(play).fetchSemanticsNodes().isNotEmpty() }
+        } finally {
+            am.abandonAudioFocusRequest(other)
+        }
+        // Playing again, then the app goes to the background: paused when it comes back.
+        rule.onNode(play).performClick()
+        rule.waitUntil(5_000) { rule.onAllNodes(pause).fetchSemanticsNodes().isNotEmpty() }
+        scenario!!.moveToState(androidx.lifecycle.Lifecycle.State.CREATED)
+        scenario!!.moveToState(androidx.lifecycle.Lifecycle.State.RESUMED)
+        rule.waitForIdle()
+        rule.onNode(play).assertIsDisplayed()
+        assertFalse("focus given back on stop", holdsAudioFocus())
     }
 
     // ------------------------------------------------------------------ search
@@ -367,6 +406,51 @@ class HistoryScreensTest {
         rule.onNodeWithText("4 dictations").assertIsDisplayed()
     }
 
+    /** R16-2: a host that keeps the detail composed while it leaves (a navigation transition) hears onClose once. */
+    @Test
+    fun deleteClosesTheDetailOnce() {
+        val w = world()
+        val closes = java.util.concurrent.atomic.AtomicInteger()
+        HistoryTestActivity.config = HistoryTestActivity.Config(w, content = { world ->
+            HistoryEntryDetail(world.deps, world.ids[1], onClose = { closes.incrementAndGet() })
+        })
+        scenario = ActivityScenario.launch(HistoryTestActivity::class.java)
+        rule.waitForIdle()
+        rule.onNode(hasContentDescription("Delete") and hasClickAction()).performClick()
+        rule.onNode(hasText("Delete") and hasClickAction() and hasAnyAncestor(isDialog())).performClick()
+        // The row is soft-deleted, so the detail's entry flow ends in "missing", which also asks to close.
+        rule.waitUntil(5_000) { runBlocking { w.history.entry(w.ids[1]).first() } == null }
+        rule.waitForIdle()
+        Thread.sleep(500)
+        rule.waitForIdle()
+        assertEquals("onClose calls", 1, closes.get())
+    }
+
+    /** R16-4: a Re-polish failure that lands after the user opened another entry is shown on the list. */
+    @Test
+    fun aFailureAfterMovingOnShowsOnTheList() {
+        val w = world()
+        val gate = kotlinx.coroutines.CompletableDeferred<app.murmur.core.model.Outcome<EntryId>>()
+        w.repolishGate = gate
+        launch(w)
+        openFirst(w)
+        rule.onNodeWithText("Re-polish").performClick()
+        rule.waitUntil(5_000) { w.repolishes.contains(w.ids[0]) }
+        open(w.ids[1])
+        rule.onNodeWithText("Today, 13:05 · 0:18").assertIsDisplayed()
+        gate.complete(app.murmur.core.model.Outcome.Err(app.murmur.core.model.MurmurError.LlmFailed("timeout")))
+        val message = "Telegram: Couldn't re-polish. The text is unchanged."
+        if (!wide) {
+            // The Gmail detail does not show Telegram's failure; the list does once it is back.
+            rule.waitForIdle()
+            assertTrue(rule.onAllNodesWithText("Couldn't re-polish", substring = true).fetchSemanticsNodes().isEmpty())
+            scenario!!.onActivity { it.onBackPressedDispatcher.onBackPressed() }
+        }
+        rule.waitUntil(5_000) { rule.onAllNodesWithText(message).fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithText(message).assertIsDisplayed()
+        shot("hist-failure-on-list")
+    }
+
     // ------------------------------------------------------------------ fold continuity
 
     @Test
@@ -400,6 +484,25 @@ class HistoryScreensTest {
         rule.onNodeWithTag(HistoryTags.DETAIL).assertIsDisplayed()
     }
 
+    /** Lines of the unmerged Text node showing [text] (its layout). */
+    private fun lineCount(text: String): Int {
+        val node = rule.onNode(hasText(text) and SemanticsMatcher.keyIsDefined(SemanticsActions.GetTextLayoutResult), useUnmergedTree = true)
+            .fetchSemanticsNode()
+        val results = mutableListOf<androidx.compose.ui.text.TextLayoutResult>()
+        rule.runOnUiThread { node.config[SemanticsActions.GetTextLayoutResult].action!!.invoke(results) }
+        return results.single().lineCount
+    }
+
+    /** This app is in the audio focus stack (`dumpsys audio`) with transient gain. */
+    private fun holdsAudioFocus(): Boolean {
+        val out = instrumentation.uiAutomation.executeShellCommand("dumpsys audio")
+            .let { pfd -> android.os.ParcelFileDescriptor.AutoCloseInputStream(pfd).use { it.readBytes().decodeToString() } }
+        // The header, then one indented "  source:… -- pack: <pkg> -- … -- gain: GAIN_TRANSIENT …" line per entry.
+        val stack = out.substringAfter("Audio Focus stack entries", "").lineSequence().drop(1)
+            .takeWhile { it.isBlank() || it.first().isWhitespace() }
+        return stack.any { it.contains("pack: ${context.packageName} ") && it.contains("gain: GAIN_TRANSIENT ") }
+    }
+
     private fun rowDescription(id: EntryId): String =
         rule.onNodeWithTag(HistoryTags.row(id)).fetchSemanticsNode().config[SemanticsProperties.ContentDescription].joinToString()
 
@@ -412,15 +515,37 @@ class HistoryScreensTest {
     /** Full-screen screenshot (status bar, dialog windows included) to `<externalFiles>/wp16/<name>--<device>.png`. */
     private fun shot(name: String) {
         rule.waitForIdle()
-        // The shared AVDs' System UI sometimes raises an ANR dialog under the software renderer; it is not ours.
-        instrumentation.uiAutomation.executeShellCommand("am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS")
-            .let { pfd -> android.os.ParcelFileDescriptor.AutoCloseInputStream(pfd).use { it.readBytes() } }
+        closeSystemDialogs()
         Thread.sleep(600)
         val bmp = instrumentation.uiAutomation.takeScreenshot()
         val dir = File(context.getExternalFilesDir(null), "wp16").apply { mkdirs() }
         val file = File(dir, "$name--$device.png")
         FileOutputStream(file).use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
         Log.i(TAG, "screenshot ${file.absolutePath}")
+        awaitOurWindows()
+    }
+
+    /** The shared AVDs' System UI sometimes raises an ANR dialog under the software renderer; it is not ours. */
+    private fun closeSystemDialogs() {
+        instrumentation.uiAutomation.executeShellCommand("am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS")
+            .let { pfd -> android.os.ParcelFileDescriptor.AutoCloseInputStream(pfd).use { it.readBytes() } }
+    }
+
+    /**
+     * Waits until our windows have the focus again and their compose hierarchy can be read: a System UI dialog (or
+     * the broadcast that closes it) can take the window focus for a moment, and a query in that moment finds no
+     * compose hierarchy.
+     */
+    private fun awaitOurWindows() {
+        val deadline = android.os.SystemClock.uptimeMillis() + 15_000
+        while (true) {
+            instrumentation.waitForIdleSync()
+            val ok = runCatching { rule.onAllNodes(androidx.compose.ui.test.isRoot()).fetchSemanticsNodes().isNotEmpty() }.getOrDefault(false)
+            if (ok) return
+            check(android.os.SystemClock.uptimeMillis() < deadline) { "our windows did not get the focus back" }
+            closeSystemDialogs()
+            Thread.sleep(250)
+        }
     }
 
     /** Every clickable is at least 48 × 48 dp (layout size; DESIGN 4, 8). */

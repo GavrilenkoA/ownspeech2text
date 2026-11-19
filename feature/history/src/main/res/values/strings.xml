@@ -117,4 +117,6 @@
     <string name="hist_retry_failed">Couldn\'t try again. The entry is unchanged.</string>
     <string name="hist_repolish_failed">Couldn\'t re-polish. The text is unchanged.</string>
     <string name="hist_repolish_no_model">Choose a cleanup model in Models to re-polish.</string>
+    <!-- A Retry / Re-polish failure shown on the list: "Telegram: Couldn't re-polish. The text is unchanged." -->
+    <string name="hist_event_app">%1$s: %2$s</string>
 </resources>
