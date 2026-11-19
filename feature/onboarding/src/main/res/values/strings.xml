@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Onboarding copy (DESIGN 6.1, copy deck DESIGN 7). The product name is never written here: %1$s = ProductName.NAME (D10).
+     Prefix ob_ keeps these apart from other modules' keys after resource merging. -->
+<resources>
+    <!-- Progress -->
+    <string name="ob_step_counter">%1$d of %2$d</string>
+    <string name="ob_step_counter_cd">Step %1$d of %2$d</string>
+    <string name="ob_counter_done">Done</string>
+    <string name="ob_kicker">Step %1$d · %2$s</string>
+    <string name="ob_inner_footer">Everything runs on this phone. You can change each of these later in Settings.</string>
+    <string name="ob_list_mic">Microphone</string>
+    <string name="ob_list_mic_sub">Hear you while the bubble listens</string>
+    <string name="ob_list_access">Accessibility</string>
+    <string name="ob_list_access_sub">Show the bubble and type for you</string>
+    <string name="ob_list_notif">Notifications</string>
+    <string name="ob_list_notif_sub">A quiet status notification</string>
+    <string name="ob_list_battery">Background use</string>
+    <string name="ob_list_battery_sub">Stay ready in other apps</string>
+    <string name="ob_list_models">Models</string>
+    <string name="ob_list_models_sub">Download speech and cleanup models</string>
+    <string name="ob_list_done_cd">%1$s, done</string>
+    <string name="ob_list_now_cd">%1$s, current step</string>
+
+    <!-- 0 Welcome -->
+    <string name="ob_welcome_title">Speak in any app.\n%1$s types it.</string>
+    <string name="ob_welcome_body">Recognition and cleanup run on this phone, in Russian and English. Your voice is never uploaded.</string>
+    <string name="ob_welcome_demo" translatable="false">Созвон в 10 с Laura по Q4 report</string>
+    <string name="ob_welcome_point_bubble">A small bubble appears when you\'re typing. Tap it, talk, tap again.</string>
+    <string name="ob_welcome_point_cleanup">Filler words go, punctuation and names come out right.</string>
+    <plurals name="ob_welcome_point_history">
+        <item quantity="one">Everything you say is kept for %d day, then deleted.</item>
+        <item quantity="other">Everything you say is kept for %d days, then deleted.</item>
+    </plurals>
+    <string name="ob_welcome_point_nohistory">Nothing you say is kept: text is inserted and copied, then forgotten.</string>
+    <string name="ob_welcome_cta">Set up %1$s</string>
+    <string name="ob_welcome_fine">Takes about 2 minutes plus the model download</string>
+
+    <!-- 1 Microphone -->
+    <string name="ob_mic_title">Let %1$s hear you</string>
+    <string name="ob_mic_lead">The microphone is used only while the bubble is listening. You always see when that happens.</string>
+    <string name="ob_mic_point_tap">Recording starts only when you tap or hold the bubble</string>
+    <plurals name="ob_mic_point_kept">
+        <item quantity="one">Audio is processed on this phone and kept with your history for %d day</item>
+        <item quantity="other">Audio is processed on this phone and kept with your history for %d days</item>
+    </plurals>
+    <string name="ob_mic_point_notkept">Audio is processed on this phone and not kept</string>
+    <string name="ob_mic_cta">Allow microphone</string>
+    <string name="ob_mic_fine">Android will ask. Choose “While using the app”.</string>
+    <string name="ob_mic_cta_settings">Open app settings</string>
+    <string name="ob_mic_fine_settings">Android won\'t ask again. Turn on Microphone under Permissions, then come back.</string>
+
+    <!-- 2 Accessibility -->
+    <string name="ob_access_title">Turn on %1$s in Accessibility</string>
+    <string name="ob_access_lead">Android lets only accessibility services draw over other apps and type into them. %1$s uses it for three things:</string>
+    <string name="ob_access_point_bubble">Show the bubble when a text field is focused</string>
+    <string name="ob_access_point_type">Type the finished text into that field</string>
+    <string name="ob_access_point_screen">Read the screen while you dictate, to get names and terms right</string>
+    <string name="ob_next_screen">On the next screen</string>
+    <string name="ob_access_path">Installed apps → &lt;b>%1$s&lt;/b> → turn on &lt;b>Use %1$s&lt;/b></string>
+    <string name="ob_access_cta">Open Accessibility settings</string>
+    <string name="ob_access_privacy">%1$s never sends screen text or keystrokes anywhere.</string>
+
+    <!-- 2a Restricted settings -->
+    <string name="ob_restricted_title">Android blocked this setting</string>
+    <string name="ob_restricted_lead">Apps installed outside an app store need one extra approval before they can use Accessibility.</string>
+    <string name="ob_restricted_box">Do this once</string>
+    <string name="ob_restricted_step1">Open &lt;b>App info&lt;/b> for %1$s</string>
+    <string name="ob_restricted_step2">Tap &lt;b>⋮&lt;/b> in the top corner → &lt;b>Allow restricted settings&lt;/b></string>
+    <string name="ob_restricted_step3">Come back here and turn on &lt;b>Use %1$s&lt;/b></string>
+    <string name="ob_restricted_cta">Open App info</string>
+    <string name="ob_restricted_done">I\'ve done this</string>
+
+    <!-- 3 Notifications -->
+    <string name="ob_notif_title">Keep one quiet notification</string>
+    <string name="ob_notif_lead">Android requires a visible notification while an app can use the microphone in the background. It\'s silent and lets you hide the bubble for an hour.</string>
+    <string name="ob_notif_box">It looks like this</string>
+    <string name="ob_notif_preview_title">%1$s is ready</string>
+    <string name="ob_notif_preview_hide">Hide 1 h</string>
+    <string name="ob_notif_cta">Allow notifications</string>
+    <string name="ob_notif_skip">Not now</string>
+
+    <!-- 4 Background use -->
+    <string name="ob_battery_title">Let %1$s stay ready</string>
+    <string name="ob_battery_lead">Samsung puts unused apps to sleep. When that happens, the bubble disappears until you open %1$s again.</string>
+    <string name="ob_battery_point">Models load only while you dictate and are unloaded right after, so idle battery use stays near zero</string>
+    <string name="ob_battery_path">Battery → choose &lt;b>Unrestricted&lt;/b></string>
+    <string name="ob_battery_cta">Allow background use</string>
+    <string name="ob_battery_skip">Skip for now</string>
+
+    <!-- 5 Models -->
+    <string name="ob_models_title">Download the models</string>
+    <string name="ob_models_lead">They run on this phone, so they need to be downloaded once. This is the only time %1$s uses the internet.</string>
+    <string name="ob_models_pack_sub">%1$s + %2$s cleanup</string>
+    <string name="ob_size_gb">%1$s GB</string>
+    <string name="ob_models_wifi">Download on Wi-Fi only</string>
+    <string name="ob_models_cta">Download %1$s</string>
+    <string name="ob_models_fine">%1$s GB free. You can switch models any time in Models.</string>
+    <string name="ob_models_checking">Checking this phone…</string>
+    <string name="ob_models_none">No model pack runs on this phone.</string>
+
+    <!-- 5a Downloading -->
+    <string name="ob_dl_title">Downloading</string>
+    <string name="ob_dl_lead">You can leave this screen. The download continues and we\'ll notify you when it\'s done.</string>
+    <string name="ob_dl_percent">%1$d%%</string>
+    <string name="ob_dl_of_gb">%1$s of %2$s GB</string>
+    <string name="ob_dl_of_mb">%1$s of %2$s MB</string>
+    <string name="ob_size_mb">%1$s MB</string>
+    <string name="ob_dl_speed_s">%1$s MB/s · about %2$d s left</string>
+    <string name="ob_dl_speed_min">%1$s MB/s · about %2$d min left</string>
+    <string name="ob_dl_waiting">Waiting to start</string>
+    <string name="ob_dl_waiting_wifi">Waiting for Wi-Fi</string>
+    <string name="ob_dl_prepare_npu">Check files and prepare for the NPU</string>
+    <string name="ob_dl_prepare">Check files and prepare the models</string>
+    <string name="ob_dl_continue">Continue while downloading</string>
+    <string name="ob_dl_pause">Pause</string>
+
+    <!-- 5b Paused -->
+    <string name="ob_paused_title">Download paused</string>
+    <string name="ob_paused_offline">No internet connection.</string>
+    <string name="ob_paused_offline_body_wifi">%1$s of %2$s GB is saved. The download resumes from there when you\'re back on Wi-Fi.</string>
+    <string name="ob_paused_offline_body">%1$s of %2$s GB is saved. The download resumes from there when you\'re back online.</string>
+    <string name="ob_paused_storage">Not enough space.</string>
+    <string name="ob_paused_storage_body">%1$s of %2$s GB is saved. Free up some space on this phone, then try again.</string>
+    <string name="ob_paused_user">Paused.</string>
+    <string name="ob_paused_user_body">%1$s of %2$s GB is saved. It continues from there when you tap Try again.</string>
+    <string name="ob_paused_damaged">Download was damaged.</string>
+    <string name="ob_paused_damaged_body">%1$s deleted it. Try again to download it once more.</string>
+    <string name="ob_paused_failed">The download failed.</string>
+    <string name="ob_paused_failed_body">%1$s of %2$s GB is saved. Try again to continue.</string>
+    <string name="ob_paused_speech_works">Speech recognition already works. Cleanup turns on when %1$s finishes.</string>
+    <string name="ob_paused_speech_waits">Dictation starts working when %1$s finishes.</string>
+    <string name="ob_paused_retry">Try again</string>
+    <string name="ob_paused_without_cleanup">Continue without cleanup</string>
+
+    <!-- 6 Ready -->
+    <string name="ob_ready_kicker">All set</string>
+    <string name="ob_ready_title">Try it here</string>
+    <string name="ob_ready_lead">Tap the bubble, say a sentence, tap again. Mixing Russian and English is fine.</string>
+    <string name="ob_ready_field_cd">Practice field</string>
+    <string name="ob_ready_result">Inserted in %1$s s · %2$s</string>
+    <string name="ob_ready_models">%1$s → %2$s</string>
+    <string name="ob_ready_cta">Done</string>
+    <string name="ob_ready_fine">The bubble appears whenever you focus a text field.</string>
+
+    <!-- In-app practice bubble (DESIGN 5.3 / copy deck bubble_*) -->
+    <string name="ob_bubble_ready_cd">Start dictation</string>
+    <string name="ob_bubble_listening">Listening</string>
+    <string name="ob_bubble_finish_cd">Finish dictation</string>
+    <string name="ob_bubble_hold">Release to finish</string>
+    <string name="ob_bubble_transcribing">Transcribing</string>
+    <string name="ob_bubble_polishing">Polishing</string>
+    <string name="ob_bubble_inserted">Inserted</string>
+    <string name="ob_bubble_inserted_nocleanup">Inserted, no cleanup</string>
+    <string name="ob_bubble_copied">Copied. Paste it anywhere</string>
+    <string name="ob_bubble_err_nospeech">Didn\'t catch that</string>
+    <string name="ob_bubble_err_micbusy">Microphone is busy</string>
+    <string name="ob_bubble_err_nomodel">Download a speech model first</string>
+    <string name="ob_bubble_err_load">Couldn\'t load the speech model</string>
+    <string name="ob_bubble_err_transcribe">Couldn\'t transcribe that</string>
+    <string name="ob_bubble_err_generic">Something went wrong</string>
+    <string name="ob_bubble_retry">Retry</string>
+</resources>

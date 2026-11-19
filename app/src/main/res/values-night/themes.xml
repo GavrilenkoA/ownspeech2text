@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Murmur" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/murmur_window_bg</item>
+    </style>
+    <!-- tokens.json color.dark.bg -->
+    <color name="murmur_window_bg">#0F1013</color>
+</resources>

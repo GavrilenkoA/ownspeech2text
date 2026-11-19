@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import app.murmur.core.benchmark.BenchmarkRunner
@@ -12,6 +13,7 @@ import app.murmur.core.catalog.CustomModelResolver
 import app.murmur.core.catalog.DeviceProfile
 import app.murmur.core.catalog.UnitHealth
 import app.murmur.core.model.ModelId
+import app.murmur.core.model.ModelKind
 import app.murmur.core.store.BenchmarkRepository
 import app.murmur.core.store.InstalledModelsRepository
 import app.murmur.core.store.SettingsRepository
@@ -33,8 +35,37 @@ class ModelsDeps(
     val health: UnitHealth,
 )
 
-/** WP-18. */
+/**
+ * WP-18. [selected] = the model shown in the detail pane on the inner display (its row is highlighted), else null.
+ * [segment] = a one-shot request from a deep link (the bubble's "Open Models" for a cleanup problem asks for
+ * [ModelKind.LLM], every other link for [ModelKind.ASR]): when it is non-null the hub shows that segment (Speech =
+ * ASR, Cleanup = LLM) and then calls [onSegmentShown], which clears the request; null = keep the user's own choice.
+ */
 @Composable
-fun ModelsScreen(deps: ModelsDeps, onOpenModel: (ModelId) -> Unit, modifier: Modifier = Modifier) {
+fun ModelsScreen(
+    deps: ModelsDeps,
+    onOpenModel: (ModelId) -> Unit,
+    modifier: Modifier = Modifier,
+    selected: ModelId? = null,
+    segment: ModelKind? = null,
+    onSegmentShown: () -> Unit = {},
+) {
+    LaunchedEffect(segment) { if (segment != null) onSegmentShown() }
     Box(modifier.fillMaxSize().testTag("screen-models")) { Text("Models") }
+}
+
+/**
+ * Model detail (DESIGN 6.4 model-detail), hosted by the app shell with the same convention as WP-16's History detail:
+ * the pushed screen on the cover display ([pane] false: back arrow), the right pane next to the 316 dp list on the
+ * inner display ([pane] true). [onClose] = Back. WP-18 builds it.
+ */
+@Composable
+fun ModelDetail(
+    deps: ModelsDeps,
+    id: ModelId,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier,
+    pane: Boolean = false,
+) {
+    Box(modifier.fillMaxSize().testTag("screen-model-detail")) { Text("Model") }
 }
