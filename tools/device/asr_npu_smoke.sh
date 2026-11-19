@@ -20,10 +20,9 @@ set -euo pipefail
 root=$(cd "$(dirname "$0")/../.." && pwd)
 WORK=${WORK:-$root/.cache/device-smoke}
 SPIKE=$root/.cache/spikes/asr-ocr
-# the app configuration: sherpa-onnx linked against the Maven ORT 1.32.0 libonnxruntime.so (one ORT per APK)
-if [ -z "${SHERPA_OUT:-}" ]; then
-  SHERPA_OUT=$SPIKE/build-ort132/out/arm64-v8a; [ -x "$SHERPA_OUT/bin/sherpa-onnx-offline" ] || SHERPA_OUT=$SPIKE/build/out/arm64-v8a
-fi
+# the app configuration: sherpa-onnx linked against the Maven ORT 1.32.0 libonnxruntime.so (one ORT per APK), i.e. the
+# output of native/sherpa/build-android.sh (default workdir .cache/native/build/sherpa; SHERPA_OUT=<workdir>/out/arm64-v8a)
+SHERPA_OUT=${SHERPA_OUT:-$root/.cache/native/build/sherpa/out/arm64-v8a}
 ORTBENCH=${ORTBENCH:-$SPIKE/ortbench}      # ort_bench.cc, arm64-v8a/ort_bench, data/*.f32 (scripts/ortbench_inputs.py)
 OCRQNN=${OCRQNN:-$SPIKE/ocrqnn}            # *_ctx.onnx + *_ctx_qnn.bin from scripts/ocr_qnn.py
 OCRM=${OCRM:-$root/.cache/ml/ocr}          # PP-OCRv6_tiny_det_onnx/, cyrillic_PP-OCRv5_mobile_rec_onnx/
@@ -42,7 +41,7 @@ mkdir -p "$WORK"; cd "$WORK"
 fetch() { [ -s "$2" ] || { echo "fetch $2" >&2; curl -fsSL -o "$2.part" "$1" && mv "$2.part" "$2"; }; }
 
 prepare() {
-  [ -x "$SHERPA_OUT/bin/sherpa-onnx-offline" ] || { echo "missing $SHERPA_OUT; run: ORT_AAR=<onnxruntime-android-1.32.0.aar> tools/heavy native/sherpa/build-android.sh arm64" >&2; exit 2; }
+  [ -x "$SHERPA_OUT/bin/sherpa-onnx-offline" ] || { echo "missing $SHERPA_OUT; run: tools/heavy native/sherpa/build-android.sh arm64 (or set SHERPA_OUT=<workdir>/out/arm64-v8a)" >&2; exit 2; }
   mkdir -p qnn240 qnn252 models clips ortlib
   # QNN runtime libs, two versions
   fetch $GH/asr-models-qnn/qnn-libs-2.40.0.251030.tar.bz2 qnn-libs-240.tar.bz2
@@ -104,7 +103,9 @@ push() {
 run() {
   local label=$1 q=$2; shift 2
   local libp="$D/lib" adsp=""
-  if [ "$q" != - ]; then libp="$D/lib:$D/$q"; adsp="export ADSP_LIBRARY_PATH='$D/$q;/vendor/lib/rfsa/adsp;/vendor/dsp/cdsp;/vendor/dsp;/system/lib/rfsa/adsp';"; fi
+  # the app's string (WP-06: OfflineRecognizer.prependAdspLibraryPath(nativeLibraryDir) keeps these vendor paths;
+  # the Samsung "snap" path matters for QNN, llm spike 3.4)
+  if [ "$q" != - ]; then libp="$D/lib:$D/$q"; adsp="export ADSP_LIBRARY_PATH='$D/$q;/vendor/lib64/rfs/dsp/snap;/vendor/dsp/cdsp;/vendor/lib/rfsa/adsp;/system/lib/rfsa/adsp;/vendor/dsp';"; fi
   $ADB shell "cd $D && export LD_LIBRARY_PATH=$libp; $adsp t0=\$(date +%s%N); ( $* ) > out.txt 2>&1 & p=\$!; hwm=0; \
     while kill -0 \$p 2>/dev/null; do v=\$(grep VmHWM /proc/\$p/status 2>/dev/null | tr -s ' ' | cut -d' ' -f2); [ -n \"\$v\" ] && hwm=\$v; sleep 0.05; done; \
     wait \$p; rc=\$?; t1=\$(date +%s%N); cat out.txt; echo \"@@rc=\$rc hwm_kb=\$hwm wall_ms=\$(( (t1-t0)/1000000 ))\"" > "$WORK/run.log" 2>&1 || true

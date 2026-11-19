@@ -29,8 +29,11 @@ data class SegmenterConfig(
     }
 }
 
-/** A closed speech segment in session samples (pre/post-roll included). */
-data class Segment(val index: Int, val startSample: Long, val endSample: Long, val forced: Boolean)
+/**
+ * A closed speech segment in session samples (pre/post-roll included). [forced] = cut at the hard max instead of a
+ * pause. [speechMs] = VAD speech inside it (frames with probability >= the speech threshold).
+ */
+data class Segment(val index: Int, val startSample: Long, val endSample: Long, val forced: Boolean, val speechMs: Long = 0)
 
 interface VadModel {
     /** Speech probability of one frame of [SegmenterConfig.frameSamples] float samples in [-1, 1]. */
@@ -40,7 +43,7 @@ interface VadModel {
 
 /**
  * Pure state machine over per-frame VAD probabilities (no model inside, so it is unit-testable with
- * synthetic probability sequences). WP-06 implements it; the cut rules above are the spec.
+ * synthetic probability sequences). [PauseSegmenter] implements it; the cut rules above are the spec.
  */
 interface Segmenter {
     /** Feed one frame probability; returns a segment when one closes. */
