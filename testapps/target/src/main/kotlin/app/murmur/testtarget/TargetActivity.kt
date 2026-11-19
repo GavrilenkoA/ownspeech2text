@@ -2,35 +2,41 @@ package app.murmur.testtarget
 
 import android.app.Activity
 import android.os.Bundle
-import android.text.Editable
-import android.text.TextWatcher
-import android.util.Log
-import android.widget.EditText
-import android.widget.LinearLayout
-import android.widget.TextView
+import android.view.WindowManager
 
 /**
- * One multiline EditText that logs its content ("TGT text=<...>") so that end-to-end tests read the
- * result independently of Murmur (same idea as spikes/platform target). WP-20 adds Compose and WebView fields.
+ * A single-line EditText in a chat-like window ("Лёша Козлов"), focused with the keyboard up. The default (launcher)
+ * target; :platform:a11y's tests start it as `app.murmur.testtarget/.TargetActivity`.
  */
-class TargetActivity : Activity() {
+open class TargetActivity : Activity() {
+    protected open val target: String = Tgt.PLAIN
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val title = TextView(this).apply { text = "Лёша Козлов"; textSize = 22f }
-        val field = EditText(this).apply {
-            hint = "Сообщение"
-            tag = "target-field"
-            addTextChangedListener(object : TextWatcher {
-                override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
-                override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
-                override fun afterTextChanged(s: Editable?) { Log.i("TGT", "text=$s") }
-            })
-        }
-        setContentView(LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(48, 96, 48, 48)
-            addView(title); addView(field)
-        })
-        field.requestFocus()
+        onBeforeContent()
+        fieldScreen("Лёша Козлов", watchedField(target))
     }
+
+    protected open fun onBeforeContent() {}
+
+    override fun onResume() {
+        super.onResume()
+        Tgt.open(target)
+    }
+}
+
+/** Multi-line, sentence-capitalised field (notes / email body). */
+class MultilineActivity : TargetActivity() {
+    override val target = Tgt.MULTILINE
+}
+
+/** A password field: the bubble must stay hidden and nothing may be inserted, copied or stored (ARCHITECTURE 9.2). */
+class PasswordActivity : TargetActivity() {
+    override val target = Tgt.PASSWORD
+}
+
+/** FLAG_SECURE window: the screenshot fails or is black, so dictation runs without screen context (ARCHITECTURE 9.1). */
+class SecureActivity : TargetActivity() {
+    override val target = Tgt.SECURE
+    override fun onBeforeContent() { window.addFlags(WindowManager.LayoutParams.FLAG_SECURE) }
 }

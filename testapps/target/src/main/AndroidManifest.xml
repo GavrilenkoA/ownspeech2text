@@ -1,11 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Never shipped; no permissions at all (no INTERNET: the privacy checks must see only Murmur's own traffic). -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application android:label="Murmur test target" android:theme="@android:style/Theme.Material.Light.NoActionBar">
-        <activity android:name=".TargetActivity" android:exported="true" android:windowSoftInputMode="stateVisible|adjustResize">
+        <!-- Every target puts focus in its field with the keyboard up (the bubble's "when typing" policy needs it). -->
+        <activity android:name=".TargetActivity" android:exported="true" android:windowSoftInputMode="stateAlwaysVisible|adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <activity android:name=".MultilineActivity" android:exported="true" android:windowSoftInputMode="stateAlwaysVisible|adjustResize" />
+        <activity android:name=".PasswordActivity" android:exported="true" android:windowSoftInputMode="stateAlwaysVisible|adjustResize" />
+        <activity android:name=".ComposeActivity" android:exported="true" android:windowSoftInputMode="stateAlwaysVisible|adjustResize" />
+        <activity android:name=".WebActivity" android:exported="true" android:windowSoftInputMode="stateAlwaysVisible|adjustResize" />
+        <activity android:name=".SecureActivity" android:exported="true" android:windowSoftInputMode="stateAlwaysVisible|adjustResize" />
     </application>
 </manifest>
