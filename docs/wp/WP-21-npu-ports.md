@@ -68,3 +68,16 @@ QNN runtime, ADR-048).
 ## Build/test
 
 `tools/heavy native/qnn-contexts/compile.sh`; `tools/gw :infer:asr:testDebugUnitTest :infer:asr:assembleDebugAndroidTest :core:catalog:test`.
+
+## Integration notes (wave-1 integration pass 1; ADR-064..077 in DECISIONS)
+
+Merged on `integration/wave1`: WP-01, 05, 06, 07, 08, 09, 11, 12, 13. Still in work: WP-02, 03, 04, 10, 14, 20 (early paths).
+- OCR in `:asr` is `OrtOcrHandler` (`StubOcrHandler` is gone): newest frame wins (`OcrFailed("superseded")`),
+  `OutOfMemory(OCR_DET/OCR_REC)` by stage, `OcrFailed("exclude_json")` for a bad payload (ADR-069, ADR-077).
+  `OcrRunControl` is checked only between model calls; for long QNN calls wire `RunOptions.setTerminate` into
+  `OrtOcrModels`.
+- The host pipeline is byte-exact with `ml/ocr` on x86_64 (26/26 goldens): a phone or QNN difference comes from the
+  kernels or the EP, not the port. Parity gate = `OcrTolerance` with the CER on the non-identical lines.
+- Catalog: `CatalogValidator.validateEntry`, `RuntimeKeys.implemented/isBatchAsr`, `DownloadPlanner` exist (WP-13);
+  the resolver folds an artifact's `layout.dir` into `LoadSpec.dir` (ADR-073), so new NPU tarballs that extract into a
+  sub-folder need only `layout.dir`. Benchmark selection uses the newest record per (artifact, unit) (ADR-071).

@@ -66,3 +66,19 @@ Applying settings (each consumer reads them), prompt wording (ML), retention exe
 ## Build/test
 
 `tools/gw :feature:settings:testDebugUnitTest :feature:settings:assembleDebugAndroidTest`.
+
+## Integration notes (wave-1 integration pass 1; ADR-064..077 in DECISIONS)
+
+Merged on `integration/wave1`: WP-01, 05, 06, 07, 08, 09, 11, 12, 13. Still in work: WP-02, 03, 04, 10, 14, 20 (early paths).
+- WP-01 (ADR-075): components grow with large text, so never put fixed heights around chips, buttons, segmented
+  controls, search fields or list rows; `MurmurNavigationRail` is ≥ 88 dp and widens (lay it out wrap-content);
+  `MurmurSheet` on medium+ calls `onDismiss` after its exit animation (remove the sheet there); `AppTileSize.letterDp`
+  replaces `letterSp`. Test AVDs run with `animator_duration_scale=0`: a test that observes a Compose animation sets it
+  to 1 and restores it (`OverlaysTest.withAnimatorScale`).
+- `MurmurError` gained `DownloadPaused` (`dl.paused`, copy "Paused" + Resume) and `MicLost` (`audio.lost`, the
+  microphone pill): every exhaustive `when` over it needs both (ADR-073, ADR-074).
+- `SettingsRepository.update` is atomic and serialised; `current()` returns the loaded settings (defaults if the
+  disk read failed; reads retry in the background, ADR-072).
+- "Hidden in" = `Settings.hiddenInPackages` → `ContextSettings.excludedPackages` (the built-in denylist is always
+  added). "Use what's on screen" off → ctx privacy `app_only` / `user_setting`; a secure window → `app_only` /
+  `secure_window` (ADR-070) — the "What the model also receives" panel should describe these levels.

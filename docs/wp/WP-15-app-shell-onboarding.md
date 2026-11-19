@@ -84,3 +84,29 @@ Screen contents (WP-16..19), real engine wiring and end-to-end tests (WP-20), On
 ## Build/test
 
 `tools/gw :app:assembleDebug :app:testDebugUnitTest :app:assembleDebugAndroidTest :feature:onboarding:assembleDebugAndroidTest`.
+
+## Integration notes (wave-1 integration pass 1; ADR-064..077 in DECISIONS)
+
+Merged on `integration/wave1`: WP-01, 05, 06, 07, 08, 09, 11, 12, 13. Still in work: WP-02, 03, 04, 10, 14, 20 (early paths).
+- WP-01 (ADR-075): components grow with large text, so never put fixed heights around chips, buttons, segmented
+  controls, search fields or list rows; `MurmurNavigationRail` is ≥ 88 dp and widens (lay it out wrap-content);
+  `MurmurSheet` on medium+ calls `onDismiss` after its exit animation (remove the sheet there); `AppTileSize.letterDp`
+  replaces `letterSp`. Test AVDs run with `animator_duration_scale=0`: a test that observes a Compose animation sets it
+  to 1 and restores it (`OverlaysTest.withAnimatorScale`).
+- `MurmurError` gained `DownloadPaused` (`dl.paused`, copy "Paused" + Resume) and `MicLost` (`audio.lost`, the
+  microphone pill): every exhaustive `when` over it needs both (ADR-073, ADR-074).
+- `AppContainer` / `MurmurApp` already carry cross-package wiring from wave 1: `SystemConditions` (preflight storage +
+  thermal, ADR-068), `DefaultCatalogRepository(store = RoomCustomModelStore(db), scope = appScope)`,
+  `ModelsModule.downloads(context, catalog) { orchestrator }`, `DefaultInstalledModelsRepository(modelDownloads)`,
+  `DefaultModelResolver(..., artifactDir = storage dir)` (ADR-067), `MurmurApp : ModelJobHost`. Keep them.
+- WP-12 (ADR-072): build settings with `DbModule.settings(context, appScope)` (one DataStore per process; the
+  collector lives as long as the app) and call `RetentionScheduler.start()` at app start (see the DbModule KDoc).
+- WP-13 (ADR-073): prefer `ModelsModule.downloads(context, catalog, scope = appScope) { orchestrator }`. A full disk is
+  `InstallState.Paused(reason = LowStorage)` (storage banner), a user pause `Paused(DownloadPaused)`; the onboarding
+  models step shows both. Read custom entries after `CatalogRepository.loaded()`.
+- WP-09: `MurmurApp` implements `StatusActionHandler` (the receiver is in the `:platform:audio` manifest); call only
+  `StatusNotifier.show()` / `hide()` (the "Hide 1 h" flip runs on its own). `AndroidAudioCapture(fgsContext = the
+  accessibility service)` for the press-time FGS start.
+- Practice dictation (ADR-070): the orchestrator asks the assembler with `ContextSettings.inAppPractice = true`; the
+  `InAppTarget` snapshot's package must be the app's own package (anything else is decided like a normal app, without
+  screenshot).

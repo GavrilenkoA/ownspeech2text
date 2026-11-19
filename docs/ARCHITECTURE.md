@@ -1,6 +1,6 @@
 # Murmur architecture
 
-Version 2 · 2026-11-19 · Owner: architect. Binding for all work packages (`docs/wp/`). Owner decisions D1-D12 are
+Version 2.1 · 2026-11-19 (wave-1 integration pass 1: ADR-064..077) · Owner: architect. Binding for all work packages (`docs/wp/`). Owner decisions D1-D12 are
 quoted verbatim at the top of `docs/DECISIONS.md`; conflicts and their evidence are ADR-nnn there; review findings and
 their resolution are under "Review responses" there. Everything that only the phone can prove: `docs/DEVICE_CHECKLIST.md`
 (steps DC1-DC10).
@@ -212,7 +212,7 @@ OCR is loaded in `:asr` right after the ASR model (it is 10 MB) and used once pe
 | | `loadOcr(det, rec, cb)` | `LoadSpec` ×2 → `LoadInfo` (forwarded to `OcrHandler`) | 15 s |
 | | `startSession(options, pcmRead, cb)` → `IAsrSession` | `AsrSessionOptions`; PCM16 LE mono 16 kHz on the pipe; events `AsrEvent` | 2 s (client call is `suspend`) |
 | | `IAsrSession.finish(cb)` / `cancel()` | → `Transcript` | `asrFinalTimeoutMs(tail)` = 4 s + 0.5 s per tail second |
-| | `recognizeScreen(SharedMemory, w, h, exclude, cb)` | ARGB_8888 ints, read-only mapping → `ScreenText` | 4 s (`ocrBudgetMs`) |
+| | `recognizeScreen(SharedMemory, w, h, exclude, cb)` | ARGB_8888 ints, read-only mapping → `ScreenText`; newest frame wins (an older one → `OcrFailed("superseded")`) | 4 s (`ocrBudgetMs`); a timeout returns `Timeout(OCR)` and never kills `:asr` (ADR-069) |
 | | `unloadAll()` | — | 2 s |
 | `ILlmService` | `load(spec, cb)` | `LoadSpec` (options `n_ctx`, `threads`, `use_mmap`, `power_mode`) → `LoadInfo` | 30 s |
 | | `setPrefix(prefixSpec, cb)` | `PrefixSpec{text, cacheKey}` → `PrefixInfo{tokens, restoredFromDisk}` | `prefixMs(tokens)` = max(30 s, 2 × tokens / pp), pp = benchmark prefill or 40 tok/s |
@@ -244,15 +244,15 @@ truncated and never inserted (`fallback:truncated`).
 |---|---|---|
 | `:asr` dies while Listening | `onServiceDisconnected`/`onBindingDied`, `EPIPE` on the pipe → `ProcessDied(ASR)` | keep recording; re-bind once; new session; replay the session buffer from sample 0; second death → stop at the user's stop, `Failed(ProcessDied(ASR))`, entry kept with audio ("Try again") |
 | `:asr` dies or times out in Finishing | same / `Timeout(ASR_FINAL)` | first time: `shutdown()`, re-bind, replay full PCM to a fresh session, `finish()`; second: Failed with audio |
-| ASR load fails (`EngineLoadFailed`, `UnitUnavailable(NPU)`, process death during load) | `loadAsr` error | executor: `UnitHealth.markFailed(artifact, unit)`, load `ActiveModels.asrFallback` (the model's other installed artifact) and replay the buffer; bubble keeps Listening. No fallback installed → `AsrLoadFailed(UnitUnavailable(NPU))`: keep recording, at stop "Couldn't load the speech model" + Open → hub row "Download the CPU version (671 MB)"; audio kept |
+| ASR load fails (`EngineLoadFailed`, `UnitUnavailable(NPU)`, process death during load) | `loadAsr` error | executor: `UnitHealth.markFailed(artifact, unit)` (not for `OutOfMemory`, ADR-066), load `ActiveModels.asrFallback` (the model's other installed artifact) and replay the buffer; bubble keeps Listening. No fallback installed → `AsrLoadFailed(UnitUnavailable(NPU))`: keep recording, at stop "Couldn't load the speech model" + Open → hub row "Download the CPU version (671 MB)"; audio kept |
 | LLM load fails on a unit (`EngineLoadFailed`, rpcmem/VTCM/op rejection, PD refusal, death during load) | `load` error or `ProcessDied(LLM)` during load | executor: `markFailed(artifact, unit)`, load `ActiveLlm.fallback` (same GGUF on GPU, then CPU: no download), restore or build the prefix; cleanup proceeds if ready within `LLM_READY`; all failed → "Inserted, no cleanup", `skipped:llm_load` |
 | `:llm` dies after it was ready (before cleanup) | `ProcessDied(LLM)` | reload once (`ReloadLlm`: re-bind, load, prefix from disk); second death → no cleanup |
 | `:llm` dies or times out in Polishing | `ProcessDied(LLM)` / adaptive timer | `cancel()`; no `onDone` within 1 s → `shutdown(:llm)`; insert the raw transcript (`skipped:llm_died` / `skipped:timeout`) |
 | LLM still loading when the transcript is ready | `LLM_READY` timer (10 s) | insert raw (`skipped:llm_not_ready`); the load continues so the next dictation is warm |
 | request too long for the context or the time budget | `CleanupBudget.plan` in the reducer, or `LlmContextOverflow` from `:llm` | insert raw, `skipped:too_long` |
 | OCR late or failed | `ocrBudgetMs`, `CONTEXT_WAIT` (≤ 800 ms after the transcript) or error | cleanup runs without `screen` (ctx v2 allows it) |
-| binder call exceeds its timeout | coroutine `withTimeout` | treated as death of that process: `shutdown()` (kill) then the row above |
-| incoming/outgoing call, mic lost, mic silenced, screen off mid-recording | `CaptureHandle.signals` (WP-09) → `ExternalStop(CALL / MIC_LOST / MIC_SILENCED / SCREEN_OFF)` | stop capture and process what was recorded (normal Finishing) |
+| binder call exceeds its timeout | coroutine `withTimeout` | `shutdown()` (kill) of that process; every other call, session stream and generation open on it fails with the same `Timeout(stage)` (not `ProcessDied`, no death counted, `HostState` Down), then the rows above apply to that timeout. **Exception: OCR timeouts never kill `:asr`** (ADR-069) |
+| incoming/outgoing call, mic lost, mic silenced, screen off mid-recording | `CaptureHandle.signals` (WP-09): `CallStarted` when the audio mode changes during the recording to a call mode incl. RINGTONE (never for a call already up), `Lost(MicLost)` for read errors / empty reads / a 1 s stall (ADR-074) → `ExternalStop(CALL / MIC_LOST / MIC_SILENCED / SCREEN_OFF)` | stop capture and process what was recorded (normal Finishing) |
 | accessibility service disconnected mid-dictation | `A11yServiceHost.onServiceState(false)` → `orchestrator.onAccessibilityLost()` → `ExternalStop(A11Y_OFF)` | Listening: stop, Failed with audio (`perm.a11y`); later states: finish processing, store the text, `NotDelivered` (nothing inserted or copied); Dashboard/Settings banner |
 | `:main` dies | (system) | dictation lost; service restarts after ~11 s; at next start orphaned audio files (no history row) are deleted |
 
@@ -295,7 +295,7 @@ Finishing, Polishing): `AsrReady`, `AsrLoadFailed`, `LlmReady`, `LlmLoadFailed`,
 | 3 | Idle | `Input(NotificationStart)` | Arming(NOTIFICATION) | same, no haptic; preflight takes the target snapshot only after the shade collapsed (`snapshotAfterShade(1 s)`: first focused non-SystemUI application window) |
 | 4 | Idle | `startInApp(target)` | Arming(IN_APP) | same; target = `InAppTarget` (Murmur's own package allowed only here), privacy `app_only`, no screenshot, no history |
 | 5 | Arming | `PreflightPassed(plan)` | Arming(plan) | `PrepareEngines(S, plan)`; `CaptureContext(S, 600 ms)` if `plan.screenshot`; `llm` = Loading if `plan.cleanup` else `NotRequested(reason)`; `context` = Pending if `plan.screenshot` else NotRequested |
-| 6 | Arming | `PreflightFailed(e)` | Done(Failed(e)) | `DiscardCapture`, `CancelTimer(MIC_START)`, `CancelEngines`, `Haptic(REJECT)`; no history. Preflight checks, in order: service connected (or IN_APP), mic permission, target snapshot, not a password field (`PasswordField`), not excluded (`AppExcluded`), models resolved (`NoAsrModel`, `NoVadModel`), free storage ≥ 50 MB (`LowStorage`), thermal not critical (`ThermalCritical`) |
+| 6 | Arming | `PreflightFailed(e)` | Done(Failed(e)) | `DiscardCapture`, `CancelTimer(MIC_START)`, `CancelEngines`, `Haptic(REJECT)`; no history. Preflight checks, in order: service connected (or IN_APP), mic permission, target snapshot, not a password field (`PasswordField`), not excluded (`AppExcluded`), the assembler allows dictation (`PrivacyDecision.dictationAllowed`: number/phone field → `NoEditableField`, ADR-070), models resolved (`NoAsrModel`, `NoVadModel`), free storage ≥ 50 MB (`LowStorage`), thermal not critical (`ThermalCritical`) (`SystemConditions`, ADR-068) |
 | 7 | Arming | `MicStarted(at)` | Arming(micStartedAt) | `CancelTimer(MIC_START)` |
 | 8 | Arming | completion: `plan` and `micStartedAt` both known (rows 5/7 in either order), not `stopRequested` | Listening(startedAt = micStartedAt) | `StartTimer(WARN 270 s)`, `StartTimer(MAX 300 s)` |
 | 9 | Arming | completion with `stopRequested` | Finishing | effects of row 14 |
@@ -315,7 +315,7 @@ Finishing, Polishing): `AsrReady`, `AsrLoadFailed`, `LlmReady`, `LlmLoadFailed`,
 | 23 | Arming, Listening, Finishing | `ProcessDied(LLM)`, cleanup planned, `llmCrashes` = 0 | same(llm = Loading, llmCrashes = 1) | `ReloadLlm(S)` |
 | 24 | Arming, Listening, Finishing | `ProcessDied(LLM)`, `llmCrashes` ≥ 1 | same(llm = Failed(ProcessDied(LLM))) | — |
 | 25 | Finishing | `TimerFired(TRANSCRIBING_LABEL)` | Finishing(showTranscribing) | — |
-| 26 | Finishing | `TranscriptReady(t)` with `t.speechMs` < 500, blank text, or `precheckSkip` | Done(Failed(NoSpeech)) | `CancelTimer(ASR_FINAL)`, `RecordFailure(keepAudio = true)` (DESIGN: saved as Failed, re-runnable) |
+| 26 | Finishing | `TranscriptReady(t)` with `t.speechMs` < 500 (only when `plan.speechMeasured`, i.e. not a streaming model, ADR-065), blank text, or `precheckSkip` | Done(Failed(NoSpeech)) | `CancelTimer(ASR_FINAL)`, `RecordFailure(keepAudio = true)` (DESIGN: saved as Failed, re-runnable) |
 | 27 | Finishing | `TranscriptReady(t)`, `llm` ∈ {NotRequested, Failed} | Delivering(t.text, cleaned = false) | `CancelTimer(ASR_FINAL)`, `Deliver(raw, cleanupOutcome = "skipped:<reason>")` with reason none / no_model / password / low_memory / llm_load / llm_died |
 | 28 | Finishing | `TranscriptReady(t)`, `llm` ∈ {Loading, Ready} | Polishing(t, cleanupStarted = false) | `CancelTimer(ASR_FINAL)`; `StartTimer(CONTEXT_WAIT, min(800 ms, OCR deadline left))` if `context` Pending; `StartTimer(LLM_READY 10 s)` if `llm` Loading; then the start rule (row 31) |
 | 29 | Finishing | `AsrFailed(ProcessDied / Timeout)` / `TimerFired(ASR_FINAL)` / `ProcessDied(ASR)`, `asrCrashes` = 0 | Finishing(asrCrashes = 1) | `RestartAsr(S, thenFinish = true)`, `StartTimer(ASR_FINAL)` |
@@ -338,7 +338,7 @@ Finishing, Polishing): `AsrReady`, `AsrLoadFailed`, `LlmReady`, `LlmLoadFailed`,
 | 46 | Done | `Input(Tap)` / `Input(HoldStart)` | Arming(TAP / HOLD) | as rows 1/2: a new session; the pill is replaced |
 | 47 | Done(Copied(entry)) | `Input(ResultTap)` | Idle | `Open(Entry(entry))` (no entry when retention = 0: dismiss only) |
 | 48 | Done(Failed) | `Input(ResultTap)` | Idle | dismiss |
-| 49 | Done(Failed(e, entry)) | `Input(ResultAction)`, action RETRY | Arming(TAP) for NoSpeech; else Idle | NoSpeech: new dictation (row 1). Otherwise `RetryEntry(entry)` (re-transcribe the stored audio) |
+| 49 | Done(Failed(e, entry)) | `Input(ResultAction)`, action RETRY (also `RetryRequested(entry)` from History in Idle/Done) | NoSpeech: Arming(TAP); with stored audio: Arming(retryOf = entry, stopRequested); entry not yet written: Done(retryAtMs), started on `FailureRecorded`; nothing kept: Arming(TAP) | NoSpeech / nothing kept: new dictation (row 1). Stored audio (ADR-064): `Preflight`, `StartCapture` (the stored recording, `MIC_START` = `storedAudioReadTimeoutMs` 10 s), then rows 9 → 28 → 36 → 39/40 as usual (bubble Transcribing → Polishing → result); the same entry is updated, no second metrics row |
 | 50 | Done(Failed) | `Input(ResultAction)`, action OPEN_MODELS / OPEN_ENTRY | Idle | `Open(Models(ASR))` / `Open(Entry(entry))` |
 | 51 | Finishing, Polishing, Delivering | any `Input` | unchanged | ignored (prevents a double stop; DESIGN 5.3) |
 | 52 | Finishing, Polishing, Delivering | `ExternalStop(*)` | unchanged | capture is already stopped; delivery reports `NotDelivered` if the service is gone |
@@ -535,8 +535,8 @@ in_training, profile `finetuned.v1`, nCtx 6,144).
 
 `ArtifactSelector.candidates(entry, device, health)` lists every (artifact × unit) with a blocker
 (`RUNTIME_NOT_SHIPPED`, `WRONG_SOC`, `UNIT_NOT_AVAILABLE`, `UNIT_FAILED`). `ranked()` orders the usable ones: a pinned
-unit first; then the lowest **valid** benchmark score (ASR: processing ms per audio second; LLM: end-to-end ms of the
-fixed case; `BenchLookup` returns null for invalid records); then the catalog's artifact order (default artifact
+unit first; then the lowest benchmark score of the **newest** record of (artifact, unit) (ASR: processing ms per audio second;
+LLM: end-to-end ms of the fixed case; `BenchLookup` returns null when that newest record is invalid, ADR-071); then the catalog's artifact order (default artifact
 first, so a fallback is the same file on another unit); then `preferredUnit`; then NPU > GPU > CPU. `choose()` = first,
 `fallbackAfter()` = the next. A pinned unit whose artifact is not installed is offered for download, not an error. The
 hub shows the claimed units as badges, the chosen unit, "NPU not supported yet" for models without an NPU artifact
@@ -569,8 +569,8 @@ onboarding's pack sizes call `ensure()`. On the emulator: soc null, units {CPU}.
    (`huggingface.co`, `.hf.co`, `github.com`, `.githubusercontent.com`); stream SHA-256; `fsync`; on mismatch delete
    the part and report `ChecksumMismatch` ("Download was damaged. Murmur deleted it.").
 4. Extract archives with path-traversal checks (commons-compress, ADR-017); verify `layout` paths exist.
-5. Write `installed.json`; state → `Preparing`: `EnginePreparer.prepareArtifact` (the orchestrator) loads the artifact
-   on every usable unit (ASR: + 1 s decode of a bundled clip; LLM: + build and save the prefix snapshot), marking
+5. Write `installed.json`; state → `Preparing`: `EnginePreparer.prepareArtifact` (the orchestrator) gets the specs from
+   `ModelResolver.prepareTargets` (ADR-067) and loads the artifact on every usable unit (ASR: + 1 s decode of a bundled clip; LLM: + build and save the prefix snapshot), marking
    `UnitHealth` proven or failed; → `Installed`. If an NPU ASR artifact fails and the model's CPU artifact is not
    installed, the report's `needsCpuArtifact` makes WP-13 queue it (onboarding shows the extra size).
 
@@ -622,7 +622,9 @@ keyboard, bubble or bars); error 3 → one retry after ≥ 340 ms; error 5 → `
 | focused field is a password (`isPassword` or inputType variation) | bubble hidden (DESIGN 5.2, also with "Show always"); if focus becomes a password field later: no screenshot, `privacy none`, LLM skipped, nothing inserted, copied or stored |
 | package in the built-in denylist (`BuiltInDenylist`: SystemUI, Settings, permission controller, biometrics) or the user's "Hidden in" list | bubble hidden; no dictation |
 | "Use what's on screen" off | no screenshot; `privacy app_only` (no screen, no field text) |
-| secure window / screenshot failed / OCR empty or late | `screen` absent; `privacy full` (field context kept) |
+| number / phone field | bubble hidden; a press is refused (`dictationAllowed = false` → `NoEditableField`) |
+| secure window (error 6 or a black frame) | `screen` absent; `privacy app_only`, reason `secure_window` (no field text; render.py `NO_SCREEN_LEVEL`, ADR-070) |
+| screenshot failed / OCR empty or late | `screen` absent; `privacy full` (field context kept), reason `screenshot_error` / `ocr_empty`; the executor passes the cause as `ScreenOutcome` |
 | Murmur's own UI | bubble hidden; only the in-app practice (`StartMode.IN_APP`) dictates into Murmur, `app_only` |
 
 ### 9.3 OCR (WP-07)
@@ -664,8 +666,8 @@ Target: < 60 s per unit on the phone; every usable unit is measured when the use
 | OCR | ms per bundled screenshot (cover 1080×2520 and inner 1968×2184), boxes found, load, memory | boxes > 0 and texts match the golden within the README tolerance | ms per screenshot (OCR rows under "Support models") |
 
 Results: `BenchmarkRecord(artifact, unit, appVersion, Build.FINGERPRINT, time, result{…, valid, invalidReason})` in
-Room. The latest **valid** record per (artifact, unit) feeds `ArtifactSelector`, the LLM speed of `CleanupBudget` and
-the adaptive timeouts; a valid record clears `UnitHealth` for that unit; invalid ones are shown ("Results look wrong
+Room. The **newest** record per (artifact, unit) feeds `ArtifactSelector`, the LLM speed of `CleanupBudget` and
+the adaptive timeouts when it is valid (an invalid newest record gives no score and no speed, ADR-071); a valid record clears `UnitHealth` for that unit; invalid ones are shown ("Results look wrong
 on NPU") and ignored. The phone must stay awake and Murmur in the foreground during a run (DESIGN). Thermal status
 before/after is stored in the record notes.
 
@@ -762,10 +764,11 @@ Tests use `kotlinx-coroutines-test` (`runTest`, virtual time for every timer in 
 `MurmurError` (`core/model/.../Errors.kt`) is the only error type across module and process boundaries. `code` is
 stable and stored (`history.failure_code`, `cleanup_outcome`), `retryable` drives the Retry action, `detail` never
 contains user text, screen text or paths. Families: `perm.*`, `model.*` (asr_missing, vad_missing), `ctx.*`, `sys.*`,
-`audio.*`, `engine.*` (load, runtime missing, unit unavailable, process died, OOM), `timeout.<stage>` (incl.
+`audio.*` (incl. `audio.lost`, ADR-074), `engine.*` (load, runtime missing, unit unavailable, process died, OOM), `timeout.<stage>` (incl.
 llm_prefix, llm_ready, bench), `asr.*`, `llm.*` (incl. `llm.too_long`, `llm.guard.<rule>`), `ocr.*`, `insert.*`,
-`dl.*`, `catalog.*`, `data.*`, `internal`. Cleanup outcomes: `accept`, `fallback:<guard rule>`, `fallback:truncated`,
-`skipped:{none, no_model, password, low_memory, llm_load, llm_died, llm_not_ready, timeout, too_long}`. Mapping to bubble
+`dl.*` (incl. `dl.paused`, ADR-073), `catalog.*`, `data.*`, `internal`. Cleanup outcomes: `accept`, `fallback:<guard rule>`,
+`fallback:truncated`, `skipped:{none, no_model, password, low_memory, llm_load, llm_died, llm_not_ready, llm_failed,
+timeout, too_long}`, `empty:<guard reason>` (guard EMPTY → NoSpeech) (ADR-068). Mapping to bubble
 and history: section 5.5; to hub rows: `InstallState.Paused/Failed(error)`.
 
 ---
@@ -781,7 +784,7 @@ and history: section 5.5; to hub rows: `InstallState.Paused/Failed(error)`.
 | Instrumented, fakes | `*/src/androidTest`, API 36 `google_apis` x86_64 AVDs `murmur_fold7_cover` (compact) and `murmur_fold7_inner` (medium) | Compose UI against `:testing` fakes; screenshots compared with `docs/design/screens/*.png` by eye + automated layout checks (no overflow, targets ≥ 48 dp) | `tools/gw :<module>:assembleDebugAndroidTest` then `adb install` + `am instrument` (TOOLCHAIN 4.4) |
 | Room | `data/db/src/androidTest` | DAOs, migrations (schema JSON), retention on an in-memory DB | same |
 | IPC | `infer/api/src/androidTest` with a test-only service in a separate process | timeouts, death → re-bind, pipe replay, SharedMemory | same |
-| Native on emulator | `infer/asr`, `infer/llm` androidTest | sherpa x86_64 with GigaAM / Parakeet CPU (asr-ocr: correct text on emulator, RTF 0.42 / 0.65); llama x86_64 with Qwen3.5 0.8B (llm spike: works, ivybridge variant); LLM tests run the emulator with `-qemu -cpu host` (ADR-038) | same; models via `tools/models/fetch` |
+| Native on emulator | `infer/asr`, `infer/llm` androidTest | sherpa x86_64 with GigaAM / Parakeet CPU (asr-ocr: correct text on emulator, RTF 0.42 / 0.65); llama x86_64 with Qwen3.5 0.8B (llm spike: works, ivybridge variant); LLM tests and every ASR timing criterion run the emulator with `-qemu -cpu host` (`MURMUR_EMU_CPU_HOST=1`, ADR-038, ADR-076) | same; models via `tools/models/fetch` |
 | End-to-end | `app/src/androidTest/kotlin/app/murmur/e2e` + `:testapps:target` | press bubble over the target app (UiAutomator) → debug WAV audio source (the emulator mic cannot be fed) → real `:asr` (GigaAM RNN-T CPU) + VAD + OCR + real `:llm` (Qwen3.5 0.8B CPU) → insertion into the target EditText (read back from the target's `TGT` log) → history row; the same flow on fakes for speed; **emulator-simulated platform events during Listening**: fold/unfold (`wm size` + `adb emu sensor set hinge-angle0`), rotation, incoming call (`adb emu gsm call`), `kill -9` of `:asr` and `:llm`, service disable, notification-shade start | WP-20 script `tools/e2e/run_emulator_e2e.sh` |
 | Device | `tools/device/*.sh` + `docs/DEVICE_CHECKLIST.md` | NPU paths, real latency/memory, One UI behaviour, real OCR screenshots, real fold hardware | owner, one pass |
 

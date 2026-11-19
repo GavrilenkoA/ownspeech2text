@@ -27,6 +27,20 @@ Before you start (5 min):
 | DC9 Benchmarks in the app | In the app: Models → each downloaded model → Run benchmark (all units) | 10 min | result grids filled in < 60 s per unit; "Ran on" equals the unit; every record `valid` (no "Results look wrong"); LLM sentence plausible | `ArtifactSelector` scores; hub defaults; `CleanupBudget` speeds |
 | DC10 Real apps and hardware fold | Dictate once each into Telegram, Samsung Messages, Gmail, Chrome address bar, Samsung Notes, with Samsung Keyboard and with Gboard; fold/unfold during Listening once on the real hinge | 10 min | text inserted (or Copied with a reason) in each; no duplicate insertion with Samsung Keyboard composing; bubble keeps its edge after the real fold (no 2 s BLAST stall, same/new display id noted) | insertion ladder order (ARCHITECTURE 11), JoinPolicy, overlay re-attach (size/posture changes are already covered on the emulator, ADR-058) |
 
+Wave-1 additions (one line per existing step, from the merged packages' device notes; WP-20 folds them into the rows
+and `murmur_app_smoke.sh`):
+- DC3: the QNN probe reports `stage=ok` and `htp.arch=v79` on SM8750 (WP-06 `asr_npu_smoke.sh`).
+- DC4: OCR on the phone CPU EP: det ms at 960 (416×960 cover, 864×960 inner), recogniser ms per line, total ms per page
+  vs the 4 s `ocrBudgetMs`; the bundled goldens' `ScreenText` byte-equal to the golden (pages exact X/26; x86_64 is 26/26) (WP-07).
+- DC5: 10 warm bubble taps: press → first non-zero sample ≤ 500 ms each (`mic_started ms=… built= recording= first_buffer= started=`), first start after boot separately (WP-09).
+- DC5: a real incoming call during a dictation → `mode_changed RINGTONE call_started=true` within 1 s of the ring; dictating while a VoIP call is already up does not stop (WP-09).
+- DC5: in split screen and in a freeform window on the inner display, the window screenshot size equals `getBoundsInScreen` and `field.box` lies on the field (WP-08).
+- DC5: a `FLAG_SECURE` app (e.g. a banking app) → `ScreenOutcome.SecureWindow`: privacy `app_only` / `secure_window`, no `before_cursor` (WP-08).
+- DC8: log `detected_codec=OPUS` and `codec_lag opus samples=<n>`; `capture_stop … ms=` < 200 ms while `:asr` and `:llm` run (WP-09).
+- DC8: `recognize()` 17 MB SharedMemory round trip ms on both displays (emulator 29-56 ms median) (WP-05).
+- DC8: cancel a dictation during Arming, wait `idleUnloadSec` + 2 s → `pidof app.murmur:asr` empty; after a forced LLM timeout (`debugTimeoutScale 0.1`) note whether logcat shows `process still alive after 2000 ms; killing` (WP-05).
+- DC8: Parakeet NPU through `AsrService`: `LoadInfo.deviceName == "qnn"`, `Transcript.unit == NPU`, `finish()` ≤ 3 s after EOF (WP-06).
+
 Legal items that block shipping NPU libraries (not technical, owner reads once; until then DC8 APKs stay local):
 - Hexagon SDK Community Edition licence for redistributing `libggml-htp-v79.so` (needs a Qualcomm account to read).
 - `com.qualcomm.qti:qnn-runtime` licence PDF (POM names the "Qualcomm AI Hub Model License"; npu-runtime.md quotes

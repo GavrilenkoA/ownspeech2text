@@ -72,3 +72,24 @@ Downloads and resolution (WP-13), running benchmarks (WP-14).
 ## Build/test
 
 `tools/gw :feature:models:testDebugUnitTest :feature:models:assembleDebugAndroidTest`.
+
+## Integration notes (wave-1 integration pass 1; ADR-064..077 in DECISIONS)
+
+Merged on `integration/wave1`: WP-01, 05, 06, 07, 08, 09, 11, 12, 13. Still in work: WP-02, 03, 04, 10, 14, 20 (early paths).
+- WP-01 (ADR-075): components grow with large text, so never put fixed heights around chips, buttons, segmented
+  controls, search fields or list rows; `MurmurNavigationRail` is ≥ 88 dp and widens (lay it out wrap-content);
+  `MurmurSheet` on medium+ calls `onDismiss` after its exit animation (remove the sheet there); `AppTileSize.letterDp`
+  replaces `letterSp`. Test AVDs run with `animator_duration_scale=0`: a test that observes a Compose animation sets it
+  to 1 and restores it (`OverlaysTest.withAnimatorScale`).
+- `MurmurError` gained `DownloadPaused` (`dl.paused`, copy "Paused" + Resume) and `MicLost` (`audio.lost`, the
+  microphone pill): every exhaustive `when` over it needs both (ADR-073, ADR-074).
+- Benchmark rows (ADR-071): show `BenchmarkRepository.latest(id)` (newest record per unit, newest first). An invalid
+  newest record shows "Results look wrong on <unit>" and gives that unit no score (the chosen unit may change);
+  `latestValid` is only for an optional "last good run" line.
+- Install states (ADR-073): `Paused(reason = LowStorage)` = disk full (models-storage banner, DESIGN 6.4);
+  `Paused(reason = DownloadPaused)` = user pause or a vanished job (Resume); `Failed(StorageFailed)` = another disk
+  error; `Failed(ChecksumMismatch)` = damaged download.
+- "Failed to load on NPU, using CPU" never appears for an out-of-memory load (ADR-066: OOM does not mark the unit).
+- Streaming ASR (T-one, Nemotron) runs with the VAD when it is installed and then reports speech time; the VAD is
+  queued only for batch runtimes (ADR-065). OCR benchmark validity uses `OcrTolerance` with the CER gated on the
+  non-identical lines (ADR-077).

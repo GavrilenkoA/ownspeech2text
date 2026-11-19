@@ -85,3 +85,41 @@ Feature implementations; the shell and onboarding (WP-15); phone runs (the owner
 
 `tools/gw assembleDebug testDebugUnitTest :app:assembleDebugAndroidTest :testapps:target:assembleDebug`; emulator via
 `tools/heavy` (README rule 4).
+
+## Integration notes (wave-1 integration pass 1; ADR-064..077 in DECISIONS)
+
+Merged on `integration/wave1`: WP-01, 05, 06, 07, 08, 09, 11, 12, 13. Still in work: WP-02, 03, 04, 10, 14, 20 (early paths).
+- `MurmurError` gained `DownloadPaused` (`dl.paused`, copy "Paused" + Resume) and `MicLost` (`audio.lost`, the
+  microphone pill): every exhaustive `when` over it needs both (ADR-073, ADR-074).
+- Wave-3 wiring (if WP-15 did not): the WP-15 notes above apply (DbModule.settings with appScope +
+  `RetentionScheduler.start()`, `ModelsModule.downloads(scope = appScope)`, `StatusActionHandler`, `fgsContext` = the
+  accessibility service). The resolver already gets the storage folder for Preparing (ADR-067).
+- IPC semantics for the e2e assertions (ADR-069): a kill after a call timeout surfaces as `Timeout(stage)`, not
+  `ProcessDied`; OCR timeouts never kill `:asr`; a superseded OCR frame is a late OCR (no `screen`).
+- Timing criteria on the emulator (ASR as well as LLM) run with `MURMUR_EMU_CPU_HOST=1` (ADR-076).
+- Reuse WP-09's host scripts: `platform/audio/scripts/emulator_call_signal.sh <serial>` (ring → CallStarted ≤ 1 s;
+  CallStarted now comes on RINGTONE, before the call is answered), `emulator_focus_other_app.sh`,
+  `emulator_mic_lost.sh <serial> kill|stall`; WP-13's `data/models` kill/resume script for downloads.
+- Proposed e2e cases from WP-11: `kill -9` of `app.murmur:asr` during Finishing of a long dictation → Inserted (one
+  death counted once, ADR-069); a Retry e2e: force an ASR OOM, tap Retry → Transcribing → Polishing → Inserted in the
+  same field (ADR-064).
+- Capture kind: `ScreenImage` has no capture kind yet, so the orchestrator passes `ScreenOutcome.Text(text,
+  capture = null)` (size inference, ADR-070) until WP-02 reports window vs display capture.
+- DEVICE_CHECKLIST: wave-1 one-line additions are under "Wave-1 additions" there (fold them into the rows and
+  `murmur_app_smoke.sh`). Proposed **new** steps that did not fit an existing DCn (decide placement):
+  (1) 200 % system font on both displays: every tab grows instead of clipping, nav bar shows only the active label,
+  rail widens; with TalkBack every destination and the selected state are announced; side sheet slides out before the
+  screen reacts with animations on, instant with "Remove animations" (WP-01). (2) Retention on One UI ("DC11"):
+  retention 1 day, phone idle overnight on battery, next morning the previous day's entries and audio are gone without
+  opening the app (`dumpsys jobscheduler | grep -A5 app.murmur` before/after), and a time-zone change moves the job
+  (WP-12). (3) Orphan sweep: force-stop during an Undo snackbar, reopen, the deleted entry's file is gone and no live
+  recording was removed (WP-12). (4) Background download resume: `kill -9` of `:main` (or `am stop-app`) during a
+  large download → the job restarts without opening the app, `dl_http … code=206 rangeFrom=…` then `dl_verified`; a
+  literal `am kill` leaves the process alive; notification texts for Downloading / Verifying / Preparing / "Not enough
+  space" / damaged download (WP-13). (5) T-one dictation with the VAD loaded → Speech events, speechMs > 500, not
+  "Didn't catch that" (WP-06). (6) Replace the ASR model during Listening, then stop → fails fast, not after
+  ASR_FINAL (WP-06). (7) "Hide 1 h", lock > 1 h, unlock → "Hide 1 h" is back within ≈ 1 min (WP-09). (8) Bluetooth
+  headset disconnect mid-dictation → recording continues or `mic_lost cause=…` with audio kept (WP-09). (9) Retry
+  after "Couldn't load the speech model" → Transcribing → Polishing → Inserted in the same field; Retry of a 5:00
+  entry reads its audio well under 10 s (`storedAudioReadTimeoutMs`) (WP-11). (10) The binder order of
+  binderDied / onServiceDisconnected / EPIPE vs a failing `finish()` on real process deaths (WP-11).

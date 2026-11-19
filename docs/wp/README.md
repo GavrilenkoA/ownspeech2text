@@ -3,7 +3,7 @@
 Read this page, then your WP file, then the sections of `docs/ARCHITECTURE.md` your WP names. `docs/BRIEF.md`
 (owner requirements) wins over everything; `docs/DECISIONS.md` starts with the owner decisions **D1-D12** (verbatim)
 and explains every resolved conflict (ADR-nnn) and every review finding ("Review responses"). Device steps are
-**DC1-DC10** (`docs/DEVICE_CHECKLIST.md`).
+**DC1-DC10** (`docs/DEVICE_CHECKLIST.md`). Open questions for the owner, with recommendations: `docs/OWNER_QUESTIONS.md`.
 
 ## Index
 
