@@ -50,8 +50,8 @@ import guard  # noqa: E402  prompts/guard.py
 import render  # noqa: E402  prompts/render.py
 from ml.eval import contract  # noqa: E402  how training and eval render (style override, preferences)
 
-PROFILES = ("default.v4", "default.v4s", "finetuned.v1")
-STOCK = ("default.v4", "default.v4s")
+PROFILES = ("default.v1", "default.v4", "default.v4s", "finetuned.v1")  # default.v1 = the stock profile (ADR-085)
+STOCK = ("default.v1", "default.v4", "default.v4s")
 TEMPLATES = ("qwen3.5", "qwen3", "lfm3", "lfm2.5")
 SETS = ("eval/sets/dev.v2.jsonl", "eval/sets/test.v2.jsonl", "eval/smoke_cases.v2.jsonl", "eval/sets/dev.v2dense.jsonl")
 assert set(TEMPLATES) == set(render.TEMPLATES), "render.TEMPLATES changed: update the Kotlin port and this list"

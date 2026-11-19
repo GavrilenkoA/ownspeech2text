@@ -4,6 +4,7 @@ App: Gmail — email body
 Field hint: «Compose email»
 Dictation language: English
 Screen text (OCR, nearest to the field first):
+Undo
 Joaquin Castro, Acme Corp
 Happy to help, ping me anytime.
 to me

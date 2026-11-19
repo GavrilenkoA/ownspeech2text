@@ -55,7 +55,7 @@ class GoldenCorpusTest {
         assertTrue("at least 300 goldens, got $goldens", goldens >= 300)
         assertEquals("every profile x template is covered", profiles.size * templates.size, seen.size)
         assertEquals(setOf("qwen3.5", "qwen3", "lfm3", "lfm2.5"), templates.toSet())
-        assertEquals(setOf("default.v4", "default.v4s", "finetuned.v1"), profiles.toSet())
+        assertEquals(setOf("default.v1", "default.v4", "default.v4s", "finetuned.v1"), profiles.toSet()) // default.v1 = stock (ADR-085)
     }
 
     @Test

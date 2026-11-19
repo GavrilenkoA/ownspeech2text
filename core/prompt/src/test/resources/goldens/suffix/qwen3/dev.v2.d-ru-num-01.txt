@@ -4,6 +4,7 @@ App: Telegram — message field
 Field hint: «Сообщение»
 Dictation language: Russian
 Screen text (OCR, nearest to the field first):
+Отменить
 Уже еду
 Ты дома?
 Завтра в семь, не забудь

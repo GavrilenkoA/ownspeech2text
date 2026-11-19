@@ -8,6 +8,7 @@
   "synthetic (make_goldens.py)"
  ],
  "profiles": [
+  "default.v1",
   "default.v4",
   "default.v4s",
   "finetuned.v1"
@@ -31,10 +32,16 @@
  ],
  "counts": {
   "cases": 313,
-  "goldens": 3744,
-  "prefix_files": 96
+  "goldens": 4996,
+  "prefix_files": 132
  },
  "prefix_chars": {
+  "default.v1": {
+   "qwen3.5": 4091,
+   "qwen3": 4091,
+   "lfm3": 4106,
+   "lfm2.5": 4106
+  },
   "default.v4": {
    "qwen3.5": 11727,
    "qwen3": 11727,
@@ -55,6 +62,12 @@
   }
  },
  "prefix_sha256": {
+  "default.v1": {
+   "qwen3.5": "fdec5d39f6e5926e9d69f6bd9ac933c44dd2b108337c3c11bbffad24c71ead24",
+   "qwen3": "fdec5d39f6e5926e9d69f6bd9ac933c44dd2b108337c3c11bbffad24c71ead24",
+   "lfm3": "8a83e946c882e6183084f9b4b5788fbd235239c15ac813bdf9faa7f009a7b042",
+   "lfm2.5": "8a83e946c882e6183084f9b4b5788fbd235239c15ac813bdf9faa7f009a7b042"
+  },
   "default.v4": {
    "qwen3.5": "82f4c06fafacd4d480897506ce63fe2451976ed4d5fa4e326ad1d6fe188ffb08",
    "qwen3": "82f4c06fafacd4d480897506ce63fe2451976ed4d5fa4e326ad1d6fe188ffb08",
@@ -79,44 +92,53 @@
   "suffix": "suffix/<template>/<case>.txt",
   "profiles_per_variant": {
    "plain": [
+    "default.v1",
     "default.v4",
     "default.v4s",
     "finetuned.v1"
    ],
    "prefs_short": [
+    "default.v1",
     "default.v4",
     "default.v4s",
     "finetuned.v1"
    ],
    "prefs_1000": [
+    "default.v1",
     "default.v4",
     "default.v4s",
     "finetuned.v1"
    ],
    "prefs_1500": [
+    "default.v1",
     "default.v4",
     "default.v4s",
     "finetuned.v1"
    ],
    "prefs_ctrl_crlf": [
+    "default.v1",
     "default.v4",
     "default.v4s",
     "finetuned.v1"
    ],
    "prefs_blank": [
+    "default.v1",
     "default.v4",
     "default.v4s",
     "finetuned.v1"
    ],
    "override_crlf": [
+    "default.v1",
     "default.v4",
     "default.v4s"
    ],
    "override_lf": [
+    "default.v1",
     "default.v4",
     "default.v4s"
    ],
    "override_crlf_prefs": [
+    "default.v1",
     "default.v4",
     "default.v4s"
    ]

@@ -4,6 +4,7 @@ App: Gmail — email body
 Field hint: «Compose email»
 Dictation language: English
 Screen text (OCR, nearest to the field first):
+Mia Clark
 Photos from the weekend
 Cinema
 vendor@offers.example 18:50

@@ -4,6 +4,7 @@ App: WhatsApp — message field
 Field hint: «Сообщение»
 Dictation language: Russian
 Screen text (OCR, nearest to the field first):
+Отменить
 Посмотри, когда будет время
 Уже еду 20:00
 Сегодня
