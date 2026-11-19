@@ -1,6 +1,8 @@
 package app.murmur.data.models
 
 import app.murmur.core.benchmark.BenchScores
+import app.murmur.core.benchmark.BenchSpecProvider
+import app.murmur.core.benchmark.BenchSpecs
 import app.murmur.core.catalog.Artifact
 import app.murmur.core.catalog.ArtifactSelector
 import app.murmur.core.catalog.Candidate
@@ -163,6 +165,47 @@ class DefaultModelResolver(
                 ModelKind.VAD -> PrepareTargets(ModelKind.VAD, specs)
             },
         )
+    }
+
+    /**
+     * The benchmark's load specs (WP-14 `BenchSpecProvider`, ADR-080): [loadSpec] on the candidate's own unit, as a
+     * dictation would load it, with UnitHealth not applied (a benchmark re-tests a failed unit; a valid record clears
+     * it). Batch ASR gets the installed VAD (required), a streaming model the VAD when installed (ADR-065); OCR the
+     * partner stage; an LLM the GGUF's sha256. VAD and partner are ranked with default settings (Auto unit).
+     */
+    val benchSpecs: BenchSpecProvider = BenchSpecProvider { entry, candidate ->
+        try {
+            benchSpecsOrErr(entry, candidate)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Outcome.Err(MurmurError.Internal("resolver: ${e.javaClass.simpleName}"))
+        }
+    }
+
+    private suspend fun benchSpecsOrErr(entry: ModelEntry, candidate: Candidate): Outcome<BenchSpecs> {
+        val c = withTimeoutOrNull(CATALOG_WAIT_MS) { catalog.loaded() } ?: catalog.catalog.value
+        val art = candidate.artifact
+        val dir = (installed.state(art.id).first() as? InstallState.Installed)?.dir
+            ?: return Outcome.Err(MurmurError.CatalogInvalid("not installed"))
+        val main = loadSpec(entry, art, candidate.unit, dir)
+        val dev = device.ensure()
+        val defaults = Settings()
+        return when (entry.kind) {
+            ModelKind.ASR -> {
+                val vad = c.model(c.defaults.vad)?.let { first(it, dev, defaults) }
+                if (RuntimeKeys.isBatchAsr(art.runtime) && vad == null) Outcome.Err(MurmurError.NoVadModel)
+                else Outcome.Ok(BenchSpecs(main, vad = vad))
+            }
+            ModelKind.LLM -> ggufFile(art)?.let { Outcome.Ok(BenchSpecs(main, modelSha256 = it.sha256)) }
+                ?: Outcome.Err(MurmurError.CatalogInvalid("no gguf"))
+            ModelKind.OCR_DET, ModelKind.OCR_REC -> {
+                val partnerId = if (entry.kind == ModelKind.OCR_DET) c.defaults.ocrRec else c.defaults.ocrDet
+                c.model(partnerId)?.let { first(it, dev, defaults) }?.let { Outcome.Ok(BenchSpecs(main, ocrPartner = it)) }
+                    ?: Outcome.Err(MurmurError.CatalogInvalid("ocr partner not installed"))
+            }
+            ModelKind.VAD -> Outcome.Ok(BenchSpecs(main))
+        }
     }
 
     private fun speechModel(c: Catalog, settings: Settings): ModelEntry? {

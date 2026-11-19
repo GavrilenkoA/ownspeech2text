@@ -1,5 +1,6 @@
 package app.murmur.data.models
 
+import app.murmur.core.catalog.Candidate
 import app.murmur.core.catalog.CatalogParser
 import app.murmur.core.catalog.RuntimeKeys
 import app.murmur.core.engine.HostState
@@ -264,6 +265,26 @@ class DefaultModelResolverTest {
         val scores = BenchScores.lookup(listOf(asr(CPU, 20.0, true, 1, pCpu), asr(CPU, 40.0, false, 2, pCpu)))
         assertNull(scores.score(pCpu, CPU))
         assertEquals(50.0, BenchScores.lookup(listOf(asr(NPU, 20.0, true, 1, pNpu))).score(pNpu, NPU)!!, 1e-9)
+    }
+
+    /** The benchmark loads what a dictation loads, on the candidate's unit, even when UnitHealth marked it failed (ADR-080). */
+    @Test
+    fun benchSpecsFollowLoadSpecAndIgnoreUnitHealth() = runBlocking {
+        val c = catalog.catalog.value
+        fun entryOf(id: ArtifactId) = c.models.first { m -> m.artifacts.any { it.id == id } }
+        fun cand(id: ArtifactId, unit: ComputeUnit) = Candidate(entryOf(id).artifacts.first { it.id == id }, unit, usable = true)
+        health.markFailed(pNpu, NPU, "test")
+        val r = resolver(Installed(everything))
+        val asr = (r.benchSpecs.specs(entryOf(pNpu), cand(pNpu, NPU)) as Outcome.Ok).value
+        assertEquals(pNpu, asr.main.artifactId)
+        assertEquals(NPU, asr.main.unit)
+        assertEquals(vad, asr.vad!!.artifactId)
+        val llm = (r.benchSpecs.specs(entryOf(qwen), cand(qwen, CPU)) as Outcome.Ok).value
+        assertEquals(ggufFile(entryOf(qwen).artifacts.first { it.id == qwen })!!.sha256, llm.modelSha256)
+        assertEquals(rec, (r.benchSpecs.specs(entryOf(det), cand(det, CPU)) as Outcome.Ok).value.ocrPartner!!.artifactId)
+        // Batch ASR without the VAD installed, or a candidate that is not installed: an error, never a throw.
+        assertEquals(Outcome.Err(MurmurError.NoVadModel), resolver(Installed(listOf(pCpu))).benchSpecs.specs(entryOf(pCpu), cand(pCpu, CPU)))
+        assertTrue(resolver(Installed(listOf(vad))).benchSpecs.specs(entryOf(pCpu), cand(pCpu, CPU)) is Outcome.Err)
     }
 
     @Test

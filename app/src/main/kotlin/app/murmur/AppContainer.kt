@@ -3,6 +3,7 @@ package app.murmur
 import android.app.ActivityManager
 import android.content.Context
 import app.murmur.core.benchmark.BenchmarkRunner
+import app.murmur.core.benchmark.DefaultBenchmarkRunner
 import app.murmur.core.catalog.CatalogRepository
 import app.murmur.core.catalog.DeviceProfileRepository
 import app.murmur.core.catalog.UnitHealthRepository
@@ -88,7 +89,13 @@ class AppContainer(private val context: Context) {
     val deviceProfile: DeviceProfileRepository by lazy { DefaultDeviceProfileRepository(context, engines.asrHost, engines.llmHost) }
     val unitHealth: UnitHealthRepository by lazy { FileUnitHealthRepository(ModelsModule.storage(context), BuildConfig.VERSION_NAME) }
     private val resolver by lazy { DefaultModelResolver(catalog, installed, deviceProfile, unitHealth, benchmarks) { ModelsModule.storage(context).dir(it).path } }
-    val benchmarkRunner: BenchmarkRunner by lazy { TODO("WP-14: BenchmarkRunner over engines + hosts") }
+    /** WP-14 runner over the production engines; specs from the resolver's loadSpec (ADR-080). */
+    val benchmarkRunner: BenchmarkRunner by lazy {
+        DefaultBenchmarkRunner(
+            engines = engines, specs = resolver.benchSpecs, records = benchmarks, health = unitHealth, clock = clock,
+            environment = AndroidBenchEnvironment(context), renderer = renderer, guard = guard, assets = prompts,
+        )
+    }
 
     // --- prompt
     val prompts by lazy { ClasspathPromptAssets() }
