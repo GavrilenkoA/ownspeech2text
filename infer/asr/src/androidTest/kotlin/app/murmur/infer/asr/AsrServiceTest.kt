@@ -245,7 +245,7 @@ class AsrServiceTest {
             report("probe.units", p.units)
             report("probe.facts", p.facts)
             assertEquals(setOf(ComputeUnit.CPU), p.units)
-            assertTrue(p.runtimes.containsAll(SherpaConfigs.SHERPA + "ort/silero-vad-v5"))
+            assertTrue(p.runtimes.containsAll(SherpaConfigs.SHERPA + "ort/silero-vad-v5" + "ort/ppocr-det" + "ort/ppocr-rec"))
             assertEquals("sherpa-onnx 2.0.1 af2d8d81 + ORT 1.32.0", p.facts[ProcessProbe.FACT_NATIVE_BUILD])
             assertEquals("no-libs", p.facts["qnn.stage"])
         }

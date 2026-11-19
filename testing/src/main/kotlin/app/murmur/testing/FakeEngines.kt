@@ -57,6 +57,8 @@ class FakeInferenceHost(
     private val _deaths = MutableSharedFlow<Int>(extraBufferCapacity = 8)
     val deaths: Flow<Int> = _deaths.asSharedFlow()
     var idleExitMs: Long? = null; private set
+    /** Every scheduleIdleExit(ms) in call order (the last one is [idleExitMs]). */
+    val idleExitHistory = mutableListOf<Long>()
     var shutdowns = 0; private set
     var connects = 0; private set
     var crashes = 0; private set
@@ -74,7 +76,7 @@ class FakeInferenceHost(
     }
     override suspend fun probe() = ProcessProbe(process, app.murmur.core.catalog.RuntimeKeys.known, units, facts)
     override suspend fun memory() = ProcessMemory(100_000, 90_000, 80_000, 4_000)
-    override fun scheduleIdleExit(ms: Long) { idleExitMs = ms }
+    override fun scheduleIdleExit(ms: Long) { idleExitMs = ms; idleExitHistory += ms }
     /** How long shutdown() takes (unbind + process kill), in coroutine time. */
     var shutdownDelayMs: Long = 0
 

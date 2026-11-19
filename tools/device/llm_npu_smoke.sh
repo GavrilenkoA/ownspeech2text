@@ -7,7 +7,7 @@
 #   1. device facts (model, SoC, Android, build fingerprint) + vendor FastRPC/OpenCL libraries visible to apps
 #   2. pushes the arm64 build (native/llama/build_android.sh npu) and the GGUF(s) to /data/local/tmp/murmur-llm
 #   3. llama-bench pp512/tg64 on CPU (per thread count), NPU (HTP0) and GPU (OpenCL)
-#   4. murmur-llm-bench: the app's real flow (default.v4 system-prefix snapshot, n_ctx 9216 as the catalog sets it,
+#   4. murmur-llm-bench: the app's real flow (stock default.v1 system-prefix snapshot, n_ctx 7168 as the catalog sets it,
 #      -> TTFT for one ctx v2 dictation), CPU and NPU
 #   5. NPU op placement: which graph ops the Hexagon backend accepted/rejected (GGML_HEXAGON_VERBOSE)
 #   6. thermal status before/after
@@ -26,7 +26,7 @@ BUILD="${MURMUR_LLAMA_OUT:-$repo/.cache/native-llama/out}/npu"
 # fall back to the spike build if the default output does not exist yet
 [[ -d "$BUILD" || -n "${MURMUR_LLAMA_OUT:-}" ]] || { [[ -d "$repo/.cache/spikes/llm-npu/work/out/npu" ]] && BUILD="$repo/.cache/spikes/llm-npu/work/out/npu"; }
 MODELS=()
-NCTX=9216            # catalog LlmTraits.nCtx of the stock models (ADR-045)
+NCTX=7168            # catalog LlmTraits.nCtx of the stock models (ADR-045; 7,168 with default.v1, ADR-085)
 PROFILE=default.v1   # catalog llm.promptProfile of the stock models (ADR-085)
 THREADS="4,6"
 QUICK=0
@@ -262,7 +262,7 @@ for r in jl(f"{R}/llama-bench.jsonl"):
     if be in ("none", "", "?"): be = "CPU (" + str(r.get("backends", "?")) + ")"
     md.append(f"| {os.path.basename(r.get('model_filename','?'))} | {be} | {r.get('n_threads')} | {r.get('power_mode','default')} | {test} | {r.get('avg_ts',0):.1f} ± {r.get('stddev_ts',0):.1f} |")
     summary["llama_bench"].append({k: r.get(k) for k in ("model_filename","devices","backends","n_threads","n_prompt","n_gen","avg_ts","stddev_ts","power_mode")})
-md += ["", "## App flow (default.v4 system prefix snapshot, n_ctx 9216, then one ctx v2 dictation)", "",
+md += ["", "## App flow (default.v1 system prefix snapshot, n_ctx 7168, then one ctx v2 dictation)", "",
        "| model | device | prefix mode | prefix tok | prefix prefill ms | suffix tok | TTFT ms | decode tok/s | output = first mode | load ms | peak RSS MB |", "|---|---|---|---|---|---|---|---|---|---|---|"]
 rows = jl(f"{R}/murmur-bench.jsonl")
 # events per (model, device, mode): load -> mem_after_load -> prefix -> generate* -> summary -> [bench] -> mem_end

@@ -63,6 +63,10 @@ class AsrService : Service() {
         val units = linkedSetOf(ComputeUnit.CPU)
         // ONNX Runtime comes from the AAR (always packaged): the Silero VAD runtime exists even without sherpa.
         runtimes += RuntimeKeys.ORT_SILERO_VAD
+        // The OCR handler lives in :asr on the same packaged ORT (OcrHandlers.create): without these keys the device
+        // profile has no OCR runtime and the resolver never selects the OCR pair (no screen context, WP-20 finding).
+        runtimes += RuntimeKeys.ORT_PPOCR_DET
+        runtimes += RuntimeKeys.ORT_PPOCR_REC
         if (Sherpa.loaded) {
             runtimes += SherpaConfigs.SHERPA
             val qnn = QnnProbe.status(applicationInfo.nativeLibraryDir)

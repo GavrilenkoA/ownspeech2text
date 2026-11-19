@@ -261,6 +261,29 @@ class OrchestratorFlowTest {
         h.assertNoInternalErrors()
     }
 
+    @Test fun idleExitIsHeldForTheWholeDictationAndReArmedAtDone() = runTest {
+        // ADR-086 (WP-20 DC8 dry run: a warm :llm exited 60 s after the previous Done while the next dictation was
+        // still Listening). A press holds both processes for the longest session; Done re-arms the 60 s timeout.
+        val h = harness()
+        h.dictate()
+        h.at(h.now + 50_000)
+        h.tap(); h.scope.testScheduler.runCurrent()
+        for (host in listOf(h.w.engines.asrHost, h.w.engines.llmHost)) {
+            val hold = host.idleExitMs!!
+            assertTrue("hold $hold ms", hold >= 300_000L + 60_000L)   // 5 min recording + the idle timeout, at least
+            assertTrue("hold $hold ms", hold < 24L * 3_600_000)        // finite: a missed Done cannot pin the processes
+        }
+        h.at(h.now + 30_000); h.tap()
+        h.scope.testScheduler.advanceUntilIdle()
+        assertEquals(2, h.history().size)
+        for (host in listOf(h.w.engines.asrHost, h.w.engines.llmHost)) {
+            assertEquals(60_000L, host.idleExitMs)
+            // per dictation: the hold at the press, then the normal timeout after Done
+            assertTrue(host.idleExitHistory.toString(), host.idleExitHistory.count { it > 60_000L } >= 2)
+        }
+        h.assertNoInternalErrors()
+    }
+
     @Test fun tapDuringArmingAfter300msStopsRightAfterTheMicStarts() = runTest {
         val h = harness { audio.startDelayMs = 500 }
         h.at(0); h.tap()

@@ -287,6 +287,10 @@ class DictationOrchestrator(
         timers.values.forEach { it.cancel() }
         timers.clear()
         backgroundJob?.cancel()     // ARCHITECTURE 5.4: a press cancels preparation; the dictation never waits for it.
+        // D5 / ADR-086: the idle exit armed by the previous Done must not fire during this dictation (a warm :llm died
+        // 60 s after the last Done while the next dictation was still Listening). Hold both processes for the longest
+        // possible session; every Done re-arms the normal timeout. The hold is finite so a missed Done cannot pin them.
+        scheduleIdle(sessionHoldMs(cfg))
         lastSession = arming.session.value
         run = SessionRun(arming.session, arming.mode, deps.clock.now(), settings, cfg,
             inApp = if (arming.mode == StartMode.IN_APP) pendingInApp else null, retryOf = arming.retryOf)
@@ -418,6 +422,14 @@ class DictationOrchestrator(
             FeedbackSetting.OFF -> Unit
         }
     }
+
+    /**
+     * Idle-exit delay while a dictation runs (ADR-086): the longest session (5 min recording, ASR tail, LLM ready wait,
+     * LLM hard cap, delivery; scaled like the timers) plus the normal idle timeout.
+     */
+    private fun sessionHoldMs(cfg: DictationConfig): Long =
+        cfg.scaled(cfg.maxDurationMs + cfg.asrMaxTailMs + cfg.llmReadyWaitMs + cfg.llmHardCapMs + cfg.deliveryTimeoutMs)
+            .coerceAtLeast(cfg.maxDurationMs) + cfg.idleUnloadMs
 
     /** D5: keep both processes warm for the idle timeout, then unload + exit. */
     private fun scheduleIdle(ms: Long) {
