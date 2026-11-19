@@ -131,4 +131,13 @@ class SherpaConfigsTest {
             dir.deleteRecursively()
         }
     }
+
+    @Test
+    fun theSharedWhisperLanguageFollowsTheSessionOfEachDecode() {
+        val applied = ArrayList<String>()
+        val language = ConfigValue("") { applied += it }
+        // two sessions attached at once (ru and en hints), their segments interleaved on the engine thread
+        listOf("ru", "en", "en", "ru", "").forEach { language.use(it) }
+        assertEquals(listOf("ru", "en", "ru", ""), applied)
+    }
 }

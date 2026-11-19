@@ -83,25 +83,28 @@ sealed class SherpaModel(val spec: LoadSpec) : AutoCloseable {
     class Offline(spec: LoadSpec, private var config: OfflineRecognizerConfig) : SherpaModel(spec) {
         private val recognizer = OfflineRecognizer(null, config)
 
-        /** Whisper takes its language in the recognizer config; set it per session (null = detect). */
-        fun decoder(language: String?): SegmentDecoder {
-            if (spec.runtime == RuntimeKeys.SHERPA_OFFLINE_WHISPER && config.modelConfig.whisper.language != language.orEmpty()) {
-                config = config.copy(modelConfig = config.modelConfig.copy(whisper = config.modelConfig.whisper.copy(language = language.orEmpty())))
-                recognizer.setConfig(config)
-            }
-            return SegmentDecoder { samples, lang ->
-                val stream = recognizer.createStream()
-                try {
-                    if (spec.runtime == RuntimeKeys.SHERPA_OFFLINE_QWEN3_ASR && lang != null) {
-                        stream.setOption("language", SherpaConfigs.qwen3Language(lang))
-                    }
-                    stream.acceptWaveform(samples, PcmFormat.SAMPLE_RATE)
-                    recognizer.decode(stream)
-                    val r = recognizer.getResult(stream)
-                    Decoded(r.text, normalizeLanguage(r.lang))
-                } finally {
-                    stream.release()
+        /**
+         * Whisper takes its language in the recognizer config, which every session shares: each decode sets the
+         * language of its own session first (null = detect). The engine thread serialises the decodes.
+         */
+        private val whisperLanguage = ConfigValue(config.modelConfig.whisper.language) { lang ->
+            config = config.copy(modelConfig = config.modelConfig.copy(whisper = config.modelConfig.whisper.copy(language = lang)))
+            recognizer.setConfig(config)
+        }
+
+        fun decoder(): SegmentDecoder = SegmentDecoder { samples, lang ->
+            if (spec.runtime == RuntimeKeys.SHERPA_OFFLINE_WHISPER) whisperLanguage.use(lang.orEmpty())
+            val stream = recognizer.createStream()
+            try {
+                if (spec.runtime == RuntimeKeys.SHERPA_OFFLINE_QWEN3_ASR && lang != null) {
+                    stream.setOption("language", SherpaConfigs.qwen3Language(lang))
                 }
+                stream.acceptWaveform(samples, PcmFormat.SAMPLE_RATE)
+                recognizer.decode(stream)
+                val r = recognizer.getResult(stream)
+                Decoded(r.text, normalizeLanguage(r.lang))
+            } finally {
+                stream.release()
             }
         }
 
@@ -124,6 +127,15 @@ sealed class SherpaModel(val spec: LoadSpec) : AutoCloseable {
         /** Whisper reports "<|ru|>" or "ru"; anything else (empty, other models) is null. */
         fun normalizeLanguage(raw: String?): String? =
             raw?.removePrefix("<|")?.removeSuffix("|>")?.trim()?.lowercase()?.takeIf { it.matches(Regex("[a-z]{2,3}")) }
+    }
+}
+
+/** A recognizer setting shared by all sessions: [apply] runs only when a decode needs a different value than the current one. */
+class ConfigValue<T>(private var current: T, private val apply: (T) -> Unit) {
+    fun use(value: T) {
+        if (value == current) return
+        apply(value)
+        current = value
     }
 }
 

@@ -32,20 +32,22 @@ class AsrEngineHost(private val nativeLibraryDir: String) {
     // Engine thread only.
     private var model: SherpaModel? = null
     private var vad: SileroVadModel? = null
-    private var lastLoadError: MurmurError? = null
+    /** The last successful load asked for a VAD: streaming sessions then run it too (speech edges, speechMs). */
+    private var vadRequested = false
     private val sessions = LinkedHashSet<AsrSessionCore>()
 
     fun post(block: () -> Unit) = engine.execute(block)
 
     // ---------------------------------------------------------------- load
 
-    /** Loads (or keeps) the ASR model and, for batch models, the VAD. Engine thread. */
+    /** Loads (or keeps) the ASR model and the VAD (required for batch models, optional for streaming ones). Engine thread. */
     fun load(asr: LoadSpec, vadSpec: LoadSpec?): Outcome<LoadInfo> {
         val t0 = SystemClock.elapsedRealtime()
         val result = loadInner(asr, vadSpec)
         when (result) {
-            is Outcome.Ok -> { lastLoadError = null; attachWaiting() }
-            is Outcome.Err -> { lastLoadError = result.error; sessions.forEach { it.loadFailed(result.error) } }
+            is Outcome.Ok -> { vadRequested = vadSpec != null; attachWaiting() }
+            // only the sessions waiting now learn of it; a session started later never inherits an older load's error
+            is Outcome.Err -> sessions.forEach { it.loadFailed(result.error) }
         }
         Log.i(TAG, "loadAsr ${asr.runtime} unit=${asr.unit} -> ${(result as? Outcome.Err)?.error?.code ?: "ok"} in ${SystemClock.elapsedRealtime() - t0} ms")
         return when (result) {
@@ -67,9 +69,9 @@ class AsrEngineHost(private val nativeLibraryDir: String) {
             s
         } else null
 
-        // VAD first (small): a batch model is useless without it.
-        if (batch) {
-            val v = vadSpec!!
+        // VAD first (small): a batch model is useless without it; a streaming model uses it for speechMs.
+        if (vadSpec != null) {
+            val v = vadSpec
             if (vad?.spec != v) {
                 if (vad != null) sessions.filter { it.attached }.forEach { it.abort(MurmurError.AsrFailed("model_replaced")); sessions -= it }
                 vad?.close(); vad = null
@@ -118,7 +120,7 @@ class AsrEngineHost(private val nativeLibraryDir: String) {
         sessions.clear()
         model?.close(); model = null
         vad?.close(); vad = null
-        lastLoadError = null
+        vadRequested = false
     }
 
     /** Runs [unloadAll] on the engine thread and waits for it at most [timeoutMs]. */
@@ -139,7 +141,7 @@ class AsrEngineHost(private val nativeLibraryDir: String) {
         val reader = PcmPipeReader(ParcelFileDescriptor.AutoCloseInputStream(pcm), core) { post { core.pump() } }
         post {
             sessions += core
-            processorFor(core)?.let { core.attach(it) } ?: lastLoadError?.let { core.loadFailed(it) }
+            processorFor(core)?.let { core.attach(it) }
         }
         reader.start()
         return SessionHandle(core, reader)
@@ -166,16 +168,16 @@ class AsrEngineHost(private val nativeLibraryDir: String) {
         return when (m) {
             is SherpaModel.Offline -> {
                 val v = vad ?: return null
-                val emit = core.emitter
                 SegmentingProcessor(
                     m.unit, v.newState(), PauseSegmenter(SegmenterConfig.forWindow(m.spec.maxWindowSec)),
-                    m.decoder(core.language.takeIf { SherpaConfigs.takesHint(m.spec.runtime) }),
-                    core.language.takeIf { SherpaConfigs.takesHint(m.spec.runtime) }, emit,
+                    m.decoder(), core.language.takeIf { SherpaConfigs.takesHint(m.spec.runtime) }, core.emitter,
                 )
             }
             is SherpaModel.Online -> StreamingProcessor(
                 m.unit, m.stream(core.language), core.language.takeIf { SherpaConfigs.takesHint(m.spec.runtime) },
-                core.emitPartials, core.emitter,
+                core.emitPartials,
+                vad?.takeIf { vadRequested }?.let { SpeechTracker(it.newState(), PauseSegmenter(), core.emitter) },
+                core.emitter,
             )
         }
     }

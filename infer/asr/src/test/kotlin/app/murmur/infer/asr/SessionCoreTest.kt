@@ -149,14 +149,32 @@ class SessionCoreTest {
     }
 
     @Test
-    fun cancelDropsTheSessionWithoutAnAnswer() {
+    fun eachSegmentDecodesExactlyItsAudioWithPreAndPostRoll() {
+        val c = core()
+        val decoder = CountingDecoder()
+        c.attach(segmenting(decoder = decoder))
+        c.feed(speechPattern())
+        c.endOfAudio()
+        c.finishNow()
+        // 32 ms frames (512 samples); a frame that is half loud counts as speech. Pre/post-roll 0.3 s = 4,800 samples.
+        // 0: speech frames 0..31 -> [0 (pre-roll clamped), 16,384 + 4,800)
+        // 1: speech 31,744..51,200 (1.2 s + the half frame) -> [31,744 - 4,800, 51,200 + 4,800): the pre-roll
+        //    reaches 0.3 s back into the silence before it, which the buffer must still hold
+        // 2: the open tail, speech from 67,072 -> [67,072 - 4,800, 80,000 = end of audio)
+        assertEquals(listOf(21_184, 56_000 - 26_944, 80_000 - 62_272), decoder.calls)
+        val spans = events.filterIsInstance<AsrEvent.Committed>().map { ((it.endMs - it.startMs) * 16).toInt() }
+        assertEquals(decoder.calls, spans)
+    }
+
+    @Test
+    fun cancelEndsTheSessionAndAFinishAfterItIsAnsweredWithCancelled() {
         val c = core()
         val vad = LoudnessVad()
         c.attach(segmenting(vad = vad))
         c.feed(pcm(500, true))
         c.cancel()
         c.endOfAudio()
-        assertNull(c.finishNow())
+        assertEquals(Outcome.Err(MurmurError.AsrFailed("cancelled")), c.finishNow())
         assertEquals(1, vad.resets)
         assertTrue(c.closed)
     }
@@ -174,6 +192,36 @@ class SessionCoreTest {
         assertEquals(1, vad.resets)
         assertTrue(events.last() is AsrEvent.Failure)
         assertTrue(c.closed)
+    }
+
+    @Test
+    fun aFinishAfterTheAbortIsAnsweredAtOnceWithTheAbortReason() {
+        val c = core()
+        val vad = LoudnessVad()
+        c.attach(segmenting(vad = vad))
+        c.feed(pcm(5_000, true))
+        c.endOfAudio()
+        c.abort(MurmurError.AsrFailed("model_replaced"))    // the model is replaced before the stop tap
+        assertEquals(1, vad.resets)
+        assertEquals(Outcome.Err(MurmurError.AsrFailed("model_replaced")), c.finishNow())
+        assertEquals(1, events.count { it is AsrEvent.Failure })
+    }
+
+    @Test
+    fun aRepeatedFinishGetsTheSameAnswerAsTheFirst() {
+        val c = core()
+        c.attach(segmenting())
+        c.feed(speechPattern())
+        val answers = ArrayList<Outcome<Transcript>>()
+        c.requestFinish { answers += it }
+        c.requestFinish { answers += it }                   // both wait for EOF
+        assertTrue(answers.isEmpty())
+        c.endOfAudio()
+        c.pump()
+        assertEquals(2, answers.size)
+        assertTrue(answers[0] is Outcome.Ok)
+        assertEquals(answers[0], answers[1])
+        assertEquals(answers[0], c.finishNow())             // and once more after the session ended
     }
 
     @Test
@@ -215,6 +263,26 @@ class SessionCoreTest {
         assertEquals(1, t.segments)
         assertEquals(0L, t.speechMs)
         assertEquals(48_000, s.fed)
+        assertTrue(s.released)
+    }
+
+    @Test
+    fun aStreamingSessionWithAVadReportsSpeechTimeAndSpeechEdges() {
+        val c = core()
+        val vad = LoudnessVad()
+        val s = FakeStream()
+        val tracker = SpeechTracker(vad, PauseSegmenter(), { events += it })
+        c.attach(StreamingProcessor(ComputeUnit.CPU, s, null, emitPartials = true, speech = tracker) { events += it })
+        c.feed(speechPattern())
+        c.endOfAudio()
+        val t = (c.finishNow() as Outcome.Ok).value
+        assertEquals("final", t.text)
+        // the same speech time as the batch path on the same audio (1.0 + 1.2 + 0.8 s of loud frames)
+        assertTrue(t.speechMs in 2_900L..3_100L)
+        assertEquals(listOf(true, false, true, false, true, false), events.filterIsInstance<AsrEvent.Speech>().map { it.speaking })
+        assertTrue(events.none { it is AsrEvent.Committed })  // streaming text comes only as partials + the final
+        assertEquals(speechPattern().size, s.fed)
+        assertEquals(1, vad.resets)
         assertTrue(s.released)
     }
 

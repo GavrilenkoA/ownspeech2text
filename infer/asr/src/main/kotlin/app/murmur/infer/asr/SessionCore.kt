@@ -72,30 +72,30 @@ class SampleBuffer(initialCapacity: Int = PcmFormat.SAMPLE_RATE * 4) {
 }
 
 /**
- * Batch models (D4, A6): Silero VAD per 512-sample frame -> [PauseSegmenter] -> each closed segment decoded at once
- * -> [AsrEvent.Committed]. At the stop tap only the open tail is decoded (ADR-025: no whole-utterance re-decode).
+ * Silero VAD per 512-sample frame -> [PauseSegmenter], with the speech/silence edges as [AsrEvent.Speech]. Closed
+ * segments go to [onSegment] from inside [accept], once their last sample has been accepted. Engine thread only.
  */
-class SegmentingProcessor(
-    override val unit: ComputeUnit,
+class SpeechTracker(
     private val vad: VadModel,
-    private val segmenter: PauseSegmenter,
-    private val decoder: SegmentDecoder,
-    private val language: String?,
+    val segmenter: PauseSegmenter,
     private val emit: (AsrEvent) -> Unit,
-) : SessionProcessor {
+    private val onSegment: (Segment) -> Unit = {},
+) {
     private val frameSize = segmenter.config.frameSamples
-    private val preRoll = segmenter.config.preRollMs.toLong() * PcmFormat.SAMPLE_RATE / 1000
-    private val audio = SampleBuffer()
     private val frame = FloatArray(frameSize)
     private var frameFill = 0
-    private var framesEnd = 0L
     private var wasSpeaking = false
-    private val texts = ArrayList<String>()
-    private val languages = ArrayList<String>()
-    private var segments = 0
 
-    override fun accept(samples: FloatArray) {
-        audio.append(samples)
+    /** Session sample index after the last full frame. */
+    var framesEnd = 0L
+        private set
+
+    /** Samples accepted so far (full frames + the partial one). */
+    val samplesEnd: Long get() = framesEnd + frameFill
+
+    val speechMs: Long get() = segmenter.speechMs
+
+    fun accept(samples: FloatArray) {
         var i = 0
         while (i < samples.size) {
             val n = minOf(frameSize - frameFill, samples.size - i)
@@ -108,8 +108,6 @@ class SegmentingProcessor(
                 onFrame(vad.probability(frame))
             }
         }
-        // Keep the open segment, or the pre-roll that a segment opening on the next frame may reach back into.
-        audio.trim(segmenter.openStartSample ?: (framesEnd - preRoll))
     }
 
     private fun onFrame(p: Float) {
@@ -121,7 +119,44 @@ class SegmentingProcessor(
             emit(AsrEvent.Speech(false, PcmFormat.samplesToMs(segmenter.lastSpeechEndSample)))
         }
         wasSpeaking = segmenter.speaking
-        if (closed != null) decode(closed)
+        if (closed != null) onSegment(closed)
+    }
+
+    /** The stop tap: closes the open segment at the end of the audio (null when none is open or it is too short). */
+    fun flush(): Segment? {
+        val tail = segmenter.flush(samplesEnd)
+        if (wasSpeaking) emit(AsrEvent.Speech(false, PcmFormat.samplesToMs(segmenter.lastSpeechEndSample)))
+        wasSpeaking = false
+        return tail
+    }
+
+    fun release() = vad.reset()
+}
+
+/**
+ * Batch models (D4, A6): [SpeechTracker] cuts the audio at pauses -> each closed segment decoded at once ->
+ * [AsrEvent.Committed]. At the stop tap only the open tail is decoded (ADR-025: no whole-utterance re-decode).
+ */
+class SegmentingProcessor(
+    override val unit: ComputeUnit,
+    vad: VadModel,
+    private val segmenter: PauseSegmenter,
+    private val decoder: SegmentDecoder,
+    private val language: String?,
+    private val emit: (AsrEvent) -> Unit,
+) : SessionProcessor {
+    private val preRoll = segmenter.config.preRollMs.toLong() * PcmFormat.SAMPLE_RATE / 1000
+    private val audio = SampleBuffer()
+    private val speech = SpeechTracker(vad, segmenter, emit, ::decode)
+    private val texts = ArrayList<String>()
+    private val languages = ArrayList<String>()
+    private var segments = 0
+
+    override fun accept(samples: FloatArray) {
+        audio.append(samples)
+        speech.accept(samples)
+        // Keep the open segment, or the pre-roll that a segment opening on the next frame may reach back into.
+        audio.trim(segmenter.openStartSample ?: (speech.framesEnd - preRoll))
     }
 
     private fun decode(seg: Segment) {
@@ -135,41 +170,46 @@ class SegmentingProcessor(
     }
 
     override fun finish(): FinalText {
-        val tail = segmenter.flush(audio.end)
-        if (wasSpeaking) emit(AsrEvent.Speech(false, PcmFormat.samplesToMs(segmenter.lastSpeechEndSample)))
-        wasSpeaking = false
-        if (tail != null) decode(tail)
+        speech.flush()?.let { decode(it) }
         val lang = language ?: languages.groupingBy { it }.eachCount().maxByOrNull { it.value }?.key
-        return FinalText(texts.joinToString(" "), lang, segments, segmenter.speechMs)
+        return FinalText(texts.joinToString(" "), lang, segments, speech.speechMs)
     }
 
-    override fun release() {
-        vad.reset()
-    }
+    override fun release() = speech.release()
 }
 
-/** Native streaming models (Nemotron, T-one): partial hypotheses while audio flows, the final text at the stop tap. */
+/**
+ * Native streaming models (Nemotron, T-one): partial hypotheses while audio flows, the final text at the stop tap.
+ * With a VAD loaded, [speech] runs beside the recognizer for the Speech edges and [Transcript.speechMs] (the same
+ * segmenter rules as batch models, so the "Didn't catch that" check means the same for both); without one speechMs is 0.
+ */
 class StreamingProcessor(
     override val unit: ComputeUnit,
     private val stream: StreamDecoder,
     private val language: String?,
     private val emitPartials: Boolean,
+    private val speech: SpeechTracker? = null,
     private val emit: (AsrEvent) -> Unit,
 ) : SessionProcessor {
     private var last = ""
 
     override fun accept(samples: FloatArray) {
+        speech?.accept(samples)
         val text = stream.accept(samples).trim()
         if (emitPartials && text != last && text.isNotEmpty()) emit(AsrEvent.Partial(text))
         last = text
     }
 
     override fun finish(): FinalText {
+        speech?.flush()
         val text = stream.finish().trim()
-        return FinalText(text, language, if (text.isEmpty()) 0 else 1, 0)
+        return FinalText(text, language, if (text.isEmpty()) 0 else 1, speech?.speechMs ?: 0)
     }
 
-    override fun release() = stream.release()
+    override fun release() {
+        speech?.release()
+        stream.release()
+    }
 }
 
 /**
@@ -191,12 +231,15 @@ class AsrSessionCore(
         private set
 
     private var processor: SessionProcessor? = null
-    /** The last load failed; cleared when a later load attaches a processor. */
+    /** A load issued while this session waited failed; cleared when a later load attaches a processor. */
     private var failure: MurmurError? = null
     /** Decoding failed: final for this session. */
     private var decodeFailure: MurmurError? = null
     private var finishAtMs = -1L
-    private var reply: ((Outcome<Transcript>) -> Unit)? = null
+    /** finish() callers waiting for the answer (a repeated finish() gets the same answer as the first). */
+    private val replies = ArrayList<(Outcome<Transcript>) -> Unit>()
+    /** The session's answer once it ended (transcript, decode error, or the abort reason); null while open or cancelled. */
+    private var answer: Outcome<Transcript>? = null
     var closed = false
         private set
 
@@ -253,31 +296,39 @@ class AsrSessionCore(
         tryComplete()
     }
 
-    /** [atMs] = when the stop arrived (the binder call), not when the engine thread got to it. */
+    /**
+     * [atMs] = when the stop arrived (the binder call), not when the engine thread got to it. Every call is answered:
+     * a session that already ended (aborted, decode failure, finished) answers with its result at once, a cancelled
+     * one with AsrFailed("cancelled"), and a second call while the first waits gets the same answer as the first.
+     */
     fun requestFinish(atMs: Long = nowMs(), cb: (Outcome<Transcript>) -> Unit) {
-        if (closed || reply != null) return
-        reply = cb
-        finishAtMs = atMs
+        answer?.let { cb(it); return }
+        if (closed) { cb(Outcome.Err(CANCELLED)); return }
+        if (replies.isEmpty()) finishAtMs = atMs
+        replies += cb
         pump()
     }
 
     /**
      * The engine under this session goes away (unloadAll, or another model replaces the one it decodes with): the
-     * session ends with [e]; a pending finish() is answered with it.
+     * session ends with [e]; a pending finish() is answered with it, and so is a finish() that comes later.
      */
     fun abort(e: MurmurError) {
         if (closed) return
         emit(AsrEvent.Failure(e))
-        val cb = reply
-        if (cb != null) finishWith(cb, Outcome.Err(e)) else cancel()
+        finishWith(Outcome.Err(e))
     }
 
+    /** The client gave up on the session: no events and no transcript any more. */
     fun cancel() {
         if (closed) return
         closed = true
         inbox.clear()
         processor?.release()
         processor = null
+        val waiting = replies.toList()
+        replies.clear()
+        waiting.forEach { it(Outcome.Err(CANCELLED)) }
     }
 
     private fun failDecoding(e: RuntimeException) {
@@ -290,26 +341,32 @@ class AsrSessionCore(
     }
 
     private fun tryComplete() {
-        val cb = reply ?: return
-        if (closed) return
-        decodeFailure?.let { finishWith(cb, Outcome.Err(it)); return }
-        val p = processor ?: run { failure?.let { finishWith(cb, Outcome.Err(it)) }; return }
+        if (replies.isEmpty() || closed) return
+        decodeFailure?.let { finishWith(Outcome.Err(it)); return }
+        val p = processor ?: run { failure?.let { finishWith(Outcome.Err(it)) }; return }
         if (eofAtMs < 0 || inbox.isNotEmpty()) return
         val out = try {
             p.finish()
         } catch (e: RuntimeException) {
-            finishWith(cb, Outcome.Err(MurmurError.AsrFailed("decode:${e.javaClass.simpleName}")))
+            finishWith(Outcome.Err(MurmurError.AsrFailed("decode:${e.javaClass.simpleName}")))
             return
         }
         val tail = nowMs() - maxOf(finishAtMs, eofAtMs)
-        finishWith(cb, Outcome.Ok(Transcript(out.text, out.language, out.segments, PcmFormat.samplesToMs(samplesProcessed), out.speechMs, tail, p.unit)))
+        finishWith(Outcome.Ok(Transcript(out.text, out.language, out.segments, PcmFormat.samplesToMs(samplesProcessed), out.speechMs, tail, p.unit)))
     }
 
-    private fun finishWith(cb: (Outcome<Transcript>) -> Unit, result: Outcome<Transcript>) {
-        reply = null
+    private fun finishWith(result: Outcome<Transcript>) {
+        answer = result
         closed = true
+        inbox.clear()
         processor?.release()
         processor = null
-        cb(result)
+        val waiting = replies.toList()
+        replies.clear()
+        waiting.forEach { it(result) }
+    }
+
+    companion object {
+        val CANCELLED = MurmurError.AsrFailed("cancelled")
     }
 }
