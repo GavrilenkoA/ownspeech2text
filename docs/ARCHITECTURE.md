@@ -193,6 +193,7 @@ cDSP at the same time are proven only by DC8 (forced run).
 press ─▶ preflight ─▶ connect(:asr) ─▶ loadAsr(asr, vad) ─▶ startSession(pipe) ─▶ …segments… ─▶ finish
      └────────────▶ connect(:llm) ─▶ load(llm, n_ctx) ─▶ setPrefix(cache key: restore snapshot) ─▶ generate ─▶ Done
                                                      (both in parallel, ASR first priority)
+at the press: scheduleIdleExit(longest session + idleUnloadSec) on both hosts: no idle exit during a dictation (ADR-086)
 after Done/Failed: scheduleIdleExit(idleUnloadSec, default 60 s) on both hosts
 idle expired: unbind ─▶ service.onUnbind: unloadAll() ─▶ (native) mallopt(M_PURGE_ALL) ─▶ killProcess(myPid)
 next press within the idle window: no load at all (warm)

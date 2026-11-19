@@ -129,3 +129,19 @@ Still in work: WP-15, 16, 17, 18, 19, 20 (early paths).
   rounded up; ADR-084); a hub row that shows memory reads it from the catalog, so no text pins the old 1,310 / 770.
 - `:llm` probe facts now include `native.build` and `cpu.variant` (emulator: `libggml-cpu-haswell.so`); `htp.arch` only on
   the phone. Without the native libraries (integration debug APKs) the probe reports the LLM runtime missing.
+
+## Integration notes (wave-1 integration pass 5; ADR-085, ADR-086 in DECISIONS)
+
+Merged on `integration/wave1` in this pass: main 392d313 (stock prompt default.v1) and WP-20's wave-1 part (e2e harness,
+`:testapps:target`, DC8 smoke script, release checks). Still in work: WP-15, 16, 17, 18, 19, 21, and WP-20's wave 3.
+- ADR-085: every stock catalog LLM uses `promptProfile` default.v1 (catalog 2026-11-20.2): `prefixTokens` 1,047-1,101,
+  `nCtx` 7,168, the non-floor `memoryMb` values slightly lower. `GgufTemplates.STOCK_PROFILE` = default.v1. The shared
+  `FakeModelResolver` now defaults to default.v1 / `nCtx` 7,168 / `prefixTokens` 1,047: a test that pinned the old fake
+  numbers (9,216 / 3,129) or "default.v4" must follow. default.v4 / v4s stay packaged.
+- ADR-086: a press holds the `:asr`/`:llm` idle exit for the whole dictation (Done re-arms 60 s; the fake host records
+  `idleExitHistory`); `AsrService.probe` lists the OCR runtimes; `:app:assembleRelease` builds again and is part of the gate.
+- A unit marked failed (`UnitHealth`, a death or error during a load, ADR-066) gets a "Try again" action that runs that
+  unit's benchmark: the benchmark re-tests a failed unit and a valid record clears the mark (ADR-080, ADR-086). Without
+  it one crash during a load disables the unit until the next app version.
+- Catalog 2026-11-20.2 (ADR-085): stock LLM `nCtx` 7,168, `prefixTokens` about 1.05-1.1k, NPU/GPU `memoryMb` 24 MB lower
+  (Qwen3 224 MB lower); read everything from the catalog, no pinned numbers.

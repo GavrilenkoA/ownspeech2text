@@ -3,8 +3,9 @@
 Collected from the work-package reports at integration. Each item: the question in plain words, what the architect
 recommends, and whether it blocks anything. Answer in any order; "go with the recommendation" is a valid answer.
 
-Updated: wave-1 integration pass 4 (2026-11-20; WP-01..14 merged). Pass 4 (WP-10) added no open question: its two
-owner items were decided or done here (last section).
+Updated: wave-1 integration pass 5 (2026-11-20; WP-01..14 and WP-20's wave-1 part merged, plus the prompt decision
+default.v1). Pass 5 added one open prompt question (11) and three architect decisions (last section). Pass 4 (WP-10) added
+no open question: its two owner items were decided or done there.
 
 ## Models and ML
 
@@ -76,6 +77,16 @@ owner items were decided or done here (last section).
    `tones.v2.json` is preferred, say so and the port follows.
    **Blocks:** only the named tones themselves (WP-19's tone picker shows "preview" until then). Nothing else.
 
+11. **Will you write a fresh set of test dictations before the next prompt change?** (prompt work, PROMPT_EVAL.md
+   section R) The stock cleanup prompt is now default.v1 (ADR-085): on the held-out test set it ties default.v4 at a
+   third of the prompt length and answers fewer dictated questions. That test set has now been used for three ship
+   decisions, and the results of v1, v4 and the tested v6 are within noise of each other, so it can no longer tell a
+   better prompt from a lucky one. default.v1 also predates the screen-text context (it does not say the screen text is
+   raw OCR); the tested fix (v6) missed its rule by one answered question and was not shipped.
+   *Recommendation:* after the first phone pass (DC8), write about 60 short dictations from your own use (Russian,
+   English, mixed, with the screen they were made on) as the next held-out set; until then no prompt change ships.
+   **Blocks:** any future change of the stock prompt. Nothing in the app (the shipped prompt is fixed and tested).
+
 ## Decided by the architect in this pass (say if you disagree)
 
 - Emulator timing criteria (ASR as well as LLM) run with the host CPU exposed (`MURMUR_EMU_CPU_HOST=1`); the shared
@@ -114,3 +125,16 @@ owner items were decided or done here (last section).
 - Long dictations: cleanup runs once over the whole transcript (D4); on LFM3 NPU the longest cleaned dictation is
   ≈ 3.7 min, chunked cleanup would remove the limit (ADR-037).
 - Toolchain owner: `tools/gw` could export `ANDROID_HOME` itself (ADR-052).
+
+Pass 5 (prompt decision and WP-20):
+- The stock cleanup prompt is default.v1 for every stock model (ADR-085, by the rule written before the comparison
+  runs). The model's context window shrinks to 7,168 tokens and the first dictation after a prompt edit waits about a
+  third as long for the prompt to be read in. default.v4 stays in the app. A prompt edit you made under default.v4 shows
+  "Your edit was made for an older prompt" with Reset. Blocks nothing.
+- The speech and cleanup processes no longer shut down in the middle of a dictation: the 60 s "idle" timer now starts
+  only when a dictation ends (ADR-086, found by WP-20's end-to-end run). Blocks nothing.
+- If the speech model process is killed while the model is still loading (on the emulator, a SIGKILL), that model is
+  marked as failed on that unit, as for any crash during a load (ADR-066). The way back is the model hub: running the
+  model's benchmark re-tests a failed unit and a good result clears the mark (ADR-080); WP-18 shows "Try again" on a
+  failed unit for that (ADR-086). Blocks nothing.
+

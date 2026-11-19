@@ -106,3 +106,16 @@ Still in work: WP-15, 16, 17, 18, 19, 20 (early paths).
   load still marks the unit (ADR-066).
 - `:llm` NPU path (WP-10): `UnitUnavailable(NPU)` on the emulator, then a CPU load in the same process works; the
   `npu` build is `HEXAGON_SDK_DIR=.cache/spikes/llm-npu/work/hexagon-sdk native/llama/build_android.sh npu`.
+
+## Integration notes (wave-1 integration pass 5; ADR-085, ADR-086 in DECISIONS)
+
+Merged on `integration/wave1` in this pass: main 392d313 (stock prompt default.v1) and WP-20's wave-1 part (e2e harness,
+`:testapps:target`, DC8 smoke script, release checks). Still in work: WP-15, 16, 17, 18, 19, 21, and WP-20's wave 3.
+- ADR-085: every stock catalog LLM uses `promptProfile` default.v1 (catalog 2026-11-20.2): `prefixTokens` 1,047-1,101,
+  `nCtx` 7,168, the non-floor `memoryMb` values slightly lower. `GgufTemplates.STOCK_PROFILE` = default.v1. The shared
+  `FakeModelResolver` now defaults to default.v1 / `nCtx` 7,168 / `prefixTokens` 1,047: a test that pinned the old fake
+  numbers (9,216 / 3,129) or "default.v4" must follow. default.v4 / v4s stay packaged.
+- ADR-086: a press holds the `:asr`/`:llm` idle exit for the whole dictation (Done re-arms 60 s; the fake host records
+  `idleExitHistory`); `AsrService.probe` lists the OCR runtimes; `:app:assembleRelease` builds again and is part of the gate.
+- `AsrService.probe` now lists `ort/ppocr-det` and `ort/ppocr-rec` (ADR-086); a QNN OCR handler (`OcrHandlers.create`)
+  must keep them and add the NPU unit only when its session really loads.

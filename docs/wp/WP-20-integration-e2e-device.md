@@ -195,3 +195,29 @@ Still in work: WP-15, 16, 17, 18, 19, 20 (early paths).
   `load_death reason=… status=… lmk_report=… waited_ms=… oom=…` line: `waited_ms` says when the exit record arrived,
   which decides whether the 2 s poll can be shortened (ARCHITECTURE 6.4 row D). Without lmk reports the expected result
   is `lmk_report=false waited_ms=0 oom=false` and a unit mark (the documented fallback).
+
+## Integration notes (wave-1 integration pass 5; ADR-085, ADR-086 in DECISIONS)
+
+Merged on `integration/wave1` in this pass: main 392d313 (stock prompt default.v1) and WP-20's wave-1 part (e2e harness,
+`:testapps:target`, DC8 smoke script, release checks). Still in work: WP-15, 16, 17, 18, 19, 21, and WP-20's wave 3.
+- ADR-085: every stock catalog LLM uses `promptProfile` default.v1 (catalog 2026-11-20.2): `prefixTokens` 1,047-1,101,
+  `nCtx` 7,168, the non-floor `memoryMb` values slightly lower. `GgufTemplates.STOCK_PROFILE` = default.v1. The shared
+  `FakeModelResolver` now defaults to default.v1 / `nCtx` 7,168 / `prefixTokens` 1,047: a test that pinned the old fake
+  numbers (9,216 / 3,129) or "default.v4" must follow. default.v4 / v4s stay packaged.
+- ADR-086: a press holds the `:asr`/`:llm` idle exit for the whole dictation (Done re-arms 60 s; the fake host records
+  `idleExitHistory`); `AsrService.probe` lists the OCR runtimes; `:app:assembleRelease` builds again and is part of the gate.
+- Your wave-1 part is merged. Of `integ3-wiring.diff`, the Orchestrator idle hold (final form: a finite hold set at the
+  press, not 24 h), the AsrService OCR runtime keys and the overlay release dependency are on integration (ADR-086);
+  the rest (debug fake engines, WAV capture, timeout scale, status notifier and handler) is your wave-3 work with WP-15's
+  `AppContainer`. The DC8 dry run should now exit 0 without any Orchestrator patch: confirm it in wave 3.
+- edit10's prefix numbers change with default.v1 (about 1,047 tokens before the edit instead of 3,116); the assertion is
+  on the sha, so only the report numbers move. DC2's `llm_npu_smoke.sh` runs default.v1 at n_ctx 7,168.
+- Yours in wave 3 (ADR-086 item 5): the insertion ladder fix with a JVM `InsertionLadder` test (after a true but
+  unverified `commitText`, read again after a grace period and accept COMMIT_TEXT when the text grew by the insertion;
+  never escalate on an unreadable field after a true commit). Also: `FakeAsrEngine` should model a death during
+  `loadDelayMs` (today the fake keeps loading through `FakeInferenceHost.crash()`); ask WP-11's JVM test for
+  Down → Up(p2) → Crashed within one dispatch (`Orchestrator.watchDeaths` collects a conflated StateFlow), then drop
+  the 1 s settle in `PlatformEventsE2eTest.secondAsrDeathFailsWithAudio`.
+- Integration gate from now on: `assembleDebug testDebugUnitTest :app:assembleRelease` (your finding).
+- DEVICE_CHECKLIST: your rows fold every former "Wave-1 additions" line, so that section was removed at the merge; DC2
+  got the default.v1 numbers and an optional `device_prompt_bench.py` line (prompt work).

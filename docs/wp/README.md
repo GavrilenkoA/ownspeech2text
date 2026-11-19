@@ -87,7 +87,9 @@ Architect-owned (ask, don't edit): `settings.gradle.kts`, root `build.gradle.kts
     whole project in your worktree (with `ANDROID_HOME` exported), plus your module's instrumented tests where your
     WP asks for them: `tools/gw :<module>:assembleDebugAndroidTest`, then `adb -s emulator-NNNN install -r -t <apk>`
     and `adb -s emulator-NNNN shell am instrument -w <test pkg>/androidx.test.runner.AndroidJUnitRunner`
-    (TOOLCHAIN.md 4.4; running `connectedDebugAndroidTest` inside the 8 GB cgroup can OOM).
+    (TOOLCHAIN.md 4.4; running `connectedDebugAndroidTest` inside the 8 GB cgroup can OOM). If you touch a module's
+    dependencies or anything the app packages, also run `tools/gw --max-workers=6 :app:assembleRelease` (the debug
+    classpath can hide a missing dependency; the integration gate runs it, ADR-086).
 12. **Do not commit to the main branch.** Commit in your worktree branch only if the orchestrator asks; the
     orchestrator merges.
 

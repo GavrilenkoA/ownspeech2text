@@ -115,3 +115,18 @@ Still in work: WP-10, 15, 16, 17, 20 (early paths).
 Merged on `integration/wave1` in this pass: WP-10 (in addition to WP-01..09, 11, 12, 13, 14).
 Still in work: WP-15, 16, 17, 18, 19, 20 (early paths).
 - No WP-10 contract touches Settings. `debugTimeoutScale` is what WP-10's LFM3 emulator run needs (scale 4).
+
+## Integration notes (wave-1 integration pass 5; ADR-085, ADR-086 in DECISIONS)
+
+Merged on `integration/wave1` in this pass: main 392d313 (stock prompt default.v1) and WP-20's wave-1 part (e2e harness,
+`:testapps:target`, DC8 smoke script, release checks). Still in work: WP-15, 16, 17, 18, 19, 21, and WP-20's wave 3.
+- ADR-085: every stock catalog LLM uses `promptProfile` default.v1 (catalog 2026-11-20.2): `prefixTokens` 1,047-1,101,
+  `nCtx` 7,168, the non-floor `memoryMb` values slightly lower. `GgufTemplates.STOCK_PROFILE` = default.v1. The shared
+  `FakeModelResolver` now defaults to default.v1 / `nCtx` 7,168 / `prefixTokens` 1,047: a test that pinned the old fake
+  numbers (9,216 / 3,129) or "default.v4" must follow. default.v4 / v4s stay packaged.
+- ADR-086: a press holds the `:asr`/`:llm` idle exit for the whole dictation (Done re-arms 60 s; the fake host records
+  `idleExitHistory`); `AsrService.probe` lists the OCR runtimes; `:app:assembleRelease` builds again and is part of the gate.
+- The cleanup-prompt editor now shows `prompts/system/default.v1.md` (rules plus seven inline examples; default.v1 has no
+  few-shot turns) as the shipped text for every stock model. An edit stored with `baseProfile` "default.v4" (made under
+  the old stock profile) is `MADE_FOR_OLDER_PROMPT` (notice + Reset), as `PromptAssetsTest.editStateForTheSettingsRow`
+  pins.
