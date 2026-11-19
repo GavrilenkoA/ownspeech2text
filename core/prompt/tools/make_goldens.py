@@ -231,7 +231,8 @@ def synthetic() -> list[dict]:
     add("budget.many", C(lines199(9)), "проверка бюджета")
     # filters: clocks/status, confidence, letters+digits count, dedup with full case folding, field box, hint
     add("filters", C([L("12:52", 52, 300, h=34), L("5G 87%", 52, 380), L("9:41 PM", 52, 460), L("12 мин", 52, 540),
-                      L("LTE", 52, 620), L("4G", 52, 700), L("10:30 a.m.", 52, 780), L("Ч", 52, 860),
+                      L("LTE", 52, 620), L("4G", 52, 700), L("10:30 a.m.", 52, 780), L("Ч", 52, 860), L("5 ч", 300, 860),
+                      L("2 Ч.", 600, 860), L("3 Мин", 800, 860),
                       L("١٢:٣٠", 52, 940), L("²³", 52, 1020), L("Q!", 52, 1100), L("_a", 52, 1180),
                       L("Straße", 52, 1260), L("STRASSE", 52, 1340), L("ΟΔΟΣ", 52, 1420), L("οδος", 52, 1500),
                       L("Ровно 0.5", 52, 1580, conf=0.5), L("Чуть меньше", 52, 1660, conf=0.4999),
@@ -411,6 +412,54 @@ def unicode_tables() -> dict:
     }
 
 
+def guard_units() -> dict:
+    """Helpers of guard.py on inputs chosen for the places where Kotlin and Python differ (tokenising, case folding,
+    Unicode classes, regex corners)."""
+    texts = ["don\u2019t stop", "rock-n-roll", "a--b", "x' 'y", "под-ключ\u2019ение", "ёлка Ёж ЁЛКА", "Straße STRASSE",
+             "\u0661\u0662\u0663 abc", "e\u0301 caf\u00e9", "foo_bar baz", "snake_case-and\u2019more", "\u00b2\u00b3 \u00bd x\u00b2",
+             "word- -word", "\u2014dash\u2014", "a\U0001F44Db", "\u0130stanbul \u0131\u0131", "\u03a3\u03bf\u03c6\u03af\u03b1 \u039f\u0394\u039f\u03a3",
+             "Kubernetes кубернетис", "ClickHouse клик хаус", "\uff21\uff22\uff23 \ufb01le", "12-30 4\u00bd", "TCP/IP e-mail",
+             "\u2167 \u2460\u2461", "ﬀ ﬃ", "Ꭰ ꭰ", "", "   "]
+    words = [{"s": t, "result": guard._words(t)} for t in texts]
+    keys = [{"s": t, "result": guard.phonetic_key(t)} for t in texts]
+    sims = [{"term": a, "transcript": b, "result": guard.best_sim(a, b)} for a in texts[::3] for b in texts[1::4]]
+    outs = ["```bash\nls -la\n```", "```\n```", "«\"x\"»", "''x''", "\u201cHello\u201d", "`ls`", "\"a\" b \"c\"",
+            "<think>a</think><think>b</think> Text", "a</think>b", "<|im_start|>assistant\nHi<|endoftext|>",
+            "Результат: Готово.", "OUTPUT : done", "edited text: yes", "  \"\u00abx\u00bb\"  ", "Text"]
+    repairs = [{"output": o, "transcript": tr, "result": guard.repair(o, tr)} for o in outs for tr in ("ls", "\"quoted\" text", "```x")]
+    pre = ["Субтитры подготовила Мария", "СУБТИТРЫ СДЕЛАЛ X Y", "[ silence ]", "( Музыка )", "please subscribe now",
+           "Корректор А.Егорова", "корректор А. Егорова", "Thank you for watching", "Ok. Продолжение следует...",
+           "я тут\nThanks for watching!", "dimatorzok", "DimaTorzok!", "ok!Thanks for watching", "е\u0308лка", "\u00a0ну\u2003э\u0085",
+           "…", "—", "ээ… ну", "Hmm, UH-HUH", "спасибо за просмотр", "Подписывайтесь на канал!",
+           "please subscribe\u2028to the channel", "Субтитры сделал X\rY", "ok. Субтитры сделал Dima\u0085Torzok",
+           "Буду в пять. Субтитры делал А\u2029Б", "Thanks for watching!\r"]
+    prechecks = [{"transcript": t, "result": jres(guard.precheck(t))} for t in pre]
+    fallbacks = []
+    for t in ("привет", "ßtraße", "ǆungla", "ŉ", "\U0001d400bc", "  x  ", "1st", ""):
+        for bc in (None, "Привет!", "Купил", "строка:\n", "Hi.  ", "так…"):
+            for cat in (None, "search", "messaging", "code"):
+                c = {"v": 2, "app": {"package": "p", **({"category": cat} if cat else {})}}
+                if bc is not None:
+                    c["field"] = {"kind": "message", "before_cursor": bc}
+                fallbacks.append({"transcript": t, "ctx": c, "result": guard.fallback_text(t, c)})
+    tg = {"v": 2, "app": {"package": "p", "category": "messaging"}, "field": {"kind": "message"}}
+    adr = {"v": 2, "app": {"package": "p", "category": "address"}, "field": {"kind": "address"}}
+    pairs = [("one two three", "One \u00b2\u00b3\u2074\u2075 \u2076\u2077\u2078\u2079 \u00b9\u00b2\u00b3\u2074 two three.", tg),
+             ("one two three", "One 2345 6789 1234 two three.", tg),
+             ("скажи что-нибудь", "Я не могущественный, скажи что-нибудь.", tg),
+             ("я не могу прийти", "Я не могу прийти.", tg),
+             ("скажи привет", "Привет!\n  style: casual", tg),
+             ("класс", "\U0001F44D" * 10, tg),
+             ("класс \U0001F44D\U0001F44D\U0001F44D\U0001F44D\U0001F44D\U0001F44D\U0001F44D\U0001F44D", "Класс \U0001F44D\U0001F44D\U0001F44D\U0001F44D\U0001F44D\U0001F44D\U0001F44D\U0001F44D", tg),
+             ("саша собака гмейл точка ком", "sasha@gmail.com", adr),
+             ("\u0130stanbul is big and \u0131 know it", "Стамбул большой, и я это знаю.", tg),
+             ("купи молоко хлеб и яйца пожалуйста", "Купи молоко, хлеб и яйца, пожалуйста.\u2028", tg),
+             ("ну э-э короче да", "Да.", tg)]
+    guards = [{"transcript": t, "output": o, "ctx": c, "result": jres(guard.guard(t, o, c))} for t, o, c in pairs]
+    return {"words": words, "phonetic_key": keys, "best_sim": sims, "repair": repairs, "precheck": prechecks,
+            "fallback_text": fallbacks, "guard": guards}
+
+
 # ---------------------------------------------------------------- build
 def _escape_invisible(s: str) -> str:
     """JSON text with every control, format, separator, private-use or unassigned character written as \\uXXXX
@@ -542,7 +591,7 @@ def build() -> dict[str, bytes]:
             for o in outputs(c["transcript"], tg):
                 eval_guard.append({"case": c["id"], "output": o, "result": jres(guard.guard(c["transcript"], o, c["ctx"]))})
     g = {"guard_version": guard.GUARD_VERSION, "fillers": sorted(guard.FILLERS), "test_guard": record_guard_suite(),
-         "test_render_v2": v2_guard, "eval_precheck": eval_pre, "eval_guard": eval_guard}
+         "test_render_v2": v2_guard, "eval_precheck": eval_pre, "eval_guard": eval_guard, "units": guard_units()}
     files["guard.json"] = (dumps(g) + "\n").encode("utf-8")
     files["unicode.json"] = (json.dumps(unicode_tables(), ensure_ascii=True, separators=(",", ":")) + "\n").encode("ascii")
     return files

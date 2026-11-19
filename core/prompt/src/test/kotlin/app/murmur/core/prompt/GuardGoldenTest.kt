@@ -75,6 +75,41 @@ class GuardGoldenTest {
         assertEquals(2, c.checked)
     }
 
+    /** Helpers on inputs aimed at the Kotlin/Python differences (tokenising, folding, Unicode classes, regex corners). */
+    @Test
+    fun helperUnits() {
+        val u = golden.getValue("units").jsonObject
+        val c = Goldens.Collector("guard helper units")
+        for (e in u.getValue("words").jsonArray) e.jsonObject.let {
+            c.check("words ${it.str("s")}", it.getValue("result").strings(), g.words(it.str("s")!!))
+        }
+        for (e in u.getValue("phonetic_key").jsonArray) e.jsonObject.let {
+            c.check("phonetic_key ${it.str("s")}", it.str("result"), g.phoneticKey(it.str("s")!!))
+        }
+        for (e in u.getValue("best_sim").jsonArray) e.jsonObject.let {
+            c.check("best_sim ${it.str("term")} / ${it.str("transcript")}", it.getValue("result").jsonPrimitive.content.toDouble(),
+                g.bestSim(it.str("term")!!, it.str("transcript")!!))
+        }
+        for (e in u.getValue("repair").jsonArray) e.jsonObject.let {
+            c.check("repair ${Goldens.escape(it.str("output")!!)} / ${it.str("transcript")}", it.str("result"),
+                g.repair(it.str("output")!!, it.str("transcript")!!, null))
+        }
+        for (e in u.getValue("precheck").jsonArray) e.jsonObject.let {
+            c.check("precheck ${Goldens.escape(it.str("transcript")!!)}", precheckOf(it.getValue("result").jsonObject),
+                g.precheck(it.str("transcript")!!))
+        }
+        for (e in u.getValue("fallback_text").jsonArray) e.jsonObject.let {
+            c.check("fallback_text ${it.str("transcript")} ${it["ctx"]}", it.str("result"),
+                g.fallbackText(it.str("transcript")!!, Goldens.ctx(it["ctx"])))
+        }
+        for (e in u.getValue("guard").jsonArray) e.jsonObject.let {
+            c.check("guard ${Goldens.escape(it.str("transcript")!!)} -> ${Goldens.escape(it.str("output")!!)}",
+                verdict(it.getValue("result").jsonObject), g.guard(it.str("transcript")!!, it.str("output")!!, Goldens.ctx(it["ctx"])).triple())
+        }
+        c.done()
+        assertTrue(c.checked >= 300)
+    }
+
     @Test
     fun evalRowsPrecheck() {
         val c = Goldens.Collector("eval precheck")
