@@ -1,7 +1,7 @@
 # ml/ocr — reference OCR context pipeline (porting spec)
 
 The Python here is the specification the Android implementation is ported from (CONTEXT_V2). Every
-constant lives in `config.py` (`PIPELINE_VERSION = ocr.v1`); the golden suite `golden/` pins the behaviour.
+constant lives in `config.py` (`PIPELINE_VERSION = ocr.v2`, plus `source_hash()` of config.py/pipeline.py/postprocess.py so that a forgotten bump is still caught); the golden suite `golden/` pins the behaviour.
 Decisions and measurements: `docs/ml/OCR_CONTEXT.md`.
 
 ```
@@ -121,7 +121,9 @@ rectangle (status bar, IME window incl. suggestion strip, Murmur's own bubble/pi
 ## Parity with Android
 
 `golden/NNN.png` + `NNN.json` (26 pairs): inputs (`exclude_rects`), intermediate stages (`det_input`,
-`det_boxes` with scores, `rec` lines before post-processing) and the final `ocr`. Python reproduces them
+`det_boxes` with scores, `rec` lines before post-processing) and the final `ocr`; also `field_box` (the
+focused field the render marked, = ctx.field.box: on the phone it comes from accessibility, not OCR, and it is
+there so that the Kotlin context renderer can be checked on the same screens). Python reproduces them
 byte for byte (`make -C ml/ocr golden-check`). An Android port on another CPU/NPU will not be bit-exact
 (float kernels differ). Acceptance: same number of lines, boxes within 2 px, texts identical for >= 98 % of
 lines and CER <= 0.5 % on the rest, conf within 0.02; and the post-processing alone (feed `stages.rec` into

@@ -38,7 +38,8 @@ evaluate() {  # $1=model file  $2=out dir  $3=system/profile  $4=label  $5=dev|t
     || { log "eval $4: profile $3 not found, skip"; return 0; }
   log "eval $4 ($3, $5)"
   timed "eval:$4" "$PY" -m ml.eval.run_eval --model "$1" --data "${sets[@]}" --out "$2" --system "$3" --label "$4" \
-    --llama-bin "$MURMUR_LLAMA_BIN" --ngl "$MURMUR_LLAMA_NGL" >>"$MURMUR_LOGS/eval-final.log" 2>&1
+    --llama-bin "$MURMUR_LLAMA_BIN" --ngl "$MURMUR_LLAMA_NGL" >>"$MURMUR_LOGS/eval-final.log" 2>&1 \
+    || log "eval $4 FAILED (logs/eval-final.log); predictions so far are kept, re-run resumes it"
 }
 
 # ---- 1. stock baselines (optional on the pod)

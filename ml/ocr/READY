@@ -5,3 +5,4 @@ Venv: .cache/ml/ocr/venv (ml/ocr/requirements.txt). Models: .cache/ml/ocr/ (MURM
 Output is deterministic (byte-identical across runs and thread counts). Pipeline constants: ml/ocr/config.py
 (PIPELINE_VERSION in each golden file); they may still be tuned, the interface will not change.
 Tests: .cache/ml/ocr/venv/bin/python -m pytest -q ml/ocr/tests
+2026-11-19: PIPELINE_VERSION ocr.v2 (contexts labelled ocr.v1 are not reproducible); config.source_hash().

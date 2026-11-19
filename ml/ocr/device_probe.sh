@@ -7,8 +7,10 @@
 # display metrics (wm size / density / status bar / IME frames), then runs the reference OCR pipeline on the
 # screenshots and writes the error profile next to the rendered-screen profile.
 # Output: .cache/ml/ocr/real/fold7/{*.png,*.xml,*.meta.json,*.ocr.json,report.json,metrics.txt}
-# Expected: report.json "aggregate" with cer, item_exact, unmatched_ocr_line_share for ~30 screenshots, and
-# metrics.txt with the two physical sizes (1080x2520 and 1968x2184 if the spec sheets are right) and densities.
+# Expected: report.json "aggregate" with cer, item_exact, unmatched_ocr_line_share for ~30 screenshots,
+# "focused_fields" (bounds of the focused EditText per shot: compare with the templates' field_box choice in
+# ml/screens/README.md), and metrics.txt with the two physical sizes (1080x2520 and 1968x2184 if the spec
+# sheets are right) and densities.
 # Nothing personal leaves the machine; delete the folder after the numbers are copied into OCR_CONTEXT.md.
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -42,6 +44,11 @@ round() {
   echo "Now open YOUR messenger (Telegram/WhatsApp) on a work chat, tap the message field so the keyboard shows, press Enter"; read -r
   cap "${t}_messenger_kb"
   echo "Open your mail app on a thread, press Enter"; read -r; cap "${t}_mail"
+  # focused-field bounds (ctx.field.box) of the big editors: report.json aggregate.focused_fields
+  echo "Open a note in your notes app and tap into its text (keyboard up), press Enter"; read -r; cap "${t}_note_kb"
+  echo "Start a reply in your mail app and tap into the body (keyboard up), press Enter"; read -r; cap "${t}_mail_compose_kb"
+  echo "If you use a terminal or code editor app, open it with the keyboard up and press Enter (else just Enter)"; read -r
+  cap "${t}_editor_kb"
 }
 
 echo "Fold the phone (cover display), unlock it, press Enter"; read -r

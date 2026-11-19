@@ -24,7 +24,7 @@ from ml.common.util import rng as mkrng, stable_id
 from ml.data.synth import asr_noise as AN
 from ml.data.synth import disfluency as D
 from ml.data.synth import screen as SCR
-from ml.data.synth.channel import Channel
+from ml.data.synth.channel import Channel, _lang_runs
 from ml.data.synth.teacher_prompts import GEN_VERSION
 
 NOISE_ONLY = {
@@ -404,11 +404,14 @@ def build(sc: dict, ex: dict, channel: Channel, teacher: str, backend: SCR.Backe
         chan_terms = [t for t in sc["spoken_terms"] if _contains(spoken, t["text"])]  # exact Latin spelling only
         if cat == "context_resolution":
             form, src = None, None
+            # a term inside an English clause of code-switched speech is misheard the English way
+            tlang = "en" if lang == "mixed" and channel.can_switch(model) and any(
+                k == "en" and find_term(seg, term["text"]) for seg, k in _lang_runs(spoken)) else lang
 
             def ff(prev, _r=rk):
                 nonlocal form, src
                 if form is None:
-                    form, src = garble_form(term, lang, channel, model, prev, _r)
+                    form, src = garble_form(term, tlang, channel, model, prev, _r)
                 return form
             sp, n = _replace_term(sp, term["text"], ff)
             if not form or form.lower() == term["text"].lower():
@@ -503,6 +506,9 @@ def build(sc: dict, ex: dict, channel: Channel, teacher: str, backend: SCR.Backe
     rec = _record(sc, stable_id("syn", sc["sid"]), cat, ctx, hyp, target, meta)
     out = [rec]
     if cat == "context_resolution" and sc.get("counterpart") and garble:
+        if re.search(r"[A-Za-z]", garble["form"]):  # a Latin misspelling has no sensible no-context answer
+            out.append({"_reject": "counterpart_latin_garble", "category": "context_counterpart", "term": term["text"]})
+            return out
         try:
             cp_ctx, cp_smeta = counterpart_ctx(sc, smeta["spec"], term["text"], backend)
         except Reject as rj:  # the parent stays; the counterpart is reported as dropped

@@ -25,7 +25,11 @@ for s in $STAGES; do
     train)
       [[ -f "$MURMUR_DATA/train.jsonl" && -f "$MURMUR_DATA/dev.jsonl" ]] \
         || { log "no $MURMUR_DATA/{train,dev}.jsonl: push it with ml/pod/push_code.sh WITH_DATA=1"; exit 2; }
-      timed stage:train bash ml/pod/train_matrix.sh ;;
+      # a failed run (crash, parity FAIL) must not cost the finalists of the others: log it and go on;
+      # budget refusal (5) and preflight abort (6) stop the session
+      rc=0; timed stage:train bash ml/pod/train_matrix.sh || rc=$?
+      if (( rc == 5 || rc == 6 )); then exit $rc; fi
+      (( rc == 0 )) || log "stage train: some runs failed (logs/run_all.log, logs/runs.jsonl); continuing with the finished ones" ;;
     eval) timed stage:eval bash ml/pod/export_eval.sh ;;
     *) log "unknown stage $s"; exit 2 ;;
   esac

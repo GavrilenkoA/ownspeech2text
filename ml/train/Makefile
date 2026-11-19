@@ -12,13 +12,15 @@ export MURMUR_LLAMA_SRC ?= $(C)/src/llama.cpp-$(LLAMA_TAG)
 export MURMUR_LLAMA_BIN ?= $(REPO)/.cache/ml/llm/bin/llama-$(LLAMA_TAG)
 export PYTHONPATH := $(REPO)
 export OMP_NUM_THREADS ?= 6
-SYSTEM ?= finetuned
+SYSTEM ?= finetuned.v2
 TIME   ?= /usr/bin/time -f "TIME %e s, maxrss %M KB:"
 BASE   ?= $(C)/models/Qwen3.5-0.8B
 # BF16-vs-Q4_0 quantisation loss in the dry run on the first N smoke cases (BF16 is slow on CPU)
 QLIMIT ?= 8
 # optional cap on the Q4_0 dry-run eval (default: all 24 smoke cases)
 EVAL_LIMIT ?=
+# merged-HF vs BF16-GGUF parity items in the dry run (HF generation on CPU is slow: ~10 s per item)
+PARITY_N ?= 8
 
 .PHONY: venv llama-src test smoke-data dryrun eval tiny
 # dryrun-% (lora|dora|full) must NOT be .PHONY: make never applies pattern rules to phony targets
@@ -53,10 +55,13 @@ dryrun-%: smoke-data
 	  (cd $(REPO) && $(HEAVY) $(TIME) $(PY) -m ml.train.merge --run $(C)/runs/dryrun-$*)
 	test -f $(C)/runs/dryrun-$*/gguf/manifest.json || (cd $(REPO) && $(HEAVY) $(TIME) $(PY) -m ml.train.export \
 	  --run $(C)/runs/dryrun-$* --name murmur-dryrun-$* --keep-bf16)
+	# export parity: merged HF (torch) vs BF16 GGUF (llama.cpp), greedy, PARITY_N smoke dev items
+	cd $(REPO) && $(HEAVY) $(TIME) $(PY) -m ml.train.parity --run $(C)/runs/dryrun-$* \
+	  --gguf $(C)/runs/dryrun-$*/gguf/murmur-dryrun-$*-BF16.gguf --data $(C)/data/smoke.dev.jsonl -n $(PARITY_N)
 	cd $(REPO) && $(HEAVY) $(TIME) $(PY) -m ml.eval.run_eval --model $(C)/runs/dryrun-$*/gguf/murmur-dryrun-$*-Q4_0.gguf \
-	  --data $(C)/data/smoke.test.jsonl --out $(C)/runs/dryrun-$*/eval/Q4_0 --label "dryrun-$* Q4_0" $(if $(EVAL_LIMIT),--limit $(EVAL_LIMIT))
+	  --data $(C)/data/smoke.test.jsonl --out $(C)/runs/dryrun-$*/eval/Q4_0 --system $(SYSTEM) --label "dryrun-$* Q4_0" $(if $(EVAL_LIMIT),--limit $(EVAL_LIMIT))
 	cd $(REPO) && $(HEAVY) $(TIME) $(PY) -m ml.eval.run_eval --model $(C)/runs/dryrun-$*/gguf/murmur-dryrun-$*-BF16.gguf \
-	  --data $(C)/data/smoke.test.jsonl --out $(C)/runs/dryrun-$*/eval/BF16 --label "dryrun-$* BF16" --limit $(QLIMIT)
+	  --data $(C)/data/smoke.test.jsonl --out $(C)/runs/dryrun-$*/eval/BF16 --system $(SYSTEM) --label "dryrun-$* BF16" --limit $(QLIMIT)
 	rm -rf $(C)/runs/dryrun-$*/eval/Q4_0-first$(QLIMIT) && cp -r $(C)/runs/dryrun-$*/eval/Q4_0 $(C)/runs/dryrun-$*/eval/Q4_0-first$(QLIMIT)
 	cd $(REPO) && $(PY) -m ml.eval.run_eval --rescore $(C)/runs/dryrun-$*/eval/Q4_0-first$(QLIMIT) --limit $(QLIMIT) >/dev/null
 	cd $(REPO) && $(PY) -m ml.eval.compare $(C)/runs/dryrun-$*/eval/BF16/report.json \

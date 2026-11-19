@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import re
 from collections import Counter
+from functools import lru_cache
 
 from ml.common import text as T
 from ml.common.render_bridge import rendered_context
@@ -173,10 +174,23 @@ def check(rec: dict) -> list[str]:
     if cat == "context_counterpart":
         if (chk.get("forbid") or [""])[0].lower() in low:
             out.append("counterpart_has_term")
+    if _copies_prompt_example(spoken + " " + tgt):
+        out.append("copied_prompt_example")  # the teacher reused an illustration from its instructions
     if rec["ctx"].get("v") == 2:  # CONTEXT_V2 rules on OCR lines + the current rendered block (same as recheck)
         from ml.data.recheck import rule_errors
         out += ["ctx_rule:" + e.split(":")[1] for e in rule_errors(rec)]
     return out
+
+
+@lru_cache(maxsize=1)
+def _prompt_examples() -> tuple[str, ...]:
+    from ml.data.contam import prompt_phrases
+    return tuple(p.lower().replace("ё", "е") for p in prompt_phrases() if len(p) >= 12 and len(p.split()) >= 3)
+
+
+def _copies_prompt_example(text: str) -> bool:
+    t = text.lower().replace("ё", "е")
+    return any(p in t for p in _prompt_examples())
 
 
 def review_flags(rec: dict) -> list[str]:

@@ -11,6 +11,7 @@
 # Env: EVAL_DEV (contract JSONL files; default: the synthetic ctx-v2 dev split + prompts dev.v2 +
 #      smoke v2; v1-context sets are legacy and never used for selection), QUANTS (default Q4_0),
 #      KEEP_MERGED=1, CONFIG_DIR (default ml/train/configs), PARITY_N (default 24, 0 = skip),
+#      PARITY_MIN_AGREE (default 0.8; only the random-weight local simulation lowers it),
 #      RUN_RESERVE_S (projected seconds of the whole run, from train_matrix.sh; budget check).
 set -euo pipefail
 cd "$(dirname "$0")/../.."
@@ -56,7 +57,7 @@ if (( PARITY_N > 0 )) && ! parity_ok; then
   step_check "parity $run" "$(median_seconds parity: 90)"
   log "parity $run: merged HF vs BF16 GGUF, $PARITY_N dev items"
   if ! timed "parity:$run" "$PY" -m ml.train.parity --run "$dir" --gguf "$dir/gguf/$name-BF16.gguf" --data "${DEV[0]}" \
-      -n "$PARITY_N" --system "$FTSYS" --llama-bin "$MURMUR_LLAMA_BIN" --ngl "$MURMUR_LLAMA_NGL" >>"$MURMUR_LOGS/export-$run.log" 2>&1; then
+      -n "$PARITY_N" --min-agree "${PARITY_MIN_AGREE:-0.8}" --system "$FTSYS" --llama-bin "$MURMUR_LLAMA_BIN" --ngl "$MURMUR_LLAMA_NGL" >>"$MURMUR_LOGS/export-$run.log" 2>&1; then
     log "PARITY FAILED for $run: the GGUF does not reproduce the trained model ($dir/eval/parity.json); not evaluated"
     exit 3
   fi

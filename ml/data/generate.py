@@ -210,6 +210,7 @@ def run(a) -> dict:
     write_jsonl(out / "review.jsonl", review, key_order=False)
     stats = {
         "args": {k: v for k, v in vars(a).items()}, "teacher": getattr(getattr(teacher, "cfg", None), "public", lambda: {"name": "stub"})(),
+        "provenance": provenance(teacher),
         "noise_source": channel.source, "scenarios_planned": len(plan), "teacher_scenarios": len(teach),
         "teacher_jobs": len(jobs), "teacher_run": st_t, "topup_run": st_top, "teacher_examples": len(ex),
         "batch_problems": dict(bad), "built_and_filtered_kept": len(recs) + len(dups), "after_dedup": len(recs),
@@ -237,6 +238,17 @@ def run(a) -> dict:
     (out / "stats.json").write_text(json.dumps(stats, ensure_ascii=False, indent=1), encoding="utf-8")
     (out / "REPORT.md").write_text(report(stats), encoding="utf-8")
     return stats
+
+
+def provenance(teacher) -> dict:
+    """Who wrote the targets, and the open licence question (docs/ml/DATA_CARD.md section 2a)."""
+    name = getattr(getattr(teacher, "cfg", None), "model", None) or getattr(teacher, "name", "stub")
+    return {"teacher_model": name, "teacher_api": "OpenAI-compatible Responses API (local proxy, owner's account)"
+            if name != "stub" else "stub", "generated": time.strftime("%Y-%m-%d"), "prompt": GEN_VERSION,
+            "terms_status": "UNCONFIRMED: the teacher provider's terms on training models with its outputs and on "
+                            "publishing such models need the owner's confirmation before any public upload",
+            "third_party_text": "none copied; screen content and targets are teacher-written, noise tables from "
+                                "ml/roundtrip, fonts per ml/screens"}
 
 
 def asr_disfluency(final: list[dict], channel: Channel) -> dict:

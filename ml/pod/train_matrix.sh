@@ -27,7 +27,8 @@ read -r -a B <<<"${PHASE_B-q08-lora q2-lora}"
 # Qwen3.5-0.8B ~0.6x and Qwen3.5-2B ~1.3x of LFM3-1.7B (params, with fla kernels); full FT ~2.5x.
 declare -A RUN_COST=([lfm3-r16]=1.0 [lfm3-r64]=1.1 [lfm3-r16-lr5e-4]=1.0 [lfm3-r16-e5]=1.67 [lfm3-dora-r16]=1.3
                      [q08-lora]=0.6 [q2-lora]=1.3 [full-fallback]=2.5)
-ANCHOR_DEFAULT_S="${ANCHOR_DEFAULT_S:-900}"   # [A] before the anchor ran: 15 min
+ANCHOR_DEFAULT_S="${ANCHOR_DEFAULT_S:-1620}"  # [A] before the anchor ran: 27 min (REQUEST.md time budget)
+FINALIST_RESERVE_S="${FINALIST_RESERVE_S:-1800}"  # [A] export_eval.sh after the matrix: 3 finalists x 3 evals + cards (30 min)
 
 # ---- preflight
 qwen=0; for r in "${B[@]}"; do [[ "$r" == q* ]] && qwen=1; done
@@ -43,23 +44,28 @@ if [[ -f "$MARK_VOL/llama-cpu-fallback" && -z "${ALLOW_CPU_EVAL:-}" ]]; then
 fi
 
 run_seconds() {  # measured wall seconds of one finished run (all its timed steps)
-  jq -s --arg r "$1" '[.[] | select(.stage | test(":" + $r + "(:|$)")) | .seconds] | add // 0' \
-    "$MURMUR_LOGS/timings.jsonl" 2>/dev/null || echo 0
+  [[ -s "$MURMUR_LOGS/timings.jsonl" ]] || { echo 0; return; }
+  jq -s --arg r "$1" '[.[] | select(.stage | test(":" + $r + "(:|$)")) | .seconds] | add // 0' "$MURMUR_LOGS/timings.jsonl"
 }
 anchor_s() { local s; s=$(run_seconds "${A[0]:-lfm3-r16}"); (( s > 0 )) && echo "$s" || echo "$ANCHOR_DEFAULT_S"; }
 proj() { awk -v a="$(anchor_s)" -v f="${RUN_COST[$1]:-1.5}" 'BEGIN{print int(a*f)}'; }
+# mandatory work still ahead (phase B runs not finished + the finalist evals): an OPTIONAL run must fit the
+# target together with it, so sweep extras can never push phase B past TARGET_GPU_HOURS
+rest_s() { local t=$FINALIST_RESERVE_S r; for r in "${B[@]}"; do
+  [[ -f "$MURMUR_RUNS/$r/eval/Q4_0-dev/report.json" ]] || t=$(( t + $(proj "$r") )); done; echo "$t"; }
 do_run() {  # $1 run  $2 hard|target  rest: overrides
   local r=$1 kind=$2; shift 2
   if [[ -f "$MURMUR_RUNS/$r/eval/Q4_0-dev/report.json" ]]; then bash ml/pod/run_one.sh "$r" "$@"; return; fi
   local p; p=$(proj "$r")
-  budget_check "run $r" "$p" "$kind" || return 5
+  if [[ "$kind" == target ]]; then budget_check "optional run $r (+ mandatory rest $(rest_s)s)" $(( p + $(rest_s) )) target || return 5
+  else budget_check "run $r" "$p" hard || return 5; fi
   RUN_RESERVE_S=$p bash ml/pod/run_one.sh "$r" "$@"
 }
 
 fail=0
 # ---- anchor first, then report measured throughput and the projections
 if ((${#A[@]})); then
-  do_run "${A[0]}" hard || fail=1
+  do_run "${A[0]}" hard || { rc=$?; (( rc == 5 )) && fail=5 || fail=1; }
   if [[ -f "$MURMUR_RUNS/${A[0]}/train_info.json" ]]; then
     jq -c '{anchor: .run_name, tokens_per_s: .approx_tokens_per_s, train_s: .train_runtime_s, steps: .steps,
             peak_gb: .peak_cuda_mem_gb, device: .device}' "$MURMUR_RUNS/${A[0]}/train_info.json" \
@@ -78,7 +84,7 @@ if [[ -s "$MURMUR_RUNS/selection-phaseA.txt" ]]; then  # also reused when phase 
   winner=$(sed -n 1p "$MURMUR_RUNS/selection-phaseA.txt"); read -r -a OV <<<"$(sed -n 2p "$MURMUR_RUNS/selection-phaseA.txt")"
   log "phase A winner: $winner (${OV[*]})"
 fi
-for r in "${B[@]}"; do do_run "$r" hard "${OV[@]}" || fail=1; done
+for r in "${B[@]}"; do do_run "$r" hard "${OV[@]}" || { rc=$?; (( rc == 5 )) && fail=5 || { (( fail == 5 )) || fail=1; }; }; done
 if [[ -n "${FULL:-}" ]]; then
   do_run full-fallback target || { [[ $? == 5 ]] && log "skip optional full-fallback (budget)" || fail=1; }
 fi
