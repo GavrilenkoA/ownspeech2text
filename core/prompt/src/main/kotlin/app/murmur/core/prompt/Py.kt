@@ -19,8 +19,13 @@ import java.util.Locale
  * - `str.isupper()` / `str.islower()` of one character: Lu / Ll plus Other_Uppercase / Other_Lowercase, spelled out
  *   (OpenJDK's Character includes them, Android's does not).
  * - Regexes that stay on java.util.regex use explicit classes for `\w`/`\s`/`\b` (Android's regex is ICU-based).
- * PyTextTest checks every one of these against goldens/unicode.json (CPython's tables) for every code point that both
- * Unicode versions assign, on the host JVM and on ART (the API 36 emulator runs the same suite through dalvikvm).
+ * - re.I: sre equates a letter with the characters of the same simple lowercase plus a few extra equivalences
+ *   (ſ = s, K = k, İ = ı = i, Cyrillic ᲀ = в ...), one character for one character. ICU's CASE_INSENSITIVE uses full
+ *   case folding instead (the ligature "ﬆ" matches "st", "İ" stops matching "i"), so no pattern uses the flag:
+ *   [ignoreCase] spells every letter out as its exact class ([ignoreCaseVariants]).
+ * PyTextTest checks every one of these against goldens/unicode.json (CPython's tables and sre's re.I classes) for
+ * every code point that both Unicode versions assign, on the host JVM and on ART (the API 36 emulator runs the same
+ * suite through dalvikvm).
  */
 internal object Py {
     fun len(s: String): Int = s.codePointCount(0, s.length)
@@ -236,4 +241,93 @@ internal object Py {
     const val W = "\\p{L}\\p{Nd}\\p{Nl}\\p{No}_"
     /** Python `\s` as a Java character class body. */
     const val S = "\\t\\n\\x0B\\f\\r\\x1C-\\x20\\x85\\xA0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000"
+
+    // ------------------------------------------------------------ re.I without the regex engine's case folding
+    /** sre's extra equivalences (re._casefix) for the supported letters, beyond the letter's own upper case. */
+    private val IGNORECASE_EXTRA = mapOf(
+        'i' to "İı", 'k' to "K", 's' to "ſ",
+        'в' to "ᲀ", 'д' to "ᲁ", 'о' to "ᲂ", 'с' to "ᲃ", 'т' to "ᲄᲅ", 'ъ' to "ᲆ",
+    )
+    private val IGNORECASE: Map<Char, String> = buildMap {
+        for (lo in ('a'..'z') + ('а'..'я') + 'ё') {
+            val up = if (lo == 'ё') 'Ё' else lo - 32
+            val v = "$lo$up" + IGNORECASE_EXTRA[lo].orEmpty()
+            put(lo, v)
+            put(up, v)
+        }
+    }
+
+    /**
+     * The characters Python's re.I (str pattern) matches the literal letter [c] with: those whose simple lowercase is
+     * c's or one of sre's extra equivalences of it, e.g. "sSſ", "iIİı", "kKK", "тТᲄᲅ". Supported: Latin a-z and
+     * Cyrillic а-я, ё in either case (every re.I pattern of guard.py and render.py; unicode.json `re_ignorecase`
+     * holds CPython's answer for each of them).
+     */
+    fun ignoreCaseVariants(c: Char): String =
+        IGNORECASE[c] ?: throw IllegalArgumentException("no re.I class for U+%04X".format(c.code))
+
+    /** [cp] matches the literal letter [c] under Python's re.I. */
+    fun ignoreCaseEquals(cp: Int, c: Char): Boolean = cp <= 0xFFFF && ignoreCaseVariants(c).indexOf(cp.toChar()) >= 0
+
+    /**
+     * A Python re.I pattern as a pattern to compile WITHOUT Pattern.CASE_INSENSITIVE: every letter outside a
+     * character class becomes the class [ignoreCaseVariants]. Neither engine's own flag matches sre: Android's ICU
+     * regex applies full case folding ("ﬆ" U+FB06 matches "st", "ﬁ" matches "fi", while "İ" U+0130 and "ı" U+0131 no
+     * longer match "i"), and the JDK uses its own Unicode tables. Character classes are copied unchanged and must not
+     * contain letters (only `\p{..}`, `\x..`, `\u....` and control escapes); an escaped letter outside a class (`\s`,
+     * `\b`, ...) is rejected: spell it as an explicit class ([S], [W]).
+     */
+    fun ignoreCase(pattern: String): String {
+        val b = StringBuilder(pattern.length * 3)
+        var i = 0
+        while (i < pattern.length) {
+            val c = pattern[i]
+            when {
+                c == '\\' -> {
+                    val n = pattern[i + 1]
+                    require(!n.isLetterOrDigit()) { "escape \\$n outside a class in a re.I pattern" }
+                    b.append(c).append(n)
+                    i += 2
+                }
+                c == '[' -> {
+                    val end = classEnd(pattern, i)
+                    b.append(pattern, i, end)
+                    i = end
+                }
+                c.isLetter() -> {
+                    b.append('[').append(ignoreCaseVariants(c)).append(']')
+                    i++
+                }
+                else -> {
+                    b.append(c)
+                    i++
+                }
+            }
+        }
+        return b.toString()
+    }
+
+    /** End (exclusive) of the character class that opens at [start]. */
+    private fun classEnd(p: String, start: Int): Int {
+        var j = start + 1
+        if (p[j] == '^') j++
+        while (p[j] != ']') {
+            if (p[j] == '\\') {
+                j += when (p[j + 1]) {
+                    'p', 'P' -> p.indexOf('}', j) + 1 - j
+                    'x' -> 4
+                    'u' -> 6
+                    't', 'n', 'f', 'r' -> 2
+                    else -> {
+                        require(!p[j + 1].isLetterOrDigit()) { "escape \\${p[j + 1]} in a class of a re.I pattern" }
+                        2
+                    }
+                }
+            } else {
+                require(!p[j].isLetter()) { "letter ${p[j]} in a class of a re.I pattern" }
+                j++
+            }
+        }
+        return j + 1
+    }
 }

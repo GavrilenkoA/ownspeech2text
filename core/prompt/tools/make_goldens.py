@@ -19,7 +19,8 @@ Stdlib only. prompts/ is imported read-only (no bytecode is written next to it).
   guard.json                                  every call prompts/tests/test_guard.py makes (recorded while the
                                               suite runs, ctx v1 dicts restated as the equivalent ctx v2) plus
                                               guard/precheck over the eval rows with typical model outputs
-  unicode.json                                the Python str predicates and case mappings the ports rely on
+  unicode.json                                the Python str predicates and case mappings the ports rely on, and
+                                              which characters re.I (sre) equates with each literal letter
 
 The full prompt of a golden is prefix + suffix; this generator asserts that it equals render.render_prompt (no
 style or system override) and ml/eval/contract.render_prompt (with a style override), i.e. what eval and
@@ -51,7 +52,7 @@ from ml.eval import contract  # noqa: E402  how training and eval render (style 
 PROFILES = ("default.v4", "default.v4s", "finetuned.v1")
 STOCK = ("default.v4", "default.v4s")
 TEMPLATES = ("qwen3.5", "qwen3", "lfm3", "lfm2.5")
-SETS = ("eval/sets/dev.v2.jsonl", "eval/sets/test.v2.jsonl", "eval/smoke_cases.v2.jsonl")
+SETS = ("eval/sets/dev.v2.jsonl", "eval/sets/test.v2.jsonl", "eval/smoke_cases.v2.jsonl", "eval/sets/dev.v2dense.jsonl")
 assert set(TEMPLATES) == set(render.TEMPLATES), "render.TEMPLATES changed: update the Kotlin port and this list"
 
 
@@ -249,6 +250,32 @@ def synthetic() -> list[dict]:
     add("transcript.empty", C(CHAT), "")
     add("transcript.whitespace", C(CHAT), "строка1\r\nстрока2\tтаб\xa0nbsp  двойной \x07 звонок разделитель")
     add("transcript.nfd", C([L("Йошкар-Ола", 52, 300)]), "й ёж café ＡＢ")
+
+    # exact boundaries of the context rules (each pair is one step on either side of a comparison in render.py)
+    # clip_start keeps text after the first space only when that space is before 40 % of the 300 kept code points
+    for cid, bc in [("space_at_120", "q" * 50 + "w" * 120 + " " + "e" * 179), ("space_at_119", "q" * 50 + "w" * 119 + " " + "e" * 180)]:
+        add(f"before_cursor.{cid}", C(CHAT, field={"kind": "message", "before_cursor": bc, "box": [21, 2300, 1059, 2410]}),
+            "граница обрезки")
+    # clip_end (hint, 60 code points) cuts at the last space only when it is past 60 % of them
+    for cid, sp in (("space_at_36", 36), ("space_at_37", 37)):
+        hint_text = "h" * sp + " " + "k" * (69 - sp)
+        add(f"hint.{cid}", C(CHAT, field={"kind": "message", "hint": hint_text, "box": [21, 2300, 1059, 2410]}), "граница подсказки")
+
+    # line merging: heights within 10 % of the previous line, left edges within w/50, gap below half its height
+    def pairs(specs):
+        ls = []
+        for i, (dx, gap, h2) in enumerate(specs):
+            y = 300 + 220 * i
+            ls += [L(f"Первая строка пары {i}", 52, y, h=40), L(f"вторая строка пары {i}", 52 + dx, y + 40 + gap, h=h2)]
+        return ls
+    add("merge.height", C(pairs([(0, 5, 44), (0, 5, 45), (0, 5, 36), (0, 5, 35)])), "проверь склейку")
+    add("merge.offset_gap", C(pairs([(21, 5, 40), (22, 5, 40), (-21, 5, 40), (0, 19, 40), (0, 20, 40), (0, 0, 40), (0, -1, 40)])),
+        "проверь склейку")
+    # a block is "right" (incoming/outgoing side) when x0 >= 15 % of w and the right margin is under 10 % of w
+    add("side.threshold", C([L("Справа точно на границе", 162, 300, x1=973), L("Левее границы на пиксель", 161, 520, x1=973),
+                             L("Правый край не дотянут", 300, 740, x1=972)]), "кто где")
+    # a clock/status block is dropped only when it is <= 12 code points after merging
+    add("clock.length", C([L("1:00 - 11:00", 52, 300), L("10:00 - 11:00", 52, 520)]), "время")
     return out
 
 
@@ -409,7 +436,54 @@ def unicode_tables() -> dict:
         "isdecimal": ranges(str.isdecimal), "isdigit": ranges(str.isdigit), "isalpha": ranges(str.isalpha),
         "isupper": ranges(str.isupper), "islower": ranges(str.islower),
         "casefold": mapping(str.casefold), "lower": mapping(str.lower), "upper": mapping(str.upper),
+        "re_ignorecase": ignorecase_table(),
     }
+
+
+IGNORECASE_PATTERNS = {"guard._HALLU_FULL": guard._HALLU_FULL, "guard._HALLU_TAIL": guard._HALLU_TAIL,
+                       "guard._LABEL": guard._LABEL, "guard._LEAK": guard._LEAK, "guard._PREAMBLE": guard._PREAMBLE,
+                       "render._CLOCK": render._CLOCK}
+
+
+def _literals(parsed, out: set[int]) -> None:
+    """Code points of every LITERAL in a parsed sre pattern (also inside groups, branches, repeats, classes)."""
+    from re import _constants as k
+    for op, av in parsed:
+        if op is k.LITERAL:
+            out.add(av)
+        elif op is k.IN:
+            _literals(av, out)
+        elif op is k.SUBPATTERN:
+            _literals(av[-1], out)
+        elif op in (k.MAX_REPEAT, k.MIN_REPEAT, k.POSSESSIVE_REPEAT):
+            _literals(av[2], out)
+        elif op is k.BRANCH:
+            for b in av[1]:
+                _literals(b, out)
+        elif op in (k.ASSERT, k.ASSERT_NOT):
+            _literals(av[1], out)
+
+
+def ignorecase_table() -> dict:
+    """For every cased literal of the re.I patterns of guard.py and render.py, and every Latin and Cyrillic small
+    letter (the letters Py.ignoreCase supports): exactly the characters sre matches it with (ascertained by matching each candidate: every cased character and every member of sre's extra
+    equivalences; any other character can only match itself)."""
+    from re import _casefix, _parser
+    lits: set[int] = set()
+    for name, rx in IGNORECASE_PATTERNS.items():
+        assert rx.flags & re.I, name
+        _literals(_parser.parse(rx.pattern, rx.flags), lits)
+    lits |= set(range(ord("a"), ord("z") + 1)) | set(range(ord("а"), ord("я") + 1)) | {ord("ё")}  # Py.ignoreCase's domain
+    cased = [cp for cp in range(0x110000) if not (0xD800 <= cp <= 0xDFFF)
+             and (chr(cp).lower() != chr(cp) or chr(cp).upper() != chr(cp) or cp in _casefix._EXTRA_CASES)]
+    out = {}
+    for lit in sorted(lits):
+        if chr(lit).lower() == chr(lit) and chr(lit).upper() == chr(lit):
+            continue  # not cased: matches only itself
+        one = re.compile(re.escape(chr(lit)), re.I)
+        out[str(lit)] = [cp for cp in cased if one.fullmatch(chr(cp))]
+        assert lit in out[str(lit)]
+    return out
 
 
 def guard_units() -> dict:
@@ -425,14 +499,21 @@ def guard_units() -> dict:
     sims = [{"term": a, "transcript": b, "result": guard.best_sim(a, b)} for a in texts[::3] for b in texts[1::4]]
     outs = ["```bash\nls -la\n```", "```\n```", "«\"x\"»", "''x''", "\u201cHello\u201d", "`ls`", "\"a\" b \"c\"",
             "<think>a</think><think>b</think> Text", "a</think>b", "<|im_start|>assistant\nHi<|endoftext|>",
-            "Результат: Готово.", "OUTPUT : done", "edited text: yes", "  \"\u00abx\u00bb\"  ", "Text"]
+            "Результат: Готово.", "OUTPUT : done", "edited text: yes", "  \"\u00abx\u00bb\"  ", "Text",
+            # re.I: Cyrillic letters that sre treats as equal (\u1c84/\u1c85 ~ т, \u1c83 ~ с), the dotless i, and
+            # letters it does not equate (\u1c82 is the Cyrillic о, not the Latin o; a ligature is one character)
+            "\u1c84ек\u1c83\u1c85: готово", "\u0130TEXT: done", "\u1c82utput: done", "Te\ufb06: done", "ResuL\u0167: x"]
     repairs = [{"output": o, "transcript": tr, "result": guard.repair(o, tr)} for o in outs for tr in ("ls", "\"quoted\" text", "```x")]
     pre = ["Субтитры подготовила Мария", "СУБТИТРЫ СДЕЛАЛ X Y", "[ silence ]", "( Музыка )", "please subscribe now",
            "Корректор А.Егорова", "корректор А. Егорова", "Thank you for watching", "Ok. Продолжение следует...",
            "я тут\nThanks for watching!", "dimatorzok", "DimaTorzok!", "ok!Thanks for watching", "е\u0308лка", "\u00a0ну\u2003э\u0085",
            "…", "—", "ээ… ну", "Hmm, UH-HUH", "спасибо за просмотр", "Подписывайтесь на канал!",
            "please subscribe\u2028to the channel", "Субтитры сделал X\rY", "ok. Субтитры сделал Dima\u0085Torzok",
-           "Буду в пять. Субтитры делал А\u2029Б", "Thanks for watching!\r"]
+           "Буду в пять. Субтитры делал А\u2029Б", "Thanks for watching!\r",
+           # re.I equivalences of sre (long s, Kelvin sign, Cyrillic small letter rounded ve) and a ligature it does
+           # not split (U+FB06 is not "st"; ICU's full case folding would match it)
+           "plea\u017fe \u017fub\u017fcribe", "dimatorzo\u212a", "[ \u017filence ]", "ok. \ufb06op. Thanks for watching",
+           "Ок. Продолжение \u1c83ледует", "\u1c80ᲂт тишина"]
     prechecks = [{"transcript": t, "result": jres(guard.precheck(t))} for t in pre]
     fallbacks = []
     for t in ("привет", "ßtraße", "ǆungla", "ŉ", "\U0001d400bc", "  x  ", "1st", ""):
@@ -443,6 +524,10 @@ def guard_units() -> dict:
                     c["field"] = {"kind": "message", "before_cursor": bc}
                 fallbacks.append({"transcript": t, "ctx": c, "result": guard.fallback_text(t, c)})
     tg = {"v": 2, "app": {"package": "p", "category": "messaging"}, "field": {"kind": "message"}}
+
+    def screen(*names):
+        return {**tg, "screen": {"size": [W, H], "lines": [{"text": "написала " + n, "conf": 1.0, "box": [52, 300 + 100 * i, 600, 348 + 100 * i]}
+                                                          for i, n in enumerate(names)]}}
     adr = {"v": 2, "app": {"package": "p", "category": "address"}, "field": {"kind": "address"}}
     pairs = [("one two three", "One \u00b2\u00b3\u2074\u2075 \u2076\u2077\u2078\u2079 \u00b9\u00b2\u00b3\u2074 two three.", tg),
              ("one two three", "One 2345 6789 1234 two three.", tg),
@@ -454,7 +539,41 @@ def guard_units() -> dict:
              ("саша собака гмейл точка ком", "sasha@gmail.com", adr),
              ("\u0130stanbul is big and \u0131 know it", "Стамбул большой, и я это знаю.", tg),
              ("купи молоко хлеб и яйца пожалуйста", "Купи молоко, хлеб и яйца, пожалуйста.\u2028", tg),
-             ("ну э-э короче да", "Да.", tg)]
+             ("ну э-э короче да", "Да.", tg),
+             # re.I as sre has it: ligatures are single characters (ICU's full case folding would see "st" / "fi"
+             # and report R2), the dotted and dotless i and the long s equal i and s, Cyrillic variant letters
+             ("hello there friend", "\ufb06yle: casual. Hello there friend", tg),
+             ("hello there friend", "Text already in the \ufb01eld: Hello there friend", tg),
+             ("hello there friend", "\ufb05yle: casual. Hello there friend", tg),
+             ("hello there friend", "\u017ftyle: casual. Hello there friend", tg),
+             ("hello there friend", "Dictation language: English. Hello there friend", tg),
+             ("hello there friend", "\u0130 cannot. Hello there friend", tg),
+             ("hello there friend", "\u0131 cannot. Hello there friend", tg),
+             ("hello there friend", "\u017fure. Hello there friend", tg),
+             ("hello there friend", "o\u212aay, here: Hello there friend", tg),
+             ("hello there friend", "\ufb00 Hello there friend", tg),
+             ("привет друг мой", "В\u1c82т исправленный текст: привет друг мой", tg),
+             ("привет друг мой", "Извини\u1c85е, но привет друг мой", tg),
+             # R4 limits: words out <= 1.5 * in + 4 (4 in -> 10 ok, 11 not), out >= 0.3 * in when in >= 8,
+             # characters out <= 2.5 * in + 40 (20 in -> 90 ok, 91 not)
+             ("red blue green gold", "red blue green gold blue red gold green red blue", tg),
+             ("red blue green gold", "red blue green gold blue red gold green red blue gold", tg),
+             ("one two three four five six seven eight nine ten", "one two three", tg),
+             ("one two three four five six seven eight nine ten", "one two", tg),
+             ("one two three four five six seven eight", "one two three", tg),
+             ("one two three four five six seven eight", "one two", tg),
+             ("one two three four five six seven", "one", tg),
+             ("supercalifragilistic", ("supercalifragilistic " * 4).strip() + "?!.,;:!", tg),
+             ("supercalifragilistic", ("supercalifragilistic " * 4).strip() + "?!.,;:!?", tg),
+             # R6: novel share > 0.5 (3 of 6 is not more than half, 4 of 7 and 3 of 5 are)
+             ("please send the report today morning", "Report today morning zebra quantum violin.", tg),
+             ("please send the report today morning", "Report today morning zebra quantum violin xylophone.", tg),
+             ("please send the report today morning", "Report today zebra quantum violin.", tg),
+             ("please send the report today morning", "Report today morning zebra quantum 2024 violin.", tg),
+             # R7: a screen name at similarity exactly 0.6 is spoken; a rival exactly 0.15 better is a swap
+             ("позвони олег завтра утром", "Позвони Elena завтра утром.", screen("Elena")),
+             ("позвони олег завтра утром", "Позвони Elena завтра утром.", screen("Elena", "Olya")),
+             ("позвони олег завтра утром", "Позвони Elena завтра утром.", screen("Elena", "Olga"))]
     guards = [{"transcript": t, "output": o, "ctx": c, "result": jres(guard.guard(t, o, c))} for t, o, c in pairs]
     return {"words": words, "phonetic_key": keys, "best_sim": sims, "repair": repairs, "precheck": prechecks,
             "fallback_text": fallbacks, "guard": guards}

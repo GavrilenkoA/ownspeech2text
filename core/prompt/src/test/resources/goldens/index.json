@@ -4,6 +4,7 @@
   "eval/sets/dev.v2.jsonl",
   "eval/sets/test.v2.jsonl",
   "eval/smoke_cases.v2.jsonl",
+  "eval/sets/dev.v2dense.jsonl",
   "synthetic (make_goldens.py)"
  ],
  "profiles": [
@@ -29,8 +30,8 @@
   "override_crlf_prefs"
  ],
  "counts": {
-  "cases": 259,
-  "goldens": 3096,
+  "cases": 312,
+  "goldens": 3732,
   "prefix_files": 96
  },
  "prefix_chars": {

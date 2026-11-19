@@ -9,9 +9,10 @@ import java.util.regex.Pattern
  * contract is every case of prompts/tests/test_guard.py (exported to goldens/guard.json by make_goldens.py).
  *
  * Regexes keep the Python patterns; `\w`, `\s`, `\S` and `\b` are spelled out as explicit classes ([Py.W], [Py.S]) so
- * that the host JVM and Android's ICU regex both match Python's meaning, `.` excludes only "\n" (UNIX_LINES, as in
- * Python), and re.I is CASE_INSENSITIVE | UNICODE_CASE. Word tokenising, phonetic keys and the letter counts are
- * hand-written code-point loops.
+ * that the host JVM and Android's ICU regex both match Python's meaning, and `.` excludes only "\n" (UNIX_LINES, as in
+ * Python). re.I is not the engine's CASE_INSENSITIVE (ICU folds fully: "ﬆyle:" would leak as "Style:", "İ cannot"
+ * would not be a preamble): [Py.ignoreCase] writes each letter as the class of characters sre equates with it. Word
+ * tokenising, phonetic keys and the letter counts are hand-written code-point loops.
  */
 class GuardPyPort : OutputGuard {
     override val fillers: Set<String> get() = FILLERS
@@ -285,41 +286,38 @@ um uh uhm uh-huh erm er hmm hm mm mmm ah eh""".split(' ', '\n').filter { it.isNo
         private const val W = "[" + Py.W + "]"
         private const val S = "[" + Py.S + "]"
         private const val NS = "[^" + Py.S + "]"
-        private const val I = Pattern.CASE_INSENSITIVE or Pattern.UNICODE_CASE or Pattern.UNIX_LINES
+        /** A Python `re.I` pattern: explicit case classes ([Py.ignoreCase]), `.` = anything but "\n". */
+        private fun ci(pattern: String, flags: Int = 0): Pattern = Pattern.compile(Py.ignoreCase(pattern), flags or Pattern.UNIX_LINES)
 
-        private val HALLU_FULL = Pattern.compile(
+        private val HALLU_FULL = ci(
             "^(?:\\[?$S*(?:blank_audio|silence|music|музыка|тишина|аплодисменты|смех)$S*\\]?|" +
                 "\\(?$S*(?:music|музыка)$S*\\)?|" +
                 "thanks? (?:you )?for watching!?|thank you for watching!?|please subscribe.*|" +
                 "продолжение следует\\.*|спасибо за просмотр!?|подписывайтесь на канал.*|" +
                 "субтитры (?:сделал|делал|создавал|подготовил)$W*$S.*|редактор субтитров$S.*|" +
                 "корректор$S+$NS+\\.$S*$NS+|dimatorzok)$",
-            I,
         )
-        private val HALLU_TAIL = Pattern.compile(
+        private val HALLU_TAIL = ci(
             "(?:(?<=[.!?…])$S*|$S+)(?:продолжение следует\\.*|субтитры (?:сделал|делал|создавал|подготовил)$W*$S.*|" +
                 "редактор субтитров$S.*|thanks? for watching!?|thank you for watching!?|\\[blank_audio\\])$S*$",
-            I,
         )
         private val THINK = Pattern.compile("<think>.*?</think>$S*|^.*?</think>$S*", Pattern.DOTALL)
         private val CHAT_TOKENS = Pattern.compile("<\\|[a-z_]+\\|>|<\\|im_end\\|>|<\\|endoftext\\|>")
-        private val LABEL = Pattern.compile(
+        private val LABEL = ci(
             "^$S*(?:output|edited text|edited|result|corrected text|text|вывод|результат|текст|" +
                 "исправленный текст|отредактированный текст)$S*:$S*",
-            I,
         )
-        private val LEAK = Pattern.compile(
+        private val LEAK = ci(
             "</?(?:context|transcript|preferences)>|^$S*Style:|<\\|im_|<think|Names and terms on screen|" +
                 "Dictation language:|Text already in the field",
-            I or Pattern.MULTILINE,
+            Pattern.MULTILINE,
         )
         /** `\b` after a word character = not followed by a word character. */
         private const val B = "(?!$W)"
-        private val PREAMBLE = Pattern.compile(
+        private val PREAMBLE = ci(
             "^$S*(?:sure$B|certainly$B|of course$B|here is$B|here's$B|here are$B|okay, here$B|i'm sorry$B|i cannot$B|" +
                 "as an ai$B|конечно[,!]|вот (?:исправленный|ваш|отредактированный|готовый)|исправленный текст|" +
                 "отредактированный текст|извините, (?:я|но)|я не могу$B)",
-            I,
         )
         private val CHAR_LOOP = Pattern.compile("(.{1,6}?)\\1{7,}", Pattern.DOTALL)
         private val FENCE = Pattern.compile("^```$W*\\n?|\\n?```$", Pattern.UNIX_LINES)

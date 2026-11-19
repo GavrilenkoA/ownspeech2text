@@ -7,6 +7,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.util.regex.Pattern
 
 /**
  * [Py] against CPython's own tables (goldens/unicode.json, written by make_goldens.py): every predicate and case
@@ -90,5 +91,34 @@ class PyTextTest {
         assertEquals("STRASSE".lowercase(), Py.casefold("Straße"))
         assertEquals("οδοσ", Py.casefold("ΟΔΟΣ"))
         assertEquals("οδοσ", Py.casefold("οδος"))
+    }
+
+    /**
+     * re.I: for every letter of the re.I patterns of guard.py and render.py, and every Latin and Cyrillic letter,
+     * [Py.ignoreCaseVariants] is exactly the set of characters sre matches it with (unicode.json `re_ignorecase`), and
+     * the rewritten pattern matches them on this platform's regex engine without the engine's own case folding.
+     */
+    @Test
+    fun reIgnoreCaseClasses() {
+        val t = u.getValue("re_ignorecase").jsonObject
+        assertEquals("a-z, а-я, ё and the pattern's upper-case literals D, N, S, T", 63, t.size)
+        for ((k, v) in t) {
+            val c = k.toInt().toChar()
+            val want = v.jsonArray.map { it.jsonPrimitive.int }.toSortedSet()
+            assertEquals("re.I class of $c", want, Py.ignoreCaseVariants(c).codePoints().toArray().toSortedSet())
+            val rx = Pattern.compile(Py.ignoreCase(c.toString()))
+            for (cp in want) assertTrue("$c ~ U+%04X".format(cp), rx.matcher(Py.str(cp)).matches())
+        }
+        // a ligature is one character to sre (ICU's full case folding would read "st" / "fi" / "ff")
+        for ((pattern, text) in listOf("Style:" to "ﬆyle:", "field" to "ﬁeld", "ff" to "ﬀ", "ss" to "ß")) {
+            assertTrue(text, !Pattern.compile(Py.ignoreCase(pattern)).matcher(text).find())
+        }
+        assertTrue(Pattern.compile(Py.ignoreCase("i cannot")).matcher("İ CANNOT").matches())
+        assertTrue(Pattern.compile(Py.ignoreCase("i cannot")).matcher("ı cannot").matches())
+        // classes are copied unchanged and may not hide a letter; escaped letters must be explicit classes
+        assertEquals("[,!][${Py.S}]", Py.ignoreCase("[,!][${Py.S}]"))
+        for (bad in listOf("[ab]", "\\s", "x\\b")) {
+            assertTrue(bad, runCatching { Py.ignoreCase(bad) }.exceptionOrNull() is IllegalArgumentException)
+        }
     }
 }

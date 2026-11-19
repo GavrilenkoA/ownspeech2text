@@ -166,12 +166,15 @@ internal object RenderPy {
 
     private fun alnumCount(t: String): Int = t.codePoints().filter { it != '_'.code && Py.isWord(it) }.count().toInt()
 
-    /** Clock/status block (_CLOCK.match, re.I): `^A*(?:[ap]\.?m\.?|ч|мин|lte|5g|4g|g)?A*$`. */
+    /**
+     * Clock/status block (_CLOCK.match, re.I): `^A*(?:[ap]\.?m\.?|ч|мин|lte|5g|4g|g)?A*$`. Letters compare as sre's
+     * re.I does ([Py.ignoreCaseEquals]), not by the platform's case tables.
+     */
     fun isClock(text: String): Boolean {
         val c = Py.cps(text)
         val n = c.size
         fun inA(cp: Int) = Py.isDecimal(cp) || Py.isSpace(cp) || cp in CLOCK_PUNCT
-        fun lc(cp: Int) = Character.toLowerCase(cp)
+        fun eq(cp: Int, letter: Char) = Py.ignoreCaseEquals(cp, letter)
         // suffixOk[k] = c[k:] consists of A only
         val suffixOk = BooleanArray(n + 1)
         suffixOk[n] = true
@@ -181,19 +184,19 @@ internal object RenderPy {
             if (suffixOk[k]) return true  // empty optional group
             // the alternatives at position k ("5g"/"4g" add nothing: their digit is also in A)
             val ends = ArrayList<Int>(4)
-            if (k < n && (lc(c[k]) == 'a'.code || lc(c[k]) == 'p'.code)) {
+            if (k < n && (eq(c[k], 'a') || eq(c[k], 'p'))) {
                 var p = k + 1
                 if (p < n && c[p] == '.'.code) p++
-                if (p < n && lc(c[p]) == 'm'.code) {
+                if (p < n && eq(c[p], 'm')) {
                     p++
                     ends.add(p)
                     if (p < n && c[p] == '.'.code) ends.add(p + 1)
                 }
             }
-            if (k < n && lc(c[k]) == 'ч'.code) ends.add(k + 1)
-            if (k + 2 < n && lc(c[k]) == 'м'.code && lc(c[k + 1]) == 'и'.code && lc(c[k + 2]) == 'н'.code) ends.add(k + 3)
-            if (k + 2 < n && lc(c[k]) == 'l'.code && lc(c[k + 1]) == 't'.code && lc(c[k + 2]) == 'e'.code) ends.add(k + 3)
-            if (k < n && lc(c[k]) == 'g'.code) ends.add(k + 1)
+            if (k < n && eq(c[k], 'ч')) ends.add(k + 1)
+            if (k + 2 < n && eq(c[k], 'м') && eq(c[k + 1], 'и') && eq(c[k + 2], 'н')) ends.add(k + 3)
+            if (k + 2 < n && eq(c[k], 'l') && eq(c[k + 1], 't') && eq(c[k + 2], 'e')) ends.add(k + 3)
+            if (k < n && eq(c[k], 'g')) ends.add(k + 1)
             if (ends.any { suffixOk[it] }) return true
             if (k < n && inA(c[k])) k++ else return false
         }
