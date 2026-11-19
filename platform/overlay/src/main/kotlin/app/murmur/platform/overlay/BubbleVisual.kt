@@ -46,8 +46,21 @@ data class VisibilityInput(
 object BubblePolicy {
     const val TUCK_AFTER_MS = 4_000L
 
-    fun merge(dictation: DictationBubble, v: VisibilityInput, dragging: Boolean, overHideTarget: Boolean): BubbleVisual {
-        if (dictation !is DictationBubble.Idle) return if (dragging) BubbleVisual.Dragging(overHideTarget) else BubbleVisual.Active(dictation)
+    /**
+     * [restOpenedAtMs]: when the user last opened (tapped) or used the "Show the bubble: Always" tab while no field is
+     * focused (overlay-local, kept by [BubbleController]). DESIGN 5.3 Rest "tap -> Ready": that tab opens to Ready and
+     * folds back after [TUCK_AFTER_MS] without interaction, whatever the tuck-in setting (the tab is the no-field
+     * resting form, not a tuck); under TalkBack it stays Ready (DESIGN 8: no tuck-in).
+     */
+    fun merge(
+        dictation: DictationBubble,
+        v: VisibilityInput,
+        dragging: Boolean,
+        overHideTarget: Boolean,
+        restOpenedAtMs: Long? = null,
+    ): BubbleVisual {
+        // DESIGN 5.3: a working or result pill can only be moved, never dropped on the hide target.
+        if (dictation !is DictationBubble.Idle) return if (dragging) BubbleVisual.Dragging(overHideTarget = false) else BubbleVisual.Active(dictation)
         if (dragging) return BubbleVisual.Dragging(overHideTarget)
         if (v.hiddenUntilMs != null && v.nowMs < v.hiddenUntilMs) return BubbleVisual.Hidden
         if (v.appHidden) return BubbleVisual.Hidden
@@ -55,19 +68,23 @@ object BubblePolicy {
         if (v.editableFocused && !v.bubbleAllowedForField) return BubbleVisual.Hidden
         val show = (v.editableFocused && v.bubbleAllowedForField) || v.showAlways
         if (!show) return BubbleVisual.Hidden
-        if (!v.editableFocused && v.showAlways) return BubbleVisual.Rest
+        if (!v.editableFocused && v.showAlways) return if (alwaysTabOpen(v, restOpenedAtMs)) BubbleVisual.Ready else BubbleVisual.Rest
         val idle = v.idleSinceMs
         return if (v.tuckIn && !v.talkBackOn && idle != null && v.nowMs - idle >= TUCK_AFTER_MS) BubbleVisual.Rest else BubbleVisual.Ready
     }
 
+    private fun alwaysTabOpen(v: VisibilityInput, openedAt: Long?): Boolean =
+        openedAt != null && (v.talkBackOn || v.nowMs - openedAt < TUCK_AFTER_MS)
+
     /**
-     * The next instant at which [merge] can change without a new event: the end of the tuck-in wait while Ready, or
-     * the end of "hide for 1 hour" while hidden by it. Null = nothing pending.
+     * The next instant at which [merge] can change without a new event: the end of the tuck-in wait while Ready (or of
+     * the opened "Always" tab), or the end of "hide for 1 hour" while hidden by it. Null = nothing pending.
      */
-    fun nextDeadline(dictation: DictationBubble, v: VisibilityInput): Long? {
+    fun nextDeadline(dictation: DictationBubble, v: VisibilityInput, restOpenedAtMs: Long? = null): Long? {
         if (dictation !is DictationBubble.Idle) return null
         v.hiddenUntilMs?.takeIf { it > v.nowMs }?.let { return it }
-        if (merge(dictation, v, dragging = false, overHideTarget = false) != BubbleVisual.Ready) return null
+        if (merge(dictation, v, dragging = false, overHideTarget = false, restOpenedAtMs = restOpenedAtMs) != BubbleVisual.Ready) return null
+        if (!v.editableFocused) return restOpenedAtMs?.let { it + TUCK_AFTER_MS }?.takeIf { it > v.nowMs && !v.talkBackOn }
         return v.idleSinceMs?.let { it + TUCK_AFTER_MS }?.takeIf { it > v.nowMs && v.tuckIn && !v.talkBackOn }
     }
 }

@@ -63,6 +63,57 @@ class BubbleControllerTest {
         assertEquals(BubbleVisual.Rest, c.visual())
     }
 
+    private val alwaysTab = focused.copy(editableFocused = false, showAlways = true, idleSinceMs = null)
+
+    @Test
+    fun tapOnTheAlwaysTabWithoutAFieldOpensReady_andItFoldsBackAfter4s() {
+        // Review F1: the tab of "Show the bubble: Always" ignored taps although TalkBack offers "show the dictation button".
+        c.visibility = alwaysTab
+        assertEquals(BubbleVisual.Rest, c.visual())
+        assertTrue(c.pressPolicy(TouchRegion.BODY).canTap)
+        c.onTap(TouchRegion.BODY)
+        assertEquals(emptyList<UserInput>(), sent) // opening is overlay-local
+        assertEquals(BubbleVisual.Ready, c.visual())
+        assertEquals(now + 4_000, c.nextDeadline())
+        now += 3_999
+        assertEquals(BubbleVisual.Ready, c.visual())
+        now += 1
+        assertEquals(BubbleVisual.Rest, c.visual())
+        assertNull(c.nextDeadline())
+    }
+
+    @Test
+    fun theOpenedAlwaysTabStartsDictation_andIsReadyAgainAfterTheResult() {
+        c.visibility = alwaysTab
+        c.onTap(TouchRegion.BODY)
+        now += 1_000
+        c.onTap(TouchRegion.BODY)
+        assertEquals(listOf(UserInput.Tap), sent)
+        show(DictationBubble.Listening(startedAtMs = now, hold = false, warn = false))
+        now += 30_000
+        show(DictationBubble.Copied(null))
+        now += 4_000
+        show(DictationBubble.Idle)
+        // Back from the result: Ready for another 4 s, then the tab.
+        assertEquals(BubbleVisual.Ready, c.visual())
+        now += 4_000
+        assertEquals(BubbleVisual.Rest, c.visual())
+    }
+
+    @Test
+    fun theOpenedAlwaysTabStaysReadyUnderTalkBack_untilAFieldTakesOver() {
+        c.visibility = alwaysTab.copy(talkBackOn = true)
+        c.onTap(TouchRegion.BODY) // TalkBack double-tap
+        now += 60_000
+        assertEquals(BubbleVisual.Ready, c.visual())
+        assertNull(c.nextDeadline())
+        // A field gets focus, then loses it: the no-field form is the tab again.
+        c.visibility = focused.copy(talkBackOn = true, idleSinceMs = now)
+        assertEquals(BubbleVisual.Ready, c.visual())
+        c.visibility = alwaysTab.copy(talkBackOn = true)
+        assertEquals(BubbleVisual.Rest, c.visual())
+    }
+
     @Test
     fun listeningPillTapFinishes_cancelDiscards_holdPillIgnoresTaps() {
         c.visibility = focused
@@ -170,6 +221,47 @@ class BubbleControllerTest {
         c.onGesture(Gesture.DragEnd(targetX, targetY, 0f))
         assertEquals(1, hides)
         assertEquals(emptyList<Triple<Boolean, Int, Boolean>>(), settled)
+    }
+
+    @Test
+    fun aWorkingOrResultPillCanOnlyBeMoved_theHideTargetIsNeverArmed() {
+        // Review F2: dropping a Listening pill on the target wrote "hidden until" while the pill stayed on screen.
+        c.visibility = focused
+        val states = listOf(DictationBubble.Listening(startedAtMs = now, hold = false, warn = false), DictationBubble.Transcribing,
+            DictationBubble.Polishing, DictationBubble.Inserted(false), DictationBubble.Copied(null), DictationBubble.Error(BubbleError.NO_SPEECH, null))
+        for (s in states) {
+            show(s)
+            settled.clear()
+            c.startDrag(900f, 1200f, geometry)
+            assertFalse(c.drag!!.hideArmed)
+            c.onGesture(Gesture.DragMove(targetX, targetY - 60f * density))
+            c.onGesture(Gesture.DragMove(targetX, targetY))
+            assertFalse("$s", c.drag!!.overHideTarget)
+            assertEquals(BubbleVisual.Dragging(false), c.visual())
+            c.onGesture(Gesture.DragEnd(targetX, targetY, 0f))
+            assertEquals("$s", 0, hides)
+            assertEquals(emptyList<HapticKind>(), haptics)
+            // Released at the bottom centre: it snaps to an edge like any other drop and keeps its state.
+            assertEquals(1, settled.size)
+            assertTrue(settled.single().third)
+            assertEquals(BubbleVisual.Active(s), c.visual())
+        }
+        assertEquals(emptyList<UserInput>(), sent)
+    }
+
+    @Test
+    fun aDictationThatStartsMidDragDisarmsTheHideTarget() {
+        // e.g. "Start dictation" from the notification while the Ready circle is being moved.
+        c.visibility = focused
+        c.startDrag(900f, 1200f, geometry)
+        assertTrue(c.drag!!.hideArmed)
+        show(DictationBubble.Listening(startedAtMs = now, hold = false, warn = false))
+        c.onGesture(Gesture.DragMove(targetX, targetY))
+        assertFalse(c.drag!!.hideArmed)
+        assertFalse(c.drag!!.overHideTarget)
+        c.onGesture(Gesture.DragEnd(targetX, targetY, 0f))
+        assertEquals(0, hides)
+        assertEquals(1, settled.size)
     }
 
     @Test

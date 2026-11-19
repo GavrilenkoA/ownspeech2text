@@ -27,6 +27,11 @@ data class DragState(
     /** Side and circle top it will snap to on release (the ghost). */
     val snapRightEdge: Boolean,
     val snapY: Int,
+    /**
+     * Whether the hide target is in play: only for a drag of the idle bubble (Ready or Rest, DESIGN 5.3 Dragging). A
+     * working or result pill can only be moved, and a dictation that starts mid-drag disarms it for the rest of the drag.
+     */
+    val hideArmed: Boolean,
 )
 
 /**
@@ -48,13 +53,27 @@ class BubbleController(private val clock: () -> Long, private val out: Output) {
     }
 
     var dictation: DictationBubble = DictationBubble.Idle
+        set(value) {
+            // Back from a dictation with no field focused: the "Always" tab shows Ready for another 4 s (DESIGN 5.3:
+            // Copied "after 4 s -> Hidden or Ready"), then folds back.
+            if (value is DictationBubble.Idle && field !is DictationBubble.Idle) restOpenedAtMs = clock()
+            field = value
+        }
     var visibility: VisibilityInput? = null
+        set(value) {
+            // A focused field takes over; once it is gone again the no-field form is the closed tab.
+            if (value?.editableFocused == true) restOpenedAtMs = null
+            field = value
+        }
     /** Settings.hiddenUntilEpochMs: the overlay reads it directly so "hide" and "Show now" apply at once. */
     var hiddenUntilMs: Long? = null
     var holdToTalk: Boolean = true
 
     /** Last local interaction with an idle bubble (tap on Rest, end of a drag): restarts the 4 s tuck-in wait. */
     private var lastInteractionMs: Long? = null
+    /** The "Always" tab with no field focused was opened (tap) or used at this instant; see [BubblePolicy.merge]. */
+    private var restOpenedAtMs: Long? = null
+    private var dragFromOpenTab = false
     private var geometry: DragGeometry? = null
 
     var drag: DragState? = null
@@ -68,11 +87,15 @@ class BubbleController(private val clock: () -> Long, private val out: Output) {
     }
 
     fun visual(now: Long = clock()): BubbleVisual =
-        BubblePolicy.merge(dictation, effectiveVisibility(now), dragging = drag != null, overHideTarget = drag?.overHideTarget == true)
+        BubblePolicy.merge(dictation, effectiveVisibility(now), dragging = drag != null, overHideTarget = drag?.overHideTarget == true,
+            restOpenedAtMs = restOpenedAtMs)
 
-    /** When [visual] can next change without an event (tuck-in, end of the hide hour). */
+    /** When [visual] can next change without an event (tuck-in, the opened "Always" tab, end of the hide hour). */
     fun nextDeadline(now: Long = clock()): Long? =
-        if (drag != null) null else BubblePolicy.nextDeadline(dictation, effectiveVisibility(now))
+        if (drag != null) null else BubblePolicy.nextDeadline(dictation, effectiveVisibility(now), restOpenedAtMs)
+
+    /** No field focused and "Show the bubble: Always": the bubble is the tab (closed) or the opened tab (Ready). */
+    private fun noFieldAlways(now: Long): Boolean = effectiveVisibility(now).let { !it.editableFocused && it.showAlways }
 
     /** What a press may become on the visual shown at ACTION_DOWN (DESIGN 5.3, ARCHITECTURE 5.1). */
     fun pressPolicy(region: TouchRegion, now: Long = clock()): PressPolicy {
@@ -101,8 +124,8 @@ class BubbleController(private val clock: () -> Long, private val out: Output) {
     fun onTap(region: TouchRegion, now: Long = clock()) {
         if (region == TouchRegion.CANCEL) { if (isTapListening()) out.send(UserInput.Cancel); return }
         when (val v = visual(now)) {
-            BubbleVisual.Rest -> lastInteractionMs = now
-            BubbleVisual.Ready -> { lastInteractionMs = now; out.send(UserInput.Tap) }
+            BubbleVisual.Rest -> { lastInteractionMs = now; if (noFieldAlways(now)) restOpenedAtMs = now }
+            BubbleVisual.Ready -> { lastInteractionMs = now; if (noFieldAlways(now)) restOpenedAtMs = now; out.send(UserInput.Tap) }
             is BubbleVisual.Active -> when (val s = v.state) {
                 is DictationBubble.Listening -> if (!s.hold) out.send(UserInput.Tap)
                 is DictationBubble.Inserted -> out.send(UserInput.Tap)
@@ -130,36 +153,39 @@ class BubbleController(private val clock: () -> Long, private val out: Output) {
 
     /** Begin a drag at finger ([x], [y]); [geometry] describes the display. */
     fun startDrag(x: Float, y: Float, geometry: DragGeometry, now: Long = clock()) {
+        dragFromOpenTab = noFieldAlways(now) && visual(now) == BubbleVisual.Ready
         this.geometry = geometry
-        drag = stateAt(x, y, geometry, now)
+        drag = stateAt(x, y, geometry, now, armed = dictation is DictationBubble.Idle)
     }
 
     private fun moveDrag(x: Float, y: Float, now: Long) {
         val g = geometry ?: return
         val prev = drag ?: return
-        val next = stateAt(x, y, g, prev.startedAtMs)
+        val next = stateAt(x, y, g, prev.startedAtMs, armed = prev.hideArmed && dictation is DictationBubble.Idle)
         if (next.overHideTarget && !prev.overHideTarget) out.haptic(HapticKind.CLOCK_TICK)
         drag = next
     }
 
-    private fun stateAt(x: Float, y: Float, g: DragGeometry, startedAt: Long): DragState {
+    private fun stateAt(x: Float, y: Float, g: DragGeometry, startedAt: Long, armed: Boolean): DragState {
         val d = g.placement.bubbleDiameterPx
         val cx = x - g.grabX
         val cy = y - g.grabY
         val centerX = cx + d / 2f
         val centerY = cy + d / 2f
-        val over = hypot(centerX - g.targetCenterX, centerY - g.targetCenterY) <= g.magnetRadiusPx
+        val over = armed && hypot(centerX - g.targetCenterX, centerY - g.targetCenterY) <= g.magnetRadiusPx
         val right = BubblePlacement.snap(centerX.toInt(), g.placement.screenW, 0f)
-        return DragState(cx, cy, over, startedAt, right, BubblePlacement.clampY(cy.toInt(), g.placement))
+        return DragState(cx, cy, over, startedAt, right, BubblePlacement.clampY(cy.toInt(), g.placement), armed)
     }
 
     private fun endDrag(x: Float, y: Float, vxDpPerSec: Float, now: Long, cancelled: Boolean) {
         val g = geometry ?: return
         val prev = drag ?: return
-        val end = stateAt(x, y, g, prev.startedAtMs)
+        val end = stateAt(x, y, g, prev.startedAtMs, armed = prev.hideArmed && dictation is DictationBubble.Idle)
         drag = null
         geometry = null
         lastInteractionMs = now
+        if (dragFromOpenTab && noFieldAlways(now)) restOpenedAtMs = now
+        dragFromOpenTab = false
         if (end.overHideTarget && !cancelled) { out.hideForAnHour(); return }
         val d = g.placement.bubbleDiameterPx
         val right = BubblePlacement.snap((end.circleX + d / 2f).toInt(), g.placement.screenW, vxDpPerSec)

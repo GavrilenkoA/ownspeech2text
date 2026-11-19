@@ -41,6 +41,27 @@ class BubblePolicyTest {
     }
 
     @Test
+    fun row1_theAlwaysTabTappedOpenIsReadyForFourSeconds_andUnderTalkBackUntilFocusMoves() {
+        // DESIGN 5.3 Rest: "tap -> Ready" also for the "Always" tab with no field focused (review F1).
+        val now = base.nowMs
+        val tab = base.copy(editableFocused = false, showAlways = true, idleSinceMs = null)
+        fun open(v: VisibilityInput, at: Long?) = BubblePolicy.merge(DictationBubble.Idle, v, dragging = false, overHideTarget = false, restOpenedAtMs = at)
+        assertEquals(BubbleVisual.Ready, open(tab, now))
+        assertEquals(BubbleVisual.Ready, open(tab, now - 3_999))
+        assertEquals(BubbleVisual.Rest, open(tab, now - 4_000))
+        assertEquals(now + 4_000, BubblePolicy.nextDeadline(DictationBubble.Idle, tab, restOpenedAtMs = now))
+        // The opened tab folds back whatever the tuck-in setting: it is the no-field resting form, not a tuck.
+        assertEquals(BubbleVisual.Rest, open(tab.copy(tuckIn = false), now - 4_000))
+        // DESIGN 8: no tuck-in under TalkBack, so the opened tab stays a stable Ready target.
+        assertEquals(BubbleVisual.Ready, open(tab.copy(talkBackOn = true), now - 60_000))
+        assertNull(BubblePolicy.nextDeadline(DictationBubble.Idle, tab.copy(talkBackOn = true), restOpenedAtMs = now))
+        // Opening the tab never overrides a rule that hides the bubble.
+        assertEquals(BubbleVisual.Hidden, open(tab.copy(appHidden = true), now))
+        assertEquals(BubbleVisual.Hidden, open(tab.copy(hiddenUntilMs = now + 1_000), now))
+        assertEquals(BubbleVisual.Hidden, open(tab.copy(showAlways = false), now))
+    }
+
+    @Test
     fun row2_editableFieldFocusedShowsReady() {
         assertEquals(BubbleVisual.Ready, idle(base))
         assertEquals(BubbleVisual.Ready, idle(base.copy(showAlways = true)))
@@ -106,8 +127,10 @@ class BubblePolicyTest {
         for (s in listOf(listening, DictationBubble.Transcribing, DictationBubble.Polishing, DictationBubble.Inserted(false),
             DictationBubble.Copied(null), DictationBubble.Error(BubbleError.MIC_BUSY, null))) {
             assertEquals(BubbleVisual.Active(s), BubblePolicy.merge(s, hiddenEverywhere, dragging = false, overHideTarget = false))
-            assertEquals(BubbleVisual.Dragging(true), BubblePolicy.merge(s, hiddenEverywhere, dragging = true, overHideTarget = true))
+            // DESIGN 5.3: a working or result pill can only be moved; the hide target is never armed for it (review F2).
+            assertEquals(BubbleVisual.Dragging(false), BubblePolicy.merge(s, hiddenEverywhere, dragging = true, overHideTarget = true))
         }
+        assertEquals(BubbleVisual.Dragging(true), BubblePolicy.merge(DictationBubble.Idle, base, dragging = true, overHideTarget = true))
         assertEquals(BubbleVisual.Dragging(false), BubblePolicy.merge(DictationBubble.Idle, base, dragging = true, overHideTarget = false))
     }
 

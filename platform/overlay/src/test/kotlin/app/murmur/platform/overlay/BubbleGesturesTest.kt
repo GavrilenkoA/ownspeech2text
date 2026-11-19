@@ -125,6 +125,27 @@ class BubbleGesturesTest {
     }
 
     @Test
+    fun aFingerThatRestsMoreThan40msBeforeLiftingHasNoFlingVelocity() {
+        // Fast move to x = 700 by t = 30, then the finger rests: 200 px / 2.625 over 30 ms = 2540 dp/s while moving.
+        fun fastThenRest(t0: Long, upAt: Long, stillMoves: Boolean): Float {
+            r.down(500f, 1060f, t0, tapDrag)
+            r.move(530f, 1060f, t0 + 10)
+            r.move(600f, 1060f, t0 + 20)
+            r.move(700f, 1060f, t0 + 30)
+            // A resting finger may or may not keep sending MOVE events at the same position.
+            if (stillMoves) for (t in t0 + 40 until upAt step 10) r.move(700f, 1060f, t)
+            return (r.up(700f, 1060f, upAt).single() as Gesture.DragEnd).vxDpPerSec
+        }
+        assertEquals(0f, fastThenRest(0, upAt = 71, stillMoves = false), 0f)
+        assertEquals(0f, fastThenRest(1_000, upAt = 1_090, stillMoves = true), 0f)
+        // A rest under 40 ms keeps the velocity of the last movement: still a fling.
+        val v = fastThenRest(2_000, upAt = 2_060, stillMoves = false)
+        assertEquals(2_540f, v, 1f)
+        assertTrue(v > 1_000f)
+        assertEquals(2_540f, fastThenRest(3_000, upAt = 3_065, stillMoves = true), 1f)
+    }
+
+    @Test
     fun cancelWhileHoldingFinishes_whileDraggingSettles() {
         r.down(960f, 1060f, 0, readyHold)
         r.tick(250)
