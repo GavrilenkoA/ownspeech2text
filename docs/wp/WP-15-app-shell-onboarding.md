@@ -129,3 +129,7 @@ Still in work: WP-03, 10, 20 (early paths).
 - WP-14 (ADR-080): `AppContainer.benchmarkRunner` is wired (`DefaultBenchmarkRunner` over the production engines,
   `resolver.benchSpecs`, `AndroidBenchEnvironment`); pass it to `ModelsDeps`. Keep the screen awake during a run.
 - Room schema is now version 2 (benchmark.notes, auto-migration): nothing to do in `:app`.
+- `AppContainer` now has a minimal `AndroidPermissionMonitor` (microphone, notifications, `A11yStatus`, battery) and a
+  launcher-only `AppNavigator` (integration pass 2): without them enabling the merged accessibility service crashed
+  the app (the service builds the orchestrator on connect). Extend/replace both (deep links, onboarding refreshes);
+  never put `TODO()` back on a path the service or the orchestrator reaches.
