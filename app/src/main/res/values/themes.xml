@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Platform theme only; all real styling lives in Compose (MaterialTheme). -->
-    <style name="Theme.Murmur" parent="android:Theme.Material.Light.NoActionBar" />
+    <!-- Platform theme only; all real styling lives in Compose (MurmurTheme). The window background is the bg token
+         so that no white frame shows before the first Compose frame. -->
+    <style name="Theme.Murmur" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/murmur_window_bg</item>
+    </style>
+    <color name="murmur_window_bg">#F6F7F9</color>
 </resources>

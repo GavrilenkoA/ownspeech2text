@@ -1,27 +1,63 @@
 package app.murmur
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationRail
-import androidx.compose.material3.NavigationRailItem
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfoV2
+import androidx.compose.material3.adaptive.layout.calculatePaneScaffoldDirectiveWithTwoPanesOnMediumWidth
+import androidx.compose.material3.adaptive.navigation3.ListDetailSceneStrategy
+import androidx.compose.material3.adaptive.navigation3.rememberListDetailSceneStrategy
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
+import androidx.navigation3.scene.Scene
 import androidx.navigation3.ui.NavDisplay
-import androidx.window.core.layout.WindowSizeClass
+import app.murmur.core.model.EntryId
+import app.murmur.core.model.ModelId
+import app.murmur.feature.dashboard.DashboardScreen
+import app.murmur.feature.history.HistoryEntryDetail
+import app.murmur.feature.history.HistoryScreen
+import app.murmur.feature.models.ModelDetail
+import app.murmur.feature.models.ModelsScreen
+import app.murmur.feature.settings.SettingsScreen
+import app.murmur.shell.DeepLink
+import app.murmur.shell.ShellNav
+import app.murmur.ui.design.Layout
+import app.murmur.ui.design.Motion
+import app.murmur.ui.design.MurmurIcons
+import app.murmur.ui.design.MurmurTheme
+import app.murmur.ui.design.components.MurmurNavigationBar
+import app.murmur.ui.design.components.MurmurNavigationRail
+import app.murmur.ui.design.components.NavItem
+import app.murmur.ui.design.rememberIsWide
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.serialization.Serializable
 
 /** Top-level destinations (BRIEF: 4 bottom tabs). History is the start destination (DESIGN decision 4). */
@@ -31,7 +67,19 @@ import kotlinx.serialization.Serializable
 @Serializable data object ModelsRoute : TopRoute
 @Serializable data object SettingsRoute : TopRoute
 
+/** Detail destinations: pushed on the cover display, the right pane on the inner display. */
+@Serializable data class HistoryEntryRoute(val id: Long) : NavKey
+@Serializable data class ModelDetailRoute(val id: String) : NavKey
+
 data class Tab(val route: TopRoute, val label: Int, val testTag: String)
+
+/** The four tab screens' dependencies, built by AppContainer (ADR-010). */
+class ShellDeps(
+    val dashboard: app.murmur.feature.dashboard.DashboardDeps,
+    val history: app.murmur.feature.history.HistoryDeps,
+    val models: app.murmur.feature.models.ModelsDeps,
+    val settings: app.murmur.feature.settings.SettingsDeps,
+)
 
 val TABS = listOf(
     Tab(DashboardRoute, R.string.tab_dashboard, "tab-dashboard"),
@@ -40,60 +88,171 @@ val TABS = listOf(
     Tab(SettingsRoute, R.string.tab_settings, "tab-settings"),
 )
 
+private val TAB_ICONS = mapOf(
+    DashboardRoute to MurmurIcons.dash, HistoryRoute to MurmurIcons.hist,
+    ModelsRoute to MurmurIcons.models, SettingsRoute to MurmurIcons.sliders,
+)
+
+/** Entry metadata key marking a detail destination (shared-axis X push/pop on the cover display). */
+private const val DETAIL = "murmur.detail"
+
 /**
- * Shell (WP-15): bottom bar on compact width (cover display), navigation rail on medium+ (inner display),
- * decided by WindowSizeClass, never by device detection (DESIGN 2). Screens are placeholders until the
- * feature packages land; icons come from the design system (prototype ICONS map) in WP-01.
+ * The frame every screen lives in (WP-15, DESIGN 2/4). Compact width (cover display): content + bottom bar (72 dp +
+ * gesture inset, ink pill). Medium and wider (inner display): navigation rail (88 dp, mark on top) + content, with
+ * list-detail scenes for History (300 dp list) and Models (316 dp list); Settings lays out its own two panes. Chosen by
+ * the window size class, never by device. [links] = deep links from MainActivity (bubble: open entry / open Models).
  */
+@OptIn(ExperimentalMaterial3AdaptiveApi::class)
 @Composable
-fun AppShell(container: AppContainer?) {
+fun AppShell(deps: ShellDeps, links: StateFlow<DeepLink?>, onLinkHandled: () -> Unit, onExit: () -> Unit) {
     val backStack = rememberNavBackStack(HistoryRoute)
-    val current = backStack.lastOrNull() as? TopRoute ?: HistoryRoute
-    val wide = currentWindowAdaptiveInfoV2().windowSizeClass.isWidthAtLeastBreakpoint(WindowSizeClass.WIDTH_DP_MEDIUM_LOWER_BOUND)
-    val select: (TopRoute) -> Unit = { r -> backStack.clear(); backStack.add(r) }
+    val wide = rememberIsWide()
+    val c = MurmurTheme.colors
+
+    fun replace(stack: List<NavKey>) {
+        backStack.clear()
+        backStack.addAll(stack)
+    }
+
+    val link = links.collectAsStateValue()
+    LaunchedEffect(link) {
+        if (link != null) {
+            replace(ShellNav.forLink(link))
+            onLinkHandled()
+        }
+    }
+    BackHandler { ShellNav.back(backStack.toList())?.let(::replace) ?: onExit() }
+
+    val tab = ShellNav.tabOf(backStack)
+    val items = TABS.map { NavItem(stringResource(it.label), TAB_ICONS.getValue(it.route)) }
+    val select: (Int) -> Unit = { i -> replace(ShellNav.selectTab(TABS[i].route)) }
+    val selectedEntry = (backStack.lastOrNull() as? HistoryEntryRoute)?.let { EntryId(it.id) }
+    val selectedModel = (backStack.lastOrNull() as? ModelDetailRoute)?.let { ModelId(it.id) }
+
+    // DESIGN 2: two panes on the inner display (medium width), no gap between them; the list widths are tokens.
+    val directive = calculatePaneScaffoldDirectiveWithTwoPanesOnMediumWidth(currentWindowAdaptiveInfoV2())
+        .copy(horizontalPartitionSpacerSize = 0.dp)
+    val listDetail = rememberListDetailSceneStrategy<NavKey>(directive = directive)
+    // Material shared axis X travels 30 dp.
+    val shiftPx = with(LocalDensity.current) { 30.dp.roundToPx() }
 
     val content: @Composable (Modifier) -> Unit = { m ->
         NavDisplay(
             backStack = backStack,
-            onBack = { if (backStack.size > 1) backStack.removeAt(backStack.lastIndex) },
+            onBack = { ShellNav.back(backStack.toList())?.let(::replace) ?: onExit() },
             modifier = m,
+            sceneStrategies = listOf(listDetail),
+            transitionSpec = { forward(wide, shiftPx) },
+            popTransitionSpec = { backward(wide, shiftPx) },
+            predictivePopTransitionSpec = { backward(wide, shiftPx) },
             entryProvider = entryProvider {
-                entry<DashboardRoute> { Placeholder("screen-dashboard") }
-                entry<HistoryRoute> { Placeholder("screen-history") }
-                entry<ModelsRoute> { Placeholder("screen-models") }
-                entry<SettingsRoute> { Placeholder("screen-settings") }
+                entry<DashboardRoute> {
+                    DashboardScreen(deps.dashboard, onTryDictation = { replace(ShellNav.selectTab(HistoryRoute)) })
+                }
+                entry<HistoryRoute>(
+                    metadata = ListDetailSceneStrategy.listPane(detailPlaceholder = { EmptyDetail() }) +
+                        ListDetailSceneStrategy.preferredPaneSize(Layout.historyListPane, 0.dp),
+                ) {
+                    ListPane { HistoryScreen(deps.history, onOpenEntry = { replace(ShellNav.openEntry(it)) }, selected = if (wide) selectedEntry else null) }
+                }
+                entry<HistoryEntryRoute>(metadata = ListDetailSceneStrategy.detailPane() + mapOf(DETAIL to true)) { r ->
+                    DetailPane("detail-entry-${r.id}") {
+                        HistoryEntryDetail(deps.history, EntryId(r.id), onBack = if (wide) null else { { replace(ShellNav.back(backStack.toList()) ?: listOf(HistoryRoute)) } })
+                    }
+                }
+                entry<ModelsRoute>(
+                    metadata = ListDetailSceneStrategy.listPane(detailPlaceholder = { EmptyDetail() }) +
+                        ListDetailSceneStrategy.preferredPaneSize(Layout.modelsListPane, 0.dp),
+                ) {
+                    ListPane { ModelsScreen(deps.models, onOpenModel = { replace(ShellNav.openModel(it.value)) }, selected = if (wide) selectedModel else null) }
+                }
+                entry<ModelDetailRoute>(metadata = ListDetailSceneStrategy.detailPane() + mapOf(DETAIL to true)) { r ->
+                    DetailPane("detail-model-${r.id}") {
+                        ModelDetail(deps.models, ModelId(r.id), onBack = if (wide) null else { { replace(ShellNav.back(backStack.toList()) ?: listOf(ModelsRoute)) } })
+                    }
+                }
+                entry<SettingsRoute> { SettingsScreen(deps.settings) }
             },
         )
     }
 
+    val insets = WindowInsets.safeDrawing
     if (wide) {
-        Row(Modifier.fillMaxSize()) {
-            NavigationRail(Modifier.testTag("nav-rail")) {
-                TABS.forEach { t ->
-                    NavigationRailItem(selected = current == t.route, onClick = { select(t.route) },
-                        icon = { TabIcon() }, label = { Text(stringResource(t.label)) }, modifier = Modifier.testTag(t.testTag))
-                }
-            }
-            content(Modifier.fillMaxSize())
+        Row(
+            Modifier
+                .fillMaxSize()
+                .background(c.bg)
+                .windowInsetsPadding(insets.only(WindowInsetsSides.Top + WindowInsetsSides.Bottom + WindowInsetsSides.Start))
+                .testTag("shell"),
+        ) {
+            MurmurNavigationRail(items, ShellNav.indexOf(tab), select, Modifier.testTag("nav-rail"))
+            content(Modifier.weight(1f).windowInsetsPadding(insets.only(WindowInsetsSides.End)))
         }
     } else {
-        Scaffold(bottomBar = {
-            NavigationBar(Modifier.testTag("nav-bar")) {
-                TABS.forEach { t ->
-                    NavigationBarItem(selected = current == t.route, onClick = { select(t.route) },
-                        icon = { TabIcon() }, label = { Text(stringResource(t.label)) }, modifier = Modifier.testTag(t.testTag))
-                }
-            }
-        }) { pad -> content(Modifier.padding(pad)) }
+        Column(Modifier.fillMaxSize().background(c.bg).testTag("shell")) {
+            content(Modifier.weight(1f).windowInsetsPadding(insets.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)))
+            // The bar pads itself by the gesture inset (72 dp + inset, DESIGN 4).
+            MurmurNavigationBar(items, ShellNav.indexOf(tab), select, Modifier.testTag("nav-bar"))
+        }
     }
 }
 
+/** The list pane on bg; the detail pane next to it draws the 1 dp line between them. */
 @Composable
-private fun TabIcon(icon: ImageVector? = null) {
-    if (icon != null) Icon(icon, contentDescription = null)
+private fun ListPane(content: @Composable () -> Unit) {
+    val c = MurmurTheme.colors
+    Box(Modifier.fillMaxSize().background(c.bg)) { content() }
 }
 
+/** The detail pane: surface (prototype: background var(--surface)); on the inner display separated by a 1 dp line. */
 @Composable
-private fun Placeholder(tag: String) {
-    Box(Modifier.fillMaxSize().testTag(tag)) { Text(tag) }
+private fun DetailPane(tag: String, content: @Composable () -> Unit) {
+    val c = MurmurTheme.colors
+    Box(Modifier.fillMaxSize().background(c.surface).leftLine(c.line).testTag(tag)) { content() }
+}
+
+/** Nothing selected on the inner display: the detail pane stays an empty surface (no frame defines a placeholder). */
+@Composable
+private fun EmptyDetail() {
+    val c = MurmurTheme.colors
+    Box(Modifier.fillMaxSize().background(c.surface).leftLine(c.line).testTag("detail-empty"))
+}
+
+/** 1 dp line on the pane's left edge, drawn over the content (prototype: the list's border-right 1px line). */
+private fun Modifier.leftLine(color: Color): Modifier = drawWithContent {
+    drawContent()
+    drawLine(color, Offset(0.5.dp.toPx(), 0f), Offset(0.5.dp.toPx(), size.height), 1.dp.toPx())
+}
+
+// ------------------------------------------------------------------ transitions (DESIGN 3.5)
+
+private fun Scene<*>.isDetail(): Boolean = entries.lastOrNull()?.metadata?.get(DETAIL) == true
+
+private fun AnimatedContentTransitionScope<*>.forward(wide: Boolean, shiftPx: Int): ContentTransform =
+    if (!wide && (targetState as? Scene<*>)?.isDetail() == true) sharedAxisX(forward = true, shiftPx) else crossFade()
+
+private fun AnimatedContentTransitionScope<*>.backward(wide: Boolean, shiftPx: Int): ContentTransform =
+    if (!wide && (initialState as? Scene<*>)?.isDetail() == true) sharedAxisX(forward = false, shiftPx) else crossFade()
+
+/**
+ * Shared-axis X push/pop on the cover display (DESIGN 3.5, 240 ms): both screens move [shiftPx] along X; the outgoing
+ * one fades out in the first quarter, the incoming one fades in after it (Material shared axis).
+ */
+private fun sharedAxisX(forward: Boolean, shiftPx: Int): ContentTransform {
+    val d = Motion.mediumMs
+    val dir = if (forward) 1 else -1
+    val enter = slideInHorizontally(tween(d, easing = Motion.standardEasing)) { dir * shiftPx } +
+        fadeIn(tween(d * 3 / 4, delayMillis = d / 4, easing = Motion.decelerateEasing))
+    val exit = slideOutHorizontally(tween(d, easing = Motion.standardEasing)) { -dir * shiftPx } +
+        fadeOut(tween(d / 4, easing = Motion.accelerateEasing))
+    return enter togetherWith exit
+}
+
+/** Tab switches, and every change on the inner display (the detail pane cross-fades): 150 ms. */
+private fun crossFade(): ContentTransform = fadeIn(tween(Motion.shortMs)) togetherWith fadeOut(tween(Motion.shortMs))
+
+@Composable
+private fun <T> StateFlow<T>.collectAsStateValue(): T {
+    val s = androidx.compose.runtime.produceState(value, this) { collect { value = it } }
+    return s.value
 }

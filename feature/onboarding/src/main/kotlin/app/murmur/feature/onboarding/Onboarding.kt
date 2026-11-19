@@ -1,17 +1,33 @@
 package app.murmur.feature.onboarding
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.Text
+import android.Manifest
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings as AndroidSettings
+import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.LifecycleResumeEffect
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import app.murmur.core.catalog.CatalogRepository
 import app.murmur.core.catalog.DeviceProfileRepository
+import app.murmur.core.dictation.DictationBubble
 import app.murmur.core.dictation.InAppTarget
 import app.murmur.core.dictation.PermissionMonitor
+import app.murmur.core.dictation.UserInput
+import app.murmur.core.model.MurmurClock
 import app.murmur.core.store.InstalledModelsRepository
 import app.murmur.core.store.SettingsRepository
+import app.murmur.ui.design.rememberIsWide
 import kotlinx.coroutines.flow.StateFlow
 
 /** Onboarding (DESIGN 6.1): mic, accessibility (+restricted settings recovery), notifications, battery, models, try it. */
@@ -26,12 +42,116 @@ class OnboardingDeps(
     val device: DeviceProfileRepository,
     /** ob-ready practice field: DictationOrchestrator.startInApp(target) behind the in-app bubble. */
     val practice: (InAppTarget) -> Unit,
+    /** The orchestrator's bubble state and level bars, drawn by the in-app practice bubble (DESIGN 5.3). */
+    val bubble: StateFlow<DictationBubble>,
+    val levels: StateFlow<FloatArray>,
+    /** Taps on the practice bubble while it runs (finish = UserInput.Tap): DictationOrchestrator.onInput. */
+    val bubbleInput: (UserInput) -> Unit,
+    val clock: MurmurClock,
+    /**
+     * Called when the accessibility settings screen is opened: the permission monitor then treats the next resume as
+     * "returned from the accessibility settings", the input of RestrictedSettingsProbe (ADR-054).
+     */
+    val accessibilitySettingsOpened: () -> Unit,
 )
 
-enum class OnboardingStep { WELCOME, MIC, ACCESSIBILITY, RESTRICTED, NOTIFICATIONS, BATTERY, MODELS, DOWNLOADING, READY }
-
-/** WP-15. */
+/**
+ * Entry point used by the app shell while Settings.onboardingDone is false. [onDone] runs after Done on the practice
+ * step has stored onboardingDone. Back on a step that cannot be skipped leaves the app (DESIGN 6.1).
+ */
 @Composable
 fun OnboardingScreen(deps: OnboardingDeps, onDone: () -> Unit, modifier: Modifier = Modifier) {
-    Box(modifier.fillMaxSize().testTag("screen-onboarding")) { Text("Onboarding") }
+    val vm: OnboardingViewModel = viewModel { OnboardingViewModel(deps) }
+    val ctl = vm.controller
+    val state by ctl.state.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val activity = context.findActivity()
+
+    // DESIGN 6.1: "On return from each system screen, Murmur re-checks the permission and moves to the next step".
+    LifecycleResumeEffect(Unit) {
+        deps.permissions.refresh()
+        onPauseOrDispose { }
+    }
+    BackHandler { ctl.dispatch(OnboardingEvent.Back) }
+    LaunchedEffect(state.exited) { if (state.exited) activity?.finish() }
+
+    val mic = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        val canAsk = activity?.shouldShowRequestPermissionRationale(Manifest.permission.RECORD_AUDIO) == true
+        ctl.dispatch(OnboardingEvent.MicResult(granted, canAsk))
+        deps.permissions.refresh()
+    }
+    val notifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        ctl.dispatch(OnboardingEvent.NotificationsResult(granted))
+        deps.permissions.refresh()
+    }
+
+    val actions = ObActions(
+        start = { ctl.dispatch(OnboardingEvent.Start) },
+        requestMic = {
+            if (state.micBlocked) context.startSafely(appDetails(context)) else mic.launch(Manifest.permission.RECORD_AUDIO)
+        },
+        openAccessibility = {
+            deps.accessibilitySettingsOpened()
+            ctl.dispatch(OnboardingEvent.A11ySettingsOpened)
+            context.startSafely(Intent(AndroidSettings.ACTION_ACCESSIBILITY_SETTINGS))
+        },
+        openAppInfo = { context.startSafely(appDetails(context)) },
+        restrictedDone = { ctl.dispatch(OnboardingEvent.RestrictedDone) },
+        requestNotifications = { notifications.launch(Manifest.permission.POST_NOTIFICATIONS) },
+        requestBattery = {
+            @Suppress("BatteryLife") // DESIGN 6.1 step 4: the user is asked once, with the reason on screen.
+            val ask = Intent(AndroidSettings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:${context.packageName}"))
+            if (!context.startSafely(ask)) context.startSafely(Intent(AndroidSettings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+        },
+        skip = { ctl.dispatch(OnboardingEvent.Skip) },
+        select = ctl::select,
+        setWifiOnly = ctl::setWifiOnly,
+        download = ctl::download,
+        pause = ctl::pause,
+        retry = ctl::retry,
+        continueToPractice = { ctl.dispatch(OnboardingEvent.ContinueToPractice) },
+        startPractice = ctl::startPractice,
+        bubbleTap = { deps.bubbleInput(UserInput.Tap) },
+        done = { ctl.finish(onDone) },
+    )
+    OnboardingContent(state, ctl, deps, actions, rememberIsWide(), modifier)
+}
+
+/** Everything a step can do; plain lambdas so that screenshot tests can render the steps without an Activity. */
+internal class ObActions(
+    val start: () -> Unit,
+    val requestMic: () -> Unit,
+    val openAccessibility: () -> Unit,
+    val openAppInfo: () -> Unit,
+    val restrictedDone: () -> Unit,
+    val requestNotifications: () -> Unit,
+    val requestBattery: () -> Unit,
+    val skip: () -> Unit,
+    val select: (String) -> Unit,
+    val setWifiOnly: (Boolean) -> Unit,
+    val download: () -> Unit,
+    val pause: () -> Unit,
+    val retry: () -> Unit,
+    val continueToPractice: () -> Unit,
+    val startPractice: (InAppTarget) -> Unit,
+    val bubbleTap: () -> Unit,
+    val done: () -> Unit,
+)
+
+private fun appDetails(context: Context) =
+    Intent(AndroidSettings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null))
+
+/** startActivity that reports false instead of throwing when no activity handles the intent. */
+private fun Context.startSafely(intent: Intent): Boolean = try {
+    if (this !is Activity) intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    startActivity(intent)
+    true
+} catch (e: android.content.ActivityNotFoundException) {
+    false
+}
+
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
 }

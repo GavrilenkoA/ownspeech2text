@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ob_step_counter">%1$d из %2$d</string>
+    <string name="ob_step_counter_cd">Шаг %1$d из %2$d</string>
+    <string name="ob_counter_done">Готово</string>
+    <string name="ob_kicker">Шаг %1$d · %2$s</string>
+    <string name="ob_inner_footer">Всё работает на телефоне. Каждую из этих настроек можно изменить позже в Настройках.</string>
+    <string name="ob_list_mic">Микрофон</string>
+    <string name="ob_list_mic_sub">Слышать вас, пока кнопка слушает</string>
+    <string name="ob_list_access">Спец. возможности</string>
+    <string name="ob_list_access_sub">Показывать кнопку и печатать за вас</string>
+    <string name="ob_list_notif">Уведомления</string>
+    <string name="ob_list_notif_sub">Одно тихое уведомление о статусе</string>
+    <string name="ob_list_battery">Работа в фоне</string>
+    <string name="ob_list_battery_sub">Оставаться наготове в других приложениях</string>
+    <string name="ob_list_models">Модели</string>
+    <string name="ob_list_models_sub">Скачать модели речи и правки</string>
+    <string name="ob_list_done_cd">%1$s, готово</string>
+    <string name="ob_list_now_cd">%1$s, текущий шаг</string>
+
+    <string name="ob_welcome_title">Говорите в любом приложении.\n%1$s напечатает.</string>
+    <string name="ob_welcome_body">Распознавание и правка работают на телефоне, на русском и английском. Голос никуда не отправляется.</string>
+    <string name="ob_welcome_point_bubble">Когда вы печатаете, появляется маленькая кнопка. Нажмите, говорите, нажмите ещё раз.</string>
+    <string name="ob_welcome_point_cleanup">Слова-паразиты уходят, пунктуация и имена получаются правильными.</string>
+    <plurals name="ob_welcome_point_history">
+        <item quantity="one">Всё сказанное хранится %d день, затем удаляется.</item>
+        <item quantity="few">Всё сказанное хранится %d дня, затем удаляется.</item>
+        <item quantity="many">Всё сказанное хранится %d дней, затем удаляется.</item>
+        <item quantity="other">Всё сказанное хранится %d дня, затем удаляется.</item>
+    </plurals>
+    <string name="ob_welcome_point_nohistory">Ничего не сохраняется: текст вставляется и копируется, а затем забывается.</string>
+    <string name="ob_welcome_cta">Настроить %1$s</string>
+    <string name="ob_welcome_fine">Около 2 минут плюс загрузка моделей</string>
+
+    <string name="ob_mic_title">Разрешите доступ к микрофону</string>
+    <string name="ob_mic_lead">Микрофон работает, только пока кнопка слушает. Вы всегда видите, когда это происходит.</string>
+    <string name="ob_mic_point_tap">Запись начинается, только когда вы нажимаете или удерживаете кнопку</string>
+    <plurals name="ob_mic_point_kept">
+        <item quantity="one">Звук обрабатывается на телефоне и хранится в истории %d день</item>
+        <item quantity="few">Звук обрабатывается на телефоне и хранится в истории %d дня</item>
+        <item quantity="many">Звук обрабатывается на телефоне и хранится в истории %d дней</item>
+        <item quantity="other">Звук обрабатывается на телефоне и хранится в истории %d дня</item>
+    </plurals>
+    <string name="ob_mic_point_notkept">Звук обрабатывается на телефоне и не сохраняется</string>
+    <string name="ob_mic_cta">Разрешить микрофон</string>
+    <string name="ob_mic_fine">Android спросит. Выберите «При использовании приложения».</string>
+    <string name="ob_mic_cta_settings">Открыть настройки приложения</string>
+    <string name="ob_mic_fine_settings">Android больше не спросит. Включите микрофон в разделе «Разрешения» и вернитесь.</string>
+
+    <string name="ob_access_title">Включите %1$s в специальных возможностях</string>
+    <string name="ob_access_lead">Рисовать поверх других приложений и печатать в них Android разрешает только службам специальных возможностей. %1$s использует это для трёх вещей:</string>
+    <string name="ob_access_point_bubble">Показывать кнопку, когда выбрано текстовое поле</string>
+    <string name="ob_access_point_type">Вставлять готовый текст в это поле</string>
+    <string name="ob_access_point_screen">Читать экран во время диктовки, чтобы правильно писать имена и термины</string>
+    <string name="ob_next_screen">На следующем экране</string>
+    <string name="ob_access_path">Установленные приложения → &lt;b>%1$s&lt;/b> → включите &lt;b>%1$s&lt;/b></string>
+    <string name="ob_access_cta">Открыть настройки</string>
+    <string name="ob_access_privacy">%1$s никуда не отправляет текст с экрана и нажатия клавиш.</string>
+
+    <string name="ob_restricted_title">Android заблокировал эту настройку</string>
+    <string name="ob_restricted_lead">Приложениям, установленным не из магазина, нужно ещё одно разрешение, чтобы пользоваться специальными возможностями.</string>
+    <string name="ob_restricted_box">Сделайте это один раз</string>
+    <string name="ob_restricted_step1">Откройте &lt;b>О приложении&lt;/b> для %1$s</string>
+    <string name="ob_restricted_step2">Нажмите &lt;b>⋮&lt;/b> в верхнем углу → &lt;b>Разрешить доступ к настройкам с ограниченным доступом&lt;/b></string>
+    <string name="ob_restricted_step3">Вернитесь сюда и включите &lt;b>%1$s&lt;/b></string>
+    <string name="ob_restricted_cta">Открыть «О приложении»</string>
+    <string name="ob_restricted_done">Я это сделал</string>
+
+    <string name="ob_notif_title">Оставьте одно тихое уведомление</string>
+    <string name="ob_notif_lead">Android требует видимое уведомление, пока приложение может пользоваться микрофоном в фоне. Оно беззвучное и позволяет скрыть кнопку на час.</string>
+    <string name="ob_notif_box">Оно выглядит так</string>
+    <string name="ob_notif_preview_title">%1$s готов</string>
+    <string name="ob_notif_preview_hide">Скрыть на час</string>
+    <string name="ob_notif_cta">Разрешить уведомления</string>
+    <string name="ob_notif_skip">Не сейчас</string>
+
+    <string name="ob_battery_title">Не давайте Android усыплять %1$s</string>
+    <string name="ob_battery_lead">Samsung усыпляет неиспользуемые приложения. Тогда кнопка пропадает, пока вы снова не откроете %1$s.</string>
+    <string name="ob_battery_point">Модели загружаются только во время диктовки и сразу выгружаются, так что в простое батарея почти не расходуется</string>
+    <string name="ob_battery_path">Батарея → выберите &lt;b>Без ограничений&lt;/b></string>
+    <string name="ob_battery_cta">Разрешить работу в фоне</string>
+    <string name="ob_battery_skip">Пропустить</string>
+
+    <string name="ob_models_title">Скачайте модели</string>
+    <string name="ob_models_lead">Они работают на телефоне, поэтому их нужно один раз скачать. Только для этого %1$s пользуется интернетом.</string>
+    <string name="ob_models_pack_sub">%1$s + правка %2$s</string>
+    <string name="ob_size_gb">%1$s ГБ</string>
+    <string name="ob_models_wifi">Скачивать только по Wi-Fi</string>
+    <string name="ob_models_cta">Скачать %1$s</string>
+    <string name="ob_models_fine">Свободно %1$s ГБ. Модели можно сменить в любой момент в разделе «Модели».</string>
+    <string name="ob_models_checking">Проверяем телефон…</string>
+    <string name="ob_models_none">На этом телефоне не работает ни один набор моделей.</string>
+
+    <string name="ob_dl_title">Загрузка</string>
+    <string name="ob_dl_lead">Можно уйти с этого экрана. Загрузка продолжится, и мы сообщим, когда она закончится.</string>
+    <string name="ob_dl_percent">%1$d%%</string>
+    <string name="ob_dl_of_gb">%1$s из %2$s ГБ</string>
+    <string name="ob_dl_of_mb">%1$s из %2$s МБ</string>
+    <string name="ob_size_mb">%1$s МБ</string>
+    <string name="ob_dl_speed_s">%1$s МБ/с · осталось около %2$d с</string>
+    <string name="ob_dl_speed_min">%1$s МБ/с · осталось около %2$d мин</string>
+    <string name="ob_dl_waiting">Ждём начала загрузки</string>
+    <string name="ob_dl_waiting_wifi">Ждём Wi-Fi</string>
+    <string name="ob_dl_prepare_npu">Проверить файлы и подготовить для NPU</string>
+    <string name="ob_dl_prepare">Проверить файлы и подготовить модели</string>
+    <string name="ob_dl_continue">Продолжить, пока идёт загрузка</string>
+    <string name="ob_dl_pause">Пауза</string>
+
+    <string name="ob_paused_title">Загрузка приостановлена</string>
+    <string name="ob_paused_offline">Нет подключения к интернету.</string>
+    <string name="ob_paused_offline_body_wifi">Сохранено %1$s из %2$s ГБ. Загрузка продолжится с этого места, когда появится Wi-Fi.</string>
+    <string name="ob_paused_offline_body">Сохранено %1$s из %2$s ГБ. Загрузка продолжится с этого места, когда появится интернет.</string>
+    <string name="ob_paused_storage">Недостаточно места.</string>
+    <string name="ob_paused_storage_body">Сохранено %1$s из %2$s ГБ. Освободите место на телефоне и повторите.</string>
+    <string name="ob_paused_user">Пауза.</string>
+    <string name="ob_paused_user_body">Сохранено %1$s из %2$s ГБ. Загрузка продолжится с этого места, когда вы нажмёте «Повторить».</string>
+    <string name="ob_paused_damaged">Загрузка повреждена.</string>
+    <string name="ob_paused_damaged_body">%1$s удалил файл. Повторите, чтобы скачать его заново.</string>
+    <string name="ob_paused_failed">Загрузка не удалась.</string>
+    <string name="ob_paused_failed_body">Сохранено %1$s из %2$s ГБ. Повторите, чтобы продолжить.</string>
+    <string name="ob_paused_speech_works">Распознавание речи уже работает. Правка включится, когда загрузится %1$s.</string>
+    <string name="ob_paused_speech_waits">Диктовка заработает, когда загрузится %1$s.</string>
+    <string name="ob_paused_retry">Повторить</string>
+    <string name="ob_paused_without_cleanup">Продолжить без правки</string>
+
+    <string name="ob_ready_kicker">Всё готово</string>
+    <string name="ob_ready_title">Попробуйте здесь</string>
+    <string name="ob_ready_lead">Нажмите на кнопку, скажите фразу, нажмите ещё раз. Можно смешивать русский и английский.</string>
+    <string name="ob_ready_field_cd">Поле для пробы</string>
+    <string name="ob_ready_result">Вставлено за %1$s с · %2$s</string>
+    <string name="ob_ready_models">%1$s → %2$s</string>
+    <string name="ob_ready_cta">Готово</string>
+    <string name="ob_ready_fine">Кнопка появляется, когда вы выбираете текстовое поле.</string>
+
+    <string name="ob_bubble_ready_cd">Начать диктовку</string>
+    <string name="ob_bubble_listening">Слушаю</string>
+    <string name="ob_bubble_finish_cd">Закончить диктовку</string>
+    <string name="ob_bubble_hold">Отпустите, чтобы закончить</string>
+    <string name="ob_bubble_transcribing">Распознаю</string>
+    <string name="ob_bubble_polishing">Привожу в порядок</string>
+    <string name="ob_bubble_inserted">Вставлено</string>
+    <string name="ob_bubble_inserted_nocleanup">Вставлено без правки</string>
+    <string name="ob_bubble_copied">Скопировано. Вставьте куда нужно</string>
+    <string name="ob_bubble_err_nospeech">Не расслышал</string>
+    <string name="ob_bubble_err_micbusy">Микрофон занят</string>
+    <string name="ob_bubble_err_nomodel">Сначала скачайте модель речи</string>
+    <string name="ob_bubble_err_load">Не удалось загрузить модель</string>
+    <string name="ob_bubble_err_transcribe">Не удалось распознать</string>
+    <string name="ob_bubble_err_generic">Что-то пошло не так</string>
+    <string name="ob_bubble_retry">Повторить</string>
+</resources>
