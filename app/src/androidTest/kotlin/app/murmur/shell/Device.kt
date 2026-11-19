@@ -82,6 +82,10 @@ object Device {
      */
     fun shot(name: String) {
         instrumentation.waitForIdleSync()
+        // A launch's splash-screen window (the app's, or the test package's for ActivityScenario) can linger over the
+        // content for a moment after the first frame and would end up in the screenshot.
+        val splashEnd = SystemClock.uptimeMillis() + 10_000
+        while (sh("dumpsys window windows").contains("Splash Screen") && SystemClock.uptimeMillis() < splashEnd) SystemClock.sleep(200)
         // A cold start can take seconds to draw its first real frame on the emulator: wait until the screen below the
         // status bar shows more than the window background.
         var bmp: Bitmap? = null

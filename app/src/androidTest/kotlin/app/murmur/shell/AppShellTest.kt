@@ -108,10 +108,12 @@ class AppShellTest {
             Device.shot("shell-history-detail")
         } else {
             assertFalse("cover: the detail is a pushed screen", compose.hasTag("screen-history"))
+            assertFalse("cover: the pushed detail covers the bottom bar (hist-detail)", compose.hasTag("nav-bar"))
             Device.shot("shell-history-detail")
-            // Back closes the detail.
+            // Back closes the detail and brings the bar back.
             Device.ui.pressBack()
             compose.waitForTag("screen-history")
+            compose.waitForTag("nav-bar")
         }
     }
 
@@ -146,10 +148,11 @@ class AppShellTest {
         try {
             Device.sh("wm size 1080x2520")
             Device.waitFor(what = "compact width") { !Device.wide() }
-            compose.waitForTag("nav-bar")
             compose.waitForTag("detail-entry-$entry")
             compose.onNodeWithTag("detail-entry-$entry").assertIsDisplayed()
+            // Compact width: the selected entry is now the pushed detail (no rail, the bar under it is covered).
             assertFalse(compose.hasTag("nav-rail"))
+            assertFalse(compose.hasTag("nav-bar"))
             Device.shot("shell-after-fold")
         } finally {
             Device.sh("wm size reset")
