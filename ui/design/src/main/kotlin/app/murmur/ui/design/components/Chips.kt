@@ -36,7 +36,8 @@ import app.murmur.ui.design.Sizes
 
 /**
  * Chip (DESIGN 4): 32 dp visual inside a 48 dp hit area, full radius, 1 dp line2 border, 13 sp / 500 in ink2.
- * [selected]: ink fill, bg text (filter chips). [dropdown]: the 36 dp variant with a trailing chevD (tone picker); a
+ * [selected]: ink fill, bg text (filter chips). [dropdown]: the 36 dp variant with a trailing chevD (tone picker; same
+ * ink2 text and 12 dp padding as the plain chip, as in the `tone` frame); a
  * dropdown chip is a button, not a toggle, so it ignores [selected].
  */
 @Composable
@@ -54,11 +55,8 @@ fun MurmurChip(
     val interaction = interactionSource ?: remember { MutableInteractionSource() }
     val on = selected && !dropdown
     val visual = if (dropdown) 36.dp else Sizes.chip
-    val fg = when {
-        on -> c.bg
-        dropdown -> c.ink
-        else -> c.ink2
-    }
+    // The tone chip (`tone` frame, the prototype's only dropdown chip) is a plain .chip: ink2 text, 12 dp on both sides.
+    val fg = if (on) c.bg else c.ink2
     val click = if (dropdown) {
         Modifier.clickable(interaction, null, enabled = enabled, role = Role.DropdownList, onClick = onClick)
     } else {
@@ -78,7 +76,7 @@ fun MurmurChip(
             .background(if (on) c.ink else Color.Transparent)
             .border(1.dp, if (on) c.ink else c.line2, shape)
             .indication(interaction, LocalIndication.current)
-            .padding(start = if (leadingIcon != null) 10.dp else 12.dp, end = if (dropdown) 8.dp else 12.dp, top = 4.dp, bottom = 4.dp),
+            .padding(start = if (leadingIcon != null) 10.dp else 12.dp, end = 12.dp, top = 4.dp, bottom = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
     ) {
