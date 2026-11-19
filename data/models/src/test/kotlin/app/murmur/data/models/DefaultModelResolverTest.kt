@@ -257,7 +257,7 @@ class DefaultModelResolverTest {
         // The latest CPU run is invalid (wrong text): it no longer scores, NPU's valid run wins.
         bench.save(asr(CPU, 40.0, false, 2, pCpu))
         assertEquals(pNpu, ok(resolver(Installed(everything)).resolve(Settings())).asr.artifactId)
-        // LLM speed comes from the latest valid record of the chosen (artifact, unit).
+        // LLM speed comes from the newest record of the chosen (artifact, unit) (ADR-071).
         bench.save(BenchmarkRecord(lfm, NPU, "1", "fp", 3, BenchmarkResultData.Llm(40.9, 569.0, 120.0, 1300.0, 900, 1200, "NPU", 1.0)))
         assertEquals(LlmSpeed(prefillTps = 569.0, decodeTps = 40.9), ok(resolver(Installed(everything)).resolve(Settings())).llm!!.speed)
         val scores = BenchScores(listOf(asr(CPU, 20.0, true, 1, pCpu), asr(CPU, 40.0, false, 2, pCpu)))

@@ -16,7 +16,7 @@ settings; deletion exactly as designed; every dashboard number derivable.
 ## Contracts
 
 Implement `HistoryRepository`, `MetricsRepository`, `BenchmarkRepository` (stores `valid` / `invalidReason`; a
-query for "latest valid record per (artifact, unit)"), `SettingsRepository` (`DataStoreSettingsRepository`, typed
+query for "latest valid record per (artifact, unit)", for display only: ADR-071), `SettingsRepository` (`DataStoreSettingsRepository`, typed
 DataStore with a kotlinx.serialization `Serializer<Settings>`), `StatsCalculator` (pure, in `core/store`), `Retention`
 (with `runNow(days): Int`, the function `SettingsDeps.retention` calls), `RetentionJob`, and `DefaultDeliveryMetrics`
 (`core/store/.../Metrics.kt`: `wordCount`, `editDistanceWords(raw, final)`, `fillersRemoved(raw, final, fillers)`,

@@ -51,8 +51,8 @@ default).
    = next; VAD = defaults.vad (batch runtime without an installed VAD → `Err(NoVadModel)`); OCR det/rec (null when
    `useScreen` is off or not installed); LLM from `settings.cleanup` (Default → `defaults.llm`, None → null +
    `llmUnavailable = "none"`, not installed → null + `"no_model"`) with `fallback` = next ranked candidate,
-   `nCtx`/`prefixTokens` from the catalog, `modelSha256` from the GGUF `FileSpec`, `speed` from the latest valid LLM
-   benchmark of that (artifact, unit), `memoryMb = MemoryEstimate.mb`; `LoadSpec` with absolute dir + layout +
+   `nCtx`/`prefixTokens` from the catalog, `modelSha256` from the GGUF `FileSpec`, `speed` from the newest LLM
+   benchmark record of that (artifact, unit) (invalid → no speed, ADR-071), `memoryMb = MemoryEstimate.mb`; `LoadSpec` with absolute dir + layout +
    `maxWindowSec` + options (`LoadOptions`: `n_ctx`, CPU LLM `use_mmap=0`, threads 4). `Err(NoAsrModel)` when no ASR
    artifact is installed.
 5. `DefaultDeviceProfileRepository`: bind both hosts, `probe()`, merge into `DeviceProfile` (+ `nativeBuilds` from the
