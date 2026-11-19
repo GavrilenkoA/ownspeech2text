@@ -1,6 +1,7 @@
 package app.murmur.feature.settings
 
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.util.Log
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.semantics.SemanticsActions
@@ -65,8 +66,9 @@ class SettingsScreenshotTest {
     fun promptErr() = shot("prompt-err", bottomBar = false, expect = "Remove chat markup like <|im_start|> or <think>: the model reads it as its own.") { vm ->
         vm.openPrompt()
         val e = vm.promptEditor.value!!
-        e.setText(SettingsFixtures.PROTOTYPE_PROMPT_MARKUP)
+        // The frame's state: the card keeps the result of the last valid text; invalid text is never sent.
         e.runTry(PromptEditor.SAMPLE)
+        e.setText(SettingsFixtures.PROTOTYPE_PROMPT_MARKUP)
     }
 
     @Test
@@ -145,15 +147,50 @@ class SettingsScreenshotTest {
             rule.onNodeWithTag(scrollTo).performScrollTo()
             rule.waitForIdle()
         }
-        val file = save("$name--$suffix" + if (dark) "--dark" else "")
+        val shotName = "$name--$suffix" + if (dark) "--dark" else ""
+        val (file, bmp) = save(shotName)
         assertTrue("$file written", file.length() > 0)
+        assertMatchesFrame(shotName, bmp)
         // The state's decisive text is composed (some sit below the fold of the frame).
         rule.onAllNodesWithText(expect, substring = true, useUnmergedTree = true).onFirst().assertExists()
         assertNoTextOverflow(name)
         assertTouchTargets(name)
     }
 
-    private fun save(name: String): File {
+    /**
+     * The shot against its design frame (docs/design/screens, packed into the test APK under frames/): the share of
+     * pixels that differ by more than 40 levels in any channel, in the app area (status bar 36 dp and gesture bar
+     * 20 dp masked), stays within the recorded budget. The budgets are the measured shares plus 0.5 points; what
+     * remains is listed in the WP-19 report (rows the frames lack, the ADR-019 panel, letter tiles). Rendering on an
+     * AVD is deterministic, so a regression of a row or a control shows up as a larger share.
+     */
+    private fun assertMatchesFrame(name: String, shot: Bitmap) {
+        val budget = FRAME_BUDGETS[name] ?: return
+        val frame = InstrumentationRegistry.getInstrumentation().context.assets.open("frames/$name.png").use { BitmapFactory.decodeStream(it) }
+        assertEquals("$name frame size", frame.width to frame.height, shot.width to shot.height)
+        val w = shot.width
+        val h = shot.height
+        val a = IntArray(w * h).also { frame.getPixels(it, 0, w, 0, 0, w, h) }
+        val b = IntArray(w * h).also { shot.getPixels(it, 0, w, 0, 0, w, h) }
+        val top = 36 * 2
+        val bottom = h - 20 * 2
+        var differ = 0
+        for (i in top * w until bottom * w) {
+            val p = a[i]
+            val q = b[i]
+            val d = maxOf(
+                kotlin.math.abs((p shr 16 and 0xFF) - (q shr 16 and 0xFF)),
+                kotlin.math.abs((p shr 8 and 0xFF) - (q shr 8 and 0xFF)),
+                kotlin.math.abs((p and 0xFF) - (q and 0xFF)),
+            )
+            if (d > 40) differ++
+        }
+        val share = 100.0 * differ / ((bottom - top).toLong() * w)
+        Log.i(TAG, "$name: %.2f%% pixels differ from the frame (budget %.2f%%)".format(share, budget))
+        assertTrue("$name differs from its frame in %.2f%% of the pixels (budget %.2f%%)".format(share, budget), share <= budget)
+    }
+
+    private fun save(name: String): Pair<File, Bitmap> {
         val bmp: Bitmap = rule.onNodeWithTag(FRAME_TAG).captureToImage().asAndroidBitmap()
         assertEquals("frame width px", device.width * 2, bmp.width)
         assertEquals("frame height px", device.height * 2, bmp.height)
@@ -161,7 +198,7 @@ class SettingsScreenshotTest {
         val file = File(dir, "$name.png")
         file.outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
         Log.i(TAG, "$name: ${bmp.width}x${bmp.height} -> $file")
-        return file
+        return file to bmp
     }
 
     /** Clickables are at least 48 × 48 dp (in the frame 1 dp = 2 px), by layout size and by touch bounds. */
@@ -208,5 +245,17 @@ class SettingsScreenshotTest {
 
     private companion object {
         const val TAG = "SettingsShot"
+
+        /** Per frame: measured share of differing pixels (2026-11-20, both AVDs) plus 0.5 points. */
+        val FRAME_BUDGETS: Map<String, Double> = mapOf(
+            "settings--cover" to 6.74, "settings--inner" to 3.28,
+            "settings-dark--cover--dark" to 6.96, "settings-dark--inner--dark" to 3.32,
+            "settings-off--cover" to 6.87, "settings-off--inner" to 4.10,
+            "prompt--cover" to 7.99, "prompt--inner" to 5.26,
+            "prompt-err--cover" to 9.67, "prompt-err--inner" to 5.99,
+            "prompt-reset--cover" to 6.66, "prompt-reset--inner" to 4.10,
+            "tone--cover" to 4.78, "tone--inner" to 3.80,
+            "retention--cover" to 5.01, "retention--inner" to 2.05,
+        )
     }
 }
