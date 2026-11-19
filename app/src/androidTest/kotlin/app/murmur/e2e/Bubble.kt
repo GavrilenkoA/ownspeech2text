@@ -7,6 +7,7 @@ import android.view.accessibility.AccessibilityWindowInfo
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.UiObject2
 import app.murmur.core.dictation.DictationBubble
+import app.murmur.core.dictation.DictationOutcome
 import app.murmur.core.dictation.DictationState
 import app.murmur.core.dictation.EngineStatus
 import kotlinx.coroutines.CoroutineScope
@@ -129,14 +130,23 @@ class DictationRecorder : AutoCloseable {
         awaitState("Listening", timeoutMs) { it as? DictationState.Listening }
 
     fun awaitDone(timeoutMs: Long): DictationState.Done = awaitState("Done", timeoutMs) { it as? DictationState.Done }
-        .also { E2e.note("done outcome=${it.outcome::class.simpleName} after ${states.size} states") }
+        .also { E2e.note("done ${label(it)} after ${states.size} states") }
 
     /** The bubble kinds in order, consecutive duplicates collapsed (Listening timer updates are one Listening). */
     fun bubbleKinds(): List<String> = bubbles.map { it.value::class.simpleName ?: "?" }
         .fold(mutableListOf()) { acc, k -> if (acc.lastOrNull() != k) acc += k; acc }
 
-    fun stateKinds(): List<String> = states.map { it.value::class.simpleName ?: "?" }
+    /** The state kinds in order, consecutive duplicates collapsed; Done carries its outcome and error code. */
+    fun stateKinds(): List<String> = states.map { label(it.value) }
         .fold(mutableListOf()) { acc, k -> if (acc.lastOrNull() != k) acc += k; acc }
+
+    private fun label(s: DictationState): String = when (s) {
+        is DictationState.Done -> when (val o = s.outcome) {
+            is DictationOutcome.Failed -> "Done(Failed:${o.error.code})"
+            else -> "Done(${o::class.simpleName})"
+        }
+        else -> s::class.simpleName ?: "?"
+    }
 
     /** Fails unless [expected] appears in this order (other kinds may come between). */
     fun assertBubbleOrder(vararg expected: String) = assertSubsequence("bubble", bubbleKinds(), expected.toList())

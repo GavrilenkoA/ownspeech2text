@@ -39,7 +39,7 @@ class FastE2eTest : DictationTest() {
         assertEquals(fakes.asr.script, entry.rawText)
         assertEquals("accept", entry.cleanup?.outcome)
         rec.assertBubbleOrder("Listening", "Polishing", "Inserted")
-        rec.assertStateOrder("Arming", "Listening", "Finishing", "Polishing", "Delivering", "Done")
+        rec.assertStateOrder("Arming", "Listening", "Finishing", "Polishing", "Delivering", "Done(Inserted)")
         E2e.report("fast.stop_to_done_ms", entry.timings.stopToDoneMs ?: -1)
     }
 }

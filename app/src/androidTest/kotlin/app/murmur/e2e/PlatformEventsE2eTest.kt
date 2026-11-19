@@ -134,6 +134,11 @@ class PlatformEventsE2eTest : DictationTest() {
                     Processes.pidOf(Processes.ASR)?.let { it != killed } ?: false
                 }
             }
+            // The restarted process runs for a while before it dies again, as a second crash does in practice. A death
+            // within milliseconds of the restart is another case: the orchestrator's host watcher reads a StateFlow, so
+            // it can miss the short Up between Down and the second Crashed, and then takes the death for the old
+            // instance's (reported to WP-11; this suite hit it once on the fakes).
+            SystemClock.sleep(1_000)
             Pipeline.crash(InferProcess.ASR)
             E2e.waitUntil("ASR failed after the second death", 15_000, pollMs = 50) {
                 rec.enginesOf(rec.state)?.asr is app.murmur.core.dictation.AsrReadiness.Failed
