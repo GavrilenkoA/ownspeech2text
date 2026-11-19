@@ -200,5 +200,9 @@ class ScreenshotChainTest {
         val dark = frame(96, 96, 0xFF000000.toInt())
         for (x in 0 until 96) dark.argb[1 * 96 + x] = 0xFFE0E0E0.toInt()
         assertFalse(FrameCheck.isBlack(dark))
+        // One lit pixel anywhere counts: every pixel is checked, not a sampling grid.
+        val sparse = frame(960, 960, 0xFF000000.toInt())
+        sparse.argb[403 * 960 + 517] = 0xFFE0E0E0.toInt()
+        assertFalse(FrameCheck.isBlack(sparse))
     }
 }

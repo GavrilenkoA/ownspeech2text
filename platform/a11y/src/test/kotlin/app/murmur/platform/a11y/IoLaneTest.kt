@@ -1,11 +1,14 @@
 package app.murmur.platform.a11y
 
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.asExecutor
 import kotlinx.coroutines.job
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -41,12 +44,17 @@ class IoLaneTest {
         val looper = FakeLooper()
         val lane = IoLane(looper::post, Dispatchers.Default.asExecutor())
         // The looper quits while the call is suspended inside the lane: its resumption is rejected.
-        val r = withTimeout(2_000) { lane.call("gone") {
-            looper.quit.set(true)
-            // Resumed from another thread (a binder callback): the resumption goes through dispatch(), now rejected.
-            suspendCancellableCoroutine<Unit> { c -> Thread { c.resume(Unit) }.start() }
-            "done after quit on ${if (Thread.currentThread().name.startsWith("a11y-io")) "lane" else "fallback"}"
-        } }
+        // Awaited from outside the lane, so a dropped resumption shows as a timeout instead of a hang.
+        val call = CoroutineScope(Dispatchers.Default).async {
+            lane.call("gone") {
+                looper.quit.set(true)
+                // Resumed from another thread (a binder callback): the resumption goes through dispatch(), now rejected.
+                suspendCancellableCoroutine<Unit> { c -> Thread { c.resume(Unit) }.start() }
+                "done after quit on ${if (Thread.currentThread().name.startsWith("a11y-io")) "lane" else "fallback"}"
+            }
+        }
+        val r = withTimeoutOrNull(2_000) { call.await() }
+        call.cancel()
         assertEquals("done after quit on fallback", r)
         assertTrue(coroutineContext.job.isActive)
         looper.shutdown()
