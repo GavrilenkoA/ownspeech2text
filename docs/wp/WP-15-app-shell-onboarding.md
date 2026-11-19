@@ -140,3 +140,18 @@ Still in work: WP-03, 10, 15, 16, 17, 20 (early paths).
 - Fakes in `AppContainer`: the integration's `benchmarkRunner` needs `DefaultModelResolver.benchSpecs`, which is not on
   the `ModelResolver` port. If the resolver is typed as the port (to allow a fake), keep a separate
   `DefaultModelResolver` reference for the runner, or use the not-wired runner only when a fake is installed.
+
+## Integration notes (wave-1 integration pass 3; ADR-081 in DECISIONS)
+
+Merged on `integration/wave1` in this pass: WP-03 (in addition to WP-01, 02, 04, 05, 06, 07, 08, 09, 11, 12, 13, 14).
+Still in work: WP-10, 15, 16, 17, 20 (early paths).
+- `AppContainer.feedback` is now WP-03's `OverlayFeedback { settings.settings.value.feedback }` (ADR-081). Your branch
+  still edits the old no-op placeholder: keep `OverlayFeedback` at the merge, do not bring the placeholder back.
+- The bubble is real: `A11yServiceHost.bubbleFor` defaults to `OverlayHost(service, displayId, dictation.bubble,
+  dictation.levels, ::onUserInput, settings)`; do not override it in `MurmurApp`. The pass-2 note about
+  `bubble_attach_failed ... NotImplementedError` is obsolete (that fallback was removed). The service destroys the
+  bubble when a display is removed or the service ends; nothing to do in `:app`.
+- Onboarding `ob-overlay` / the practice field: the bubble does not show over Murmur's own UI (`ownUiPackages`), so the
+  practice field keeps its own button (DESIGN 5.2).
+- Settings changes reach the bubble directly (`OverlayHost` collects `SettingsRepository.settings`: size, tuck-in,
+  show always, positions, hidden-until, feedback); no extra wiring.

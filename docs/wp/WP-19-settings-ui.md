@@ -97,3 +97,15 @@ Still in work: WP-03, 10, 15, 16, 17, 20 (early paths).
   the category default and the preview flag; the schema waits for the prompt owner.
 - "What the model also receives" panel: a screenshot that failed because the target app left the front
   (`TargetChanged`) is `full` + `screenshot_error` like any screenshot error (ADR-079).
+
+## Integration notes (wave-1 integration pass 3; ADR-081 in DECISIONS)
+
+Merged on `integration/wave1` in this pass: WP-03 (in addition to WP-01, 02, 04, 05, 06, 07, 08, 09, 11, 12, 13, 14).
+Still in work: WP-10, 15, 16, 17, 20 (early paths).
+- Bubble section (ADR-081): the bubble reads `Settings` itself, so every control takes effect live through
+  `SettingsRepository.update`. "Show always" with no field focused shows the edge tab; a tap opens it to Ready for 4 s
+  whatever "Tuck in" says (under TalkBack it stays Ready): describe "Tuck in" as applying while typing only.
+  "Reset position" clears the per-display positions; an idle bubble re-places at once (never during a dictation).
+- "Sound and vibration": Vibration and Both vibrate (CONFIRM on start, CLOCK_TICK on Inserted / Copied and on the hide
+  magnet, REJECT on Error); Sound and Off do not; Sound plays nothing until the earcons exist (ADR-062).
+- Bubble size Small / Standard / Large: the Small Ready circle is 44 dp with a 48 dp touch target (checked by WP-03).

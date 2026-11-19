@@ -3,7 +3,7 @@
 Collected from the work-package reports at integration. Each item: the question in plain words, what the architect
 recommends, and whether it blocks anything. Answer in any order; "go with the recommendation" is a valid answer.
 
-Updated: wave-1 integration pass 2 (2026-11-19; WP-01, 02, 04, 05, 06, 07, 08, 09, 11, 12, 13, 14 merged).
+Updated: wave-1 integration pass 3 (2026-11-19; WP-01, 02, 03, 04, 05, 06, 07, 08, 09, 11, 12, 13, 14 merged).
 
 ## Models and ML
 
@@ -52,10 +52,22 @@ Updated: wave-1 integration pass 2 (2026-11-19; WP-01, 02, 04, 05, 06, 07, 08, 0
    4.5:1 text contrast. The tiles are treated as decorative today (3:1 graphic contrast passes).
    *Recommendation:* the design owner darkens both in `docs/design/tokens.json` so the letters pass as text.
    Blocks nothing.
+8. **How should a working pill look while it is dragged?** (WP-03, design owner) Dragging Listening, Transcribing or
+   Polishing now lifts the pill itself (slightly larger, with a shadow, growing toward the edge it was docked to); it
+   cannot be hidden, only moved. DESIGN 5.3 shows a drag only for the idle circle. Screenshots:
+   `.cache/spikes/wp-03/shots/b-drag-listen--cover.png`, `b-drag-listen--inner.png`, `overlay-drag-listening.png`
+   (in the integration tree, taken with the bundled fonts).
+   *Recommendation:* keep it (the user sees what they are holding; no jump to a circle and back).
+   Blocks nothing (the current look ships unless you say otherwise).
+9. **Copy for two bubble errors that are not in the copy deck.** (WP-03, design owner) Proposed today:
+   transcription failed = "Couldn't transcribe that" / "Не удалось распознать" (with Open entry); any other failure
+   (preflight and the rest) = "Dictation didn't work" / "Диктовка не удалась".
+   *Recommendation:* accept both, or send replacements (the pill is at most 280 dp wide).
+   Blocks nothing (strings only).
 
 ## Prompt
 
-8. **Which file and schema should hold the texts of the named tones (Casual / Neutral / Formal / Verbatim)?** (WP-04,
+10. **Which file and schema should hold the texts of the named tones (Casual / Neutral / Formal / Verbatim)?** (WP-04,
    ADR-020) The app looks for `named.<tone>.text` in `prompts/tones/tones.v1.json`, the place `prompts/render.py`
    `load_tones` reads; no texts exist yet, so a chosen tone falls back to the app category's default and the Settings
    preview says so. A test fails as soon as `prompts/tones` gains a file or a section, so a new file cannot be missed.
@@ -77,6 +89,11 @@ Updated: wave-1 integration pass 2 (2026-11-19; WP-01, 02, 04, 05, 06, 07, 08, 0
   also closes the notification shade before the target app is read (ADR-079).
 - If you switch apps in the 0.6 s before the screenshot, no screen text is used for that dictation (the screenshot
   never shows another app; ADR-079).
+
+- With "Show the bubble: Always" and no field focused, tapping the edge tab opens the dictation button for 4 s and it
+  then folds back, whether "Tuck in" is on or off; with TalkBack on it stays open (ADR-081, from WP-03 review).
+- A bubble that is listening, transcribing or polishing can be moved but not dragged onto "hide for 1 hour"
+  (dropping it there used to start the hour silently while the dictation went on; ADR-081).
 
 ## Still open from architecture v2 (unchanged, listed for completeness)
 

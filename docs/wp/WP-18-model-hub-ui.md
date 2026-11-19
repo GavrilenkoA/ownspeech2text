@@ -109,3 +109,10 @@ Still in work: WP-03, 10, 15, 16, 17, 20 (early paths).
   most ceil(2 % of the lines) differing texts and CER ≤ 0.5 % over all characters; `OcrTolerance` (ADR-077) is the
   parity test only. One rounding character on NPU no longer shows "Results look wrong".
 - One score implementation: `core:benchmark` `BenchScores` (newest record per (artifact, unit)); the resolver uses it.
+
+## Integration notes (wave-1 integration pass 3; ADR-081 in DECISIONS)
+
+Merged on `integration/wave1` in this pass: WP-03 (in addition to WP-01, 02, 04, 05, 06, 07, 08, 09, 11, 12, 13, 14).
+Still in work: WP-10, 15, 16, 17, 20 (early paths).
+- No WP-03 contract changes the model hub. The bubble's "Download a speech model first" error opens the hub through
+  `Effect.Open(OpenTarget)` (unchanged).

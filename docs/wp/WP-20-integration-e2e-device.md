@@ -146,3 +146,23 @@ Still in work: WP-03, 10, 15, 16, 17, 20 (early paths).
   and guard ports on ART/ICU; add it to the device pass (see DEVICE_CHECKLIST DC8 addition).
 - DEVICE_CHECKLIST: this pass's device notes (WP-02, 04, 14) were added as one-line additions to DC5, DC8, DC9 and
   DC10 under "Wave-1 additions"; fold them into the rows with the others.
+
+## Integration notes (wave-1 integration pass 3; ADR-081 in DECISIONS)
+
+Merged on `integration/wave1` in this pass: WP-03 (in addition to WP-01, 02, 04, 05, 06, 07, 08, 09, 11, 12, 13, 14).
+Still in work: WP-10, 15, 16, 17, 20 (early paths).
+- The bubble is merged (ADR-081). For the fast e2e test: the Ready circle is one accessibility node with the
+  description "Start dictation. Double-tap to talk, double-tap again to finish" (ru: values-ru), test tag `bubble`;
+  the Listening pill's node is "Finish dictation". Each face has one node ≥ 48 dp except Error (reason + action).
+- UiAutomation against overlay windows (WP-03 note): after a programmatic move or a snap, wait until the accessibility
+  window list shows the overlay window at the target point before injecting a press; WindowManager lags the app's
+  `updateViewLayout` on a loaded emulator. `platform/overlay/tools/run_emulator_tests.sh <serial>` is WP-03's suite
+  (installs `:testapps:target`, drives the hinge posture requests, pulls screenshots to `.cache/spikes/wp-03/`).
+- Platform event (a) fold/unfold: the emulator posture test proves only that the bubble survives (the headless emulator
+  has no display change); re-placement on the real hinge (same edge, proportional y or the stored position) is DC10.
+  Assert in (a) that the bubble still exists and the dictation ends Inserted; leave the edge check to DC10.
+- Dragging a working pill only moves it (no hide target); dropping the idle bubble on the hide target writes
+  `Settings.hiddenUntilEpochMs` (+1 h) and shows the snackbar. A drag test may assert both.
+- Wave 3: `AppContainer.feedback` is `OverlayFeedback` already; keep it when taking over `AppContainer` from WP-15.
+  DEVICE_CHECKLIST: WP-03's three proposed new steps (drag a Listening pill, haptics per setting, Small size with
+  TalkBack) are listed in the integration report for you to place; its DC5 / DC10 notes were added as one-liners.

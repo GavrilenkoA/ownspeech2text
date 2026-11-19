@@ -77,3 +77,10 @@ Merged on `integration/wave1` in this pass: WP-04, WP-02, WP-14 (in addition to 
 Still in work: WP-03, 10, 15, 16, 17, 20 (early paths).
 - No contract of WP-02/04/14 reaches History directly. A dictation whose screenshot failed because the user switched
   apps (`TargetChanged`) is stored like any other (no screen context; ADR-079).
+
+## Integration notes (wave-1 integration pass 3; ADR-081 in DECISIONS)
+
+Merged on `integration/wave1` in this pass: WP-03 (in addition to WP-01, 02, 04, 05, 06, 07, 08, 09, 11, 12, 13, 14).
+Still in work: WP-10, 15, 16, 17, 20 (early paths).
+- No WP-03 contract changes the History inputs. The bubble's Error "Open" action arrives as
+  `UserInput.ResultAction` → `Effect.Open(OpenTarget)` as before (ADR-061).

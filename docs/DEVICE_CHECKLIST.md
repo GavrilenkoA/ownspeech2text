@@ -47,6 +47,8 @@ and `murmur_app_smoke.sh`):
 - DC9: ASR records on the mixed clip (3 VAD segments) have `tailMs` well below the clip's processMs and no `asr.tail.whole_decode` note (WP-14).
 - DC9: OCR CPU and NPU records are both valid; if NPU shows `ocr_text`, note the differing lines and the CER (feeds ADR-080's small-sample gate) (WP-14).
 - DC9: LLM unit wall time (`notes wall.ms`) < 60 s; `llm.warmup.ms + llm.case.ms + llm.synthetic.ms` + `llm.prefix.ms` account for it, fixed-case decodeTps ≈ `llm.tg128.tps` (WP-14).
+- DC5: fold/unfold with the bubble hidden (no field focused, "Show always" off): no 2 s BLAST stall; a hidden bubble is alpha 0 + `FLAG_NOT_TOUCHABLE`, never `View.GONE` (`MurmurBubble` log) (WP-03).
+- DC10: after the real fold/unfold the bubble re-places on the same edge with proportional y, or at the position stored for that display (cover vs inner); the emulator only proves it survives (WP-03).
 
 Legal items that block shipping NPU libraries (not technical, owner reads once; until then DC8 APKs stay local):
 - Hexagon SDK Community Edition licence for redistributing `libggml-htp-v79.so` (needs a Qualcomm account to read).

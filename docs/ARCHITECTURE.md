@@ -1,6 +1,6 @@
 # Murmur architecture
 
-Version 2.1 · 2026-11-19 (wave-1 integration pass 1: ADR-064..077) · Owner: architect. Binding for all work packages (`docs/wp/`). Owner decisions D1-D12 are
+Version 2.1 · 2026-11-19 (wave-1 integration passes 1-3: ADR-064..081) · Owner: architect. Binding for all work packages (`docs/wp/`). Owner decisions D1-D12 are
 quoted verbatim at the top of `docs/DECISIONS.md`; conflicts and their evidence are ADR-nnn there; review findings and
 their resolution are under "Review responses" there. Everything that only the phone can prove: `docs/DEVICE_CHECKLIST.md`
 (steps DC1-DC10).
@@ -108,7 +108,7 @@ to be replaced by a measurement).
 | data | `:data:db` | Android | Room DB (history, metrics, benchmark, custom_model), DataStore settings, retention job (WP-12) |
 | data | `:data:models` | Android | storage layout, UIDT download job, verify/extract, catalog repo, model resolver, device-profile probe, unit health, HF custom models (WP-13) |
 | platform | `:platform:a11y` | Android | accessibility service, target snapshot, screenshot, insertion ladder, clipboard, bridges, `NotificationStart`, `A11yStatus` / `RestrictedSettingsProbe` (WP-02) |
-| platform | `:platform:overlay` | Android+Compose | bubble visuals, visibility policy, placement/snap math, overlay window host, `Feedback` (WP-03) |
+| platform | `:platform:overlay` | Android+Compose | bubble visuals, visibility policy, placement/snap math, overlay window host `OverlayHost(…, settings)` (attach / detach reversible, `destroy()` final), `OverlayFeedback` = the `Feedback` port (WP-03, ADR-081) |
 | platform | `:platform:audio` | Android | AudioRecord capture + signals, microphone FGS, Opus history store, status notification (WP-09) |
 | ui | `:ui:design` | Android+Compose | tokens generated from `docs/design/tokens.json`, `MurmurTheme`, fonts, icons, components, `AppInfoProvider` contract (WP-01) |
 | ui | `:feature:history` / `dashboard` / `models` / `settings` / `onboarding` | Android+Compose | screens + view models (WP-16..19, WP-15) |
@@ -122,7 +122,8 @@ to be replaced by a measurement).
    `engine`(audio, ocr) ← `benchmark`(engine, store, catalog, prompt) ← `dictation`(everything core).
 2. `infer:*` depend only on `core:*` (+ `infer:api`). They never depend on `data`, `platform`, `ui`, `feature`.
 3. `data:*` depend on `core:*` (`data:models` may use `data:db`). `platform:*` depend on `core:*` and
-   `platform:overlay` → `ui:design`; `platform:a11y` → `platform:overlay`.
+   `platform:overlay` → `ui:design` (it exposes `:core:dictation` and `:core:store` as `api`: `OverlayHost` takes a
+   `SettingsRepository`, ADR-081); `platform:a11y` → `platform:overlay`.
 4. `feature:*` depend on `ui:design` and `core:*` only. **Features never depend on each other**, on `data:*`,
    `infer:*` or `platform:*`; they receive interfaces through a `XxxDeps` class built by `:app` (every member a
    screen needs is in its Deps: app labels/icons via `AppInfoProvider`, permissions via `PermissionMonitor`, device
@@ -280,7 +281,10 @@ asrCrashes, llmCrashes}` and the `SessionPlan` from preflight.
 | `Done(outcome)` | result shown, dismiss timer | Inserted / Inserted, no cleanup / Copied only / Error / (Discarded → Idle) |
 
 `StartMode` = TAP, HOLD, NOTIFICATION, IN_APP. Dragging is overlay-local and allowed in every working state; taps on
-working pills are ignored (DESIGN 5.3).
+working pills are ignored (DESIGN 5.3). A working or result pill can only be moved: it is dragged as itself and the
+hide target is armed only for a drag that starts from the idle bubble while the dictation stays Idle (ADR-081). With
+"Show always" and no field focused, a tap opens the Rest tab to Ready for 4 s whatever the tuck-in setting (stays
+Ready under TalkBack; overlay-local, ADR-081).
 
 ### 5.2 Transitions
 
@@ -744,7 +748,7 @@ implemented by WP-12).
 
 `core/store/.../Settings.kt` is the whole model (defaults = product defaults): dictation (languages ru+en, auto-detect,
 hold-to-talk on, feedback vibration, typing wpm 40), bubble (when typing, tuck-in on, size standard 52 dp, hidden-in
-packages, per-display positions, hidden-until), cleanup (prompt override {systemText, baseProfile}, preferences ≤
+packages, per-display positions, hidden-until; read by `OverlayHost` directly, ADR-081), cleanup (prompt override {systemText, baseProfile}, preferences ≤
 1,000 chars, tone per app, use screen on), history (retention 7 days, keep recordings on), models (ASR model, cleanup
 choice Default/None/Model, unit preference **per model id**, Wi-Fi only on, idle unload 60 s), onboarding done, debug
 only: fake engines, timeout scale, ignore memory gate. "Edited" = `promptOverride != null`; Reset deletes the override
