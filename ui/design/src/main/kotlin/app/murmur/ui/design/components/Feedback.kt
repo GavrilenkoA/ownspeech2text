@@ -190,7 +190,9 @@ fun Banner(
                 Box(
                     Modifier.offset(x = (-12).dp).layout { m, cst ->
                         val p = m.measure(cst)
-                        val hit = ((p.height - Sizes.buttonSm.roundToPx()) / 2).coerceAtLeast(0)
+                        // The button's touch padding (48 dp target around the 40 dp visual); with large text the
+                        // visual grows and the padding stays.
+                        val hit = ((MinTouch - Sizes.buttonSm) / 2).roundToPx()
                         val margin = 6.dp.roundToPx()
                         layout(p.width, p.height - 2 * hit) { p.place(0, margin - hit) }
                     },
