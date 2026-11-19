@@ -191,3 +191,23 @@ def test_calibration_flags_only_gaps_beyond_sampling_noise():
     assert r["over_tol"] is True and r["ok"] is True
     sim["m"]["terms"]["exact_rate"] = 0.9
     assert compare_profiles(real, sim)["m"]["term_exact_rate"]["ok"] is False
+
+
+# ------------------------------------------------------------------- digits inside kept Latin terms
+def test_model_that_never_writes_digits_spells_them_inside_kept_latin_terms():
+    m = "nemotron-speech-streaming-en-0.6b@onnx-int8-560ms"
+    rows = [row(f"n{i}", "en", f"Book {i + 2} rooms for {i + 10} people.",
+                f"Book {w} rooms for {v} people.", m)
+            for i, (w, v) in enumerate([("two", "ten"), ("three", "eleven"), ("four", "twelve")])]
+    rows.append(row("t", "en", "Ship the Deploy tool today.", "Ship the Deploy tool today.", m, ["Deploy"]))
+    nm = NoiseModel.from_tables(mine_rows(rows))
+    assert nm.profiles[m]["digits"]["hyp_digit_rate"] == 0.0
+    term = [{"term": "Gemini 2.5 Pro", "category": "x"}]
+    hyps = [nm.simulate("Is Gemini 2.5 Pro better?", m, term, "en", seed=s).hypothesis for s in range(60)]
+    assert not [h for h in hyps if any(c.isdigit() for c in h)], hyps
+    assert any("two point five" in h.lower() for h in hyps)
+    # a model seen writing digits keeps them in the term
+    w = "whisper-large-v3-turbo@onnx-int8"
+    nm2 = NoiseModel.from_tables(mine_rows([row("w", "en", "Book 2 rooms.", "Book 2 rooms.", w)]))
+    hyps2 = [nm2.simulate("Is Gemini 2.5 Pro better?", w, term, "en", seed=s).hypothesis for s in range(30)]
+    assert any("2.5" in h for h in hyps2)

@@ -1,0 +1,7681 @@
+{
+ "distil-large-v3.5@onnx-int8": {
+  "by_tts": {
+   "kokoro1": {
+    "by_lang": {
+     "en": {
+      "cer": 0.0169,
+      "latin_kept_rate": 0.9993,
+      "n": 102,
+      "term_error_rate": 0.1521,
+      "term_exact_rate": 0.576,
+      "term_n": 217,
+      "wer": 0.0796,
+      "wer_style_aware": 0.0395,
+      "words": 1444
+     }
+    },
+    "inputs": {
+     "text": 73,
+     "tts_text": 29
+    }
+   },
+   "piper": {
+    "by_lang": {
+     "en": {
+      "cer": 0.0417,
+      "latin_kept_rate": 0.9986,
+      "n": 104,
+      "term_error_rate": 0.3317,
+      "term_exact_rate": 0.4488,
+      "term_n": 205,
+      "wer": 0.122,
+      "wer_style_aware": 0.0982,
+      "words": 1558
+     }
+    },
+    "inputs": {
+     "text": 72,
+     "tts_text": 32
+    }
+   },
+   "supertonic3": {
+    "by_lang": {
+     "en": {
+      "cer": 0.0236,
+      "latin_kept_rate": 0.9986,
+      "n": 101,
+      "term_error_rate": 0.2358,
+      "term_exact_rate": 0.5472,
+      "term_n": 212,
+      "wer": 0.0853,
+      "wer_style_aware": 0.048,
+      "words": 1478
+     }
+    },
+    "inputs": {
+     "text": 78,
+     "tts_text": 23
+    }
+   }
+  },
+  "casing": {
+   "all_lower_rate": 0.013,
+   "first_upper_rate": 0.9577,
+   "has_upper_rate": 0.987,
+   "label": "sentence",
+   "n_rows": 307,
+   "proper_case_kept_rate": 0.8351
+  },
+  "cer": 0.0275,
+  "channels": {
+   "clean": 241,
+   "phone_noisy": 66
+  },
+  "digits": {
+   "error_rate": 0.1154,
+   "examples": [
+    [
+     "3:30",
+     "330",
+     2
+    ],
+    [
+     "18:00",
+     "18",
+     1
+    ],
+    [
+     "2",
+     "two",
+     1
+    ]
+   ],
+   "hyp_digit_rate": 0.1889,
+   "kept_digits_rate": 0.9565,
+   "label": "digits",
+   "ref_numbers": 26,
+   "spelled_rate": 0.0435,
+   "word_numbers": 1,
+   "words_to_digits_rate": 1.0
+  },
+  "hallucination": {
+   "empty_rate": 0.0,
+   "foreign_examples": [],
+   "foreign_script_rate": 0.0,
+   "lead_rate": 0.0,
+   "leads": [],
+   "overlong_rate": 0.0,
+   "tail_rate": 0.0,
+   "tails": []
+  },
+  "kinds": {
+   "case": 136,
+   "del": 6,
+   "ins": 18,
+   "match": 4027,
+   "number": 9,
+   "punct": 140,
+   "sub": 34,
+   "sub_near": 223,
+   "translit": 18
+  },
+  "langs": {
+   "en": 307
+  },
+  "latin": {
+   "by_lang": {
+    "en": {
+     "error_rate": 0.0474,
+     "kept_latin_rate": 0.9988,
+     "n": 4454
+    }
+   },
+   "cyrillic_rate": 0.0012,
+   "error_rate": 0.0474,
+   "hyp_latin_rate": 1.0,
+   "kept_latin_rate": 0.9988,
+   "label": "latin",
+   "ref_latin_words": 4454
+  },
+  "n": 307,
+  "n_ref_words": 4480,
+  "nonterm_wer": 0.0192,
+  "nonterm_words": 3694,
+  "punctuation": {
+   "any_rate": 0.987,
+   "comma_ratio": 1.16,
+   "label": "full",
+   "n_rows": 307,
+   "other_ratio": 0.5301,
+   "question_kept_rate": 0.9149,
+   "terminal_kept_rate": 0.9739
+  },
+  "rtf": 2.3672,
+  "sampler": {
+   "by_lang": {
+    "en": {
+     "near_share": 0.7358,
+     "nonterm_words": 3694,
+     "p_del": 0.0008,
+     "p_ins": 0.0041,
+     "p_sub": 0.0143
+    }
+   },
+   "confusable_words": {
+    "99.9%": 1,
+    "a": 78,
+    "add": 12,
+    "backend": 2,
+    "baselines": 1,
+    "before": 40,
+    "block": 8,
+    "caching": 2,
+    "could": 25,
+    "drop": 5,
+    "explain": 14,
+    "ffmpeg": 2,
+    "fix": 10,
+    "hi": 4,
+    "idea": 1,
+    "in": 68,
+    "on": 66,
+    "our": 16,
+    "perfectly": 1,
+    "pods": 2,
+    "regex": 1,
+    "rerun": 4,
+    "results": 7,
+    "retry": 1,
+    "reuse": 1,
+    "rewrite": 3,
+    "root": 1,
+    "sales": 2,
+    "spans": 1,
+    "start": 6,
+    "summarize": 3,
+    "team": 8,
+    "the": 381,
+    "through": 7,
+    "timestamps": 3,
+    "up": 15,
+    "verbose": 1,
+    "version": 3,
+    "writes": 1
+   },
+   "del_words": [
+    [
+     "idea",
+     1
+    ],
+    [
+     "our",
+     1
+    ],
+    [
+     "up",
+     1
+    ]
+   ],
+   "ins_words": [
+    [
+     "slash",
+     4
+    ],
+    [
+     "at",
+     1
+    ],
+    [
+     "dot",
+     1
+    ],
+    [
+     "hot",
+     1
+    ],
+    [
+     "o'clock",
+     1
+    ],
+    [
+     "out",
+     1
+    ],
+    [
+     "ssh",
+     1
+    ],
+    [
+     "the",
+     1
+    ],
+    [
+     "tilde",
+     1
+    ],
+    [
+     "to",
+     1
+    ],
+    [
+     "u",
+     1
+    ],
+    [
+     "z",
+     1
+    ]
+   ],
+   "near_share": 0.7358,
+   "nonterm_words": 3694,
+   "p_del": 0.0008,
+   "p_ins": 0.0041,
+   "p_sub": 0.0143
+  },
+  "style_excluded_rows": 0,
+  "term_wer": 0.2672,
+  "term_words": 786,
+  "terms": {
+   "by_lang": {
+    "en": {
+     "error_rate": 0.2382,
+     "exact_rate": 0.5252,
+     "folded_rate": 0.7397,
+     "latin_kept_rate": 0.9937,
+     "n": 634,
+     "split_rate": 0.1629
+    }
+   },
+   "error_rate": 0.2382,
+   "exact_rate": 0.5252,
+   "folded_rate": 0.7397,
+   "n": 634,
+   "translit_rate": 0.0205
+  },
+  "tts": {
+   "kokoro1/af_alloy": 4,
+   "kokoro1/af_aoede": 4,
+   "kokoro1/af_bella": 4,
+   "kokoro1/af_heart": 4,
+   "kokoro1/af_jessica": 4,
+   "kokoro1/af_kore": 4,
+   "kokoro1/af_nicole": 4,
+   "kokoro1/af_nova": 4,
+   "kokoro1/af_river": 4,
+   "kokoro1/af_sarah": 4,
+   "kokoro1/af_sky": 4,
+   "kokoro1/am_adam": 4,
+   "kokoro1/am_echo": 4,
+   "kokoro1/am_eric": 4,
+   "kokoro1/am_fenrir": 4,
+   "kokoro1/am_liam": 4,
+   "kokoro1/am_michael": 4,
+   "kokoro1/am_onyx": 4,
+   "kokoro1/am_puck": 4,
+   "kokoro1/bf_alice": 4,
+   "kokoro1/bf_emma": 4,
+   "kokoro1/bf_isabella": 3,
+   "kokoro1/bf_lily": 3,
+   "kokoro1/bm_daniel": 3,
+   "kokoro1/bm_fable": 3,
+   "kokoro1/bm_george": 3,
+   "kokoro1/bm_lewis": 3,
+   "piper/en_GB-alba-medium": 10,
+   "piper/en_GB-cori-medium": 9,
+   "piper/en_US-joe-medium": 10,
+   "piper/en_US-john-medium": 10,
+   "piper/en_US-kristin-medium": 10,
+   "piper/en_US-libritts_r-medium#0": 9,
+   "piper/en_US-libritts_r-medium#117": 9,
+   "piper/en_US-libritts_r-medium#263": 9,
+   "piper/en_US-libritts_r-medium#509": 9,
+   "piper/en_US-libritts_r-medium#771": 9,
+   "piper/en_US-norman-medium": 10,
+   "supertonic3/sid0": 10,
+   "supertonic3/sid1": 10,
+   "supertonic3/sid2": 9,
+   "supertonic3/sid3": 11,
+   "supertonic3/sid4": 10,
+   "supertonic3/sid5": 10,
+   "supertonic3/sid6": 9,
+   "supertonic3/sid7": 12,
+   "supertonic3/sid8": 8,
+   "supertonic3/sid9": 12
+  },
+  "wer": 0.0962,
+  "wer_by_channel": {
+   "clean": {
+    "cer": 0.0253,
+    "n": 241,
+    "wer": 0.0919,
+    "wer_style_aware": 0.058,
+    "words": 3570
+   },
+   "phone_noisy": {
+    "cer": 0.0365,
+    "n": 66,
+    "wer": 0.1132,
+    "wer_style_aware": 0.0813,
+    "words": 910
+   }
+  },
+  "wer_by_lang": {
+   "en": {
+    "cer": 0.0275,
+    "n": 307,
+    "wer": 0.0962,
+    "wer_style_aware": 0.0627,
+    "words": 4480
+   }
+  },
+  "wer_style_aware": 0.0627,
+  "yo": {
+   "kept_rate": null,
+   "ref_yo_words": 0
+  }
+ },
+ "gigaam-v3-e2e-ctc@onnx-int8": {
+  "by_tts": {
+   "supertonic3": {
+    "by_lang": {
+     "mixed": {
+      "cer": 0.0957,
+      "latin_kept_rate": 0.6976,
+      "n": 359,
+      "term_error_rate": 0.6753,
+      "term_exact_rate": 0.1678,
+      "term_n": 733,
+      "wer": 0.1969,
+      "wer_style_aware": 0.1665,
+      "words": 4728
+     },
+     "ru": {
+      "cer": 0.0256,
+      "latin_kept_rate": null,
+      "n": 301,
+      "term_error_rate": 0.3638,
+      "term_exact_rate": 0.5155,
+      "term_n": 580,
+      "wer": 0.0851,
+      "wer_style_aware": 0.0715,
+      "words": 3806
+     }
+    },
+    "inputs": {
+     "text": 603,
+     "text_numbers": 32,
+     "tts_text": 25
+    }
+   }
+  },
+  "casing": {
+   "all_lower_rate": 0.0,
+   "first_upper_rate": 0.997,
+   "has_upper_rate": 1.0,
+   "label": "sentence",
+   "n_rows": 660,
+   "proper_case_kept_rate": 0.9455
+  },
+  "cer": 0.0637,
+  "channels": {
+   "clean": 533,
+   "phone_noisy": 127
+  },
+  "digits": {
+   "error_rate": 0.0806,
+   "examples": [
+    [
+     "100",
+     "сто",
+     2
+    ],
+    [
+     "10:00",
+     "10",
+     1
+    ],
+    [
+     "11:00",
+     "11",
+     1
+    ],
+    [
+     "11:00",
+     "одиннадцати",
+     1
+    ],
+    [
+     "12",
+     "двенадцатью",
+     1
+    ],
+    [
+     "12:00",
+     "12",
+     1
+    ],
+    [
+     "15:00",
+     "150",
+     1
+    ],
+    [
+     "200 мегабайт",
+     "200 МБ",
+     1
+    ]
+   ],
+   "hyp_digit_rate": 0.0788,
+   "kept_digits_rate": 0.8772,
+   "label": "digits",
+   "ref_numbers": 62,
+   "spelled_rate": 0.1228,
+   "word_numbers": 3,
+   "words_to_digits_rate": 0.3333
+  },
+  "hallucination": {
+   "empty_rate": 0.0,
+   "foreign_examples": [],
+   "foreign_script_rate": 0.0,
+   "lead_rate": 0.0,
+   "leads": [],
+   "overlong_rate": 0.0,
+   "tail_rate": 0.0,
+   "tails": []
+  },
+  "kinds": {
+   "case": 189,
+   "del": 17,
+   "ins": 7,
+   "match": 7158,
+   "number": 22,
+   "punct": 86,
+   "sub": 75,
+   "sub_near": 960,
+   "translit": 113,
+   "yo": 5
+  },
+  "langs": {
+   "mixed": 359,
+   "ru": 301
+  },
+  "latin": {
+   "by_lang": {
+    "mixed": {
+     "error_rate": 0.6837,
+     "kept_latin_rate": 0.6976,
+     "n": 784
+    }
+   },
+   "cyrillic_rate": 0.3024,
+   "error_rate": 0.6837,
+   "hyp_latin_rate": 0.4909,
+   "kept_latin_rate": 0.6976,
+   "label": "mixed",
+   "ref_latin_words": 784
+  },
+  "n": 660,
+  "n_ref_words": 8534,
+  "nonterm_wer": 0.0225,
+  "nonterm_words": 7019,
+  "punctuation": {
+   "any_rate": 0.8864,
+   "comma_ratio": 0.848,
+   "label": "partial",
+   "n_rows": 660,
+   "other_ratio": 0.6536,
+   "question_kept_rate": 0.1136,
+   "terminal_kept_rate": 0.2394
+  },
+  "rtf": 0.2512,
+  "sampler": {
+   "by_lang": {
+    "mixed": {
+     "near_share": 0.7812,
+     "nonterm_words": 3853,
+     "p_del": 0.0026,
+     "p_ins": 0.0013,
+     "p_sub": 0.0249
+    },
+    "ru": {
+     "near_share": 0.8636,
+     "nonterm_words": 3166,
+     "p_del": 0.0003,
+     "p_ins": 0.0006,
+     "p_sub": 0.0139
+    }
+   },
+   "confusable_words": {
+    "11:30": 8,
+    "2:00": 1,
+    "3000": 2,
+    "900": 1,
+    "а": 63,
+    "асинхронный": 1,
+    "без": 28,
+    "в": 316,
+    "вебхуки": 1,
+    "версию": 10,
+    "веса": 1,
+    "вход": 2,
+    "вывод": 4,
+    "вынес": 6,
+    "глянуть": 2,
+    "голого": 1,
+    "гонял": 2,
+    "действующий": 1,
+    "демо": 3,
+    "для": 127,
+    "домена": 1,
+    "дублируется": 1,
+    "запасной": 2,
+    "записей": 7,
+    "запусти": 13,
+    "и": 218,
+    "из": 40,
+    "имена": 3,
+    "индекс": 2,
+    "используем": 2,
+    "исправил": 2,
+    "исправление": 5,
+    "исправления": 1,
+    "историей": 1,
+    "исходниками": 1,
+    "кажется": 1,
+    "копятся": 1,
+    "корня": 1,
+    "которые": 7,
+    "миллисекунд": 2,
+    "минут": 5,
+    "на": 321,
+    "написан": 1,
+    "наш": 8,
+    "ноде": 1,
+    "обновление": 1,
+    "обновленный": 3,
+    "оверлеи": 1,
+    "оверлеями": 1,
+    "оставьте": 1,
+    "ответ": 2,
+    "открой": 5,
+    "отпишусь": 1,
+    "парсера": 1,
+    "переключение": 1,
+    "перенос": 2,
+    "пересобери": 1,
+    "по": 52,
+    "поверх": 2,
+    "повтора": 1,
+    "подписи": 1,
+    "поды": 1,
+    "позицию": 2,
+    "полнота": 2,
+    "пользователя": 5,
+    "пора": 1,
+    "правила": 2,
+    "правками": 1,
+    "предложи": 7,
+    "примера": 5,
+    "примеры": 7,
+    "проверил": 6,
+    "проверку": 25,
+    "процесса": 1,
+    "результаты": 21,
+    "рекуррентную": 1,
+    "репозиторий": 3,
+    "с": 117,
+    "сверять": 3,
+    "связал": 1,
+    "сервис": 14,
+    "сидел": 1,
+    "соревнование": 1,
+    "соседней": 3,
+    "сравним": 3,
+    "старые": 2,
+    "тайм-аут": 1,
+    "теперь": 15,
+    "тестовой": 2,
+    "тестом": 1,
+    "тесты": 6,
+    "у": 23,
+    "уведомление": 3,
+    "узкое": 1,
+    "упал": 2,
+    "успел": 5,
+    "ход": 1,
+    "через": 48,
+    "черкнуть": 1,
+    "четверг": 17,
+    "четверга": 3,
+    "этап": 3
+   },
+   "del_words": [
+    [
+     "в",
+     3
+    ],
+    [
+     "и",
+     3
+    ],
+    [
+     "с",
+     2
+    ],
+    [
+     "а",
+     1
+    ],
+    [
+     "наш",
+     1
+    ],
+    [
+     "у",
+     1
+    ]
+   ],
+   "ins_words": [
+    [
+     "setploss",
+     1
+    ],
+    [
+     "а-а-а",
+     1
+    ],
+    [
+     "гляньте",
+     1
+    ],
+    [
+     "доктор",
+     1
+    ],
+    [
+     "к",
+     1
+    ],
+    [
+     "рех",
+     1
+    ],
+    [
+     "утра",
+     1
+    ]
+   ],
+   "near_share": 0.8071,
+   "nonterm_words": 7019,
+   "p_del": 0.0016,
+   "p_ins": 0.001,
+   "p_sub": 0.0199
+  },
+  "style_excluded_rows": 0,
+  "term_wer": 0.5947,
+  "term_words": 1515,
+  "terms": {
+   "by_lang": {
+    "mixed": {
+     "error_rate": 0.6753,
+     "exact_rate": 0.1678,
+     "folded_rate": 0.2196,
+     "latin_kept_rate": 0.6412,
+     "n": 733,
+     "split_rate": 0.1144
+    },
+    "ru": {
+     "error_rate": 0.3638,
+     "exact_rate": 0.5155,
+     "folded_rate": 0.5966,
+     "latin_kept_rate": 0.081,
+     "n": 580,
+     "split_rate": 0.0191
+    }
+   },
+   "error_rate": 0.5377,
+   "exact_rate": 0.3214,
+   "folded_rate": 0.3861,
+   "n": 1313,
+   "translit_rate": 0.0708
+  },
+  "tts": {
+   "supertonic3/sid0": 70,
+   "supertonic3/sid1": 67,
+   "supertonic3/sid2": 67,
+   "supertonic3/sid3": 66,
+   "supertonic3/sid4": 61,
+   "supertonic3/sid5": 64,
+   "supertonic3/sid6": 66,
+   "supertonic3/sid7": 65,
+   "supertonic3/sid8": 67,
+   "supertonic3/sid9": 67
+  },
+  "wer": 0.1471,
+  "wer_by_channel": {
+   "clean": {
+    "cer": 0.0631,
+    "n": 533,
+    "wer": 0.1463,
+    "wer_style_aware": 0.1226,
+    "words": 6902
+   },
+   "phone_noisy": {
+    "cer": 0.0663,
+    "n": 127,
+    "wer": 0.1501,
+    "wer_style_aware": 0.1305,
+    "words": 1632
+   }
+  },
+  "wer_by_lang": {
+   "mixed": {
+    "cer": 0.0957,
+    "n": 359,
+    "wer": 0.1969,
+    "wer_style_aware": 0.1665,
+    "words": 4728
+   },
+   "ru": {
+    "cer": 0.0256,
+    "n": 301,
+    "wer": 0.0851,
+    "wer_style_aware": 0.0715,
+    "words": 3806
+   }
+  },
+  "wer_style_aware": 0.1241,
+  "yo": {
+   "kept_rate": 1.0,
+   "ref_yo_words": 149
+  }
+ },
+ "gigaam-v3-e2e-rnnt@onnx-int8": {
+  "by_tts": {
+   "supertonic3": {
+    "by_lang": {
+     "mixed": {
+      "cer": 0.1036,
+      "latin_kept_rate": 0.6318,
+      "n": 359,
+      "term_error_rate": 0.6658,
+      "term_exact_rate": 0.1678,
+      "term_n": 733,
+      "wer": 0.1925,
+      "wer_style_aware": 0.1605,
+      "words": 4728
+     },
+     "ru": {
+      "cer": 0.0288,
+      "latin_kept_rate": null,
+      "n": 301,
+      "term_error_rate": 0.3259,
+      "term_exact_rate": 0.5259,
+      "term_n": 580,
+      "wer": 0.0817,
+      "wer_style_aware": 0.0641,
+      "words": 3806
+     }
+    },
+    "inputs": {
+     "text": 603,
+     "text_numbers": 32,
+     "tts_text": 25
+    }
+   }
+  },
+  "casing": {
+   "all_lower_rate": 0.0,
+   "first_upper_rate": 1.0,
+   "has_upper_rate": 1.0,
+   "label": "sentence",
+   "n_rows": 660,
+   "proper_case_kept_rate": 0.9486
+  },
+  "cer": 0.0695,
+  "channels": {
+   "clean": 533,
+   "phone_noisy": 127
+  },
+  "digits": {
+   "error_rate": 0.0323,
+   "examples": [
+    [
+     "100",
+     "сто",
+     2
+    ],
+    [
+     "10:00",
+     "10",
+     2
+    ],
+    [
+     "12:00",
+     "12",
+     2
+    ],
+    [
+     "11:00",
+     "одиннадцати",
+     1
+    ],
+    [
+     "12 гигабайтами",
+     "12 ГБ",
+     1
+    ],
+    [
+     "15:00",
+     "15",
+     1
+    ],
+    [
+     "200 мегабайт",
+     "200 МБ",
+     1
+    ],
+    [
+     "3000",
+     "3 000",
+     1
+    ]
+   ],
+   "hyp_digit_rate": 0.0803,
+   "kept_digits_rate": 0.9,
+   "label": "digits",
+   "ref_numbers": 62,
+   "spelled_rate": 0.1,
+   "word_numbers": 3,
+   "words_to_digits_rate": 0.6667
+  },
+  "hallucination": {
+   "empty_rate": 0.0,
+   "foreign_examples": [],
+   "foreign_script_rate": 0.0,
+   "lead_rate": 0.0,
+   "leads": [],
+   "overlong_rate": 0.0,
+   "tail_rate": 0.0,
+   "tails": []
+  },
+  "kinds": {
+   "case": 188,
+   "del": 32,
+   "ins": 8,
+   "match": 7197,
+   "number": 24,
+   "punct": 59,
+   "sub": 88,
+   "sub_near": 875,
+   "translit": 157,
+   "yo": 4
+  },
+  "langs": {
+   "mixed": 359,
+   "ru": 301
+  },
+  "latin": {
+   "by_lang": {
+    "mixed": {
+     "error_rate": 0.6709,
+     "kept_latin_rate": 0.6318,
+     "n": 784
+    }
+   },
+   "cyrillic_rate": 0.3682,
+   "error_rate": 0.6709,
+   "hyp_latin_rate": 0.4409,
+   "kept_latin_rate": 0.6318,
+   "label": "mixed",
+   "ref_latin_words": 784
+  },
+  "n": 660,
+  "n_ref_words": 8534,
+  "nonterm_wer": 0.0192,
+  "nonterm_words": 7019,
+  "punctuation": {
+   "any_rate": 1.0,
+   "comma_ratio": 0.8563,
+   "label": "full",
+   "n_rows": 660,
+   "other_ratio": 0.5251,
+   "question_kept_rate": 0.5909,
+   "terminal_kept_rate": 1.0
+  },
+  "rtf": 0.2847,
+  "sampler": {
+   "by_lang": {
+    "mixed": {
+     "near_share": 0.7067,
+     "nonterm_words": 3853,
+     "p_del": 0.0036,
+     "p_ins": 0.0016,
+     "p_sub": 0.0195
+    },
+    "ru": {
+     "near_share": 0.9706,
+     "nonterm_words": 3166,
+     "p_del": 0.0013,
+     "p_ins": 0.0006,
+     "p_sub": 0.0107
+    }
+   },
+   "confusable_words": {
+    "900": 1,
+    "а": 63,
+    "абзацев": 1,
+    "в": 316,
+    "вебхуки": 1,
+    "веса": 1,
+    "во": 8,
+    "возвращаю": 1,
+    "вопрос": 4,
+    "вход": 2,
+    "вывод": 4,
+    "вынесено": 1,
+    "выросла": 7,
+    "гипотеза": 1,
+    "голого": 1,
+    "гонял": 2,
+    "действующий": 1,
+    "демо": 3,
+    "дублируется": 1,
+    "замерю": 3,
+    "запасной": 2,
+    "и": 218,
+    "из": 40,
+    "имена": 3,
+    "исправил": 2,
+    "исправление": 5,
+    "исправления": 1,
+    "исходниками": 1,
+    "коллеги": 24,
+    "копятся": 1,
+    "которые": 7,
+    "меняйте": 2,
+    "места": 2,
+    "модели": 23,
+    "модули": 1,
+    "на": 321,
+    "напиши": 7,
+    "напомни": 7,
+    "наш": 8,
+    "ноде": 1,
+    "ночная": 2,
+    "оставьте": 1,
+    "ответ": 2,
+    "ответа": 10,
+    "отдельной": 2,
+    "отчет": 10,
+    "падают": 2,
+    "памяти": 7,
+    "по": 52,
+    "поверх": 2,
+    "подписи": 1,
+    "поды": 1,
+    "позицию": 2,
+    "пора": 1,
+    "правками": 1,
+    "предложи": 7,
+    "приложении": 2,
+    "примера": 5,
+    "проверил": 6,
+    "псевдонимов": 1,
+    "разделил": 1,
+    "расхождения": 1,
+    "рекуррентную": 1,
+    "репозиторий": 3,
+    "ручной": 6,
+    "с": 117,
+    "сверять": 3,
+    "связал": 1,
+    "сессии": 1,
+    "сидел": 1,
+    "соревнование": 1,
+    "сохрани": 6,
+    "ставим": 1,
+    "счета": 1,
+    "считали": 1,
+    "тегами": 1,
+    "тела": 1,
+    "тестовой": 2,
+    "тестом": 1,
+    "тесты": 6,
+    "у": 23,
+    "уведомление": 3,
+    "узкое": 1,
+    "успел": 5,
+    "утро": 3,
+    "ход": 1,
+    "через": 48,
+    "черкнуть": 1,
+    "что": 53,
+    "я": 52
+   },
+   "del_words": [
+    [
+     "в",
+     4
+    ],
+    [
+     "с",
+     3
+    ],
+    [
+     "и",
+     2
+    ],
+    [
+     "у",
+     2
+    ],
+    [
+     "из",
+     1
+    ],
+    [
+     "на",
+     1
+    ],
+    [
+     "наш",
+     1
+    ],
+    [
+     "оставьте",
+     1
+    ],
+    [
+     "памяти",
+     1
+    ],
+    [
+     "по",
+     1
+    ],
+    [
+     "что",
+     1
+    ]
+   ],
+   "ins_words": [
+    [
+     "john",
+     1
+    ],
+    [
+     "setploss",
+     1
+    ],
+    [
+     "а-а",
+     1
+    ],
+    [
+     "в",
+     1
+    ],
+    [
+     "гляньте",
+     1
+    ],
+    [
+     "к",
+     1
+    ],
+    [
+     "млэй",
+     1
+    ],
+    [
+     "утра",
+     1
+    ]
+   ],
+   "near_share": 0.789,
+   "nonterm_words": 7019,
+   "p_del": 0.0026,
+   "p_ins": 0.0011,
+   "p_sub": 0.0155
+  },
+  "style_excluded_rows": 0,
+  "term_wer": 0.5729,
+  "term_words": 1515,
+  "terms": {
+   "by_lang": {
+    "mixed": {
+     "error_rate": 0.6658,
+     "exact_rate": 0.1678,
+     "folded_rate": 0.2087,
+     "latin_kept_rate": 0.5348,
+     "n": 733,
+     "split_rate": 0.1089
+    },
+    "ru": {
+     "error_rate": 0.3259,
+     "exact_rate": 0.5259,
+     "folded_rate": 0.6086,
+     "latin_kept_rate": 0.0707,
+     "n": 580,
+     "split_rate": 0.0229
+    }
+   },
+   "error_rate": 0.5156,
+   "exact_rate": 0.326,
+   "folded_rate": 0.3854,
+   "n": 1313,
+   "translit_rate": 0.0975
+  },
+  "tts": {
+   "supertonic3/sid0": 70,
+   "supertonic3/sid1": 67,
+   "supertonic3/sid2": 67,
+   "supertonic3/sid3": 66,
+   "supertonic3/sid4": 61,
+   "supertonic3/sid5": 64,
+   "supertonic3/sid6": 66,
+   "supertonic3/sid7": 65,
+   "supertonic3/sid8": 67,
+   "supertonic3/sid9": 67
+  },
+  "wer": 0.1431,
+  "wer_by_channel": {
+   "clean": {
+    "cer": 0.0685,
+    "n": 533,
+    "wer": 0.1417,
+    "wer_style_aware": 0.1142,
+    "words": 6902
+   },
+   "phone_noisy": {
+    "cer": 0.0736,
+    "n": 127,
+    "wer": 0.1489,
+    "wer_style_aware": 0.1317,
+    "words": 1632
+   }
+  },
+  "wer_by_lang": {
+   "mixed": {
+    "cer": 0.1036,
+    "n": 359,
+    "wer": 0.1925,
+    "wer_style_aware": 0.1605,
+    "words": 4728
+   },
+   "ru": {
+    "cer": 0.0288,
+    "n": 301,
+    "wer": 0.0817,
+    "wer_style_aware": 0.0641,
+    "words": 3806
+   }
+  },
+  "wer_style_aware": 0.1175,
+  "yo": {
+   "kept_rate": 1.0,
+   "ref_yo_words": 150
+  }
+ },
+ "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms": {
+  "by_tts": {
+   "kokoro1": {
+    "by_lang": {
+     "en": {
+      "cer": 0.0745,
+      "latin_kept_rate": 1.0,
+      "n": 102,
+      "term_error_rate": 0.235,
+      "term_exact_rate": 0.3548,
+      "term_n": 217,
+      "wer": 0.1835,
+      "wer_style_aware": 0.1032,
+      "words": 1444
+     }
+    },
+    "inputs": {
+     "text": 73,
+     "tts_text": 29
+    }
+   },
+   "piper": {
+    "by_lang": {
+     "en": {
+      "cer": 0.1174,
+      "latin_kept_rate": 1.0,
+      "n": 104,
+      "term_error_rate": 0.4585,
+      "term_exact_rate": 0.2634,
+      "term_n": 205,
+      "wer": 0.2349,
+      "wer_style_aware": 0.1855,
+      "words": 1558
+     }
+    },
+    "inputs": {
+     "text": 72,
+     "tts_text": 32
+    }
+   },
+   "supertonic3": {
+    "by_lang": {
+     "en": {
+      "cer": 0.0531,
+      "latin_kept_rate": 1.0,
+      "n": 102,
+      "term_error_rate": 0.285,
+      "term_exact_rate": 0.4019,
+      "term_n": 214,
+      "wer": 0.1479,
+      "wer_style_aware": 0.0906,
+      "words": 1501
+     },
+     "mixed": {
+      "cer": 0.1502,
+      "latin_kept_rate": 0.493,
+      "n": 358,
+      "term_error_rate": 0.5501,
+      "term_exact_rate": 0.1948,
+      "term_n": 729,
+      "wer": 0.2369,
+      "wer_style_aware": 0.1693,
+      "words": 4719
+     },
+     "ru": {
+      "cer": 0.035,
+      "latin_kept_rate": null,
+      "n": 301,
+      "term_error_rate": 0.3483,
+      "term_exact_rate": 0.5103,
+      "term_n": 580,
+      "wer": 0.128,
+      "wer_style_aware": 0.0996,
+      "words": 3806
+     }
+    },
+    "inputs": {
+     "text": 680,
+     "text_numbers": 32,
+     "tts_text": 49
+    }
+   }
+  },
+  "casing": {
+   "all_lower_rate": 0.0021,
+   "first_upper_rate": 0.9907,
+   "has_upper_rate": 0.9979,
+   "label": "sentence",
+   "n_rows": 967,
+   "proper_case_kept_rate": 0.7961
+  },
+  "cer": 0.0926,
+  "channels": {
+   "clean": 774,
+   "phone_noisy": 193
+  },
+  "digits": {
+   "error_rate": 0.1124,
+   "examples": [
+    [
+     "11:30",
+     "одиннадцать-тридцать",
+     7
+    ],
+    [
+     "14:30",
+     "четырнадцать тридцать",
+     6
+    ],
+    [
+     "30",
+     "thirty",
+     5
+    ],
+    [
+     "100",
+     "сто",
+     3
+    ],
+    [
+     "3",
+     "three",
+     3
+    ],
+    [
+     "15:30",
+     "1530",
+     2
+    ],
+    [
+     "15:30",
+     "пятнадцать тридцать",
+     2
+    ],
+    [
+     "15:30",
+     "пятнадцать-тридцать",
+     2
+    ]
+   ],
+   "hyp_digit_rate": 0.0165,
+   "kept_digits_rate": 0.1266,
+   "label": "words",
+   "ref_numbers": 89,
+   "spelled_rate": 0.8734,
+   "word_numbers": 3,
+   "words_to_digits_rate": 0.6667
+  },
+  "hallucination": {
+   "empty_rate": 0.0,
+   "foreign_examples": [
+    [
+     "Study adapter config Sonic Lyań, поднялся ли OpenSarch",
+     1
+    ],
+    [
+     "В разделе Ablâsion сравниваются две сборки приложения на флаттер.  В одной подсказке приходят через MCP, а в другой используются только данные, сохраненные на устройстве.",
+     1
+    ],
+    [
+     "Закінь свои правки в Гетстеж я пока покажу тебе чистую ветку",
+     1
+    ],
+    [
+     "Найди через греб все место, где мы читаємо сеттингс он напрямую",
+     1
+    ],
+    [
+     "Сравни Лен Шейн и Ламе индекс для простого ряг повнутренной документації",
+     1
+    ]
+   ],
+   "foreign_script_rate": 0.0052,
+   "lead_rate": 0.0,
+   "leads": [],
+   "overlong_rate": 0.0,
+   "tail_rate": 0.0,
+   "tails": []
+  },
+  "kinds": {
+   "case": 365,
+   "del": 194,
+   "ins": 33,
+   "match": 10467,
+   "number": 148,
+   "punct": 337,
+   "sub": 205,
+   "sub_near": 1320,
+   "translit": 252,
+   "yo": 144
+  },
+  "langs": {
+   "en": 308,
+   "mixed": 358,
+   "ru": 301
+  },
+  "latin": {
+   "by_lang": {
+    "en": {
+     "error_rate": 0.1048,
+     "kept_latin_rate": 1.0,
+     "n": 4476
+    },
+    "mixed": {
+     "error_rate": 0.5403,
+     "kept_latin_rate": 0.493,
+     "n": 781
+    }
+   },
+   "cyrillic_rate": 0.0417,
+   "error_rate": 0.1695,
+   "hyp_latin_rate": 0.5222,
+   "kept_latin_rate": 0.9583,
+   "label": "latin",
+   "ref_latin_words": 5257
+  },
+  "n": 967,
+  "n_ref_words": 13028,
+  "nonterm_wer": 0.0615,
+  "nonterm_words": 10729,
+  "punctuation": {
+   "any_rate": 0.6649,
+   "comma_ratio": 0.8077,
+   "label": "partial",
+   "n_rows": 967,
+   "other_ratio": 0.1298,
+   "question_kept_rate": 0.011,
+   "terminal_kept_rate": 0.2834
+  },
+  "rtf": 1.2851,
+  "sampler": {
+   "by_lang": {
+    "en": {
+     "near_share": 0.5547,
+     "nonterm_words": 3715,
+     "p_del": 0.0328,
+     "p_ins": 0.004,
+     "p_sub": 0.0345
+    },
+    "mixed": {
+     "near_share": 0.8249,
+     "nonterm_words": 3848,
+     "p_del": 0.0068,
+     "p_ins": 0.0031,
+     "p_sub": 0.0564
+    },
+    "ru": {
+     "near_share": 0.8968,
+     "nonterm_words": 3166,
+     "p_del": 0.0038,
+     "p_ins": 0.0006,
+     "p_sub": 0.0398
+    }
+   },
+   "confusable_words": {
+    "100": 4,
+    "14:30": 10,
+    "15:30": 7,
+    "2%": 1,
+    "4%": 1,
+    "900": 1,
+    "99,9%": 1,
+    "a": 79,
+    "act": 1,
+    "add": 12,
+    "all": 5,
+    "and": 134,
+    "app": 9,
+    "as": 5,
+    "ask": 3,
+    "backend": 2,
+    "before": 41,
+    "benchmark": 5,
+    "billing": 2,
+    "block": 8,
+    "book": 5,
+    "branch": 6,
+    "breaks": 2,
+    "build": 8,
+    "bump": 1,
+    "but": 2,
+    "cache": 2,
+    "caching": 2,
+    "calls": 2,
+    "can": 36,
+    "check": 32,
+    "checksum": 2,
+    "chips": 1,
+    "clean": 2,
+    "client": 3,
+    "could": 25,
+    "did": 3,
+    "do": 5,
+    "draft": 4,
+    "drop": 5,
+    "endpoint": 3,
+    "example": 5,
+    "except": 1,
+    "ffmpeg": 2,
+    "finished": 4,
+    "fix": 10,
+    "fixes": 2,
+    "fonts": 2,
+    "for": 89,
+    "generate": 1,
+    "give": 2,
+    "hi": 4,
+    "i": 42,
+    "i'll": 12,
+    "i'm": 11,
+    "in": 68,
+    "is": 28,
+    "list": 6,
+    "lists": 2,
+    "live": 4,
+    "measure": 2,
+    "migrate": 2,
+    "move": 6,
+    "my": 10,
+    "next": 11,
+    "off": 2,
+    "on": 66,
+    "on-call": 3,
+    "or": 7,
+    "our": 16,
+    "outdated": 1,
+    "parsing": 1,
+    "pods": 2,
+    "porting": 2,
+    "prefix": 2,
+    "print": 6,
+    "protocol": 1,
+    "read": 4,
+    "rebuild": 3,
+    "recall": 1,
+    "record": 4,
+    "regex": 1,
+    "remote": 1,
+    "replace": 3,
+    "rerun": 4,
+    "results": 7,
+    "retry": 1,
+    "rewrite": 3,
+    "rights": 1,
+    "root": 1,
+    "run": 38,
+    "sales": 2,
+    "see": 3,
+    "set": 7,
+    "settings": 10,
+    "setup": 5,
+    "show": 7,
+    "spans": 1,
+    "switch": 2,
+    "team": 9,
+    "ten": 1,
+    "testing": 2,
+    "thanks": 1,
+    "that": 15,
+    "the": 384,
+    "thread": 2,
+    "through": 7,
+    "timestamps": 3,
+    "to": 91,
+    "try": 5,
+    "turn": 1,
+    "untracked": 1,
+    "update": 8,
+    "usable": 1,
+    "use": 23,
+    "verbose": 1,
+    "version": 3,
+    "we": 24,
+    "week's": 2,
+    "whether": 22,
+    "why": 5,
+    "wire": 2,
+    "write": 3,
+    "writes": 1,
+    "yesterday": 16,
+    "you": 56,
+    "а": 63,
+    "абзацев": 1,
+    "асинхронный": 1,
+    "база": 2,
+    "ближайший": 1,
+    "была": 1,
+    "в": 316,
+    "ввод": 1,
+    "вебхуки": 1,
+    "версией": 1,
+    "веса": 1,
+    "весил": 1,
+    "видеопамять": 1,
+    "включайте": 1,
+    "вопроса": 1,
+    "временный": 1,
+    "время": 14,
+    "все": 21,
+    "встрече": 3,
+    "вход": 2,
+    "вчера": 47,
+    "выборке": 5,
+    "выведи": 19,
+    "вывод": 4,
+    "выгрузке": 1,
+    "выкидываю": 1,
+    "вынес": 6,
+    "выполни": 1,
+    "вычисли": 1,
+    "глянешь": 1,
+    "глянь": 8,
+    "гляньте": 2,
+    "голого": 1,
+    "гонял": 2,
+    "горело": 1,
+    "данные": 8,
+    "делай": 1,
+    "до": 54,
+    "добавил": 16,
+    "документации": 3,
+    "дообучить": 1,
+    "доступа": 4,
+    "ест": 1,
+    "задач": 4,
+    "закинь": 1,
+    "закрываю": 1,
+    "замеры": 5,
+    "замерю": 3,
+    "замечания": 1,
+    "запасной": 2,
+    "записей": 7,
+    "запуска": 14,
+    "запускай": 1,
+    "запусти": 13,
+    "значения": 1,
+    "и": 218,
+    "из": 40,
+    "из-за": 5,
+    "изменения": 8,
+    "изменится": 1,
+    "имена": 3,
+    "индекс": 2,
+    "используется": 3,
+    "исправил": 2,
+    "историей": 1,
+    "к": 36,
+    "как": 58,
+    "кинь": 2,
+    "клиенте": 2,
+    "ключ": 1,
+    "коллеги": 24,
+    "копятся": 1,
+    "ли": 32,
+    "лицензии": 1,
+    "ломало": 1,
+    "маякни": 2,
+    "меняйте": 2,
+    "меняя": 3,
+    "места": 2,
+    "метрики": 3,
+    "мне": 19,
+    "моделей": 5,
+    "модели": 23,
+    "модули": 1,
+    "мы": 22,
+    "на": 321,
+    "напиши": 7,
+    "настроена": 1,
+    "находит": 3,
+    "наш": 8,
+    "не": 107,
+    "но": 21,
+    "новое": 1,
+    "новой": 6,
+    "новый": 8,
+    "облачный": 1,
+    "обнови": 3,
+    "обработка": 2,
+    "обработчики": 2,
+    "обсуждение": 2,
+    "общий": 3,
+    "объясни": 22,
+    "оверлеи": 1,
+    "одной": 5,
+    "описание": 5,
+    "оплату": 1,
+    "оповещения": 1,
+    "опять": 9,
+    "оставьте": 1,
+    "остальное": 2,
+    "остальными": 1,
+    "от": 12,
+    "отдает": 2,
+    "отдельной": 2,
+    "отдельные": 1,
+    "открой": 5,
+    "отчет": 10,
+    "пакетной": 2,
+    "папке": 8,
+    "переврала": 1,
+    "перед": 35,
+    "передает": 1,
+    "переехало": 1,
+    "перенеси": 5,
+    "по": 52,
+    "повтора": 1,
+    "повторный": 3,
+    "повышение": 1,
+    "подсказки": 2,
+    "поды": 1,
+    "пожалуйста": 44,
+    "позицию": 2,
+    "позови": 1,
+    "позову": 1,
+    "пока": 41,
+    "покажи": 17,
+    "полнота": 2,
+    "получасовой": 1,
+    "пора": 1,
+    "порядок": 8,
+    "последние": 3,
+    "потом": 11,
+    "похоже": 4,
+    "появилось": 1,
+    "пояснение": 1,
+    "права": 2,
+    "правку": 7,
+    "правок": 2,
+    "предложи": 7,
+    "прежним": 3,
+    "приглашаю": 1,
+    "применения": 1,
+    "примените": 1,
+    "пример": 8,
+    "примерах": 4,
+    "приходится": 2,
+    "приходят": 4,
+    "причины": 1,
+    "проверил": 6,
+    "проверками": 1,
+    "проверку": 25,
+    "пропало": 1,
+    "простоя": 1,
+    "простую": 1,
+    "путается": 1,
+    "пятибалльной": 1,
+    "рабочей": 2,
+    "разбил": 1,
+    "рассматриваем": 1,
+    "расхождения": 1,
+    "редакторам": 1,
+    "рекуррентную": 1,
+    "репозиторий": 3,
+    "русский": 2,
+    "с": 117,
+    "сверить": 9,
+    "сверяю": 1,
+    "связанный": 1,
+    "сделай": 6,
+    "сидел": 1,
+    "скачиваются": 1,
+    "скинь": 12,
+    "сломалось": 1,
+    "смысл": 1,
+    "собери": 4,
+    "собеседование": 1,
+    "собраны": 1,
+    "согласуем": 1,
+    "сорян": 1,
+    "составь": 8,
+    "сохрани": 6,
+    "сравнение": 2,
+    "сравнивайте": 1,
+    "ставим": 1,
+    "стала": 2,
+    "старше": 1,
+    "суммы": 1,
+    "схему": 3,
+    "счет": 2,
+    "сюда": 2,
+    "там": 7,
+    "тестовой": 2,
+    "ты": 10,
+    "у": 23,
+    "уведомление": 3,
+    "ударения": 1,
+    "указана": 1,
+    "установите": 1,
+    "уточнения": 1,
+    "уточнил": 1,
+    "ход": 1,
+    "чиним": 1,
+    "читаем": 1,
+    "читает": 2,
+    "читается": 1,
+    "шаг": 4,
+    "этом": 8,
+    "я": 52
+   },
+   "del_words": [
+    [
+     "the",
+     15
+    ],
+    [
+     "could",
+     14
+    ],
+    [
+     "can",
+     10
+    ],
+    [
+     "you",
+     10
+    ],
+    [
+     "в",
+     10
+    ],
+    [
+     "и",
+     9
+    ],
+    [
+     "run",
+     5
+    ],
+    [
+     "add",
+     4
+    ],
+    [
+     "с",
+     4
+    ],
+    [
+     "i",
+     3
+    ],
+    [
+     "list",
+     3
+    ],
+    [
+     "use",
+     3
+    ],
+    [
+     "block",
+     2
+    ],
+    [
+     "book",
+     2
+    ],
+    [
+     "draft",
+     2
+    ],
+    [
+     "for",
+     2
+    ],
+    [
+     "our",
+     2
+    ],
+    [
+     "show",
+     2
+    ],
+    [
+     "we",
+     2
+    ],
+    [
+     "write",
+     2
+    ],
+    [
+     "a",
+     1
+    ],
+    [
+     "act",
+     1
+    ],
+    [
+     "and",
+     1
+    ],
+    [
+     "ask",
+     1
+    ],
+    [
+     "benchmark",
+     1
+    ],
+    [
+     "billing",
+     1
+    ],
+    [
+     "branch",
+     1
+    ],
+    [
+     "build",
+     1
+    ],
+    [
+     "bump",
+     1
+    ],
+    [
+     "check",
+     1
+    ]
+   ],
+   "ins_words": [
+    [
+     "plus",
+     3
+    ],
+    [
+     "a",
+     2
+    ],
+    [
+     "и",
+     2
+    ],
+    [
+     "and",
+     1
+    ],
+    [
+     "feff",
+     1
+    ],
+    [
+     "five",
+     1
+    ],
+    [
+     "four",
+     1
+    ],
+    [
+     "gm",
+     1
+    ],
+    [
+     "hugging",
+     1
+    ],
+    [
+     "o'clock",
+     1
+    ],
+    [
+     "oget",
+     1
+    ],
+    [
+     "point",
+     1
+    ],
+    [
+     "ql",
+     1
+    ],
+    [
+     "set",
+     1
+    ],
+    [
+     "slash",
+     1
+    ],
+    [
+     "wan",
+     1
+    ],
+    [
+     "н",
+     1
+    ],
+    [
+     "напрот",
+     1
+    ],
+    [
+     "не",
+     1
+    ],
+    [
+     "поп",
+     1
+    ],
+    [
+     "ска",
+     1
+    ],
+    [
+     "тез",
+     1
+    ],
+    [
+     "утра",
+     1
+    ],
+    [
+     "четнадцать",
+     1
+    ],
+    [
+     "эре",
+     1
+    ]
+   ],
+   "near_share": 0.7707,
+   "nonterm_words": 10729,
+   "p_del": 0.0149,
+   "p_ins": 0.0027,
+   "p_sub": 0.0439
+  },
+  "style_excluded_rows": 0,
+  "term_wer": 0.475,
+  "term_words": 2299,
+  "terms": {
+   "by_lang": {
+    "en": {
+     "error_rate": 0.3239,
+     "exact_rate": 0.3412,
+     "folded_rate": 0.6132,
+     "latin_kept_rate": 0.9827,
+     "n": 636,
+     "split_rate": 0.2639
+    },
+    "mixed": {
+     "error_rate": 0.5501,
+     "exact_rate": 0.1948,
+     "folded_rate": 0.2387,
+     "latin_kept_rate": 0.3484,
+     "n": 729,
+     "split_rate": 0.1472
+    },
+    "ru": {
+     "error_rate": 0.3483,
+     "exact_rate": 0.5103,
+     "folded_rate": 0.6276,
+     "latin_kept_rate": 0.0086,
+     "n": 580,
+     "split_rate": 0.0766
+    }
+   },
+   "error_rate": 0.4159,
+   "exact_rate": 0.3368,
+   "folded_rate": 0.4771,
+   "n": 1945,
+   "translit_rate": 0.0895
+  },
+  "tts": {
+   "kokoro1/af_alloy": 4,
+   "kokoro1/af_aoede": 4,
+   "kokoro1/af_bella": 4,
+   "kokoro1/af_heart": 4,
+   "kokoro1/af_jessica": 4,
+   "kokoro1/af_kore": 4,
+   "kokoro1/af_nicole": 4,
+   "kokoro1/af_nova": 4,
+   "kokoro1/af_river": 4,
+   "kokoro1/af_sarah": 4,
+   "kokoro1/af_sky": 4,
+   "kokoro1/am_adam": 4,
+   "kokoro1/am_echo": 4,
+   "kokoro1/am_eric": 4,
+   "kokoro1/am_fenrir": 4,
+   "kokoro1/am_liam": 4,
+   "kokoro1/am_michael": 4,
+   "kokoro1/am_onyx": 4,
+   "kokoro1/am_puck": 4,
+   "kokoro1/bf_alice": 4,
+   "kokoro1/bf_emma": 4,
+   "kokoro1/bf_isabella": 3,
+   "kokoro1/bf_lily": 3,
+   "kokoro1/bm_daniel": 3,
+   "kokoro1/bm_fable": 3,
+   "kokoro1/bm_george": 3,
+   "kokoro1/bm_lewis": 3,
+   "piper/en_GB-alba-medium": 10,
+   "piper/en_GB-cori-medium": 9,
+   "piper/en_US-joe-medium": 10,
+   "piper/en_US-john-medium": 10,
+   "piper/en_US-kristin-medium": 10,
+   "piper/en_US-libritts_r-medium#0": 9,
+   "piper/en_US-libritts_r-medium#117": 9,
+   "piper/en_US-libritts_r-medium#263": 9,
+   "piper/en_US-libritts_r-medium#509": 9,
+   "piper/en_US-libritts_r-medium#771": 9,
+   "piper/en_US-norman-medium": 10,
+   "supertonic3/sid0": 79,
+   "supertonic3/sid1": 77,
+   "supertonic3/sid2": 76,
+   "supertonic3/sid3": 77,
+   "supertonic3/sid4": 71,
+   "supertonic3/sid5": 74,
+   "supertonic3/sid6": 75,
+   "supertonic3/sid7": 77,
+   "supertonic3/sid8": 76,
+   "supertonic3/sid9": 79
+  },
+  "wer": 0.1887,
+  "wer_by_channel": {
+   "clean": {
+    "cer": 0.091,
+    "n": 774,
+    "wer": 0.184,
+    "wer_style_aware": 0.1294,
+    "words": 10486
+   },
+   "phone_noisy": {
+    "cer": 0.0992,
+    "n": 193,
+    "wer": 0.2081,
+    "wer_style_aware": 0.1554,
+    "words": 2542
+   }
+  },
+  "wer_by_lang": {
+   "en": {
+    "cer": 0.0819,
+    "n": 308,
+    "wer": 0.1894,
+    "wer_style_aware": 0.1275,
+    "words": 4503
+   },
+   "mixed": {
+    "cer": 0.1502,
+    "n": 358,
+    "wer": 0.2369,
+    "wer_style_aware": 0.1693,
+    "words": 4719
+   },
+   "ru": {
+    "cer": 0.035,
+    "n": 301,
+    "wer": 0.128,
+    "wer_style_aware": 0.0996,
+    "words": 3806
+   }
+  },
+  "wer_style_aware": 0.1345,
+  "yo": {
+   "kept_rate": 0.0,
+   "ref_yo_words": 144
+  }
+ },
+ "nemotron-speech-streaming-en-0.6b@onnx-int8-560ms": {
+  "by_tts": {
+   "kokoro1": {
+    "by_lang": {
+     "en": {
+      "cer": 0.0674,
+      "latin_kept_rate": 1.0,
+      "n": 102,
+      "term_error_rate": 0.1889,
+      "term_exact_rate": 0.4424,
+      "term_n": 217,
+      "wer": 0.1683,
+      "wer_style_aware": 0.0949,
+      "words": 1444
+     }
+    },
+    "inputs": {
+     "text": 73,
+     "tts_text": 29
+    }
+   },
+   "piper": {
+    "by_lang": {
+     "en": {
+      "cer": 0.1033,
+      "latin_kept_rate": 1.0,
+      "n": 104,
+      "term_error_rate": 0.4049,
+      "term_exact_rate": 0.3122,
+      "term_n": 205,
+      "wer": 0.2176,
+      "wer_style_aware": 0.1585,
+      "words": 1558
+     }
+    },
+    "inputs": {
+     "text": 72,
+     "tts_text": 32
+    }
+   },
+   "supertonic3": {
+    "by_lang": {
+     "en": {
+      "cer": 0.0375,
+      "latin_kept_rate": 1.0,
+      "n": 102,
+      "term_error_rate": 0.243,
+      "term_exact_rate": 0.514,
+      "term_n": 214,
+      "wer": 0.1093,
+      "wer_style_aware": 0.062,
+      "words": 1501
+     }
+    },
+    "inputs": {
+     "text": 78,
+     "tts_text": 24
+    }
+   }
+  },
+  "casing": {
+   "all_lower_rate": 0.0,
+   "first_upper_rate": 1.0,
+   "has_upper_rate": 1.0,
+   "label": "sentence",
+   "n_rows": 308,
+   "proper_case_kept_rate": 0.8129
+  },
+  "cer": 0.0696,
+  "channels": {
+   "clean": 242,
+   "phone_noisy": 66
+  },
+  "digits": {
+   "error_rate": 0.0,
+   "examples": [
+    [
+     "30",
+     "thirty",
+     5
+    ],
+    [
+     "3",
+     "three",
+     2
+    ],
+    [
+     "3:30",
+     "three thirty",
+     2
+    ],
+    [
+     "5.0",
+     "five",
+     2
+    ],
+    [
+     "14:30",
+     "fourteen thirty",
+     1
+    ],
+    [
+     "18:00",
+     "eighteen",
+     1
+    ],
+    [
+     "2",
+     "two",
+     1
+    ],
+    [
+     "2.5",
+     "two point five",
+     1
+    ]
+   ],
+   "hyp_digit_rate": 0.0,
+   "kept_digits_rate": 0.0,
+   "label": "words",
+   "ref_numbers": 27,
+   "spelled_rate": 1.0,
+   "word_numbers": 1,
+   "words_to_digits_rate": 0.0
+  },
+  "hallucination": {
+   "empty_rate": 0.0,
+   "foreign_examples": [],
+   "foreign_script_rate": 0.0,
+   "lead_rate": 0.0032,
+   "leads": [
+    [
+     "ViewBuild dot gradle",
+     1
+    ]
+   ],
+   "overlong_rate": 0.0,
+   "tail_rate": 0.0,
+   "tails": []
+  },
+  "kinds": {
+   "case": 184,
+   "del": 112,
+   "ins": 21,
+   "match": 3808,
+   "number": 87,
+   "punct": 166,
+   "sub": 64,
+   "sub_near": 280,
+   "translit": 24
+  },
+  "langs": {
+   "en": 308
+  },
+  "latin": {
+   "by_lang": {
+    "en": {
+     "error_rate": 0.0824,
+     "kept_latin_rate": 1.0,
+     "n": 4476
+    }
+   },
+   "cyrillic_rate": 0.0,
+   "error_rate": 0.0824,
+   "hyp_latin_rate": 1.0,
+   "kept_latin_rate": 1.0,
+   "label": "latin",
+   "ref_latin_words": 4476
+  },
+  "n": 308,
+  "n_ref_words": 4503,
+  "nonterm_wer": 0.056,
+  "nonterm_words": 3715,
+  "punctuation": {
+   "any_rate": 0.2825,
+   "comma_ratio": 0.51,
+   "label": "partial",
+   "n_rows": 308,
+   "other_ratio": 0.0,
+   "question_kept_rate": 0.0,
+   "terminal_kept_rate": 0.0032
+  },
+  "rtf": 1.2532,
+  "sampler": {
+   "by_lang": {
+    "en": {
+     "near_share": 0.525,
+     "nonterm_words": 3715,
+     "p_del": 0.0291,
+     "p_ins": 0.0046,
+     "p_sub": 0.0215
+    }
+   },
+   "confusable_words": {
+    "a": 79,
+    "act": 1,
+    "add": 12,
+    "all": 5,
+    "and": 134,
+    "ask": 3,
+    "backend": 2,
+    "before": 41,
+    "block": 8,
+    "book": 5,
+    "build": 8,
+    "bump": 1,
+    "cache": 2,
+    "caching": 2,
+    "can": 36,
+    "check": 32,
+    "could": 25,
+    "demo": 13,
+    "draft": 4,
+    "drop": 5,
+    "every": 5,
+    "ffmpeg": 2,
+    "finished": 4,
+    "fix": 10,
+    "fixes": 2,
+    "fonts": 2,
+    "for": 89,
+    "generate": 1,
+    "give": 2,
+    "hi": 4,
+    "i": 42,
+    "i'll": 12,
+    "in": 68,
+    "is": 28,
+    "list": 6,
+    "me": 16,
+    "measure": 2,
+    "migrate": 2,
+    "my": 10,
+    "new": 6,
+    "next": 11,
+    "on": 66,
+    "on-call": 3,
+    "or": 7,
+    "our": 16,
+    "parsing": 1,
+    "please": 9,
+    "pods": 2,
+    "print": 6,
+    "read": 4,
+    "regex": 1,
+    "replace": 3,
+    "rerun": 4,
+    "results": 7,
+    "retry": 1,
+    "reuse": 1,
+    "review": 27,
+    "rewrite": 3,
+    "run": 38,
+    "sales": 2,
+    "see": 3,
+    "set": 7,
+    "setup": 5,
+    "show": 7,
+    "spans": 1,
+    "switch": 2,
+    "team": 9,
+    "testing": 2,
+    "thanks": 1,
+    "that": 15,
+    "the": 384,
+    "through": 7,
+    "timestamps": 3,
+    "try": 5,
+    "turn": 1,
+    "update": 8,
+    "use": 23,
+    "verbose": 1,
+    "watched": 1,
+    "we": 24,
+    "write": 3,
+    "writes": 1,
+    "yesterday": 16,
+    "you": 56
+   },
+   "del_words": [
+    [
+     "could",
+     14
+    ],
+    [
+     "the",
+     11
+    ],
+    [
+     "can",
+     10
+    ],
+    [
+     "you",
+     8
+    ],
+    [
+     "run",
+     4
+    ],
+    [
+     "use",
+     4
+    ],
+    [
+     "add",
+     3
+    ],
+    [
+     "for",
+     3
+    ],
+    [
+     "i",
+     3
+    ],
+    [
+     "list",
+     3
+    ],
+    [
+     "please",
+     3
+    ],
+    [
+     "block",
+     2
+    ],
+    [
+     "book",
+     2
+    ],
+    [
+     "draft",
+     2
+    ],
+    [
+     "hi",
+     2
+    ],
+    [
+     "our",
+     2
+    ],
+    [
+     "set",
+     2
+    ],
+    [
+     "show",
+     2
+    ],
+    [
+     "we",
+     2
+    ],
+    [
+     "write",
+     2
+    ],
+    [
+     "a",
+     1
+    ],
+    [
+     "act",
+     1
+    ],
+    [
+     "ask",
+     1
+    ],
+    [
+     "build",
+     1
+    ],
+    [
+     "bump",
+     1
+    ],
+    [
+     "cache",
+     1
+    ],
+    [
+     "check",
+     1
+    ],
+    [
+     "every",
+     1
+    ],
+    [
+     "fix",
+     1
+    ],
+    [
+     "fixes",
+     1
+    ]
+   ],
+   "ins_words": [
+    [
+     "five",
+     2
+    ],
+    [
+     "plus",
+     2
+    ],
+    [
+     "sharp",
+     2
+    ],
+    [
+     "four",
+     1
+    ],
+    [
+     "gm",
+     1
+    ],
+    [
+     "it",
+     1
+    ],
+    [
+     "o'clock",
+     1
+    ],
+    [
+     "point",
+     1
+    ],
+    [
+     "slash",
+     1
+    ],
+    [
+     "the",
+     1
+    ],
+    [
+     "tilde",
+     1
+    ],
+    [
+     "using",
+     1
+    ],
+    [
+     "vd",
+     1
+    ],
+    [
+     "wv",
+     1
+    ]
+   ],
+   "near_share": 0.525,
+   "nonterm_words": 3715,
+   "p_del": 0.0291,
+   "p_ins": 0.0046,
+   "p_sub": 0.0215
+  },
+  "style_excluded_rows": 0,
+  "term_wer": 0.3414,
+  "term_words": 788,
+  "terms": {
+   "by_lang": {
+    "en": {
+     "error_rate": 0.2767,
+     "exact_rate": 0.4245,
+     "folded_rate": 0.6588,
+     "latin_kept_rate": 0.9953,
+     "n": 636,
+     "split_rate": 0.2581
+    }
+   },
+   "error_rate": 0.2767,
+   "exact_rate": 0.4245,
+   "folded_rate": 0.6588,
+   "n": 636,
+   "translit_rate": 0.0236
+  },
+  "tts": {
+   "kokoro1/af_alloy": 4,
+   "kokoro1/af_aoede": 4,
+   "kokoro1/af_bella": 4,
+   "kokoro1/af_heart": 4,
+   "kokoro1/af_jessica": 4,
+   "kokoro1/af_kore": 4,
+   "kokoro1/af_nicole": 4,
+   "kokoro1/af_nova": 4,
+   "kokoro1/af_river": 4,
+   "kokoro1/af_sarah": 4,
+   "kokoro1/af_sky": 4,
+   "kokoro1/am_adam": 4,
+   "kokoro1/am_echo": 4,
+   "kokoro1/am_eric": 4,
+   "kokoro1/am_fenrir": 4,
+   "kokoro1/am_liam": 4,
+   "kokoro1/am_michael": 4,
+   "kokoro1/am_onyx": 4,
+   "kokoro1/am_puck": 4,
+   "kokoro1/bf_alice": 4,
+   "kokoro1/bf_emma": 4,
+   "kokoro1/bf_isabella": 3,
+   "kokoro1/bf_lily": 3,
+   "kokoro1/bm_daniel": 3,
+   "kokoro1/bm_fable": 3,
+   "kokoro1/bm_george": 3,
+   "kokoro1/bm_lewis": 3,
+   "piper/en_GB-alba-medium": 10,
+   "piper/en_GB-cori-medium": 9,
+   "piper/en_US-joe-medium": 10,
+   "piper/en_US-john-medium": 10,
+   "piper/en_US-kristin-medium": 10,
+   "piper/en_US-libritts_r-medium#0": 9,
+   "piper/en_US-libritts_r-medium#117": 9,
+   "piper/en_US-libritts_r-medium#263": 9,
+   "piper/en_US-libritts_r-medium#509": 9,
+   "piper/en_US-libritts_r-medium#771": 9,
+   "piper/en_US-norman-medium": 10,
+   "supertonic3/sid0": 10,
+   "supertonic3/sid1": 10,
+   "supertonic3/sid2": 9,
+   "supertonic3/sid3": 11,
+   "supertonic3/sid4": 10,
+   "supertonic3/sid5": 10,
+   "supertonic3/sid6": 9,
+   "supertonic3/sid7": 12,
+   "supertonic3/sid8": 9,
+   "supertonic3/sid9": 12
+  },
+  "wer": 0.1657,
+  "wer_by_channel": {
+   "clean": {
+    "cer": 0.0709,
+    "n": 242,
+    "wer": 0.1662,
+    "wer_style_aware": 0.1038,
+    "words": 3593
+   },
+   "phone_noisy": {
+    "cer": 0.0644,
+    "n": 66,
+    "wer": 0.1637,
+    "wer_style_aware": 0.1143,
+    "words": 910
+   }
+  },
+  "wer_by_lang": {
+   "en": {
+    "cer": 0.0696,
+    "n": 308,
+    "wer": 0.1657,
+    "wer_style_aware": 0.1059,
+    "words": 4503
+   }
+  },
+  "wer_style_aware": 0.1059,
+  "yo": {
+   "kept_rate": null,
+   "ref_yo_words": 0
+  }
+ },
+ "parakeet-tdt-0.6b-v3@onnx-int8": {
+  "by_tts": {
+   "kokoro1": {
+    "by_lang": {
+     "en": {
+      "cer": 0.0321,
+      "latin_kept_rate": 1.0,
+      "n": 102,
+      "term_error_rate": 0.1613,
+      "term_exact_rate": 0.5438,
+      "term_n": 217,
+      "wer": 0.1018,
+      "wer_style_aware": 0.045,
+      "words": 1444
+     }
+    },
+    "inputs": {
+     "text": 73,
+     "tts_text": 29
+    }
+   },
+   "piper": {
+    "by_lang": {
+     "en": {
+      "cer": 0.0575,
+      "latin_kept_rate": 1.0,
+      "n": 104,
+      "term_error_rate": 0.3805,
+      "term_exact_rate": 0.361,
+      "term_n": 205,
+      "wer": 0.1605,
+      "wer_style_aware": 0.1149,
+      "words": 1558
+     }
+    },
+    "inputs": {
+     "text": 72,
+     "tts_text": 32
+    }
+   },
+   "supertonic3": {
+    "by_lang": {
+     "en": {
+      "cer": 0.0248,
+      "latin_kept_rate": 1.0,
+      "n": 102,
+      "term_error_rate": 0.243,
+      "term_exact_rate": 0.5327,
+      "term_n": 214,
+      "wer": 0.0973,
+      "wer_style_aware": 0.0586,
+      "words": 1501
+     },
+     "mixed": {
+      "cer": 0.0821,
+      "latin_kept_rate": 0.8106,
+      "n": 359,
+      "term_error_rate": 0.4789,
+      "term_exact_rate": 0.2892,
+      "term_n": 733,
+      "wer": 0.1724,
+      "wer_style_aware": 0.1288,
+      "words": 4728
+     },
+     "ru": {
+      "cer": 0.0315,
+      "latin_kept_rate": null,
+      "n": 301,
+      "term_error_rate": 0.2638,
+      "term_exact_rate": 0.5655,
+      "term_n": 580,
+      "wer": 0.0998,
+      "wer_style_aware": 0.0712,
+      "words": 3806
+     }
+    },
+    "inputs": {
+     "text": 681,
+     "text_numbers": 32,
+     "tts_text": 49
+    }
+   }
+  },
+  "casing": {
+   "all_lower_rate": 0.001,
+   "first_upper_rate": 0.9979,
+   "has_upper_rate": 0.999,
+   "label": "sentence",
+   "n_rows": 968,
+   "proper_case_kept_rate": 0.8908
+  },
+  "cer": 0.0524,
+  "channels": {
+   "clean": 775,
+   "phone_noisy": 193
+  },
+  "digits": {
+   "error_rate": 0.0674,
+   "examples": [
+    [
+     "11:30",
+     "11.30",
+     7
+    ],
+    [
+     "14:30",
+     "14.30",
+     7
+    ],
+    [
+     "15:30",
+     "15.30",
+     7
+    ],
+    [
+     "10:00",
+     "10",
+     2
+    ],
+    [
+     "12:00",
+     "12",
+     2
+    ],
+    [
+     "15:00",
+     "15",
+     2
+    ],
+    [
+     "15:00",
+     "15.00",
+     2
+    ],
+    [
+     "3:30",
+     "three thirty",
+     2
+    ]
+   ],
+   "hyp_digit_rate": 0.1043,
+   "kept_digits_rate": 0.8675,
+   "label": "digits",
+   "ref_numbers": 89,
+   "spelled_rate": 0.1325,
+   "word_numbers": 4,
+   "words_to_digits_rate": 0.75
+  },
+  "hallucination": {
+   "empty_rate": 0.0,
+   "foreign_examples": [
+    [
+     "Kiń suda adapter config. Sony глянь, поднялся ли Open Search.",
+     1
+    ]
+   ],
+   "foreign_script_rate": 0.001,
+   "lead_rate": 0.0,
+   "leads": [],
+   "overlong_rate": 0.0,
+   "tail_rate": 0.0,
+   "tails": []
+  },
+  "kinds": {
+   "case": 339,
+   "del": 41,
+   "ins": 30,
+   "match": 11090,
+   "number": 89,
+   "punct": 301,
+   "sub": 128,
+   "sub_near": 1013,
+   "translit": 182,
+   "yo": 147
+  },
+  "langs": {
+   "en": 308,
+   "mixed": 359,
+   "ru": 301
+  },
+  "latin": {
+   "by_lang": {
+    "en": {
+     "error_rate": 0.0585,
+     "kept_latin_rate": 1.0,
+     "n": 4476
+    },
+    "mixed": {
+     "error_rate": 0.4477,
+     "kept_latin_rate": 0.8106,
+     "n": 784
+    }
+   },
+   "cyrillic_rate": 0.0176,
+   "error_rate": 0.1165,
+   "hyp_latin_rate": 0.6591,
+   "kept_latin_rate": 0.9824,
+   "label": "latin",
+   "ref_latin_words": 5260
+  },
+  "n": 968,
+  "n_ref_words": 13037,
+  "nonterm_wer": 0.0324,
+  "nonterm_words": 10734,
+  "punctuation": {
+   "any_rate": 0.999,
+   "comma_ratio": 0.9278,
+   "label": "full",
+   "n_rows": 968,
+   "other_ratio": 0.1863,
+   "question_kept_rate": 0.6374,
+   "terminal_kept_rate": 0.999
+  },
+  "rtf": 0.3783,
+  "sampler": {
+   "by_lang": {
+    "en": {
+     "near_share": 0.7108,
+     "nonterm_words": 3715,
+     "p_del": 0.0019,
+     "p_ins": 0.004,
+     "p_sub": 0.0223
+    },
+    "mixed": {
+     "near_share": 0.8492,
+     "nonterm_words": 3853,
+     "p_del": 0.0034,
+     "p_ins": 0.0029,
+     "p_sub": 0.0327
+    },
+    "ru": {
+     "near_share": 0.939,
+     "nonterm_words": 3166,
+     "p_del": 0.0025,
+     "p_ins": 0.0009,
+     "p_sub": 0.0259
+    }
+   },
+   "confusable_words": {
+    "11:00": 2,
+    "11:30": 8,
+    "900": 1,
+    "99.9%": 1,
+    "a": 79,
+    "add": 12,
+    "and": 134,
+    "backend": 2,
+    "before": 41,
+    "block": 8,
+    "book": 5,
+    "build": 8,
+    "bump": 1,
+    "but": 2,
+    "cache": 2,
+    "caching": 2,
+    "contexts": 2,
+    "deploying": 1,
+    "draft": 4,
+    "drop": 5,
+    "endpoint": 3,
+    "ffmpeg": 2,
+    "finished": 4,
+    "flow": 2,
+    "hi": 4,
+    "in": 68,
+    "on-call": 3,
+    "or": 7,
+    "our": 16,
+    "outdated": 1,
+    "parsing": 1,
+    "please": 9,
+    "pods": 2,
+    "query": 3,
+    "read": 4,
+    "regex": 1,
+    "renders": 2,
+    "rerun": 4,
+    "results": 7,
+    "retry": 1,
+    "rewrite": 3,
+    "sales": 2,
+    "scheduled": 1,
+    "signup": 1,
+    "small": 5,
+    "spans": 1,
+    "sync": 2,
+    "target": 2,
+    "team": 9,
+    "tested": 3,
+    "three-sentence": 1,
+    "through": 7,
+    "timestamps": 3,
+    "today": 17,
+    "try": 5,
+    "uploads": 2,
+    "usable": 1,
+    "use": 23,
+    "used": 5,
+    "verbose": 1,
+    "version": 3,
+    "whether": 22,
+    "write": 3,
+    "writes": 1,
+    "you": 56,
+    "а": 63,
+    "асессоров": 1,
+    "было": 5,
+    "в": 316,
+    "ваш": 1,
+    "веса": 1,
+    "видеопамять": 1,
+    "внутренней": 3,
+    "возьмусь": 1,
+    "воспроизведения": 1,
+    "вспомогательная": 1,
+    "встречи": 2,
+    "встречу": 15,
+    "второй": 5,
+    "вчерашней": 3,
+    "вывод": 4,
+    "выводит": 1,
+    "выдачи": 1,
+    "голого": 1,
+    "гонял": 2,
+    "действующий": 1,
+    "демо": 3,
+    "длинные": 4,
+    "до": 54,
+    "добавил": 16,
+    "добавь": 5,
+    "добавьте": 1,
+    "докручиваю": 1,
+    "доработок": 2,
+    "дублируется": 1,
+    "ждем": 2,
+    "запасной": 2,
+    "записей": 7,
+    "записью": 2,
+    "записями": 1,
+    "запиши": 1,
+    "запущен": 1,
+    "знает": 2,
+    "значения": 1,
+    "и": 218,
+    "из": 40,
+    "изображений": 3,
+    "имена": 3,
+    "индекс": 2,
+    "используется": 3,
+    "исправил": 2,
+    "исходниками": 1,
+    "к": 36,
+    "каждого": 3,
+    "каждой": 4,
+    "кинь": 2,
+    "коллеги": 24,
+    "короткое": 3,
+    "красная": 1,
+    "ломало": 1,
+    "маякни": 2,
+    "меняя": 3,
+    "миллисекунд": 2,
+    "мне": 19,
+    "моделей": 5,
+    "модули": 1,
+    "можете": 1,
+    "на": 321,
+    "напиши": 7,
+    "настроена": 1,
+    "наш": 8,
+    "не": 107,
+    "но": 21,
+    "новичка": 1,
+    "новое": 1,
+    "новый": 8,
+    "ночная": 2,
+    "ночь": 2,
+    "нулевой": 1,
+    "обедом": 1,
+    "обрабатывает": 2,
+    "объявление": 1,
+    "оверлеями": 1,
+    "одинаковом": 2,
+    "описание": 5,
+    "описаны": 1,
+    "опять": 9,
+    "основном": 1,
+    "ответа": 10,
+    "открой": 5,
+    "отправить": 2,
+    "отчет": 10,
+    "падежи": 1,
+    "переврала": 1,
+    "переключение": 1,
+    "перешел": 2,
+    "план": 7,
+    "подготовлен": 1,
+    "подсказки": 2,
+    "подтвердите": 3,
+    "поды": 1,
+    "пожалуйста": 44,
+    "позицию": 2,
+    "пока": 41,
+    "покажи": 17,
+    "пользовался": 1,
+    "пора": 1,
+    "порядок": 8,
+    "последовательностей": 1,
+    "поставь": 29,
+    "построчно": 1,
+    "пояснение": 1,
+    "права": 2,
+    "правками": 1,
+    "правки": 12,
+    "правку": 7,
+    "примерах": 4,
+    "примеры": 7,
+    "пришли": 4,
+    "проверил": 6,
+    "прогоняю": 1,
+    "пропадает": 2,
+    "прохода": 1,
+    "пятибалльной": 1,
+    "разделов": 1,
+    "рассматриваем": 1,
+    "ребят": 1,
+    "рекуррентную": 1,
+    "репозиторий": 3,
+    "ролей": 1,
+    "русский": 2,
+    "ручной": 6,
+    "с": 117,
+    "свои": 2,
+    "сгенерировал": 1,
+    "сидел": 1,
+    "скинь": 12,
+    "скопировались": 1,
+    "случай": 5,
+    "совпадут": 1,
+    "созвониться": 2,
+    "соревнование": 1,
+    "сорян": 1,
+    "соседней": 3,
+    "список": 8,
+    "сравнить": 6,
+    "ставим": 1,
+    "старше": 1,
+    "страницу": 3,
+    "страницы": 6,
+    "строки": 6,
+    "суммы": 1,
+    "считаю": 1,
+    "та": 1,
+    "тела": 1,
+    "треде": 1,
+    "у": 23,
+    "уведомление": 3,
+    "ударения": 1,
+    "успел": 5,
+    "уточнения": 1,
+    "ход": 1,
+    "числа": 2,
+    "число": 3,
+    "читается": 1
+   },
+   "del_words": [
+    [
+     "в",
+     5
+    ],
+    [
+     "и",
+     3
+    ],
+    [
+     "a",
+     1
+    ],
+    [
+     "book",
+     1
+    ],
+    [
+     "build",
+     1
+    ],
+    [
+     "in",
+     1
+    ],
+    [
+     "target",
+     1
+    ],
+    [
+     "try",
+     1
+    ],
+    [
+     "version",
+     1
+    ],
+    [
+     "ваш",
+     1
+    ],
+    [
+     "демо",
+     1
+    ],
+    [
+     "докручиваю",
+     1
+    ],
+    [
+     "знает",
+     1
+    ],
+    [
+     "к",
+     1
+    ],
+    [
+     "коллеги",
+     1
+    ],
+    [
+     "наш",
+     1
+    ],
+    [
+     "опять",
+     1
+    ],
+    [
+     "основном",
+     1
+    ],
+    [
+     "пользовался",
+     1
+    ],
+    [
+     "с",
+     1
+    ],
+    [
+     "строки",
+     1
+    ],
+    [
+     "у",
+     1
+    ]
+   ],
+   "ins_words": [
+    [
+     "sharp",
+     3
+    ],
+    [
+     "d",
+     2
+    ],
+    [
+     "the",
+     2
+    ],
+    [
+     "to",
+     2
+    ],
+    [
+     "и",
+     2
+    ],
+    [
+     "dot",
+     1
+    ],
+    [
+     "is",
+     1
+    ],
+    [
+     "light",
+     1
+    ],
+    [
+     "o'clock",
+     1
+    ],
+    [
+     "plus",
+     1
+    ],
+    [
+     "q",
+     1
+    ],
+    [
+     "set",
+     1
+    ],
+    [
+     "slash",
+     1
+    ],
+    [
+     "until",
+     1
+    ],
+    [
+     "use",
+     1
+    ],
+    [
+     "а",
+     1
+    ],
+    [
+     "вт",
+     1
+    ],
+    [
+     "гляньте",
+     1
+    ],
+    [
+     "малы",
+     1
+    ],
+    [
+     "о",
+     1
+    ],
+    [
+     "один",
+     1
+    ],
+    [
+     "с",
+     1
+    ],
+    [
+     "утра",
+     1
+    ]
+   ],
+   "near_share": 0.8351,
+   "nonterm_words": 10734,
+   "p_del": 0.0026,
+   "p_ins": 0.0027,
+   "p_sub": 0.0271
+  },
+  "style_excluded_rows": 0,
+  "term_wer": 0.3752,
+  "term_words": 2303,
+  "terms": {
+   "by_lang": {
+    "en": {
+     "error_rate": 0.2594,
+     "exact_rate": 0.4811,
+     "folded_rate": 0.695,
+     "latin_kept_rate": 0.9953,
+     "n": 636,
+     "split_rate": 0.1992
+    },
+    "mixed": {
+     "error_rate": 0.4789,
+     "exact_rate": 0.2892,
+     "folded_rate": 0.4025,
+     "latin_kept_rate": 0.6194,
+     "n": 733,
+     "split_rate": 0.1331
+    },
+    "ru": {
+     "error_rate": 0.2638,
+     "exact_rate": 0.5655,
+     "folded_rate": 0.6621,
+     "latin_kept_rate": 0.0724,
+     "n": 580,
+     "split_rate": 0.0575
+    }
+   },
+   "error_rate": 0.3433,
+   "exact_rate": 0.4341,
+   "folded_rate": 0.5752,
+   "n": 1949,
+   "translit_rate": 0.0734
+  },
+  "tts": {
+   "kokoro1/af_alloy": 4,
+   "kokoro1/af_aoede": 4,
+   "kokoro1/af_bella": 4,
+   "kokoro1/af_heart": 4,
+   "kokoro1/af_jessica": 4,
+   "kokoro1/af_kore": 4,
+   "kokoro1/af_nicole": 4,
+   "kokoro1/af_nova": 4,
+   "kokoro1/af_river": 4,
+   "kokoro1/af_sarah": 4,
+   "kokoro1/af_sky": 4,
+   "kokoro1/am_adam": 4,
+   "kokoro1/am_echo": 4,
+   "kokoro1/am_eric": 4,
+   "kokoro1/am_fenrir": 4,
+   "kokoro1/am_liam": 4,
+   "kokoro1/am_michael": 4,
+   "kokoro1/am_onyx": 4,
+   "kokoro1/am_puck": 4,
+   "kokoro1/bf_alice": 4,
+   "kokoro1/bf_emma": 4,
+   "kokoro1/bf_isabella": 3,
+   "kokoro1/bf_lily": 3,
+   "kokoro1/bm_daniel": 3,
+   "kokoro1/bm_fable": 3,
+   "kokoro1/bm_george": 3,
+   "kokoro1/bm_lewis": 3,
+   "piper/en_GB-alba-medium": 10,
+   "piper/en_GB-cori-medium": 9,
+   "piper/en_US-joe-medium": 10,
+   "piper/en_US-john-medium": 10,
+   "piper/en_US-kristin-medium": 10,
+   "piper/en_US-libritts_r-medium#0": 9,
+   "piper/en_US-libritts_r-medium#117": 9,
+   "piper/en_US-libritts_r-medium#263": 9,
+   "piper/en_US-libritts_r-medium#509": 9,
+   "piper/en_US-libritts_r-medium#771": 9,
+   "piper/en_US-norman-medium": 10,
+   "supertonic3/sid0": 80,
+   "supertonic3/sid1": 77,
+   "supertonic3/sid2": 76,
+   "supertonic3/sid3": 77,
+   "supertonic3/sid4": 71,
+   "supertonic3/sid5": 74,
+   "supertonic3/sid6": 75,
+   "supertonic3/sid7": 77,
+   "supertonic3/sid8": 76,
+   "supertonic3/sid9": 79
+  },
+  "wer": 0.1333,
+  "wer_by_channel": {
+   "clean": {
+    "cer": 0.0497,
+    "n": 775,
+    "wer": 0.1292,
+    "wer_style_aware": 0.0879,
+    "words": 10495
+   },
+   "phone_noisy": {
+    "cer": 0.0637,
+    "n": 193,
+    "wer": 0.1503,
+    "wer_style_aware": 0.1137,
+    "words": 2542
+   }
+  },
+  "wer_by_lang": {
+   "en": {
+    "cer": 0.0383,
+    "n": 308,
+    "wer": 0.1206,
+    "wer_style_aware": 0.0737,
+    "words": 4503
+   },
+   "mixed": {
+    "cer": 0.0821,
+    "n": 359,
+    "wer": 0.1724,
+    "wer_style_aware": 0.1288,
+    "words": 4728
+   },
+   "ru": {
+    "cer": 0.0315,
+    "n": 301,
+    "wer": 0.0998,
+    "wer_style_aware": 0.0712,
+    "words": 3806
+   }
+  },
+  "wer_style_aware": 0.093,
+  "yo": {
+   "kept_rate": 0.0,
+   "ref_yo_words": 147
+  }
+ },
+ "parakeet-ultra-0.6b@onnx-int8": {
+  "by_tts": {
+   "kokoro1": {
+    "by_lang": {
+     "en": {
+      "cer": 0.0215,
+      "latin_kept_rate": 1.0,
+      "n": 102,
+      "term_error_rate": 0.1797,
+      "term_exact_rate": 0.5207,
+      "term_n": 217,
+      "wer": 0.0942,
+      "wer_style_aware": 0.0443,
+      "words": 1444
+     }
+    },
+    "inputs": {
+     "text": 73,
+     "tts_text": 29
+    }
+   },
+   "piper": {
+    "by_lang": {
+     "en": {
+      "cer": 0.0424,
+      "latin_kept_rate": 0.9993,
+      "n": 104,
+      "term_error_rate": 0.3317,
+      "term_exact_rate": 0.4293,
+      "term_n": 205,
+      "wer": 0.1194,
+      "wer_style_aware": 0.0866,
+      "words": 1558
+     }
+    },
+    "inputs": {
+     "text": 72,
+     "tts_text": 32
+    }
+   },
+   "supertonic3": {
+    "by_lang": {
+     "en": {
+      "cer": 0.0227,
+      "latin_kept_rate": 1.0,
+      "n": 102,
+      "term_error_rate": 0.2617,
+      "term_exact_rate": 0.5093,
+      "term_n": 214,
+      "wer": 0.0926,
+      "wer_style_aware": 0.0586,
+      "words": 1501
+     },
+     "mixed": {
+      "cer": 0.0779,
+      "latin_kept_rate": 0.8061,
+      "n": 359,
+      "term_error_rate": 0.4475,
+      "term_exact_rate": 0.3165,
+      "term_n": 733,
+      "wer": 0.1593,
+      "wer_style_aware": 0.1178,
+      "words": 4728
+     },
+     "ru": {
+      "cer": 0.0271,
+      "latin_kept_rate": null,
+      "n": 301,
+      "term_error_rate": 0.2345,
+      "term_exact_rate": 0.5948,
+      "term_n": 580,
+      "wer": 0.0909,
+      "wer_style_aware": 0.0596,
+      "words": 3806
+     }
+    },
+    "inputs": {
+     "text": 681,
+     "text_numbers": 32,
+     "tts_text": 49
+    }
+   }
+  },
+  "casing": {
+   "all_lower_rate": 0.001,
+   "first_upper_rate": 0.9969,
+   "has_upper_rate": 0.999,
+   "label": "sentence",
+   "n_rows": 968,
+   "proper_case_kept_rate": 0.8824
+  },
+  "cer": 0.0466,
+  "channels": {
+   "clean": 775,
+   "phone_noisy": 193
+  },
+  "digits": {
+   "error_rate": 0.0449,
+   "examples": [
+    [
+     "14:30",
+     "14.30",
+     6
+    ],
+    [
+     "11:30",
+     "11.30",
+     5
+    ],
+    [
+     "15:30",
+     "15.30",
+     4
+    ],
+    [
+     "15:30",
+     "пятнадцать тридцать",
+     3
+    ],
+    [
+     "11:30",
+     "одиннадцать тридцать",
+     2
+    ],
+    [
+     "14:30",
+     "четырнадцать тридцать",
+     2
+    ],
+    [
+     "15:00",
+     "15",
+     2
+    ],
+    [
+     "15:00",
+     "15.00",
+     2
+    ]
+   ],
+   "hyp_digit_rate": 0.1105,
+   "kept_digits_rate": 0.8588,
+   "label": "digits",
+   "ref_numbers": 89,
+   "spelled_rate": 0.1412,
+   "word_numbers": 4,
+   "words_to_digits_rate": 1.0
+  },
+  "hallucination": {
+   "empty_rate": 0.0,
+   "foreign_examples": [
+    [
+     "Kin suda adapter config. Sony Gliań, поднялся ли Open Search.",
+     1
+    ]
+   ],
+   "foreign_script_rate": 0.001,
+   "lead_rate": 0.0,
+   "leads": [],
+   "overlong_rate": 0.0,
+   "tail_rate": 0.0,
+   "tails": []
+  },
+  "kinds": {
+   "case": 288,
+   "del": 25,
+   "ins": 23,
+   "match": 11295,
+   "number": 67,
+   "punct": 292,
+   "sub": 100,
+   "sub_near": 923,
+   "translit": 173,
+   "yo": 150
+  },
+  "langs": {
+   "en": 308,
+   "mixed": 359,
+   "ru": 301
+  },
+  "latin": {
+   "by_lang": {
+    "en": {
+     "error_rate": 0.0509,
+     "kept_latin_rate": 0.9998,
+     "n": 4476
+    },
+    "mixed": {
+     "error_rate": 0.4145,
+     "kept_latin_rate": 0.8061,
+     "n": 784
+    }
+   },
+   "cyrillic_rate": 0.0191,
+   "error_rate": 0.1051,
+   "hyp_latin_rate": 0.6457,
+   "kept_latin_rate": 0.9809,
+   "label": "latin",
+   "ref_latin_words": 5260
+  },
+  "n": 968,
+  "n_ref_words": 13037,
+  "nonterm_wer": 0.0231,
+  "nonterm_words": 10734,
+  "punctuation": {
+   "any_rate": 1.0,
+   "comma_ratio": 0.9469,
+   "label": "full",
+   "n_rows": 968,
+   "other_ratio": 0.1825,
+   "question_kept_rate": 0.6374,
+   "terminal_kept_rate": 1.0
+  },
+  "rtf": 0.3473,
+  "sampler": {
+   "by_lang": {
+    "en": {
+     "near_share": 0.62,
+     "nonterm_words": 3715,
+     "p_del": 0.0013,
+     "p_ins": 0.004,
+     "p_sub": 0.0135
+    },
+    "mixed": {
+     "near_share": 0.8384,
+     "nonterm_words": 3853,
+     "p_del": 0.0021,
+     "p_ins": 0.0013,
+     "p_sub": 0.0257
+    },
+    "ru": {
+     "near_share": 0.9333,
+     "nonterm_words": 3166,
+     "p_del": 0.0013,
+     "p_ins": 0.0006,
+     "p_sub": 0.019
+    }
+   },
+   "confusable_words": {
+    "200": 3,
+    "900": 1,
+    "99.9%": 1,
+    "a": 79,
+    "add": 12,
+    "backend": 2,
+    "before": 41,
+    "block": 8,
+    "bump": 1,
+    "cache": 2,
+    "caching": 2,
+    "contexts": 2,
+    "could": 25,
+    "drop": 5,
+    "ffmpeg": 2,
+    "finished": 4,
+    "fix": 10,
+    "flow": 2,
+    "hi": 4,
+    "how": 21,
+    "i'm": 11,
+    "in": 68,
+    "on": 66,
+    "our": 16,
+    "outdated": 1,
+    "parsing": 1,
+    "pods": 2,
+    "read": 4,
+    "rebalance": 1,
+    "regex": 1,
+    "rerun": 4,
+    "retry": 1,
+    "rewrite": 3,
+    "signup": 1,
+    "small": 5,
+    "spans": 1,
+    "sync": 2,
+    "team": 9,
+    "three-sentence": 1,
+    "through": 7,
+    "usable": 1,
+    "use": 23,
+    "verbose": 1,
+    "write": 3,
+    "writes": 1,
+    "you": 56,
+    "а": 63,
+    "абзацев": 1,
+    "асессоров": 1,
+    "было": 5,
+    "в": 316,
+    "веса": 1,
+    "видеопамять": 1,
+    "возьмусь": 1,
+    "воспроизведения": 1,
+    "встрече": 3,
+    "встречи": 2,
+    "вывод": 4,
+    "выдачи": 1,
+    "выдели": 1,
+    "выкидываю": 1,
+    "глянь": 8,
+    "голого": 1,
+    "гонял": 2,
+    "действующий": 1,
+    "демо": 3,
+    "добавьте": 1,
+    "дублируется": 1,
+    "ест": 1,
+    "забыть": 1,
+    "запасной": 2,
+    "записей": 7,
+    "запускать": 2,
+    "значения": 1,
+    "и": 218,
+    "из": 40,
+    "изображений": 3,
+    "имена": 3,
+    "индекс": 2,
+    "исправил": 2,
+    "к": 36,
+    "кинь": 2,
+    "команды": 9,
+    "короткое": 3,
+    "красная": 1,
+    "кто-нибудь": 3,
+    "маякни": 2,
+    "меняйте": 2,
+    "мне": 19,
+    "на": 321,
+    "напиши": 7,
+    "настроена": 1,
+    "наш": 8,
+    "но": 21,
+    "новичка": 1,
+    "новичку": 2,
+    "новое": 1,
+    "новый": 8,
+    "ночная": 2,
+    "нулевой": 1,
+    "объявление": 1,
+    "оверлеями": 1,
+    "описание": 5,
+    "открой": 5,
+    "отпишусь": 1,
+    "отчет": 10,
+    "падежи": 1,
+    "первой": 2,
+    "переключение": 1,
+    "под": 6,
+    "подготовлен": 1,
+    "подключения": 4,
+    "подсказки": 2,
+    "пожалуйста": 44,
+    "пока": 41,
+    "покажи": 17,
+    "получателей": 1,
+    "пользовался": 1,
+    "пора": 1,
+    "последовательностей": 1,
+    "пояснение": 1,
+    "права": 2,
+    "правками": 1,
+    "правки": 12,
+    "предложи": 7,
+    "примеры": 7,
+    "пришли": 4,
+    "проверил": 6,
+    "прямо": 3,
+    "пятибалльной": 1,
+    "пятницы": 6,
+    "раз": 9,
+    "ребята": 10,
+    "рекуррентную": 1,
+    "репозиторий": 3,
+    "ролей": 1,
+    "русский": 2,
+    "русской": 1,
+    "ручной": 6,
+    "с": 117,
+    "сводку": 2,
+    "свои": 2,
+    "сегодня": 59,
+    "сессии": 1,
+    "сидел": 1,
+    "скажи": 4,
+    "скинь": 12,
+    "слушай": 12,
+    "созвониться": 2,
+    "соревнование": 1,
+    "сорян": 1,
+    "сравнение": 2,
+    "ставим": 1,
+    "старше": 1,
+    "страницы": 6,
+    "строк": 6,
+    "суммы": 1,
+    "считаю": 1,
+    "та": 1,
+    "у": 23,
+    "уведомление": 3,
+    "ударения": 1,
+    "успел": 5,
+    "уточнения": 1,
+    "ход": 1,
+    "четверг": 17,
+    "читается": 1
+   },
+   "del_words": [
+    [
+     "в",
+     4
+    ],
+    [
+     "how",
+     2
+    ],
+    [
+     "и",
+     2
+    ],
+    [
+     "у",
+     2
+    ],
+    [
+     "could",
+     1
+    ],
+    [
+     "parsing",
+     1
+    ],
+    [
+     "read",
+     1
+    ],
+    [
+     "а",
+     1
+    ],
+    [
+     "наш",
+     1
+    ],
+    [
+     "пользовался",
+     1
+    ],
+    [
+     "с",
+     1
+    ]
+   ],
+   "ins_words": [
+    [
+     "sharp",
+     3
+    ],
+    [
+     "slash",
+     2
+    ],
+    [
+     "to",
+     2
+    ],
+    [
+     "d",
+     1
+    ],
+    [
+     "dot",
+     1
+    ],
+    [
+     "light",
+     1
+    ],
+    [
+     "o'clock",
+     1
+    ],
+    [
+     "off",
+     1
+    ],
+    [
+     "opening",
+     1
+    ],
+    [
+     "timesk",
+     1
+    ],
+    [
+     "until",
+     1
+    ],
+    [
+     "use",
+     1
+    ],
+    [
+     "wii",
+     1
+    ],
+    [
+     "гляньте",
+     1
+    ],
+    [
+     "малы",
+     1
+    ],
+    [
+     "о",
+     1
+    ],
+    [
+     "от",
+     1
+    ],
+    [
+     "утра",
+     1
+    ]
+   ],
+   "near_share": 0.8134,
+   "nonterm_words": 10734,
+   "p_del": 0.0016,
+   "p_ins": 0.002,
+   "p_sub": 0.0195
+  },
+  "style_excluded_rows": 0,
+  "term_wer": 0.3574,
+  "term_words": 2303,
+  "terms": {
+   "by_lang": {
+    "en": {
+     "error_rate": 0.2563,
+     "exact_rate": 0.4874,
+     "folded_rate": 0.7154,
+     "latin_kept_rate": 0.9969,
+     "n": 636,
+     "split_rate": 0.1785
+    },
+    "mixed": {
+     "error_rate": 0.4475,
+     "exact_rate": 0.3165,
+     "folded_rate": 0.4311,
+     "latin_kept_rate": 0.6317,
+     "n": 733,
+     "split_rate": 0.1294
+    },
+    "ru": {
+     "error_rate": 0.2345,
+     "exact_rate": 0.5948,
+     "folded_rate": 0.7,
+     "latin_kept_rate": 0.0586,
+     "n": 580,
+     "split_rate": 0.0688
+    }
+   },
+   "error_rate": 0.3217,
+   "exact_rate": 0.4551,
+   "folded_rate": 0.6039,
+   "n": 1949,
+   "translit_rate": 0.0703
+  },
+  "tts": {
+   "kokoro1/af_alloy": 4,
+   "kokoro1/af_aoede": 4,
+   "kokoro1/af_bella": 4,
+   "kokoro1/af_heart": 4,
+   "kokoro1/af_jessica": 4,
+   "kokoro1/af_kore": 4,
+   "kokoro1/af_nicole": 4,
+   "kokoro1/af_nova": 4,
+   "kokoro1/af_river": 4,
+   "kokoro1/af_sarah": 4,
+   "kokoro1/af_sky": 4,
+   "kokoro1/am_adam": 4,
+   "kokoro1/am_echo": 4,
+   "kokoro1/am_eric": 4,
+   "kokoro1/am_fenrir": 4,
+   "kokoro1/am_liam": 4,
+   "kokoro1/am_michael": 4,
+   "kokoro1/am_onyx": 4,
+   "kokoro1/am_puck": 4,
+   "kokoro1/bf_alice": 4,
+   "kokoro1/bf_emma": 4,
+   "kokoro1/bf_isabella": 3,
+   "kokoro1/bf_lily": 3,
+   "kokoro1/bm_daniel": 3,
+   "kokoro1/bm_fable": 3,
+   "kokoro1/bm_george": 3,
+   "kokoro1/bm_lewis": 3,
+   "piper/en_GB-alba-medium": 10,
+   "piper/en_GB-cori-medium": 9,
+   "piper/en_US-joe-medium": 10,
+   "piper/en_US-john-medium": 10,
+   "piper/en_US-kristin-medium": 10,
+   "piper/en_US-libritts_r-medium#0": 9,
+   "piper/en_US-libritts_r-medium#117": 9,
+   "piper/en_US-libritts_r-medium#263": 9,
+   "piper/en_US-libritts_r-medium#509": 9,
+   "piper/en_US-libritts_r-medium#771": 9,
+   "piper/en_US-norman-medium": 10,
+   "supertonic3/sid0": 80,
+   "supertonic3/sid1": 77,
+   "supertonic3/sid2": 76,
+   "supertonic3/sid3": 77,
+   "supertonic3/sid4": 71,
+   "supertonic3/sid5": 74,
+   "supertonic3/sid6": 75,
+   "supertonic3/sid7": 77,
+   "supertonic3/sid8": 76,
+   "supertonic3/sid9": 79
+  },
+  "wer": 0.1197,
+  "wer_by_channel": {
+   "clean": {
+    "cer": 0.0429,
+    "n": 775,
+    "wer": 0.1147,
+    "wer_style_aware": 0.0767,
+    "words": 10495
+   },
+   "phone_noisy": {
+    "cer": 0.0617,
+    "n": 193,
+    "wer": 0.14,
+    "wer_style_aware": 0.1046,
+    "words": 2542
+   }
+  },
+  "wer_by_lang": {
+   "en": {
+    "cer": 0.029,
+    "n": 308,
+    "wer": 0.1024,
+    "wer_style_aware": 0.0637,
+    "words": 4503
+   },
+   "mixed": {
+    "cer": 0.0779,
+    "n": 359,
+    "wer": 0.1593,
+    "wer_style_aware": 0.1178,
+    "words": 4728
+   },
+   "ru": {
+    "cer": 0.0271,
+    "n": 301,
+    "wer": 0.0909,
+    "wer_style_aware": 0.0596,
+    "words": 3806
+   }
+  },
+  "wer_style_aware": 0.0822,
+  "yo": {
+   "kept_rate": 0.0,
+   "ref_yo_words": 150
+  }
+ },
+ "qwen3-asr-0.6b@onnx-int8": {
+  "by_tts": {
+   "kokoro1": {
+    "by_lang": {
+     "en": {
+      "cer": 0.044,
+      "latin_kept_rate": 1.0,
+      "n": 102,
+      "term_error_rate": 0.1705,
+      "term_exact_rate": 0.5023,
+      "term_n": 217,
+      "wer": 0.1371,
+      "wer_style_aware": 0.0589,
+      "words": 1444
+     }
+    },
+    "inputs": {
+     "text": 73,
+     "tts_text": 29
+    }
+   },
+   "piper": {
+    "by_lang": {
+     "en": {
+      "cer": 0.0782,
+      "latin_kept_rate": 1.0,
+      "n": 104,
+      "term_error_rate": 0.3902,
+      "term_exact_rate": 0.3122,
+      "term_n": 205,
+      "wer": 0.2028,
+      "wer_style_aware": 0.1309,
+      "words": 1558
+     }
+    },
+    "inputs": {
+     "text": 72,
+     "tts_text": 32
+    }
+   },
+   "supertonic3": {
+    "by_lang": {
+     "en": {
+      "cer": 0.0363,
+      "latin_kept_rate": 1.0,
+      "n": 102,
+      "term_error_rate": 0.2477,
+      "term_exact_rate": 0.5047,
+      "term_n": 214,
+      "wer": 0.1086,
+      "wer_style_aware": 0.0546,
+      "words": 1501
+     },
+     "mixed": {
+      "cer": 0.1845,
+      "latin_kept_rate": 0.6011,
+      "n": 359,
+      "term_error_rate": 0.5771,
+      "term_exact_rate": 0.2005,
+      "term_n": 733,
+      "wer": 0.306,
+      "wer_style_aware": 0.2437,
+      "words": 4728
+     },
+     "ru": {
+      "cer": 0.063,
+      "latin_kept_rate": null,
+      "n": 301,
+      "term_error_rate": 0.4879,
+      "term_exact_rate": 0.3828,
+      "term_n": 580,
+      "wer": 0.1992,
+      "wer_style_aware": 0.1697,
+      "words": 3806
+     }
+    },
+    "inputs": {
+     "text": 681,
+     "text_numbers": 32,
+     "tts_text": 49
+    }
+   }
+  },
+  "casing": {
+   "all_lower_rate": 0.0041,
+   "first_upper_rate": 0.9938,
+   "has_upper_rate": 0.9959,
+   "label": "sentence",
+   "n_rows": 968,
+   "proper_case_kept_rate": 0.8272
+  },
+  "cer": 0.105,
+  "channels": {
+   "clean": 775,
+   "phone_noisy": 193
+  },
+  "digits": {
+   "error_rate": 0.0899,
+   "examples": [
+    [
+     "14:30",
+     "четырнадцать тридцать",
+     8
+    ],
+    [
+     "11:30",
+     "одиннадцать тридцать",
+     6
+    ],
+    [
+     "15:30",
+     "пятнадцать тридцать",
+     6
+    ],
+    [
+     "30",
+     "thirty",
+     4
+    ],
+    [
+     "15:00",
+     "пятнадцати",
+     2
+    ],
+    [
+     "15:00",
+     "пятнадцать ноль ноль",
+     2
+    ],
+    [
+     "20",
+     "двадцать",
+     2
+    ],
+    [
+     "3",
+     "Three",
+     2
+    ]
+   ],
+   "hyp_digit_rate": 0.0072,
+   "kept_digits_rate": 0.0494,
+   "label": "words",
+   "ref_numbers": 89,
+   "spelled_rate": 0.9506,
+   "word_numbers": 4,
+   "words_to_digits_rate": 0.0
+  },
+  "hallucination": {
+   "empty_rate": 0.0,
+   "foreign_examples": [
+    [
+     "Cloudflare náčátl řezat naše věbku křišťáře kopyta v okolí D.",
+     1
+    ],
+    [
+     "Kalegi, pak kasa glasům slovo, sa cherní tě své pravky čerstý zstáš.",
+     1
+    ],
+    [
+     "Pakže káckyda dobavuje trépíky servicea na nesjs přirostě očeredy.",
+     1
+    ],
+    [
+     "Sestáv krátkuj svodku pro rozchodem v VRTCE a jídat a dog.",
+     1
+    ],
+    [
+     "Srávní langštiny la maindex dá prastou rág povnutené dokumentace.",
+     1
+    ]
+   ],
+   "foreign_script_rate": 0.0145,
+   "lead_rate": 0.001,
+   "leads": [
+    [
+     "С кимнями",
+     1
+    ]
+   ],
+   "overlong_rate": 0.0,
+   "tail_rate": 0.0,
+   "tails": []
+  },
+  "kinds": {
+   "case": 313,
+   "del": 33,
+   "ins": 67,
+   "match": 10307,
+   "number": 171,
+   "punct": 331,
+   "sub": 312,
+   "sub_near": 1757,
+   "translit": 241,
+   "yo": 129
+  },
+  "langs": {
+   "en": 308,
+   "mixed": 359,
+   "ru": 301
+  },
+  "latin": {
+   "by_lang": {
+    "en": {
+     "error_rate": 0.0527,
+     "kept_latin_rate": 1.0,
+     "n": 4476
+    },
+    "mixed": {
+     "error_rate": 0.5523,
+     "kept_latin_rate": 0.6011,
+     "n": 784
+    }
+   },
+   "cyrillic_rate": 0.0305,
+   "error_rate": 0.1272,
+   "hyp_latin_rate": 0.501,
+   "kept_latin_rate": 0.9695,
+   "label": "latin",
+   "ref_latin_words": 5260
+  },
+  "n": 968,
+  "n_ref_words": 13037,
+  "nonterm_wer": 0.0892,
+  "nonterm_words": 10734,
+  "punctuation": {
+   "any_rate": 0.9979,
+   "comma_ratio": 0.8418,
+   "label": "full",
+   "n_rows": 968,
+   "other_ratio": 0.3042,
+   "question_kept_rate": 0.5495,
+   "terminal_kept_rate": 0.9969
+  },
+  "rtf": 1.3719,
+  "sampler": {
+   "by_lang": {
+    "en": {
+     "near_share": 0.6562,
+     "nonterm_words": 3715,
+     "p_del": 0.0005,
+     "p_ins": 0.0083,
+     "p_sub": 0.0172
+    },
+    "mixed": {
+     "near_share": 0.762,
+     "nonterm_words": 3853,
+     "p_del": 0.0042,
+     "p_ins": 0.0067,
+     "p_sub": 0.1352
+    },
+    "ru": {
+     "near_share": 0.8975,
+     "nonterm_words": 3166,
+     "p_del": 0.0016,
+     "p_ins": 0.0022,
+     "p_sub": 0.0894
+    }
+   },
+   "confusable_words": {
+    "100": 4,
+    "11:30": 8,
+    "900": 1,
+    "99,9%": 1,
+    "a": 79,
+    "add": 12,
+    "and": 134,
+    "before": 41,
+    "bump": 1,
+    "cache": 2,
+    "card": 4,
+    "confirm": 8,
+    "contexts": 2,
+    "could": 25,
+    "draft": 4,
+    "drop": 5,
+    "endpoint": 3,
+    "ffmpeg": 2,
+    "fix": 10,
+    "gpus": 1,
+    "i'm": 11,
+    "in": 68,
+    "migrate": 2,
+    "on": 66,
+    "parsing": 1,
+    "paste": 1,
+    "perfectly": 1,
+    "read": 4,
+    "recall": 1,
+    "reconnects": 2,
+    "regex": 1,
+    "rerun": 4,
+    "rewrite": 3,
+    "schedule": 6,
+    "set": 7,
+    "spans": 1,
+    "the": 384,
+    "three-sentence": 1,
+    "through": 7,
+    "to": 91,
+    "topics": 1,
+    "use": 23,
+    "version": 3,
+    "whether": 22,
+    "wrapper": 1,
+    "write": 3,
+    "а": 63,
+    "абзацев": 1,
+    "автомасштабирование": 1,
+    "асессоров": 1,
+    "асинхронный": 1,
+    "база": 2,
+    "баланса": 1,
+    "блокеров": 3,
+    "брали": 1,
+    "будущее": 1,
+    "бухгалтерии": 1,
+    "в": 316,
+    "валидации": 1,
+    "вдвое": 4,
+    "вебхуки": 1,
+    "вернусь": 2,
+    "версией": 1,
+    "веса": 1,
+    "весят": 1,
+    "видеопамять": 1,
+    "видны": 1,
+    "включи": 1,
+    "включили": 2,
+    "вложении": 4,
+    "во": 8,
+    "возвращает": 2,
+    "возвращается": 2,
+    "возвращаю": 1,
+    "возьмусь": 1,
+    "время": 14,
+    "вручную": 4,
+    "все": 21,
+    "всей": 2,
+    "вчера": 47,
+    "вчерашнего": 2,
+    "вчерашний": 2,
+    "вчерашнюю": 3,
+    "выборке": 5,
+    "выведи": 19,
+    "вывод": 4,
+    "вывода": 1,
+    "выгрузке": 1,
+    "выгрузки": 5,
+    "выгрузкой": 1,
+    "выгрузку": 7,
+    "выигрыша": 1,
+    "выкидываю": 1,
+    "вынес": 6,
+    "выполни": 1,
+    "высокий": 1,
+    "высылаю": 1,
+    "вычисли": 1,
+    "выясню": 1,
+    "генерируются": 1,
+    "глянуть": 2,
+    "глянь": 8,
+    "говорят": 1,
+    "голого": 1,
+    "горело": 1,
+    "график": 1,
+    "дай": 1,
+    "данные": 8,
+    "действующий": 1,
+    "делят": 1,
+    "демо": 3,
+    "для": 127,
+    "до": 54,
+    "добавил": 16,
+    "добавляет": 2,
+    "добавь": 5,
+    "договорах": 1,
+    "доделаю": 1,
+    "докручиваю": 1,
+    "должно": 2,
+    "дообучить": 1,
+    "дорожки": 1,
+    "доступна": 1,
+    "доступными": 1,
+    "дублируются": 1,
+    "ест": 1,
+    "еще": 13,
+    "ждет": 1,
+    "же": 8,
+    "за": 23,
+    "забронируй": 7,
+    "завел": 2,
+    "загружу": 1,
+    "задания": 2,
+    "задач": 4,
+    "задержкой": 1,
+    "заказчику": 4,
+    "закончишь": 2,
+    "закрою": 1,
+    "замеры": 5,
+    "замерю": 3,
+    "замечания": 1,
+    "запасной": 2,
+    "записей": 7,
+    "записи": 5,
+    "запись": 3,
+    "записями": 1,
+    "запиши": 1,
+    "запроса": 4,
+    "запуск": 5,
+    "запусти": 13,
+    "зашита": 1,
+    "значения": 1,
+    "и": 218,
+    "из": 40,
+    "из-за": 5,
+    "изменением": 1,
+    "изменении": 3,
+    "изменений": 6,
+    "изменения": 8,
+    "изменится": 1,
+    "или": 11,
+    "имена": 3,
+    "использовали": 1,
+    "используется": 3,
+    "используются": 1,
+    "исправил": 2,
+    "исправлена": 2,
+    "исправления": 1,
+    "исследования": 1,
+    "истекают": 1,
+    "историей": 1,
+    "историю": 1,
+    "исходниками": 1,
+    "как": 58,
+    "кандидатом": 1,
+    "каталога": 1,
+    "кинь": 2,
+    "коллеги": 24,
+    "команду": 6,
+    "конце": 1,
+    "корне": 1,
+    "короткое": 3,
+    "которое": 1,
+    "краткую": 1,
+    "кто-то": 1,
+    "ли": 32,
+    "лицензии": 1,
+    "логика": 2,
+    "лучше": 6,
+    "маски": 1,
+    "маякни": 2,
+    "меняя": 3,
+    "методов": 1,
+    "метрики": 3,
+    "миллисекунд": 2,
+    "мне": 19,
+    "моделей": 5,
+    "модели": 23,
+    "моделью": 4,
+    "модули": 1,
+    "можешь": 6,
+    "на": 321,
+    "нагрузки": 3,
+    "найди": 4,
+    "наконец": 3,
+    "написан": 1,
+    "напиши": 7,
+    "напомни": 7,
+    "настраиваю": 1,
+    "настроек": 2,
+    "начал": 1,
+    "наш": 8,
+    "нашел": 1,
+    "наши": 1,
+    "не": 107,
+    "неделю": 6,
+    "неполные": 1,
+    "ниже": 1,
+    "но": 21,
+    "новой": 6,
+    "новом": 2,
+    "новый": 8,
+    "ноутбук": 1,
+    "ноутбуках": 2,
+    "ночная": 2,
+    "нужна": 4,
+    "о": 6,
+    "облака": 1,
+    "облако": 2,
+    "обновил": 12,
+    "обновленные": 1,
+    "обновлены": 1,
+    "оборудования": 1,
+    "обработка": 2,
+    "образа": 1,
+    "образцу": 1,
+    "обучения": 3,
+    "общая": 1,
+    "объявлений": 2,
+    "объясни": 22,
+    "оверлеи": 1,
+    "оверлеями": 1,
+    "одинаковом": 2,
+    "одних": 1,
+    "озвучки": 1,
+    "окружения": 2,
+    "она": 2,
+    "описан": 2,
+    "описание": 5,
+    "описано": 2,
+    "описаны": 1,
+    "оплате": 1,
+    "оповещения": 1,
+    "опоздаю": 1,
+    "освободится": 1,
+    "основного": 1,
+    "оставьте": 1,
+    "остальным": 1,
+    "от": 12,
+    "ответов": 5,
+    "отвечает": 11,
+    "отдам": 1,
+    "отключила": 1,
+    "открой": 5,
+    "откройте": 1,
+    "открывается": 1,
+    "отличается": 1,
+    "отменяется": 1,
+    "отметь": 1,
+    "отпишусь": 1,
+    "отработала": 1,
+    "отступы": 1,
+    "отчет": 10,
+    "отчета": 9,
+    "очереди": 5,
+    "ошибками": 2,
+    "ошибке": 1,
+    "ошибку": 3,
+    "падежи": 1,
+    "парсера": 1,
+    "пару": 1,
+    "перед": 35,
+    "переехали": 1,
+    "переехало": 1,
+    "перезапусти": 2,
+    "переношу": 1,
+    "письма": 2,
+    "пиши": 2,
+    "пишу": 2,
+    "платит": 1,
+    "по": 52,
+    "поверх": 2,
+    "повтора": 1,
+    "повтори": 1,
+    "повторные": 4,
+    "подготовлен": 1,
+    "подключения": 4,
+    "поднялся": 2,
+    "подписи": 1,
+    "подскажи": 6,
+    "подсказки": 2,
+    "пожалуйста": 44,
+    "позицию": 2,
+    "позови": 1,
+    "поиск": 3,
+    "пока": 41,
+    "покажи": 17,
+    "полегчало": 1,
+    "полночь": 1,
+    "половина": 1,
+    "половине": 1,
+    "получасовой": 1,
+    "пользователями": 1,
+    "понедельник": 4,
+    "понедельника": 4,
+    "поправил": 4,
+    "поправили": 1,
+    "пора": 1,
+    "порядок": 8,
+    "после": 59,
+    "последние": 3,
+    "последовательностей": 1,
+    "посмотрю": 2,
+    "посреди": 1,
+    "поставкам": 1,
+    "поставь": 29,
+    "постранично": 1,
+    "построчно": 1,
+    "потерпите": 1,
+    "потом": 11,
+    "пояснение": 1,
+    "правильные": 1,
+    "правке": 1,
+    "правки": 12,
+    "правку": 7,
+    "правок": 2,
+    "прежде": 3,
+    "прежним": 3,
+    "приведи": 1,
+    "приложением": 1,
+    "приложении": 2,
+    "примените": 1,
+    "пример": 8,
+    "примера": 5,
+    "примере": 6,
+    "примеры": 7,
+    "приходится": 2,
+    "приходят": 4,
+    "причина": 1,
+    "пришли": 4,
+    "проверил": 6,
+    "проверить": 37,
+    "проверками": 1,
+    "проверки": 24,
+    "проверку": 25,
+    "проверь": 10,
+    "проверю": 22,
+    "проверяю": 3,
+    "проверяют": 1,
+    "пропустила": 1,
+    "простого": 1,
+    "прочерк": 1,
+    "публикацию": 3,
+    "пятибалльной": 1,
+    "пятнице": 2,
+    "пятницу": 15,
+    "пятницы": 6,
+    "пятничного": 3,
+    "пятничным": 2,
+    "работает": 8,
+    "рабочей": 2,
+    "равно": 1,
+    "разбери": 1,
+    "раздувая": 1,
+    "разошлет": 1,
+    "рассматриваем": 1,
+    "расходам": 2,
+    "расхождения": 1,
+    "режет": 1,
+    "результатов": 7,
+    "результаты": 21,
+    "рекуррентную": 1,
+    "реплики": 1,
+    "с": 117,
+    "сборки": 9,
+    "сбоя": 3,
+    "сверить": 9,
+    "сводка": 1,
+    "сводки": 1,
+    "свои": 2,
+    "связанный": 1,
+    "сделай": 6,
+    "сегодня": 59,
+    "сервис": 14,
+    "сессии": 1,
+    "скину": 1,
+    "скинь": 12,
+    "слияния": 3,
+    "словарями": 1,
+    "словил": 1,
+    "случай": 5,
+    "слушай": 12,
+    "смету": 1,
+    "собрал": 2,
+    "событий": 3,
+    "согласуем": 1,
+    "содержат": 1,
+    "сократи": 1,
+    "сообщаю": 2,
+    "соревнование": 1,
+    "сорян": 1,
+    "составь": 8,
+    "сохрани": 6,
+    "сохраните": 1,
+    "сохранить": 2,
+    "список": 8,
+    "сравнение": 2,
+    "сравнения": 1,
+    "сравни": 7,
+    "сравнивайте": 1,
+    "сравниваются": 1,
+    "сравнил": 1,
+    "сравнить": 6,
+    "среду": 9,
+    "ссылка": 3,
+    "ссылку": 13,
+    "ставим": 1,
+    "стартуют": 1,
+    "старше": 1,
+    "стоимости": 1,
+    "столько": 1,
+    "странице": 3,
+    "страницу": 3,
+    "страницы": 6,
+    "строк": 6,
+    "схему": 3,
+    "сценарии": 1,
+    "считали": 1,
+    "считаю": 1,
+    "сюда": 2,
+    "та": 1,
+    "таблиц": 1,
+    "текущей": 4,
+    "телефона": 2,
+    "телефоне": 6,
+    "тестовый": 6,
+    "тесты": 6,
+    "той": 2,
+    "тот": 1,
+    "треде": 1,
+    "три": 4,
+    "ты": 10,
+    "убрал": 8,
+    "уведомлений": 3,
+    "уведомления": 3,
+    "увеличить": 1,
+    "ударения": 1,
+    "уже": 23,
+    "узкое": 1,
+    "узлы": 1,
+    "указана": 1,
+    "упала": 1,
+    "упало": 2,
+    "управлением": 1,
+    "установленные": 1,
+    "устарели": 1,
+    "устройства": 1,
+    "утечки": 1,
+    "утилиту": 1,
+    "уточни": 1,
+    "утра": 1,
+    "уходят": 1,
+    "участников": 1,
+    "учетной": 1,
+    "учу": 1,
+    "файл": 9,
+    "файлов": 5,
+    "формы": 1,
+    "фразах": 2,
+    "ход": 1,
+    "хранение": 2,
+    "хранятся": 2,
+    "часа": 2,
+    "части": 5,
+    "часы": 1,
+    "через": 48,
+    "черкнуть": 1,
+    "черновики": 1,
+    "черновиков": 1,
+    "черновой": 1,
+    "четверг": 17,
+    "числа": 2,
+    "читает": 2,
+    "читается": 1,
+    "чтение": 3,
+    "что": 53,
+    "шаг": 4,
+    "этом": 8,
+    "я": 52
+   },
+   "del_words": [
+    [
+     "в",
+     8
+    ],
+    [
+     "и",
+     6
+    ],
+    [
+     "с",
+     2
+    ],
+    [
+     "add",
+     1
+    ],
+    [
+     "read",
+     1
+    ],
+    [
+     "а",
+     1
+    ],
+    [
+     "во",
+     1
+    ],
+    [
+     "все",
+     1
+    ],
+    [
+     "написан",
+     1
+    ],
+    [
+     "пиши",
+     1
+    ]
+   ],
+   "ins_words": [
+    [
+     "в",
+     5
+    ],
+    [
+     "и",
+     4
+    ],
+    [
+     "slash",
+     3
+    ],
+    [
+     "a",
+     2
+    ],
+    [
+     "five",
+     2
+    ],
+    [
+     "plus",
+     2
+    ],
+    [
+     "s",
+     2
+    ],
+    [
+     "sharp",
+     2
+    ],
+    [
+     "девяносто",
+     2
+    ],
+    [
+     "dot",
+     1
+    ],
+    [
+     "eight",
+     1
+    ],
+    [
+     "four",
+     1
+    ],
+    [
+     "g",
+     1
+    ],
+    [
+     "gm",
+     1
+    ],
+    [
+     "h",
+     1
+    ],
+    [
+     "jídat",
+     1
+    ],
+    [
+     "light",
+     1
+    ],
+    [
+     "nvidia",
+     1
+    ],
+    [
+     "o'clock",
+     1
+    ],
+    [
+     "of",
+     1
+    ],
+    [
+     "okolí",
+     1
+    ],
+    [
+     "old",
+     1
+    ],
+    [
+     "opening",
+     1
+    ],
+    [
+     "point",
+     1
+    ],
+    [
+     "sa",
+     1
+    ],
+    [
+     "sea",
+     1
+    ],
+    [
+     "set",
+     1
+    ],
+    [
+     "the",
+     1
+    ],
+    [
+     "tilda",
+     1
+    ],
+    [
+     "to",
+     1
+    ]
+   ],
+   "near_share": 0.7984,
+   "nonterm_words": 10734,
+   "p_del": 0.0021,
+   "p_ins": 0.006,
+   "p_sub": 0.0809
+  },
+  "style_excluded_rows": 0,
+  "term_wer": 0.5263,
+  "term_words": 2303,
+  "terms": {
+   "by_lang": {
+    "en": {
+     "error_rate": 0.2673,
+     "exact_rate": 0.4418,
+     "folded_rate": 0.6541,
+     "latin_kept_rate": 0.9969,
+     "n": 636,
+     "split_rate": 0.2698
+    },
+    "mixed": {
+     "error_rate": 0.5771,
+     "exact_rate": 0.2005,
+     "folded_rate": 0.2565,
+     "latin_kept_rate": 0.3151,
+     "n": 733,
+     "split_rate": 0.1395
+    },
+    "ru": {
+     "error_rate": 0.4879,
+     "exact_rate": 0.3828,
+     "folded_rate": 0.4862,
+     "latin_kept_rate": 0.0276,
+     "n": 580,
+     "split_rate": 0.1011
+    }
+   },
+   "error_rate": 0.4495,
+   "exact_rate": 0.3335,
+   "folded_rate": 0.4546,
+   "n": 1949,
+   "translit_rate": 0.0816
+  },
+  "tts": {
+   "kokoro1/af_alloy": 4,
+   "kokoro1/af_aoede": 4,
+   "kokoro1/af_bella": 4,
+   "kokoro1/af_heart": 4,
+   "kokoro1/af_jessica": 4,
+   "kokoro1/af_kore": 4,
+   "kokoro1/af_nicole": 4,
+   "kokoro1/af_nova": 4,
+   "kokoro1/af_river": 4,
+   "kokoro1/af_sarah": 4,
+   "kokoro1/af_sky": 4,
+   "kokoro1/am_adam": 4,
+   "kokoro1/am_echo": 4,
+   "kokoro1/am_eric": 4,
+   "kokoro1/am_fenrir": 4,
+   "kokoro1/am_liam": 4,
+   "kokoro1/am_michael": 4,
+   "kokoro1/am_onyx": 4,
+   "kokoro1/am_puck": 4,
+   "kokoro1/bf_alice": 4,
+   "kokoro1/bf_emma": 4,
+   "kokoro1/bf_isabella": 3,
+   "kokoro1/bf_lily": 3,
+   "kokoro1/bm_daniel": 3,
+   "kokoro1/bm_fable": 3,
+   "kokoro1/bm_george": 3,
+   "kokoro1/bm_lewis": 3,
+   "piper/en_GB-alba-medium": 10,
+   "piper/en_GB-cori-medium": 9,
+   "piper/en_US-joe-medium": 10,
+   "piper/en_US-john-medium": 10,
+   "piper/en_US-kristin-medium": 10,
+   "piper/en_US-libritts_r-medium#0": 9,
+   "piper/en_US-libritts_r-medium#117": 9,
+   "piper/en_US-libritts_r-medium#263": 9,
+   "piper/en_US-libritts_r-medium#509": 9,
+   "piper/en_US-libritts_r-medium#771": 9,
+   "piper/en_US-norman-medium": 10,
+   "supertonic3/sid0": 80,
+   "supertonic3/sid1": 77,
+   "supertonic3/sid2": 76,
+   "supertonic3/sid3": 77,
+   "supertonic3/sid4": 71,
+   "supertonic3/sid5": 74,
+   "supertonic3/sid6": 75,
+   "supertonic3/sid7": 77,
+   "supertonic3/sid8": 76,
+   "supertonic3/sid9": 79
+  },
+  "wer": 0.2211,
+  "wer_by_channel": {
+   "clean": {
+    "cer": 0.102,
+    "n": 775,
+    "wer": 0.2156,
+    "wer_style_aware": 0.1608,
+    "words": 10495
+   },
+   "phone_noisy": {
+    "cer": 0.1172,
+    "n": 193,
+    "wer": 0.2435,
+    "wer_style_aware": 0.1892,
+    "words": 2542
+   }
+  },
+  "wer_by_lang": {
+   "en": {
+    "cer": 0.0531,
+    "n": 308,
+    "wer": 0.1503,
+    "wer_style_aware": 0.0824,
+    "words": 4503
+   },
+   "mixed": {
+    "cer": 0.1845,
+    "n": 359,
+    "wer": 0.306,
+    "wer_style_aware": 0.2437,
+    "words": 4728
+   },
+   "ru": {
+    "cer": 0.063,
+    "n": 301,
+    "wer": 0.1992,
+    "wer_style_aware": 0.1697,
+    "words": 3806
+   }
+  },
+  "wer_style_aware": 0.1664,
+  "yo": {
+   "kept_rate": 0.073,
+   "ref_yo_words": 137
+  }
+ },
+ "t-one@onnx": {
+  "by_tts": {
+   "supertonic3": {
+    "by_lang": {
+     "mixed": {
+      "cer": 0.2054,
+      "latin_kept_rate": 0.0,
+      "n": 359,
+      "term_error_rate": 0.734,
+      "term_exact_rate": 0.0286,
+      "term_n": 733,
+      "wer": 0.2743,
+      "wer_style_aware": 0.2077,
+      "words": 4728
+     },
+     "ru": {
+      "cer": 0.0359,
+      "latin_kept_rate": null,
+      "n": 301,
+      "term_error_rate": 0.3983,
+      "term_exact_rate": 0.4276,
+      "term_n": 580,
+      "wer": 0.1329,
+      "wer_style_aware": 0.0998,
+      "words": 3806
+     }
+    },
+    "inputs": {
+     "text": 603,
+     "text_numbers": 32,
+     "tts_text": 25
+    }
+   }
+  },
+  "casing": {
+   "all_lower_rate": 1.0,
+   "first_upper_rate": 0.0,
+   "has_upper_rate": 0.0,
+   "label": "lowercase",
+   "n_rows": 660,
+   "proper_case_kept_rate": 0.0
+  },
+  "cer": 0.1281,
+  "channels": {
+   "clean": 533,
+   "phone_noisy": 127
+  },
+  "digits": {
+   "error_rate": 0.0323,
+   "examples": [
+    [
+     "11:30",
+     "одиннадцать тридцать",
+     8
+    ],
+    [
+     "14:30",
+     "четырнадцать тридцать",
+     8
+    ],
+    [
+     "15:30",
+     "пятнадцать тридцать",
+     6
+    ],
+    [
+     "100",
+     "сто",
+     3
+    ],
+    [
+     "15:00",
+     "пятнадцати",
+     2
+    ],
+    [
+     "15:00",
+     "пятнадцать ноль ноль",
+     2
+    ],
+    [
+     "20",
+     "двадцать",
+     2
+    ],
+    [
+     "30",
+     "тридцать",
+     2
+    ]
+   ],
+   "hyp_digit_rate": 0.0,
+   "kept_digits_rate": 0.0,
+   "label": "words",
+   "ref_numbers": 62,
+   "spelled_rate": 1.0,
+   "word_numbers": 3,
+   "words_to_digits_rate": 0.0
+  },
+  "hallucination": {
+   "empty_rate": 0.0,
+   "foreign_examples": [],
+   "foreign_script_rate": 0.0,
+   "lead_rate": 0.0,
+   "leads": [],
+   "overlong_rate": 0.0,
+   "tail_rate": 0.0,
+   "tails": []
+  },
+  "kinds": {
+   "case": 685,
+   "del": 78,
+   "ins": 15,
+   "match": 6150,
+   "number": 101,
+   "punct": 129,
+   "sub": 121,
+   "sub_near": 1148,
+   "translit": 227,
+   "yo": 147
+  },
+  "langs": {
+   "mixed": 359,
+   "ru": 301
+  },
+  "latin": {
+   "by_lang": {
+    "mixed": {
+     "error_rate": 0.7564,
+     "kept_latin_rate": 0.0,
+     "n": 784
+    }
+   },
+   "cyrillic_rate": 1.0,
+   "error_rate": 0.7564,
+   "hyp_latin_rate": 0.0,
+   "kept_latin_rate": 0.0,
+   "label": "cyrillic",
+   "ref_latin_words": 784
+  },
+  "n": 660,
+  "n_ref_words": 8534,
+  "nonterm_wer": 0.0427,
+  "nonterm_words": 7019,
+  "punctuation": {
+   "any_rate": 0.0,
+   "comma_ratio": 0.0,
+   "label": "none",
+   "n_rows": 660,
+   "other_ratio": 0.0,
+   "question_kept_rate": 0.0,
+   "terminal_kept_rate": 0.0
+  },
+  "rtf": 0.4309,
+  "sampler": {
+   "by_lang": {
+    "mixed": {
+     "near_share": 0.7812,
+     "nonterm_words": 3853,
+     "p_del": 0.0065,
+     "p_ins": 0.0034,
+     "p_sub": 0.0415
+    },
+    "ru": {
+     "near_share": 0.9247,
+     "nonterm_words": 3166,
+     "p_del": 0.0022,
+     "p_ins": 0.0006,
+     "p_sub": 0.0294
+    }
+   },
+   "confusable_words": {
+    "100": 4,
+    "900": 1,
+    "а": 63,
+    "абзацев": 1,
+    "асинхронный": 1,
+    "больше": 5,
+    "в": 316,
+    "ввод": 1,
+    "вебхуки": 1,
+    "верни": 1,
+    "веса": 1,
+    "видеопамять": 1,
+    "включили": 2,
+    "во": 8,
+    "вход": 2,
+    "выведи": 19,
+    "выгрузкой": 1,
+    "вынес": 6,
+    "выполни": 1,
+    "выросла": 7,
+    "гипотеза": 1,
+    "голого": 1,
+    "гонял": 2,
+    "дает": 1,
+    "действующий": 1,
+    "для": 127,
+    "до": 54,
+    "домена": 1,
+    "дублируется": 1,
+    "зависал": 1,
+    "закрою": 1,
+    "замерю": 3,
+    "запасной": 2,
+    "записей": 7,
+    "запускай": 1,
+    "запускать": 2,
+    "запусти": 13,
+    "и": 218,
+    "из": 40,
+    "из-за": 5,
+    "изменилась": 1,
+    "изменится": 1,
+    "имена": 3,
+    "импорты": 1,
+    "индекс": 2,
+    "используется": 3,
+    "исправил": 2,
+    "коллеги": 24,
+    "командной": 1,
+    "копятся": 1,
+    "корне": 1,
+    "короткое": 3,
+    "которой": 2,
+    "кто-то": 1,
+    "ли": 32,
+    "лимит": 2,
+    "ломало": 1,
+    "маякни": 2,
+    "меняйте": 2,
+    "меняя": 3,
+    "места": 2,
+    "модели": 23,
+    "моделью": 4,
+    "мою": 2,
+    "мы": 22,
+    "на": 321,
+    "напомни": 7,
+    "наш": 8,
+    "не": 107,
+    "новая": 1,
+    "новое": 1,
+    "обе": 2,
+    "обнови": 3,
+    "обновите": 1,
+    "обновление": 1,
+    "обновленный": 3,
+    "объясни": 22,
+    "оверлеями": 1,
+    "описаны": 1,
+    "оповещения": 1,
+    "опять": 9,
+    "оставьте": 1,
+    "остальное": 2,
+    "остальной": 1,
+    "ответа": 10,
+    "отключи": 1,
+    "открой": 5,
+    "отчет": 10,
+    "падают": 2,
+    "перед": 35,
+    "переехало": 1,
+    "перенос": 2,
+    "по": 52,
+    "поддержки": 4,
+    "подмените": 1,
+    "подсказки": 2,
+    "поды": 1,
+    "пожалуйста": 44,
+    "позицию": 2,
+    "покажи": 17,
+    "получасовой": 1,
+    "поправил": 4,
+    "поправили": 1,
+    "пора": 1,
+    "построчно": 1,
+    "похоже": 4,
+    "починен": 1,
+    "починил": 2,
+    "пояснение": 1,
+    "права": 2,
+    "правку": 7,
+    "правок": 2,
+    "предложи": 7,
+    "пример": 8,
+    "пришлите": 15,
+    "проверил": 6,
+    "проверь": 10,
+    "просил": 2,
+    "публикацией": 3,
+    "путается": 1,
+    "работает": 8,
+    "разбивает": 1,
+    "распознавания": 2,
+    "ребят": 1,
+    "рекуррентную": 1,
+    "репозиторий": 3,
+    "ролей": 1,
+    "русский": 2,
+    "с": 117,
+    "сводка": 1,
+    "связал": 1,
+    "связанный": 1,
+    "сессии": 1,
+    "сессия": 1,
+    "сидел": 1,
+    "скинул": 1,
+    "скинь": 12,
+    "собраны": 1,
+    "соревнование": 1,
+    "составь": 8,
+    "сохрани": 6,
+    "список": 8,
+    "сравни": 7,
+    "сравнивайте": 1,
+    "ставим": 1,
+    "старше": 1,
+    "статусы": 1,
+    "строк": 6,
+    "строки": 6,
+    "та": 1,
+    "тестовый": 6,
+    "тесты": 6,
+    "треде": 1,
+    "у": 23,
+    "убрал": 8,
+    "уведомление": 3,
+    "ударения": 1,
+    "узкое": 1,
+    "успел": 5,
+    "уточнения": 1,
+    "ход": 1,
+    "цель": 1,
+    "четверг": 17,
+    "шаг": 4,
+    "я": 52
+   },
+   "del_words": [
+    [
+     "в",
+     12
+    ],
+    [
+     "и",
+     9
+    ],
+    [
+     "с",
+     4
+    ],
+    [
+     "а",
+     2
+    ],
+    [
+     "наш",
+     1
+    ],
+    [
+     "треде",
+     1
+    ],
+    [
+     "у",
+     1
+    ],
+    [
+     "шаг",
+     1
+    ],
+    [
+     "я",
+     1
+    ]
+   ],
+   "ins_words": [
+    [
+     "и",
+     4
+    ],
+    [
+     "бин",
+     1
+    ],
+    [
+     "в",
+     1
+    ],
+    [
+     "не",
+     1
+    ],
+    [
+     "паш",
+     1
+    ],
+    [
+     "пей",
+     1
+    ],
+    [
+     "пепе",
+     1
+    ],
+    [
+     "сатин",
+     1
+    ],
+    [
+     "сеж",
+     1
+    ],
+    [
+     "утра",
+     1
+    ],
+    [
+     "шоу",
+     1
+    ],
+    [
+     "эрибу",
+     1
+    ]
+   ],
+   "near_share": 0.834,
+   "nonterm_words": 7019,
+   "p_del": 0.0046,
+   "p_ins": 0.0021,
+   "p_sub": 0.036
+  },
+  "style_excluded_rows": 0,
+  "term_wer": 0.701,
+  "term_words": 1515,
+  "terms": {
+   "by_lang": {
+    "mixed": {
+     "error_rate": 0.734,
+     "exact_rate": 0.0286,
+     "folded_rate": 0.0668,
+     "latin_kept_rate": 0.0,
+     "n": 733,
+     "split_rate": 0.1667
+    },
+    "ru": {
+     "error_rate": 0.3983,
+     "exact_rate": 0.4276,
+     "folded_rate": 0.5845,
+     "latin_kept_rate": 0.0,
+     "n": 580,
+     "split_rate": 0.0975
+    }
+   },
+   "error_rate": 0.5857,
+   "exact_rate": 0.2049,
+   "folded_rate": 0.2955,
+   "n": 1313,
+   "translit_rate": 0.1142
+  },
+  "tts": {
+   "supertonic3/sid0": 70,
+   "supertonic3/sid1": 67,
+   "supertonic3/sid2": 67,
+   "supertonic3/sid3": 66,
+   "supertonic3/sid4": 61,
+   "supertonic3/sid5": 64,
+   "supertonic3/sid6": 66,
+   "supertonic3/sid7": 65,
+   "supertonic3/sid8": 67,
+   "supertonic3/sid9": 67
+  },
+  "wer": 0.2113,
+  "wer_by_channel": {
+   "clean": {
+    "cer": 0.1267,
+    "n": 533,
+    "wer": 0.2072,
+    "wer_style_aware": 0.1531,
+    "words": 6902
+   },
+   "phone_noisy": {
+    "cer": 0.134,
+    "n": 127,
+    "wer": 0.2286,
+    "wer_style_aware": 0.1869,
+    "words": 1632
+   }
+  },
+  "wer_by_lang": {
+   "mixed": {
+    "cer": 0.2054,
+    "n": 359,
+    "wer": 0.2743,
+    "wer_style_aware": 0.2077,
+    "words": 4728
+   },
+   "ru": {
+    "cer": 0.0359,
+    "n": 301,
+    "wer": 0.1329,
+    "wer_style_aware": 0.0998,
+    "words": 3806
+   }
+  },
+  "wer_style_aware": 0.1596,
+  "yo": {
+   "kept_rate": 0.0,
+   "ref_yo_words": 147
+  }
+ },
+ "whisper-large-v3-turbo@onnx-int8": {
+  "by_tts": {
+   "kokoro1": {
+    "by_lang": {
+     "en": {
+      "cer": 0.0155,
+      "latin_kept_rate": 1.0,
+      "n": 102,
+      "term_error_rate": 0.1244,
+      "term_exact_rate": 0.6037,
+      "term_n": 217,
+      "wer": 0.0748,
+      "wer_style_aware": 0.0332,
+      "words": 1444
+     }
+    },
+    "inputs": {
+     "text": 73,
+     "tts_text": 29
+    }
+   },
+   "piper": {
+    "by_lang": {
+     "en": {
+      "cer": 0.0438,
+      "latin_kept_rate": 0.9986,
+      "n": 104,
+      "term_error_rate": 0.3366,
+      "term_exact_rate": 0.4439,
+      "term_n": 205,
+      "wer": 0.1264,
+      "wer_style_aware": 0.1001,
+      "words": 1558
+     }
+    },
+    "inputs": {
+     "text": 72,
+     "tts_text": 32
+    }
+   },
+   "supertonic3": {
+    "by_lang": {
+     "en": {
+      "cer": 0.02,
+      "latin_kept_rate": 0.9979,
+      "n": 102,
+      "term_error_rate": 0.2009,
+      "term_exact_rate": 0.5607,
+      "term_n": 214,
+      "wer": 0.0793,
+      "wer_style_aware": 0.0453,
+      "words": 1501
+     },
+     "mixed": {
+      "cer": 0.0611,
+      "latin_kept_rate": 0.8548,
+      "n": 359,
+      "term_error_rate": 0.3302,
+      "term_exact_rate": 0.4311,
+      "term_n": 733,
+      "wer": 0.128,
+      "wer_style_aware": 0.0888,
+      "words": 4728
+     },
+     "ru": {
+      "cer": 0.0198,
+      "latin_kept_rate": null,
+      "n": 301,
+      "term_error_rate": 0.1914,
+      "term_exact_rate": 0.6621,
+      "term_n": 580,
+      "wer": 0.0654,
+      "wer_style_aware": 0.0449,
+      "words": 3806
+     }
+    },
+    "inputs": {
+     "text": 681,
+     "text_numbers": 32,
+     "tts_text": 49
+    }
+   }
+  },
+  "casing": {
+   "all_lower_rate": 0.0021,
+   "first_upper_rate": 0.9948,
+   "has_upper_rate": 0.9979,
+   "label": "sentence",
+   "n_rows": 968,
+   "proper_case_kept_rate": 0.8929
+  },
+  "cer": 0.0373,
+  "channels": {
+   "clean": 775,
+   "phone_noisy": 193
+  },
+  "digits": {
+   "error_rate": 0.0337,
+   "examples": [
+    [
+     "11:30",
+     "11.30",
+     8
+    ],
+    [
+     "14:30",
+     "14.30",
+     8
+    ],
+    [
+     "15:30",
+     "15.30",
+     7
+    ],
+    [
+     "10:00",
+     "10",
+     2
+    ],
+    [
+     "12:00",
+     "12",
+     2
+    ],
+    [
+     "15:00",
+     "15",
+     2
+    ],
+    [
+     "15:00",
+     "15.00",
+     2
+    ],
+    [
+     "100",
+     "сто",
+     1
+    ]
+   ],
+   "hyp_digit_rate": 0.125,
+   "kept_digits_rate": 0.9767,
+   "label": "digits",
+   "ref_numbers": 89,
+   "spelled_rate": 0.0233,
+   "word_numbers": 4,
+   "words_to_digits_rate": 1.0
+  },
+  "hallucination": {
+   "empty_rate": 0.0,
+   "foreign_examples": [],
+   "foreign_script_rate": 0.0,
+   "lead_rate": 0.0,
+   "leads": [],
+   "overlong_rate": 0.0,
+   "tail_rate": 0.0,
+   "tails": []
+  },
+  "kinds": {
+   "case": 354,
+   "del": 28,
+   "ins": 12,
+   "match": 11473,
+   "number": 56,
+   "punct": 237,
+   "sub": 96,
+   "sub_near": 727,
+   "translit": 170,
+   "yo": 129
+  },
+  "langs": {
+   "en": 308,
+   "mixed": 359,
+   "ru": 301
+  },
+  "latin": {
+   "by_lang": {
+    "en": {
+     "error_rate": 0.0465,
+     "kept_latin_rate": 0.9988,
+     "n": 4476
+    },
+    "mixed": {
+     "error_rate": 0.2972,
+     "kept_latin_rate": 0.8548,
+     "n": 784
+    }
+   },
+   "cyrillic_rate": 0.0176,
+   "error_rate": 0.0838,
+   "hyp_latin_rate": 0.6457,
+   "kept_latin_rate": 0.9824,
+   "label": "latin",
+   "ref_latin_words": 5260
+  },
+  "n": 968,
+  "n_ref_words": 13037,
+  "nonterm_wer": 0.0204,
+  "nonterm_words": 10734,
+  "punctuation": {
+   "any_rate": 0.9948,
+   "comma_ratio": 0.8662,
+   "label": "full",
+   "n_rows": 968,
+   "other_ratio": 0.346,
+   "question_kept_rate": 0.6593,
+   "terminal_kept_rate": 0.9804
+  },
+  "rtf": 2.2475,
+  "sampler": {
+   "by_lang": {
+    "en": {
+     "near_share": 0.6129,
+     "nonterm_words": 3715,
+     "p_del": 0.0022,
+     "p_ins": 0.0019,
+     "p_sub": 0.0167
+    },
+    "mixed": {
+     "near_share": 0.7882,
+     "nonterm_words": 3853,
+     "p_del": 0.0029,
+     "p_ins": 0.0008,
+     "p_sub": 0.0221
+    },
+    "ru": {
+     "near_share": 1.0,
+     "nonterm_words": 3166,
+     "p_del": 0.0013,
+     "p_ins": 0.0003,
+     "p_sub": 0.012
+    }
+   },
+   "confusable_words": {
+    "11:00": 2,
+    "99.9%": 1,
+    "a": 79,
+    "add": 12,
+    "and": 134,
+    "backend": 2,
+    "before": 41,
+    "block": 8,
+    "caching": 2,
+    "constraints": 2,
+    "contexts": 2,
+    "could": 25,
+    "draft": 4,
+    "ffmpeg": 2,
+    "finished": 4,
+    "fix": 10,
+    "hi": 4,
+    "i'll": 12,
+    "idea": 1,
+    "in": 68,
+    "on": 66,
+    "or": 7,
+    "our": 16,
+    "outdated": 1,
+    "perfectly": 1,
+    "pods": 2,
+    "read": 4,
+    "regex": 1,
+    "reminder": 3,
+    "rerun": 4,
+    "results": 7,
+    "retry": 1,
+    "rewrite": 3,
+    "run": 38,
+    "sales": 2,
+    "see": 3,
+    "spans": 1,
+    "styles": 2,
+    "sustained": 1,
+    "sync": 2,
+    "the": 384,
+    "through": 7,
+    "timestamps": 3,
+    "up": 15,
+    "use": 23,
+    "used": 5,
+    "warms": 1,
+    "writes": 1,
+    "wrong": 1,
+    "you": 56,
+    "автомасштабирование": 1,
+    "асинхронный": 1,
+    "бухгалтерии": 1,
+    "в": 316,
+    "веса": 1,
+    "видеопамять": 1,
+    "возьмусь": 1,
+    "вход": 2,
+    "выведи": 19,
+    "вывод": 4,
+    "выводы": 1,
+    "выполни": 1,
+    "гипотеза": 1,
+    "гляньте": 2,
+    "голого": 1,
+    "гонял": 2,
+    "действующий": 1,
+    "до": 54,
+    "домена": 1,
+    "дублируется": 1,
+    "ест": 1,
+    "зависал": 1,
+    "запасной": 2,
+    "записями": 1,
+    "запусти": 13,
+    "значения": 1,
+    "и": 218,
+    "из": 40,
+    "имена": 3,
+    "индекс": 2,
+    "используется": 3,
+    "исправил": 2,
+    "исходниками": 1,
+    "к": 36,
+    "кину": 1,
+    "копятся": 1,
+    "короткое": 3,
+    "которые": 7,
+    "меняйте": 2,
+    "миллисекунд": 2,
+    "мне": 19,
+    "наш": 8,
+    "обеда": 14,
+    "обедом": 1,
+    "обнови": 3,
+    "оверлеи": 1,
+    "описание": 5,
+    "оставьте": 1,
+    "отпишусь": 1,
+    "отчет": 10,
+    "переехало": 1,
+    "план": 7,
+    "по": 52,
+    "подготовлен": 1,
+    "подписи": 1,
+    "подсказки": 2,
+    "позицию": 2,
+    "покажи": 17,
+    "получасовой": 1,
+    "полчаса": 9,
+    "пора": 1,
+    "пояснение": 1,
+    "права": 2,
+    "правками": 1,
+    "правок": 2,
+    "предложи": 7,
+    "примерах": 4,
+    "проверил": 6,
+    "путается": 1,
+    "пятибалльной": 1,
+    "работает": 8,
+    "рассматриваем": 1,
+    "расхождения": 1,
+    "русский": 2,
+    "ручной": 6,
+    "с": 117,
+    "сверять": 3,
+    "сессии": 1,
+    "сидел": 1,
+    "скинь": 12,
+    "скопируй": 1,
+    "собеседование": 1,
+    "сократи": 1,
+    "соревнование": 1,
+    "сорян": 1,
+    "сохрани": 6,
+    "сравнение": 2,
+    "сравни": 7,
+    "ставим": 1,
+    "старше": 1,
+    "счета": 1,
+    "та": 1,
+    "треде": 1,
+    "у": 23,
+    "уведомление": 3,
+    "ударения": 1,
+    "успел": 5,
+    "уточнения": 1,
+    "я": 52
+   },
+   "del_words": [
+    [
+     "и",
+     4
+    ],
+    [
+     "в",
+     3
+    ],
+    [
+     "у",
+     2
+    ],
+    [
+     "idea",
+     1
+    ],
+    [
+     "our",
+     1
+    ],
+    [
+     "read",
+     1
+    ],
+    [
+     "reminder",
+     1
+    ],
+    [
+     "styles",
+     1
+    ],
+    [
+     "the",
+     1
+    ],
+    [
+     "up",
+     1
+    ],
+    [
+     "warms",
+     1
+    ],
+    [
+     "гипотеза",
+     1
+    ],
+    [
+     "из",
+     1
+    ],
+    [
+     "наш",
+     1
+    ],
+    [
+     "полчаса",
+     1
+    ],
+    [
+     "с",
+     1
+    ],
+    [
+     "я",
+     1
+    ]
+   ],
+   "ins_words": [
+    [
+     "j.d",
+     1
+    ],
+    [
+     "light",
+     1
+    ],
+    [
+     "on",
+     1
+    ],
+    [
+     "opening",
+     1
+    ],
+    [
+     "out",
+     1
+    ],
+    [
+     "tilde",
+     1
+    ],
+    [
+     "to",
+     1
+    ],
+    [
+     "using",
+     1
+    ],
+    [
+     "wee",
+     1
+    ],
+    [
+     "сипипе",
+     1
+    ],
+    [
+     "утра",
+     1
+    ]
+   ],
+   "near_share": 0.773,
+   "nonterm_words": 10734,
+   "p_del": 0.0021,
+   "p_ins": 0.001,
+   "p_sub": 0.0172
+  },
+  "style_excluded_rows": 0,
+  "term_wer": 0.2796,
+  "term_words": 2303,
+  "terms": {
+   "by_lang": {
+    "en": {
+     "error_rate": 0.2186,
+     "exact_rate": 0.5377,
+     "folded_rate": 0.7563,
+     "latin_kept_rate": 0.9969,
+     "n": 636,
+     "split_rate": 0.168
+    },
+    "mixed": {
+     "error_rate": 0.3302,
+     "exact_rate": 0.4311,
+     "folded_rate": 0.5512,
+     "latin_kept_rate": 0.6835,
+     "n": 733,
+     "split_rate": 0.1095
+    },
+    "ru": {
+     "error_rate": 0.1914,
+     "exact_rate": 0.6621,
+     "folded_rate": 0.7483,
+     "latin_kept_rate": 0.0534,
+     "n": 580,
+     "split_rate": 0.0477
+    }
+   },
+   "error_rate": 0.2524,
+   "exact_rate": 0.5346,
+   "folded_rate": 0.6768,
+   "n": 1949,
+   "translit_rate": 0.0693
+  },
+  "tts": {
+   "kokoro1/af_alloy": 4,
+   "kokoro1/af_aoede": 4,
+   "kokoro1/af_bella": 4,
+   "kokoro1/af_heart": 4,
+   "kokoro1/af_jessica": 4,
+   "kokoro1/af_kore": 4,
+   "kokoro1/af_nicole": 4,
+   "kokoro1/af_nova": 4,
+   "kokoro1/af_river": 4,
+   "kokoro1/af_sarah": 4,
+   "kokoro1/af_sky": 4,
+   "kokoro1/am_adam": 4,
+   "kokoro1/am_echo": 4,
+   "kokoro1/am_eric": 4,
+   "kokoro1/am_fenrir": 4,
+   "kokoro1/am_liam": 4,
+   "kokoro1/am_michael": 4,
+   "kokoro1/am_onyx": 4,
+   "kokoro1/am_puck": 4,
+   "kokoro1/bf_alice": 4,
+   "kokoro1/bf_emma": 4,
+   "kokoro1/bf_isabella": 3,
+   "kokoro1/bf_lily": 3,
+   "kokoro1/bm_daniel": 3,
+   "kokoro1/bm_fable": 3,
+   "kokoro1/bm_george": 3,
+   "kokoro1/bm_lewis": 3,
+   "piper/en_GB-alba-medium": 10,
+   "piper/en_GB-cori-medium": 9,
+   "piper/en_US-joe-medium": 10,
+   "piper/en_US-john-medium": 10,
+   "piper/en_US-kristin-medium": 10,
+   "piper/en_US-libritts_r-medium#0": 9,
+   "piper/en_US-libritts_r-medium#117": 9,
+   "piper/en_US-libritts_r-medium#263": 9,
+   "piper/en_US-libritts_r-medium#509": 9,
+   "piper/en_US-libritts_r-medium#771": 9,
+   "piper/en_US-norman-medium": 10,
+   "supertonic3/sid0": 80,
+   "supertonic3/sid1": 77,
+   "supertonic3/sid2": 76,
+   "supertonic3/sid3": 77,
+   "supertonic3/sid4": 71,
+   "supertonic3/sid5": 74,
+   "supertonic3/sid6": 75,
+   "supertonic3/sid7": 77,
+   "supertonic3/sid8": 76,
+   "supertonic3/sid9": 79
+  },
+  "wer": 0.098,
+  "wer_by_channel": {
+   "clean": {
+    "cer": 0.0365,
+    "n": 775,
+    "wer": 0.0954,
+    "wer_style_aware": 0.0625,
+    "words": 10495
+   },
+   "phone_noisy": {
+    "cer": 0.0408,
+    "n": 193,
+    "wer": 0.109,
+    "wer_style_aware": 0.0814,
+    "words": 2542
+   }
+  },
+  "wer_by_lang": {
+   "en": {
+    "cer": 0.0266,
+    "n": 308,
+    "wer": 0.0942,
+    "wer_style_aware": 0.0604,
+    "words": 4503
+   },
+   "mixed": {
+    "cer": 0.0611,
+    "n": 359,
+    "wer": 0.128,
+    "wer_style_aware": 0.0888,
+    "words": 4728
+   },
+   "ru": {
+    "cer": 0.0198,
+    "n": 301,
+    "wer": 0.0654,
+    "wer_style_aware": 0.0449,
+    "words": 3806
+   }
+  },
+  "wer_style_aware": 0.0662,
+  "yo": {
+   "kept_rate": 0.1533,
+   "ref_yo_words": 150
+  }
+ },
+ "whisper-medium@onnx-int8": {
+  "by_tts": {
+   "kokoro1": {
+    "by_lang": {
+     "en": {
+      "cer": 0.0136,
+      "latin_kept_rate": 1.0,
+      "n": 51,
+      "term_error_rate": 0.1193,
+      "term_exact_rate": 0.6055,
+      "term_n": 109,
+      "wer": 0.0738,
+      "wer_style_aware": 0.0326,
+      "words": 705
+     }
+    },
+    "inputs": {
+     "text": 36,
+     "tts_text": 15
+    }
+   },
+   "piper": {
+    "by_lang": {
+     "en": {
+      "cer": 0.0405,
+      "latin_kept_rate": 0.9985,
+      "n": 52,
+      "term_error_rate": 0.3366,
+      "term_exact_rate": 0.4653,
+      "term_n": 101,
+      "wer": 0.1173,
+      "wer_style_aware": 0.0916,
+      "words": 742
+     }
+    },
+    "inputs": {
+     "text": 33,
+     "tts_text": 19
+    }
+   },
+   "supertonic3": {
+    "by_lang": {
+     "en": {
+      "cer": 0.0209,
+      "latin_kept_rate": 0.997,
+      "n": 51,
+      "term_error_rate": 0.215,
+      "term_exact_rate": 0.6168,
+      "term_n": 107,
+      "wer": 0.0807,
+      "wer_style_aware": 0.0425,
+      "words": 706
+     },
+     "mixed": {
+      "cer": 0.0596,
+      "latin_kept_rate": 0.8837,
+      "n": 174,
+      "term_error_rate": 0.3581,
+      "term_exact_rate": 0.449,
+      "term_n": 363,
+      "wer": 0.137,
+      "wer_style_aware": 0.0975,
+      "words": 2328
+     },
+     "ru": {
+      "cer": 0.0439,
+      "latin_kept_rate": null,
+      "n": 148,
+      "term_error_rate": 0.2256,
+      "term_exact_rate": 0.532,
+      "term_n": 297,
+      "wer": 0.1044,
+      "wer_style_aware": 0.0622,
+      "words": 1848
+     }
+    },
+    "inputs": {
+     "text": 330,
+     "text_numbers": 19,
+     "tts_text": 24
+    }
+   }
+  },
+  "casing": {
+   "all_lower_rate": 0.0042,
+   "first_upper_rate": 0.9811,
+   "has_upper_rate": 0.9958,
+   "label": "sentence",
+   "n_rows": 476,
+   "proper_case_kept_rate": 0.8898
+  },
+  "cer": 0.0439,
+  "channels": {
+   "clean": 383,
+   "phone_noisy": 93
+  },
+  "digits": {
+   "error_rate": 0.0408,
+   "examples": [
+    [
+     "14:30",
+     "14.30",
+     5
+    ],
+    [
+     "11:30",
+     "11.30",
+     4
+    ],
+    [
+     "12:00",
+     "12",
+     2
+    ],
+    [
+     "15:00",
+     "15.00",
+     2
+    ],
+    [
+     "3:30",
+     "330",
+     2
+    ],
+    [
+     "100",
+     "сто",
+     1
+    ],
+    [
+     "10:00",
+     "10",
+     1
+    ],
+    [
+     "10:30",
+     "10.30",
+     1
+    ]
+   ],
+   "hyp_digit_rate": 0.145,
+   "kept_digits_rate": 0.9787,
+   "label": "digits",
+   "ref_numbers": 49,
+   "spelled_rate": 0.0213,
+   "word_numbers": 2,
+   "words_to_digits_rate": 1.0
+  },
+  "hallucination": {
+   "empty_rate": 0.0,
+   "foreign_examples": [],
+   "foreign_script_rate": 0.0,
+   "lead_rate": 0.0,
+   "leads": [],
+   "overlong_rate": 0.0,
+   "tail_rate": 0.0,
+   "tails": []
+  },
+  "kinds": {
+   "case": 167,
+   "del": 10,
+   "ins": 5,
+   "match": 5479,
+   "number": 35,
+   "punct": 128,
+   "sub": 49,
+   "sub_near": 399,
+   "translit": 111,
+   "yo": 61
+  },
+  "langs": {
+   "en": 154,
+   "mixed": 174,
+   "ru": 148
+  },
+  "latin": {
+   "by_lang": {
+    "en": {
+     "error_rate": 0.0463,
+     "kept_latin_rate": 0.9985,
+     "n": 2140
+    },
+    "mixed": {
+     "error_rate": 0.3281,
+     "kept_latin_rate": 0.8837,
+     "n": 384
+    }
+   },
+   "cyrillic_rate": 0.0144,
+   "error_rate": 0.0891,
+   "hyp_latin_rate": 0.7332,
+   "kept_latin_rate": 0.9856,
+   "label": "latin",
+   "ref_latin_words": 2524
+  },
+  "n": 476,
+  "n_ref_words": 6329,
+  "nonterm_wer": 0.0247,
+  "nonterm_words": 5190,
+  "punctuation": {
+   "any_rate": 0.9916,
+   "comma_ratio": 0.8558,
+   "label": "full",
+   "n_rows": 476,
+   "other_ratio": 0.4203,
+   "question_kept_rate": 0.7292,
+   "terminal_kept_rate": 0.9832
+  },
+  "rtf": 4.5179,
+  "sampler": {
+   "by_lang": {
+    "en": {
+     "near_share": 0.6786,
+     "nonterm_words": 1771,
+     "p_del": 0.0011,
+     "p_ins": 0.0011,
+     "p_sub": 0.0158
+    },
+    "mixed": {
+     "near_share": 0.72,
+     "nonterm_words": 1896,
+     "p_del": 0.0016,
+     "p_ins": 0.0011,
+     "p_sub": 0.0264
+    },
+    "ru": {
+     "near_share": 1.0,
+     "nonterm_words": 1523,
+     "p_del": 0.0007,
+     "p_ins": 0.0,
+     "p_sub": 0.0263
+    }
+   },
+   "confusable_words": {
+    "900": 1,
+    "99.9%": 1,
+    "a": 37,
+    "add": 9,
+    "and": 64,
+    "backend": 1,
+    "baselines": 1,
+    "block": 5,
+    "finished": 3,
+    "fix": 2,
+    "hi": 1,
+    "in": 28,
+    "our": 8,
+    "outdated": 1,
+    "pickle": 1,
+    "pods": 2,
+    "recall": 1,
+    "rerun": 1,
+    "sales": 1,
+    "schedule": 3,
+    "show": 3,
+    "small": 4,
+    "spans": 1,
+    "styles": 2,
+    "sync": 2,
+    "team": 5,
+    "why": 3,
+    "writes": 1,
+    "you": 33,
+    "асессоров": 1,
+    "в": 159,
+    "везде": 1,
+    "видеопамять": 1,
+    "вход": 1,
+    "выводы": 1,
+    "выгрузки": 2,
+    "глянь": 4,
+    "гонял": 2,
+    "дообучить": 1,
+    "дублируется": 1,
+    "ест": 1,
+    "за": 11,
+    "забронируй": 3,
+    "задаче": 1,
+    "закрепе": 1,
+    "замерю": 2,
+    "запусти": 6,
+    "и": 105,
+    "из": 22,
+    "импорты": 1,
+    "индекс": 2,
+    "исправления": 1,
+    "исходниками": 1,
+    "кину": 1,
+    "корне": 1,
+    "которые": 6,
+    "ли": 13,
+    "маякни": 1,
+    "меняйте": 2,
+    "нужна": 2,
+    "обновление": 1,
+    "оверлеями": 1,
+    "описание": 4,
+    "ответа": 8,
+    "отпишусь": 1,
+    "отчет": 5,
+    "перед": 18,
+    "перенос": 1,
+    "пишется": 1,
+    "повышение": 1,
+    "поды": 1,
+    "попадает": 1,
+    "построчно": 1,
+    "пояснение": 1,
+    "правок": 2,
+    "предложи": 7,
+    "проверил": 3,
+    "проверками": 1,
+    "прогоню": 2,
+    "продлить": 2,
+    "с": 60,
+    "собери": 1,
+    "сорванный": 1,
+    "соревнование": 1,
+    "сохрани": 4,
+    "список": 6,
+    "ставим": 1,
+    "стартуют": 1,
+    "там": 3,
+    "у": 10,
+    "уведомление": 2,
+    "формы": 1
+   },
+   "del_words": [
+    [
+     "add",
+     1
+    ],
+    [
+     "styles",
+     1
+    ],
+    [
+     "в",
+     1
+    ],
+    [
+     "выводы",
+     1
+    ],
+    [
+     "с",
+     1
+    ],
+    [
+     "у",
+     1
+    ]
+   ],
+   "ins_words": [
+    [
+     "o'clock",
+     1
+    ],
+    [
+     "shen",
+     1
+    ],
+    [
+     "млэй",
+     1
+    ],
+    [
+     "сепипей",
+     1
+    ]
+   ],
+   "near_share": 0.8051,
+   "nonterm_words": 5190,
+   "p_del": 0.0012,
+   "p_ins": 0.0008,
+   "p_sub": 0.0227
+  },
+  "style_excluded_rows": 0,
+  "term_wer": 0.2941,
+  "term_words": 1139,
+  "terms": {
+   "by_lang": {
+    "en": {
+     "error_rate": 0.2208,
+     "exact_rate": 0.5647,
+     "folded_rate": 0.7476,
+     "latin_kept_rate": 1.0,
+     "n": 317,
+     "split_rate": 0.1479
+    },
+    "mixed": {
+     "error_rate": 0.3581,
+     "exact_rate": 0.449,
+     "folded_rate": 0.5482,
+     "latin_kept_rate": 0.7273,
+     "n": 363,
+     "split_rate": 0.1063
+    },
+    "ru": {
+     "error_rate": 0.2256,
+     "exact_rate": 0.532,
+     "folded_rate": 0.6162,
+     "latin_kept_rate": 0.1582,
+     "n": 297,
+     "split_rate": 0.0517
+    }
+   },
+   "error_rate": 0.2733,
+   "exact_rate": 0.5118,
+   "folded_rate": 0.6336,
+   "n": 977,
+   "translit_rate": 0.088
+  },
+  "tts": {
+   "kokoro1/af_aoede": 4,
+   "kokoro1/af_bella": 2,
+   "kokoro1/af_heart": 1,
+   "kokoro1/af_jessica": 2,
+   "kokoro1/af_kore": 1,
+   "kokoro1/af_nicole": 2,
+   "kokoro1/af_nova": 3,
+   "kokoro1/af_river": 1,
+   "kokoro1/af_sarah": 4,
+   "kokoro1/af_sky": 2,
+   "kokoro1/am_adam": 1,
+   "kokoro1/am_echo": 2,
+   "kokoro1/am_eric": 1,
+   "kokoro1/am_fenrir": 3,
+   "kokoro1/am_liam": 1,
+   "kokoro1/am_michael": 2,
+   "kokoro1/am_onyx": 3,
+   "kokoro1/am_puck": 3,
+   "kokoro1/bf_alice": 1,
+   "kokoro1/bf_emma": 3,
+   "kokoro1/bf_isabella": 1,
+   "kokoro1/bf_lily": 2,
+   "kokoro1/bm_daniel": 1,
+   "kokoro1/bm_fable": 1,
+   "kokoro1/bm_george": 1,
+   "kokoro1/bm_lewis": 3,
+   "piper/en_GB-alba-medium": 7,
+   "piper/en_GB-cori-medium": 3,
+   "piper/en_US-joe-medium": 6,
+   "piper/en_US-john-medium": 5,
+   "piper/en_US-kristin-medium": 7,
+   "piper/en_US-libritts_r-medium#0": 4,
+   "piper/en_US-libritts_r-medium#117": 5,
+   "piper/en_US-libritts_r-medium#263": 3,
+   "piper/en_US-libritts_r-medium#509": 6,
+   "piper/en_US-libritts_r-medium#771": 4,
+   "piper/en_US-norman-medium": 2,
+   "supertonic3/sid0": 42,
+   "supertonic3/sid1": 41,
+   "supertonic3/sid2": 36,
+   "supertonic3/sid3": 40,
+   "supertonic3/sid4": 31,
+   "supertonic3/sid5": 38,
+   "supertonic3/sid6": 36,
+   "supertonic3/sid7": 38,
+   "supertonic3/sid8": 37,
+   "supertonic3/sid9": 34
+  },
+  "wer": 0.1119,
+  "wer_by_channel": {
+   "clean": {
+    "cer": 0.0434,
+    "n": 383,
+    "wer": 0.1115,
+    "wer_style_aware": 0.0723,
+    "words": 5119
+   },
+   "phone_noisy": {
+    "cer": 0.0457,
+    "n": 93,
+    "wer": 0.1132,
+    "wer_style_aware": 0.0769,
+    "words": 1210
+   }
+  },
+  "wer_by_lang": {
+   "en": {
+    "cer": 0.0251,
+    "n": 154,
+    "wer": 0.091,
+    "wer_style_aware": 0.0562,
+    "words": 2153
+   },
+   "mixed": {
+    "cer": 0.0596,
+    "n": 174,
+    "wer": 0.137,
+    "wer_style_aware": 0.0975,
+    "words": 2328
+   },
+   "ru": {
+    "cer": 0.0439,
+    "n": 148,
+    "wer": 0.1044,
+    "wer_style_aware": 0.0622,
+    "words": 1848
+   }
+  },
+  "wer_style_aware": 0.0732,
+  "yo": {
+   "kept_rate": 0.0769,
+   "ref_yo_words": 65
+  }
+ },
+ "whisper-small@onnx-int8": {
+  "by_tts": {
+   "kokoro1": {
+    "by_lang": {
+     "en": {
+      "cer": 0.0223,
+      "latin_kept_rate": 1.0,
+      "n": 102,
+      "term_error_rate": 0.1935,
+      "term_exact_rate": 0.5392,
+      "term_n": 217,
+      "wer": 0.0949,
+      "wer_style_aware": 0.0499,
+      "words": 1444
+     }
+    },
+    "inputs": {
+     "text": 73,
+     "tts_text": 29
+    }
+   },
+   "piper": {
+    "by_lang": {
+     "en": {
+      "cer": 0.0527,
+      "latin_kept_rate": 0.9993,
+      "n": 104,
+      "term_error_rate": 0.3659,
+      "term_exact_rate": 0.4,
+      "term_n": 205,
+      "wer": 0.1367,
+      "wer_style_aware": 0.1117,
+      "words": 1558
+     }
+    },
+    "inputs": {
+     "text": 72,
+     "tts_text": 32
+    }
+   },
+   "supertonic3": {
+    "by_lang": {
+     "en": {
+      "cer": 0.026,
+      "latin_kept_rate": 0.9993,
+      "n": 102,
+      "term_error_rate": 0.257,
+      "term_exact_rate": 0.5187,
+      "term_n": 214,
+      "wer": 0.0933,
+      "wer_style_aware": 0.062,
+      "words": 1501
+     },
+     "mixed": {
+      "cer": 0.0902,
+      "latin_kept_rate": 0.7914,
+      "n": 359,
+      "term_error_rate": 0.4652,
+      "term_exact_rate": 0.3138,
+      "term_n": 733,
+      "wer": 0.183,
+      "wer_style_aware": 0.1385,
+      "words": 4728
+     },
+     "ru": {
+      "cer": 0.036,
+      "latin_kept_rate": null,
+      "n": 301,
+      "term_error_rate": 0.35,
+      "term_exact_rate": 0.469,
+      "term_n": 580,
+      "wer": 0.119,
+      "wer_style_aware": 0.0888,
+      "words": 3806
+     }
+    },
+    "inputs": {
+     "text": 681,
+     "text_numbers": 32,
+     "tts_text": 49
+    }
+   }
+  },
+  "casing": {
+   "all_lower_rate": 0.0041,
+   "first_upper_rate": 0.9866,
+   "has_upper_rate": 0.9959,
+   "label": "sentence",
+   "n_rows": 968,
+   "proper_case_kept_rate": 0.866
+  },
+  "cer": 0.0554,
+  "channels": {
+   "clean": 775,
+   "phone_noisy": 193
+  },
+  "digits": {
+   "error_rate": 0.0787,
+   "examples": [
+    [
+     "11:30",
+     "11.30",
+     8
+    ],
+    [
+     "14:30",
+     "14-30",
+     4
+    ],
+    [
+     "14:30",
+     "14.30",
+     4
+    ],
+    [
+     "15:30",
+     "15-30",
+     3
+    ],
+    [
+     "15:30",
+     "15.30",
+     3
+    ],
+    [
+     "10:00",
+     "10",
+     2
+    ],
+    [
+     "12:00",
+     "12",
+     2
+    ],
+    [
+     "15:00",
+     "15",
+     2
+    ]
+   ],
+   "hyp_digit_rate": 0.1219,
+   "kept_digits_rate": 0.9268,
+   "label": "digits",
+   "ref_numbers": 89,
+   "spelled_rate": 0.0732,
+   "word_numbers": 4,
+   "words_to_digits_rate": 1.0
+  },
+  "hallucination": {
+   "empty_rate": 0.0,
+   "foreign_examples": [],
+   "foreign_script_rate": 0.0,
+   "lead_rate": 0.0,
+   "leads": [],
+   "overlong_rate": 0.0,
+   "tail_rate": 0.0,
+   "tails": []
+  },
+  "kinds": {
+   "case": 332,
+   "del": 26,
+   "ins": 26,
+   "match": 10981,
+   "number": 66,
+   "punct": 282,
+   "sub": 140,
+   "sub_near": 1140,
+   "translit": 196,
+   "yo": 134
+  },
+  "langs": {
+   "en": 308,
+   "mixed": 359,
+   "ru": 301
+  },
+  "latin": {
+   "by_lang": {
+    "en": {
+     "error_rate": 0.059,
+     "kept_latin_rate": 0.9995,
+     "n": 4476
+    },
+    "mixed": {
+     "error_rate": 0.4375,
+     "kept_latin_rate": 0.7914,
+     "n": 784
+    }
+   },
+   "cyrillic_rate": 0.0202,
+   "error_rate": 0.1154,
+   "hyp_latin_rate": 0.6322,
+   "kept_latin_rate": 0.9798,
+   "label": "latin",
+   "ref_latin_words": 5260
+  },
+  "n": 968,
+  "n_ref_words": 13037,
+  "nonterm_wer": 0.0371,
+  "nonterm_words": 10734,
+  "punctuation": {
+   "any_rate": 0.9969,
+   "comma_ratio": 0.8662,
+   "label": "full",
+   "n_rows": 968,
+   "other_ratio": 0.5856,
+   "question_kept_rate": 0.6703,
+   "terminal_kept_rate": 0.9824
+  },
+  "rtf": 1.792,
+  "sampler": {
+   "by_lang": {
+    "en": {
+     "near_share": 0.6329,
+     "nonterm_words": 3715,
+     "p_del": 0.0019,
+     "p_ins": 0.003,
+     "p_sub": 0.0213
+    },
+    "mixed": {
+     "near_share": 0.8529,
+     "nonterm_words": 3853,
+     "p_del": 0.0029,
+     "p_ins": 0.0029,
+     "p_sub": 0.0441
+    },
+    "ru": {
+     "near_share": 0.9245,
+     "nonterm_words": 3166,
+     "p_del": 0.0006,
+     "p_ins": 0.0003,
+     "p_sub": 0.0335
+    }
+   },
+   "confusable_words": {
+    "11:00": 2,
+    "900": 1,
+    "99.9%": 1,
+    "a": 79,
+    "add": 12,
+    "and": 134,
+    "as": 5,
+    "backend": 2,
+    "before": 41,
+    "block": 8,
+    "cache": 2,
+    "caching": 2,
+    "client": 3,
+    "constraints": 2,
+    "contexts": 2,
+    "devices": 1,
+    "drop": 5,
+    "ffmpeg": 2,
+    "finished": 4,
+    "fix": 10,
+    "hi": 4,
+    "i": 42,
+    "i'll": 12,
+    "in": 68,
+    "is": 28,
+    "it": 24,
+    "mid-range": 1,
+    "my": 10,
+    "on": 66,
+    "outdated": 1,
+    "parsing": 1,
+    "perfectly": 1,
+    "pickle": 1,
+    "pods": 2,
+    "read": 4,
+    "rebalance": 1,
+    "recall": 1,
+    "reconnects": 2,
+    "regex": 1,
+    "rendering": 1,
+    "rerun": 4,
+    "retry": 1,
+    "rewrite": 3,
+    "root": 1,
+    "sales": 2,
+    "schedule": 6,
+    "see": 3,
+    "small": 5,
+    "spans": 1,
+    "start": 6,
+    "stay": 1,
+    "stops": 4,
+    "styles": 2,
+    "team": 9,
+    "three-sentence": 1,
+    "through": 7,
+    "timestamps": 3,
+    "to": 91,
+    "topics": 1,
+    "up": 15,
+    "usable": 1,
+    "use": 23,
+    "warms": 1,
+    "writes": 1,
+    "wrong": 1,
+    "yesterday": 16,
+    "you": 56,
+    "абзацев": 1,
+    "автомасштабирование": 1,
+    "асессоров": 1,
+    "асинхронный": 1,
+    "в": 316,
+    "вдвое": 4,
+    "видеопамять": 1,
+    "видит": 2,
+    "вложении": 4,
+    "внутреннему": 1,
+    "во": 8,
+    "возьмусь": 1,
+    "врач": 1,
+    "вчера": 47,
+    "вчерашней": 3,
+    "выведи": 19,
+    "вывод": 4,
+    "выводы": 1,
+    "выгрузке": 1,
+    "выгрузки": 5,
+    "выполни": 1,
+    "вычисли": 1,
+    "гляньте": 2,
+    "гонял": 2,
+    "данные": 8,
+    "демо": 3,
+    "до": 54,
+    "добавил": 16,
+    "добавь": 5,
+    "дообучить": 1,
+    "дублируется": 1,
+    "дублируются": 1,
+    "ест": 1,
+    "за": 23,
+    "завел": 2,
+    "задаче": 3,
+    "зайду": 1,
+    "замеры": 5,
+    "замечания": 1,
+    "запасной": 2,
+    "записей": 7,
+    "запуск": 5,
+    "запусти": 13,
+    "значения": 1,
+    "и": 218,
+    "из": 40,
+    "изменится": 1,
+    "имена": 3,
+    "используется": 3,
+    "исходниками": 1,
+    "итогам": 2,
+    "копятся": 1,
+    "короткое": 3,
+    "которые": 7,
+    "кто-то": 1,
+    "логированием": 1,
+    "маякни": 2,
+    "меняя": 3,
+    "методов": 1,
+    "миллисекунд": 2,
+    "мне": 19,
+    "модели": 23,
+    "модули": 1,
+    "на": 321,
+    "накидайте": 1,
+    "напиши": 7,
+    "напомни": 7,
+    "находит": 3,
+    "наш": 8,
+    "наши": 1,
+    "новой": 6,
+    "нужна": 4,
+    "нулевой": 1,
+    "обедом": 1,
+    "оверлеями": 1,
+    "описан": 2,
+    "описание": 5,
+    "оповещения": 1,
+    "оставьте": 1,
+    "от": 12,
+    "ответа": 10,
+    "отключила": 1,
+    "открой": 5,
+    "отметь": 1,
+    "падежи": 1,
+    "переключение": 1,
+    "письмо": 2,
+    "план": 7,
+    "по": 52,
+    "поверх": 2,
+    "повтора": 1,
+    "повторы": 1,
+    "повышение": 1,
+    "под": 6,
+    "подмените": 1,
+    "подписи": 1,
+    "подсказки": 2,
+    "подтвердите": 3,
+    "подтверждаем": 1,
+    "позицию": 2,
+    "покажи": 17,
+    "полегчало": 1,
+    "полнота": 2,
+    "получасовой": 1,
+    "полчаса": 9,
+    "попадает": 1,
+    "поправили": 1,
+    "пора": 1,
+    "последние": 3,
+    "поставь": 29,
+    "построчно": 1,
+    "починен": 1,
+    "починил": 2,
+    "пояснение": 1,
+    "права": 2,
+    "предложи": 7,
+    "примеры": 7,
+    "приходят": 4,
+    "причина": 1,
+    "проверил": 6,
+    "проверку": 25,
+    "прогоню": 2,
+    "простоя": 1,
+    "пятибалльной": 1,
+    "пятничного": 3,
+    "пятью": 1,
+    "рассматриваем": 1,
+    "редакторам": 1,
+    "рекуррентную": 1,
+    "репозиторий": 3,
+    "русский": 2,
+    "с": 117,
+    "сбою": 1,
+    "сбоя": 3,
+    "связанный": 1,
+    "сертификат": 3,
+    "сидел": 1,
+    "скачай": 1,
+    "скинь": 12,
+    "скопируй": 1,
+    "случай": 5,
+    "собеседование": 1,
+    "сократи": 1,
+    "сообщаю": 2,
+    "соревнование": 1,
+    "сорян": 1,
+    "составь": 8,
+    "сохрани": 6,
+    "сравни": 7,
+    "сравнить": 6,
+    "ставим": 1,
+    "стала": 2,
+    "стартуют": 1,
+    "старше": 1,
+    "страницы": 6,
+    "та": 1,
+    "там": 7,
+    "тесты": 6,
+    "только": 29,
+    "треде": 1,
+    "у": 23,
+    "уведомление": 3,
+    "уведомлениям": 1,
+    "ударения": 1,
+    "укажи": 2,
+    "указана": 1,
+    "устарела": 1,
+    "уточнения": 1,
+    "утренней": 2,
+    "хранится": 1,
+    "через": 48,
+    "черкнуть": 1,
+    "чиним": 1,
+    "читается": 1
+   },
+   "del_words": [
+    [
+     "в",
+     4
+    ],
+    [
+     "и",
+     3
+    ],
+    [
+     "у",
+     2
+    ],
+    [
+     "a",
+     1
+    ],
+    [
+     "add",
+     1
+    ],
+    [
+     "hi",
+     1
+    ],
+    [
+     "read",
+     1
+    ],
+    [
+     "styles",
+     1
+    ],
+    [
+     "up",
+     1
+    ],
+    [
+     "you",
+     1
+    ],
+    [
+     "из",
+     1
+    ],
+    [
+     "наш",
+     1
+    ],
+    [
+     "полчаса",
+     1
+    ],
+    [
+     "через",
+     1
+    ]
+   ],
+   "ins_words": [
+    [
+     "и",
+     3
+    ],
+    [
+     "3",
+     1
+    ],
+    [
+     "3-cent",
+     1
+    ],
+    [
+     "alert",
+     1
+    ],
+    [
+     "and",
+     1
+    ],
+    [
+     "at",
+     1
+    ],
+    [
+     "joe",
+     1
+    ],
+    [
+     "media",
+     1
+    ],
+    [
+     "o'clock",
+     1
+    ],
+    [
+     "ogre",
+     1
+    ],
+    [
+     "out",
+     1
+    ],
+    [
+     "rizzer",
+     1
+    ],
+    [
+     "schema",
+     1
+    ],
+    [
+     "the",
+     1
+    ],
+    [
+     "to",
+     1
+    ],
+    [
+     "until",
+     1
+    ],
+    [
+     "в",
+     1
+    ],
+    [
+     "нейтес",
+     1
+    ],
+    [
+     "с",
+     1
+    ],
+    [
+     "ссд",
+     1
+    ],
+    [
+     "утра",
+     1
+    ]
+   ],
+   "near_share": 0.8254,
+   "nonterm_words": 10734,
+   "p_del": 0.0019,
+   "p_ins": 0.0021,
+   "p_sub": 0.0331
+  },
+  "style_excluded_rows": 0,
+  "term_wer": 0.4056,
+  "term_words": 2303,
+  "terms": {
+   "by_lang": {
+    "en": {
+     "error_rate": 0.2704,
+     "exact_rate": 0.4874,
+     "folded_rate": 0.7013,
+     "latin_kept_rate": 0.9969,
+     "n": 636,
+     "split_rate": 0.1657
+    },
+    "mixed": {
+     "error_rate": 0.4652,
+     "exact_rate": 0.3138,
+     "folded_rate": 0.4147,
+     "latin_kept_rate": 0.5825,
+     "n": 733,
+     "split_rate": 0.1192
+    },
+    "ru": {
+     "error_rate": 0.35,
+     "exact_rate": 0.469,
+     "folded_rate": 0.5603,
+     "latin_kept_rate": 0.0759,
+     "n": 580,
+     "split_rate": 0.0496
+    }
+   },
+   "error_rate": 0.3674,
+   "exact_rate": 0.4166,
+   "folded_rate": 0.5516,
+   "n": 1949,
+   "translit_rate": 0.0775
+  },
+  "tts": {
+   "kokoro1/af_alloy": 4,
+   "kokoro1/af_aoede": 4,
+   "kokoro1/af_bella": 4,
+   "kokoro1/af_heart": 4,
+   "kokoro1/af_jessica": 4,
+   "kokoro1/af_kore": 4,
+   "kokoro1/af_nicole": 4,
+   "kokoro1/af_nova": 4,
+   "kokoro1/af_river": 4,
+   "kokoro1/af_sarah": 4,
+   "kokoro1/af_sky": 4,
+   "kokoro1/am_adam": 4,
+   "kokoro1/am_echo": 4,
+   "kokoro1/am_eric": 4,
+   "kokoro1/am_fenrir": 4,
+   "kokoro1/am_liam": 4,
+   "kokoro1/am_michael": 4,
+   "kokoro1/am_onyx": 4,
+   "kokoro1/am_puck": 4,
+   "kokoro1/bf_alice": 4,
+   "kokoro1/bf_emma": 4,
+   "kokoro1/bf_isabella": 3,
+   "kokoro1/bf_lily": 3,
+   "kokoro1/bm_daniel": 3,
+   "kokoro1/bm_fable": 3,
+   "kokoro1/bm_george": 3,
+   "kokoro1/bm_lewis": 3,
+   "piper/en_GB-alba-medium": 10,
+   "piper/en_GB-cori-medium": 9,
+   "piper/en_US-joe-medium": 10,
+   "piper/en_US-john-medium": 10,
+   "piper/en_US-kristin-medium": 10,
+   "piper/en_US-libritts_r-medium#0": 9,
+   "piper/en_US-libritts_r-medium#117": 9,
+   "piper/en_US-libritts_r-medium#263": 9,
+   "piper/en_US-libritts_r-medium#509": 9,
+   "piper/en_US-libritts_r-medium#771": 9,
+   "piper/en_US-norman-medium": 10,
+   "supertonic3/sid0": 80,
+   "supertonic3/sid1": 77,
+   "supertonic3/sid2": 76,
+   "supertonic3/sid3": 77,
+   "supertonic3/sid4": 71,
+   "supertonic3/sid5": 74,
+   "supertonic3/sid6": 75,
+   "supertonic3/sid7": 77,
+   "supertonic3/sid8": 76,
+   "supertonic3/sid9": 79
+  },
+  "wer": 0.1387,
+  "wer_by_channel": {
+   "clean": {
+    "cer": 0.0538,
+    "n": 775,
+    "wer": 0.1344,
+    "wer_style_aware": 0.098,
+    "words": 10495
+   },
+   "phone_noisy": {
+    "cer": 0.0619,
+    "n": 193,
+    "wer": 0.1562,
+    "wer_style_aware": 0.1196,
+    "words": 2542
+   }
+  },
+  "wer_by_lang": {
+   "en": {
+    "cer": 0.0339,
+    "n": 308,
+    "wer": 0.1088,
+    "wer_style_aware": 0.0753,
+    "words": 4503
+   },
+   "mixed": {
+    "cer": 0.0902,
+    "n": 359,
+    "wer": 0.183,
+    "wer_style_aware": 0.1385,
+    "words": 4728
+   },
+   "ru": {
+    "cer": 0.036,
+    "n": 301,
+    "wer": 0.119,
+    "wer_style_aware": 0.0888,
+    "words": 3806
+   }
+  },
+  "wer_style_aware": 0.1022,
+  "yo": {
+   "kept_rate": 0.1014,
+   "ref_yo_words": 148
+  }
+ }
+}

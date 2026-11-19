@@ -975,10 +975,13 @@ no model and no teacher is involved.
 | `ml/roundtrip/mine/hub_map.json` | every hub catalog id → the profile id that stands in for it, with a `proxy` flag |
 | `ml/roundtrip/mine/adapters.py` | public data that already holds real ASR hypotheses → interface-2 rows (`enrich`) |
 | `ml/roundtrip/mine/regen_outputs.sh` | regenerates every output below with the current code; skips inputs that are absent |
+| `ml/roundtrip/mine/clean_rows.py` | documented row-selection rules R1-R6 for the primary tables (Piper ru, TTS-flagged clips, empty, loops, clip-level TTS failure, skipped words) |
+| `ml/roundtrip/mine/mine_full.sh` | full-run mining: clean, mine (primary, all, per TTS, per channel), calibrate, publish `samples/mined/full/` |
+| `ml/roundtrip/samples/mined/full/` | mined **full CPU run** (8,878 primary rows, 968 clips, 12 models): the generator's `--mined` tables, report, per-TTS/per-channel reports, calibrations (see Full run results) |
 | `ml/roundtrip/samples/mined/real/` | mined **final run** (1546 rows, 12 models): the full tables (usable as `--mined`), the report and in-sample, held-out and cross-set calibrations |
 | `ml/roundtrip/samples/mined/fixture_roundtrip.jsonl`, `fixture/` | hand-made fixture (140 rows, 6 models), **not real ASR output**, and its mining |
 | `ml/roundtrip/samples/mined/enrich/` | mined real Russian speech (the enrich adapter): report, profiles, top 150 confusions per model, calibrations |
-| `ml/roundtrip/tests/test_mine_*.py` | 253 tests including a 146-pair gold table, about 30 s |
+| `ml/roundtrip/tests/test_mine_*.py` | 258 tests including a 146-pair gold table, about 30 s |
 
 ### Alignment
 
@@ -1193,6 +1196,139 @@ out; Parakeet TDT 50%); turn Cyrillic transliterations back into Latin terms for
 terms from context only (19-70% of terms are recognition errors, by model); never invent a term the
 context does not support.
 
+### Full run results (2026-11-19)
+
+The full CPU round trip (`.cache/ml/roundtrip/out/full/`, `DONE exit=0`: 10,605 rows, 1,149 clips of 1,000
+sentences, 3 TTS systems, 12 ASR models, 21% `phone_noisy`) mined by `ml/roundtrip/mine/mine_full.sh`.
+**`ml/roundtrip/samples/mined/full/` is the directory stage C should pass as `--mined`** (it replaces
+`samples/mined/real`, which rests on 80 probes; `ml/data/Makefile` `MINED` still points there).
+
+**Row selection** (`clean_rows.py`, rules applied in order, every dropped row logged with its rule in
+`.cache/ml/roundtrip/mined/full/primary_excluded.jsonl`; counts in `samples/mined/full/clean_summary.json`):
+
+| rule | what | primary rows dropped |
+|---|---|---:|
+| R1 `piper_ru` | Piper on ru/mixed sentences (its two Russian voices triple Russian errors, see By TTS below) | 1,034 |
+| R2 `tts_flag` | the 72 Supertonic clips in `out/full/flags_supertonic_digit_names.jsonl` (digits inside Latin names the voice did not say: H100, A100, RTX 5090, 1С); whole clip | 691 |
+| R3 `empty` | empty hypothesis | 0 |
+| R4 `loop` | one 1-4 word n-gram repeated ≥ 4 times in a row, or one non-word character ≥ 5 times, absent from the reference (`через с с с с с сентенс`, `at 14::::::::::::`) | 2 |
+| R5 `tts_fail` | clip with ≥ 3 rows whose *best* hypothesis has WER ≥ 0.5 (no recogniser recovered the audio); whole clip | 0 (3 Piper-ru clips in the all-voices set) |
+| R6 `tts_skip` | ≥ 3 consecutive reference words deleted by ≥ 2/3 of the clip's recognisers; whole clip | 0 |
+
+Kept: **8,878 rows, 968 clips**. The all-voices tables (`--keep-piper-ru`) keep 9,882 rows. Spot check of
+the result: 40 randomly sampled error renderings from `term_manglings.jsonl` and 40 error confusions
+(sub/sub_near/del/ins) from `confusions.jsonl` were each found in a raw row of the same model and language
+(reference words in `text`, rendering in `hypothesis`): 40/40 and 40/40. A further probe found 52 of 1,949
+(clip, term) occurrences that no model wrote exactly while other voices' clips of the same term were
+recognised ≥ 60% of the time; most are faithful transliterations (`Grafana` / `графана`), the rest could be
+TTS mispronunciations (`CI/CD` / `сидии`) but that needs listening, so they stay (UNVERIFIED).
+
+**Committed copy.** `profiles.json`, `term_manglings.jsonl` and `REPORT.md` are the miner's output as is;
+`confusions.jsonl` keeps only the 3,771 non-term rows (of 12,668), because the noise sampler skips in-term
+rows (term errors come from `term_manglings.jsonl`). Checked: `NoiseModel` built from the committed copy
+equals the one built from the full cache directory in every table, and simulations are identical.
+`ml.data.synth.channel.Channel` loads it (`source mined:full`; 9 en / 10 ru / 10 mixed models), the three
+mined-table checks of `ml/data/tests/test_realism.py` pass on it, and an offline generator run
+(`ml.data.generate --teacher stub --screens fixture --n 120 --mined ml/roundtrip/samples/mined/full`) ends with
+`noise_source: mined:full` and uses all 12 models. `reports/` holds the all-voices, per-TTS and
+per-channel reports. Total size 4.67 MB.
+
+**Per model, primary tables** (probe = the 80-probe `samples/mined/real` tables, 50/50 Piper/Supertonic,
+clean only; full = Supertonic for ru/mixed, Supertonic + Piper + Kokoro for en, 21% phone_noisy):
+
+| ASR model | rows probe → full | WER | error-only WER | term WER | non-term WER | term exact | full WER en / ru / mixed | full Latin kept (mixed) |
+|---|---:|---:|---:|---:|---:|---:|---|---:|
+| distil-large-v3.5 | 54 → 307 | 11.1% → 9.6% | 8.2% → 6.3% | 30.8% → 26.7% | 4.0% → 1.9% | 57.8% → 52.5% | 9.6% / – / – | – |
+| gigaam-v3-e2e-ctc | 106 → 660 | 21.2% → 14.7% | 18.6% → 12.4% | 79.4% → 59.5% | 5.4% → 2.2% | 25.8% → 32.1% | – / 8.5% / 19.7% | 69.8% |
+| gigaam-v3-e2e-rnnt | 106 → 660 | 21.1% → 14.3% | 18.4% → 11.8% | 77.6% → 57.3% | 5.5% → 1.9% | 26.3% → 32.6% | – / 8.2% / 19.2% | 63.2% |
+| nemotron-3.5-asr-streaming-0.6b | 160 → 967 | 25.5% → 18.9% | 20.8% → 13.5% | 60.5% → 47.5% | 12.6% → 6.2% | 30.3% → 33.7% | 18.9% / 12.8% / 23.7% | 49.3% |
+| nemotron-speech-streaming-en-0.6b | 54 → 308 | 13.3% → 16.6% | 7.7% → 10.6% | 20.0% → 34.1% | 5.4% → 5.6% | 58.8% → 42.4% | 16.6% / – / – | – |
+| parakeet-tdt-0.6b-v3 | 160 → 968 | 19.5% → 13.3% | 14.6% → 9.3% | 50.6% → 37.5% | 7.3% → 3.2% | 40.7% → 43.4% | 12.1% / 10.0% / 17.2% | 81.1% |
+| parakeet-ultra-0.6b | 160 → 968 | 16.8% → 12.0% | 13.2% → 8.2% | 48.2% → 35.7% | 6.0% → 2.3% | 43.3% → 45.5% | 10.2% / 9.1% / 15.9% | 80.6% |
+| qwen3-asr-0.6b | 160 → 968 | 28.5% → 22.1% | 23.8% → 16.6% | 67.7% → 52.6% | 14.8% → 8.9% | 34.7% → 33.4% | 15.0% / 19.9% / 30.6% | 60.1% |
+| t-one | 106 → 660 | 31.5% → 21.1% | 26.7% → 16.0% | 91.1% → 70.1% | 12.7% → 4.3% | 16.2% → 20.5% | – / 13.3% / 27.4% | 0.0% |
+| whisper-large-v3-turbo | 160 → 968 | 14.8% → 9.8% | 11.2% → 6.6% | 38.6% → 28.0% | 5.6% → 2.0% | 49.0% → 53.5% | 9.4% / 6.5% / 12.8% | 85.5% |
+| whisper-medium | 160 → 476 | 17.1% → 11.2% | 14.3% → 7.3% | 45.2% → 29.4% | 8.0% → 2.5% | 43.3% → 51.2% | 9.1% / 10.4% / 13.7% | 88.4% |
+| whisper-small | 160 → 968 | 21.2% → 13.9% | 18.0% → 10.2% | 55.7% → 40.6% | 10.3% → 3.7% | 36.0% → 41.7% | 10.9% / 11.9% / 18.3% | 79.1% |
+
+Most of the drop from probe to full is the voice mix, not the models: without Piper's Russian voices the
+ru/mixed rows are easier. Like for like (Supertonic, clean channel, same models) the mean error-only WER
+goes en 0.041 → 0.057, ru 0.068 → 0.081, mixed 0.207 → 0.146 and the term error rate en 0.161 → 0.243,
+ru 0.271 → 0.309, mixed 0.613 → 0.508: the 80 probes over-sampled the hardest mixed sentences and
+under-sampled hard English and Russian ones. Term WER is 6 to 30 times non-term WER (GigaAM highest: its non-term WER is about 2%).
+
+**By TTS** (clean channel, mean over models): error-only WER / term error rate is en Supertonic 0.057 / 0.243,
+Kokoro 0.055 / 0.161, Piper 0.108 / 0.363; ru Supertonic 0.081 / 0.309, Piper 0.267 / 0.663; mixed Supertonic
+0.146 / 0.508, Piper 0.290 / 0.738. Piper's Russian voices stay out of the primary tables; their tables are
+in `reports/tts-piper*.md` and `.cache/ml/roundtrip/mined/full/tts-piper*/` for a deliberate harder mix.
+
+**By channel** (primary): `phone_noisy` adds 0.5-3.4 points of error-only WER per model (whisper-turbo
+0.062 → 0.081, parakeet-ultra 0.077 → 0.105, T-one 0.153 → 0.187, whisper-medium 0.072 → 0.077).
+
+**Style** (unchanged in kind, better measured): T-one lowercase, no punctuation, every number and every Latin
+term in words/Cyrillic; both Nemotrons and Qwen3-ASR spell 87-100% of numbers; Parakeet TDT now 13% (the 50%
+of the probe came from Piper's mixed rows); GigaAM keeps 63-70% of Latin words in mixed sentences (54-59% in
+the probe) and writes 30-37% of Latin terms in Cyrillic.
+
+**Coverage and new mangling types.** Distinct terms with a mangling entry 143 → 896 (129 shared, 767 new,
+14 probe terms not in the 1,000 sentences); distinct error renderings 900 → 4,294; phrase-level manglings
+103 → 495; confusion rows 2,931 → 12,668. Error renderings by type (a rendering can have several), probe →
+full: misspelling 40.6% → 44.6%, Latin term written in Cyrillic 27.2% → 22.6%, split into more words
+16.8% → 15.8%, acronym garbled 16.3% → 10.6%, phrase merged with a neighbour 7.6% → 7.1%, separator lost
+(`.`, `_`, `/`) 6.5% → 5.9%, merged or truncated 1.3% → 3.4%, **mixed-script word** 1.3% → 2.4%
+(`Traefik` → `тrфик`, `APK` → `APк`, `.bashrc` → `malыbashk`), **Cyrillic term written in Latin** 0.6% → 1.3%
+(`Авито` → `Аvito`, `Т-Банк` → `Тбанk`), term dropped 1.6% → 1.3%, digits lost 4.2% → 0.8% (the probe's
+were mostly the TTS's, now excluded by R2), and a type the probe did not have, **digits invented**
+0.2% (`Weaviate` → `WeV8`, `vLLM` → `V8 LLM`, `GDPR` → `G2DR`, `Trino` → `3`). Wrong-script output now
+also appears for Nemotron (0.5% of rows) and the Parakeets (0.1%), besides Qwen3-ASR (1.5%).
+
+**Twenty term manglings from the full run** (counts over all models; "m" = number of models):
+
+| term | context | errors / seen | most frequent wrong renderings |
+|---|---|---:|---|
+| отребейзить | ru | 36 / 38 | `отребезить` ×33 (all 10 models) |
+| дообучение | ru | 34 / 39 | `до обучения` ×27 (9 m): a real phrase, only context tells |
+| прод | ru | 41 / 57 | `прот` ×25 (8 m); phrase `на прод` → `напрод` |
+| Авито | ru | 24 / 46 | phrase `с Авито` → `Совета` ×7 (4 m), `савита`, `Савито` |
+| LiteLLM | mixed | 29 / 29 | `Light LM` ×5, `Alone` ×3, `Little m` |
+| kubectl logs | mixed | 28 / 29 | `Quebec Logs`, `кубек локс`, `Bэck Loк` |
+| ls -la | mixed | 27 / 27 | `Лесла` ×3, `ESL` ×3, phrase `ls -la из` → `лес, лайз` |
+| llama.cpp | mixed | 27 / 29 | `лама. CPP` ×5, `Лама CPP`, `лама` |
+| JNI | mixed | 25 / 28 | `GNI` ×9 (7 m); phrase `JNI и версию` → `GNI-версию` |
+| .gitignore | mixed | 25 / 28 | `гитнёр`, `Гетенёра`, `дитигнёр` |
+| values.yaml | mixed | 19 / 20 | `Яму` ×3, `Values? Я мол` ×2: the file name split into a question |
+| C++ | mixed | 17 / 18 | `Plus`, `set++`, `сеплас` |
+| Next.js | mixed | 10 / 10 | `Next` ×4, `Next. Есть` ×3, `Next, если`: the extension heard as Russian words |
+| Traefik | mixed | 15 / 20 | `Трифик` ×4, `трейфик`, `Trifik` |
+| CI/CD | mixed | 11 / 18 | `CCD` ×6 (6 m), `СИСД`, `с Си Си Ди` |
+| pyproject.toml | en | 24 / 24 | `pipreject.toml`, `piproject.toml`, `Pipproject.toml` |
+| asyncio | en | 25 / 26 | `Asincio`, `Essencio`, `Asccio` |
+| vLLM | en | 14 / 24 | `VLM` ×8 (7 m), `V8 LLM` ×3: digits invented |
+| PagerDuty | en | 5 / 16 | `Page your duty`, `Paid your duty`, `Major duty` |
+| Weaviate | en / mixed | 7 / 8, 16 / 19 | `V8`, `WeV8`, `Wi V eight`; mixed `WeViet` ×3 |
+
+**Calibration** of the sampler on the full tables (4 repeats, same method as above):
+
+| check (full tables, 4 repeats) | pooled flagged | per-language flagged | above tolerance but within noise |
+|---|---:|---:|---:|
+| in-sample: 8,878 rows | 1 / 156 | 0 / 87 | 0 |
+| held-out: mined on 70% of the probes, compared on 30% | 2 / 155 | 5 / 87 | 1 |
+| cross-set, like for like: full tables vs the 80-probe run's Supertonic rows (773) | 4 / 144 | 13 / 87 | 33 |
+| cross-set: full tables vs all 1,546 rows of the 80-probe run (half of them Piper, incl. Piper ru) | 32 / 154 | 37 / 87 | 30 |
+
+- In-sample the only flag left is GigaAM-CTC's any-punctuation rate (0.886 → 0.801), as on the 80-probe
+  tables. The first in-sample pass also flagged English Nemotron's digit rate (0.000 → 0.118): the sampler
+  kept digits inside Latin terms it left in Latin (`Gemini 2.5 Pro`, `GLM-4.5`, `S3`) for a recogniser never
+  seen writing a digit. Fixed in `noise.py` (`_fallback_term` spells them for models with `hyp_digit_rate` 0;
+  test `test_model_that_never_writes_digits_spells_them_inside_kept_latin_terms`); the table above is after it.
+- Held-out: Russian term rates of GigaAM-RNNT, Parakeet Ultra and T-one (simulated term exact 0.10 above the
+  held-out rows) and whisper-small's English term rates; sampler gaps 0.00-0.09.
+- Cross-set: the median sampler gap of the flagged entries is 0.017 (like for like) and 0.018 (all rows), so
+  the sampler reproduces its own tables and the flags are set differences: the 80 probes' English and Russian
+  terms were easier (Nemotron EN term error 0.118 real vs 0.260 simulated), their mixed terms harder
+  (whisper-turbo 0.463 vs 0.278), and against all 1,546 rows Piper's Russian voices make the real rows harder
+  across the board (Parakeet Ultra WER 0.168 vs 0.104).
+
 ### Adapter: real Russian speech with real hypotheses
 
 `python -m ml.roundtrip.mine.adapters enrich --out .cache/ml/roundtrip/mined/enrich_rows.jsonl` reads
@@ -1209,7 +1345,7 @@ punctuated and so does not match a catalog GigaAM build with certainty.
 
 ### Tests
 
-`.cache/ml/roundtrip/venv/bin/python -m pytest -q ml/roundtrip/tests/test_mine_*.py`: 253 passed. They cover:
+`.cache/ml/roundtrip/venv/bin/python -m pytest -q ml/roundtrip/tests/test_mine_*.py`: 258 passed (about 3 min on the loaded server). They cover:
 
 - **Alignment:** style-only differences; multi-word manglings merged into one translit block; numbers both
   ways, with scale words, units and fraction denominators, and a wrong number; case, ё and separators;
@@ -1223,11 +1359,13 @@ punctuated and so does not match a catalog GigaAM build with certainty.
   manglings replace the whole phrase and only in their own context; real-word substitutions for LM decoders;
   noise-aware calibration flags; the hub map covers every catalog id.
 - **Adapter:** interface fields, deterministic sampling, unstyled references excluded from style statistics.
+- **Row selection** (`test_mine_clean_rows.py`): n-gram and character loops, each rule R1-R6 in order,
+  whole-clip drops, small clips never judged, the CLI keeps kept lines byte-identical.
 
 ### UNVERIFIED and limits
 
 - The final tables rest on 80 probes and two CPU TTS systems; per-language term rates have ±0.1-0.2
-  sampling uncertainty (see Calibration). Re-mine on the full 1,511-sentence run before stage C.
+  sampling uncertainty (see Calibration). Superseded for stage C by the full-run tables (`samples/mined/full/`, Full run results).
 - The fixture hypotheses are hand-written from documented behaviour, not recogniser output.
 - The style-vs-error line for transliterations is a rule plus 146 hand-labelled pairs from one reviewer;
   rare forms (Russian ordinals in every case, fractions other than tenths/hundredths/thousandths) may
