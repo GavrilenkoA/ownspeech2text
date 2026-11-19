@@ -1,6 +1,8 @@
 package app.murmur.ui.design
 
 import androidx.compose.ui.graphics.Color
+import app.murmur.ui.design.components.rowBackground
+import app.murmur.ui.design.components.rowSecondaryInk
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -33,7 +35,7 @@ class ContrastTest {
         Triple(c.ink2, c.bg, "ink2 on bg"),
         Triple(c.ink2, c.surface, "ink2 on surface: chips, badges"),
         Triple(c.ink2, c.surface2, "ink2 on surface2: badges, player time, idle search hint"),
-        Triple(c.ink2, c.accentSoft, "ink2 on accentSoft: subtitles of selected rows"),
+        Triple(c.ink2, c.accentSoft, "ink2 on accentSoft: subtitles, values and chevrons of selected rows"),
         Triple(c.ink3, c.bg, "ink3 on bg: captions, section labels"),
         Triple(c.ink3, c.surface, "ink3 on surface: row subtitles, values, active search hint"),
         Triple(c.onAccent, c.accent, "onAccent on accent: primary button, in-use pill"),
@@ -84,5 +86,32 @@ class ContrastTest {
         // prototype's ink3) on surface2, and selected (accentSoft) rows use ink2 for subtitles.
         assertTrue(ratio(TokenColors.light.ink3, TokenColors.light.surface2) < 4.5)
         assertTrue(ratio(TokenColors.light.ink3, TokenColors.light.accentSoft) < 4.5)
+        // ...and therefore also the trailing value and chevron of a selected row (rowSecondaryInk).
+    }
+
+    /**
+     * Row secondary content (subtitle, trailing value, chevron) is drawn with rowSecondaryInk on rowBackground; the
+     * pair must pass on plain and on selected (accentSoft) rows in both themes.
+     */
+    @Test
+    fun rowSecondaryContentPassesOnPlainAndSelectedRows() {
+        for ((theme, c) in listOf("light" to TokenColors.light, "dark" to TokenColors.dark)) {
+            for (selected in listOf(false, true)) {
+                val r = ratio(rowSecondaryInk(c, selected), rowBackground(c, selected))
+                assertTrue("$theme selected=$selected: ${"%.2f".format(r)}:1", r >= 4.5)
+            }
+        }
+    }
+
+    /**
+     * The fallback app tile's white letter is decorative (the tile has no semantics and the app name is always shown
+     * next to it), so it is held to the 3:1 of a graphic (WCAG 1.4.11), not to 4.5:1. Two palette colours are
+     * between 3:1 and 4.5:1 (#B9861E 3.2:1, #3C7EBF 4.3:1), which is why the letter must stay decorative.
+     */
+    @Test
+    fun appTileLettersMeetGraphicContrast() {
+        val ratios = TokenColors.appTilePalette.map { ratio(Color.White, it) }
+        assertTrue(ratios.joinToString { "%.2f".format(it) }, ratios.all { it >= 3.0 })
+        assertTrue("some tile colours are below 4.5:1, so the letter is decorative only", ratios.any { it < 4.5 })
     }
 }

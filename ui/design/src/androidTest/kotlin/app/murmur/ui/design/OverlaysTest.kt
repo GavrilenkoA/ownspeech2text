@@ -1,25 +1,36 @@
 package app.murmur.ui.design
 
+import android.accessibilityservice.AccessibilityService
 import android.graphics.Bitmap
+import android.os.ParcelFileDescriptor
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.padding
-import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.Text
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.SemanticsNode
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.click
+import androidx.compose.ui.test.isRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import android.accessibilityservice.AccessibilityService
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import app.murmur.ui.design.components.MurmurDialog
@@ -77,8 +88,31 @@ class OverlaysTest {
      */
     private fun saveScreen(name: String) {
         rule.waitForIdle()
-        save(requireNotNull(InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()), name)
+        val ui = InstrumentationRegistry.getInstrumentation().uiAutomation
+        // A systemui "not responding" dialog on the loaded host would cover the overlay in the evidence: close system
+        // dialogs and wait until no such window is on screen (or fail, rather than save a misleading picture).
+        repeat(10) {
+            if (!systemDialogShown()) {
+                Thread.sleep(300)
+                if (!systemDialogShown()) {
+                    save(requireNotNull(ui.takeScreenshot()), name)
+                    return
+                }
+            }
+            ui.executeShellCommand("am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS").close()
+            Thread.sleep(1_000)
+        }
+        throw AssertionError("a system dialog stayed over the $name screenshot")
     }
+
+    /** True while an ANR or other system error dialog is among the windows on screen. */
+    private fun systemDialogShown(): Boolean = shell("dumpsys window windows").lines().any {
+        it.contains("Window{") && (it.contains("Application Not Responding") || it.contains("Application Error"))
+    }
+
+    private fun shell(cmd: String): String =
+        ParcelFileDescriptor.AutoCloseInputStream(InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand(cmd))
+            .use { it.readBytes().decodeToString() }
 
     private fun save(bitmap: Bitmap, name: String) {
         val f = File(requireNotNull(context.getExternalFilesDir(null)), "$name-$device.png")
@@ -92,7 +126,7 @@ class OverlaysTest {
         var open by mutableStateOf(true)
         rule.setContent {
             MurmurTheme(darkTheme = false) {
-                Box(Modifier.fillMaxSize().background(MurmurTheme.colors.bg)) { Text("Behind the dialog") }
+                Box(Modifier.fillMaxSize().background(MurmurTheme.colors.bg).windowInsetsPadding(WindowInsets.safeDrawing).padding(20.dp)) { Text("Behind the dialog") }
                 if (open) {
                     MurmurDialog(
                         title = "Delete this dictation?",
@@ -127,7 +161,7 @@ class OverlaysTest {
         var open by mutableStateOf(true)
         rule.setContent {
             MurmurTheme(darkTheme = false) {
-                Box(Modifier.fillMaxSize().background(MurmurTheme.colors.bg)) { Text("Behind the sheet") }
+                Box(Modifier.fillMaxSize().background(MurmurTheme.colors.bg).windowInsetsPadding(WindowInsets.safeDrawing).padding(20.dp)) { Text("Behind the sheet") }
                 if (open) {
                     MurmurSheet(onDismiss = { dismissed++; open = false }) {
                         Column(Modifier.padding(horizontal = 24.dp)) {
@@ -155,6 +189,47 @@ class OverlaysTest {
         assertEquals("back dismisses the sheet", 1, dismissed)
     }
 
+    /**
+     * A tap on the scrim dismisses the sheet, and the sheet leaves with its exit animation: onDismiss comes only once
+     * the sheet is gone (side sheet: 240 ms slide out to the right; bottom sheet: the M3 hide animation).
+     */
+    @Test
+    fun scrimTapPlaysTheExitThenDismisses() {
+        var dismissed = 0
+        var open by mutableStateOf(true)
+        rule.setContent {
+            MurmurTheme(darkTheme = false) {
+                Box(Modifier.fillMaxSize().background(MurmurTheme.colors.bg).windowInsetsPadding(WindowInsets.safeDrawing).padding(20.dp)) { Text("Behind the sheet") }
+                if (open) {
+                    MurmurSheet(onDismiss = { dismissed++; open = false }) {
+                        Text("Keep history for", Modifier.padding(horizontal = 24.dp).testTag("sheet-title"), style = MurmurTheme.type.title)
+                    }
+                }
+            }
+        }
+        rule.waitForIdle()
+        val shownLeft = rule.onNodeWithTag("sheet-title").fetchSemanticsNode().boundsInRoot.left
+        rule.mainClock.autoAdvance = false
+        // The sheet's window is the root that holds the title; tap its top-left, which only the scrim covers.
+        val roots = rule.onAllNodes(isRoot())
+        val overlay = (0 until roots.fetchSemanticsNodes().size).first { i ->
+            roots[i].fetchSemanticsNode().let { root -> root.findAll { it.config.getOrNull(SemanticsProperties.TestTag) == "sheet-title" } }
+        }
+        roots[overlay].performTouchInput { click(Offset(width * 0.05f, height * 0.2f)) }
+        rule.mainClock.advanceTimeBy(Motion.mediumMs / 2L)
+        assertEquals("not dismissed while the exit runs", 0, dismissed)
+        rule.onNodeWithTag("sheet-title").assertExists()
+        if (wide) {
+            val left = rule.onNodeWithTag("sheet-title").fetchSemanticsNode().boundsInRoot.left
+            assertTrue("side sheet slides out to the right ($shownLeft -> $left)", left > shownLeft + 8 * context.resources.displayMetrics.density)
+        }
+        rule.mainClock.autoAdvance = true
+        rule.waitUntil(5_000) { dismissed == 1 }
+        rule.waitForIdle()
+        rule.onNodeWithTag("sheet-title").assertDoesNotExist()
+        assertEquals(1, dismissed)
+    }
+
     @Test
     fun snackbarActionAndTimeout() {
         val state = MurmurSnackbarState()
@@ -166,7 +241,11 @@ class OverlaysTest {
                     MurmurSnackbarHost(state, Modifier.testTag("host"))
                 }
                 LaunchedEffect(round) {
-                    result = if (round == 0) state.show("Dictation deleted, with its audio", "Undo") else state.show("Bubble hidden until 15:32")
+                    result = when (round) {
+                        0 -> state.show("Dictation deleted, with its audio", "Undo")
+                        1 -> state.show("Bubble hidden until 15:32")
+                        else -> state.show("Model ready", "Use it")
+                    }
                 }
             }
         }
@@ -174,14 +253,31 @@ class OverlaysTest {
         rule.onNodeWithText("Undo").performClick()
         rule.waitForIdle()
         assertEquals(SnackbarResult.ActionPerformed, result)
-        // Without an action it dismisses itself after 4 s (virtual clock).
+        // Without an action it dismisses itself after 4 s (virtual clock): still there at 3.85 s, gone after 4 s.
         rule.mainClock.autoAdvance = false
         rule.runOnIdle { result = null; round = 1 }
-        rule.mainClock.advanceTimeBy(1_000)
+        rule.mainClock.advanceTimeBy(100)
         rule.onNodeWithText("Bubble hidden until 15:32").assertIsDisplayed()
-        rule.mainClock.advanceTimeBy(4_000)
+        rule.mainClock.advanceTimeBy(3_750)
+        rule.onNodeWithText("Bubble hidden until 15:32").assertIsDisplayed()
+        assertEquals(null, result)
+        rule.mainClock.advanceTimeBy(300)
+        rule.mainClock.autoAdvance = true
+        rule.waitForIdle()
+        assertEquals(SnackbarResult.Dismissed, result)
+        // With an action it stays 6 s: still there at 5.85 s, gone after 6 s.
+        rule.mainClock.autoAdvance = false
+        rule.runOnIdle { result = null; round = 2 }
+        rule.mainClock.advanceTimeBy(100)
+        rule.onNodeWithText("Model ready").assertIsDisplayed()
+        rule.mainClock.advanceTimeBy(5_750)
+        rule.onNodeWithText("Model ready").assertIsDisplayed()
+        assertEquals(null, result)
+        rule.mainClock.advanceTimeBy(300)
         rule.mainClock.autoAdvance = true
         rule.waitForIdle()
         assertEquals(SnackbarResult.Dismissed, result)
     }
+
+    private fun SemanticsNode.findAll(match: (SemanticsNode) -> Boolean): Boolean = match(this) || children.any { it.findAll(match) }
 }

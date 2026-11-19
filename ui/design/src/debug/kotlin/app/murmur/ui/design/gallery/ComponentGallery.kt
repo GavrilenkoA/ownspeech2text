@@ -2,6 +2,10 @@ package app.murmur.ui.design.gallery
 
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.interaction.Interaction
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,24 +13,20 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.border
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
@@ -91,9 +91,18 @@ import app.murmur.ui.design.rememberIsWide
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.sin
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 
 /** Test tag of the gallery's scrolling column (screenshot test). */
 const val GALLERY_TAG = "component-gallery"
+
+/** Test tags of the gallery samples whose state the screenshot test checks by pixel. */
+const val GALLERY_PRIMARY_TAG = "gallery-primary"
+const val GALLERY_PRESSED_TAG = "gallery-pressed"
+const val GALLERY_ENABLED_CHIP_TAG = "gallery-chip-enabled"
+const val GALLERY_DISABLED_CHIP_TAG = "gallery-chip-disabled"
 
 /**
  * Every :ui:design component in every state (DESIGN 4), for the screenshot test and as the reference for the screen
@@ -157,13 +166,23 @@ private fun Section(title: String, content: @Composable () -> Unit) {
     Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp)) { content() }
 }
 
-/** A MutableInteractionSource that is held pressed, to show pressed states statically. */
-@Composable
-private fun pressedSource(): MutableInteractionSource {
-    val src = remember { MutableInteractionSource() }
-    LaunchedEffect(src) { src.emit(PressInteraction.Press(Offset.Zero)) }
-    return src
+/**
+ * An interaction source that is held pressed, to show pressed states statically. Every collector (the component's
+ * collectIsPressedAsState and the press overlay) receives the press whenever it subscribes, so nothing depends on
+ * which effect starts first.
+ */
+private class HeldPressSource : MutableInteractionSource {
+    private val press = PressInteraction.Press(Offset.Zero)
+    override val interactions: Flow<Interaction> = flow {
+        emit(press)
+        awaitCancellation()
+    }
+    override suspend fun emit(interaction: Interaction) = Unit
+    override fun tryEmit(interaction: Interaction): Boolean = true
 }
+
+@Composable
+private fun pressedSource(): MutableInteractionSource = remember { HeldPressSource() }
 
 @Composable
 private fun Caption(text: String) = Text(text, style = MurmurTheme.type.caption, color = MurmurTheme.colors.ink3)
@@ -184,7 +203,7 @@ private fun TypeSection() {
                     "editor" -> "{transcript}"
                     else -> "Слушаю · Listening"
                 }
-                Text(type.transform(name, sample), style = style, color = c.ink, maxLines = 1)
+                Text(type.transform(name, sample), style = style, color = c.ink)
             }
         }
     }
@@ -206,7 +225,7 @@ private fun ColorSection() {
         roles.forEach { (name, color) ->
             Column(Modifier.width(92.dp)) {
                 Box(Modifier.fillMaxWidth().height(28.dp).clip(MurmurShapes.xs).background(color).border(1.dp, c.line, MurmurShapes.xs))
-                Text(name, style = MurmurTheme.type.caption, color = c.ink2, maxLines = 1)
+                Text(name, style = MurmurTheme.type.caption, color = c.ink2)
             }
         }
     }
@@ -232,8 +251,8 @@ private fun IconSection() {
 @Composable
 private fun ButtonSection() {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        MurmurButton("Download 1.7 GB", {}, Modifier.fillMaxWidth(), leadingIcon = MurmurIcons.dl)
-        MurmurButton("Pressed", {}, Modifier.fillMaxWidth(), interactionSource = pressedSource())
+        MurmurButton("Download 1.7 GB", {}, Modifier.fillMaxWidth().testTag(GALLERY_PRIMARY_TAG), leadingIcon = MurmurIcons.dl)
+        MurmurButton("Pressed", {}, Modifier.fillMaxWidth().testTag(GALLERY_PRESSED_TAG), interactionSource = pressedSource())
         MurmurButton("Downloading…", {}, Modifier.fillMaxWidth(), loading = true)
         MurmurButton("Use this model", {}, Modifier.fillMaxWidth(), enabled = false)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -268,11 +287,13 @@ private fun IconButtonSection() {
 private fun ChipSection() {
     var sel by remember { mutableIntStateOf(0) }
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        listOf("All apps", "Telegram", "Gmail").forEachIndexed { i, s -> MurmurChip(s, { sel = i }, selected = sel == i) }
+        listOf("All apps", "Telegram", "Gmail").forEachIndexed { i, s ->
+            MurmurChip(s, { sel = i }, if (s == "Telegram") Modifier.testTag(GALLERY_ENABLED_CHIP_TAG) else Modifier, selected = sel == i)
+        }
         MurmurChip("Last 7 days", {}, dropdown = true)
         MurmurChip("{transcript}", {}, leadingIcon = MurmurIcons.plus)
         MurmurChip("Casual", {}, dropdown = true, interactionSource = pressedSource())
-        MurmurChip("Slack", {}, enabled = false)
+        MurmurChip("Slack", {}, Modifier.testTag(GALLERY_DISABLED_CHIP_TAG), enabled = false)
     }
 }
 

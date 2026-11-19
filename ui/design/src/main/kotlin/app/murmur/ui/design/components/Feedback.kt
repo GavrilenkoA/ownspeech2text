@@ -33,6 +33,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
@@ -44,6 +45,7 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -52,7 +54,9 @@ import app.murmur.ui.design.MurmurShapes
 import app.murmur.ui.design.MurmurTheme
 import app.murmur.ui.design.R
 import app.murmur.ui.design.Sizes
+import kotlin.math.max
 import kotlin.math.roundToInt
+import kotlin.math.sqrt
 
 /**
  * Linear progress (DESIGN 4): full radius, surface3 track, accent fill; [paused] draws the fill in ink4 (paused or
@@ -84,38 +88,53 @@ fun LinearProgress(progress: Float, modifier: Modifier = Modifier, paused: Boole
     }
 }
 
-/** Ring progress (DESIGN 4): 36 dp, 3 dp ring (accent on surface3, ink4 when [paused]) around the percentage. */
+/**
+ * Ring progress (DESIGN 4): 36 dp, 3 dp ring (accent on surface3, ink4 when [paused]) around the percentage. With large
+ * text (DESIGN 8) the ring grows so that the percentage always fits inside it.
+ */
 @Composable
 fun RingProgress(progress: Float, modifier: Modifier = Modifier, paused: Boolean = false, showPercent: Boolean = true) {
     val c = MurmurTheme.colors
     val p = progress.coerceIn(0f, 1f)
     val pct = (p * 100).roundToInt()
     val paused_ = stringResource(R.string.design_paused)
-    Box(
-        modifier
-            .size(36.dp)
-            .semantics {
-                progressBarRangeInfo = ProgressBarRangeInfo(p, 0f..1f)
-                if (paused) stateDescription = paused_
-            },
-        contentAlignment = Alignment.Center,
-    ) {
-        Canvas(Modifier.size(36.dp)) {
-            val w = 3.dp.toPx()
-            val inset = w / 2
-            val arcSize = Size(size.width - w, size.height - w)
-            drawArc(c.surface3, 0f, 360f, false, Offset(inset, inset), arcSize, style = Stroke(w))
-            drawArc(if (paused) c.ink4 else c.accent, -90f, 360f * p, false, Offset(inset, inset), arcSize, style = Stroke(w))
-        }
-        if (showPercent) {
-            Text(
-                stringResource(R.string.design_percent, pct),
-                style = MurmurTheme.type.monoBadge.copy(fontSize = 10.sp, letterSpacing = 0.sp),
-                color = c.ink,
-            )
+    Layout(
+        content = {
+            Canvas(Modifier) {
+                val w = RING_STROKE.toPx()
+                val inset = w / 2
+                val arcSize = Size(size.width - w, size.height - w)
+                drawArc(c.surface3, 0f, 360f, false, Offset(inset, inset), arcSize, style = Stroke(w))
+                drawArc(if (paused) c.ink4 else c.accent, -90f, 360f * p, false, Offset(inset, inset), arcSize, style = Stroke(w))
+            }
+            if (showPercent) {
+                Text(
+                    stringResource(R.string.design_percent, pct),
+                    style = MurmurTheme.type.monoBadge.copy(fontSize = 10.sp, letterSpacing = 0.sp),
+                    color = c.ink, maxLines = 1,
+                )
+            }
+        },
+        modifier = modifier.semantics {
+            progressBarRangeInfo = ProgressBarRangeInfo(p, 0f..1f)
+            if (paused) stateDescription = paused_
+        },
+    ) { measurables, constraints ->
+        val label = measurables.getOrNull(1)?.measure(Constraints())
+        // The label's box must fit inside the ring's inner circle: its diagonal <= the inner diameter.
+        val inner = label?.let { sqrt((it.width * it.width + it.height * it.height).toFloat()) } ?: 0f
+        val side = max(RING_SIZE.toPx(), inner + 2 * RING_STROKE.toPx()).roundToInt()
+            .coerceIn(constraints.minWidth.coerceAtLeast(constraints.minHeight), constraints.maxWidth.coerceAtMost(constraints.maxHeight))
+        val ring = measurables[0].measure(Constraints.fixed(side, side))
+        layout(side, side) {
+            ring.place(0, 0)
+            label?.place((side - label.width) / 2, (side - label.height) / 2)
         }
     }
 }
+
+private val RING_SIZE = 36.dp
+private val RING_STROKE = 3.dp
 
 /** Banner tone (DESIGN 4). */
 enum class BannerKind { Err, Warn, Info }

@@ -13,8 +13,6 @@
     <string name="design_recording_position">Recording position</string>
     <string name="design_loading">Loading</string>
     <string name="design_dismiss">Dismiss</string>
-    <string name="design_selected">Selected</string>
-    <string name="design_not_selected">Not selected</string>
     <string name="design_paused">Paused</string>
     <!-- %1$d = percent -->
     <string name="design_percent">%1$d%%</string>

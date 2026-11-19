@@ -17,10 +17,11 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -32,13 +33,14 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -64,7 +66,7 @@ val MinTouch: Dp = Sizes.touchTargetMin
 internal fun hitPad(visual: Dp): Dp = ((MinTouch - visual) / 2).coerceAtLeast(0.dp)
 
 /**
- * Full-radius button (DESIGN 4). Primary: accent fill, accentPressed while pressed, onAccent label. Secondary: surface2.
+ * Full-radius button (DESIGN 4; grows with large text). Primary: accent fill, accentPressed while pressed, onAccent label. Secondary: surface2.
  * Outline: 1 dp line2 border. Text: accentInk, 12 dp padding. Destructive: text button in err.
  * [loading] replaces the icon by a 16 dp spinner, keeps the label (e.g. "Downloading…") and ignores taps.
  */
@@ -109,6 +111,9 @@ fun MurmurButton(
     }
     val label = if (size == ButtonSize.Small) t.button.copy(fontSize = 14.sp) else t.button
     val loadingDescription = stringResource(R.string.design_loading)
+    // A full pill at the design height; with large text (DESIGN 8, up to 200 %) the button grows and the label may
+    // take two lines, and the radius stays at half the design height so the corners never cut into the label.
+    val shape = RoundedCornerShape(visualHeight / 2)
     Row(
         modifier
             .alpha(if (enabled) 1f else DISABLED_ALPHA)
@@ -122,12 +127,12 @@ fun MurmurButton(
             .then(if (loading) Modifier.semantics { contentDescription = "$text, $loadingDescription" } else Modifier)
             .padding(vertical = hitPad(visualHeight))
             .widthIn(min = MinTouch)
-            .height(visualHeight)
-            .clip(MurmurShapes.full)
+            .heightIn(min = visualHeight)
+            .clip(shape)
             .background(container)
-            .then(if (style == ButtonStyle.Outline) Modifier.border(1.dp, c.line2, MurmurShapes.full) else Modifier)
+            .then(if (style == ButtonStyle.Outline) Modifier.border(1.dp, c.line2, shape) else Modifier)
             .then(if (style == ButtonStyle.Primary) Modifier else Modifier.indication(interaction, LocalIndication.current))
-            .padding(horizontal = hPad),
+            .padding(horizontal = hPad, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -136,7 +141,7 @@ fun MurmurButton(
         } else if (leadingIcon != null) {
             Icon(leadingIcon, contentDescription = null, tint = content, modifier = Modifier.size(20.dp))
         }
-        Text(text, style = label, color = content, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(text, style = label, color = content, maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
     }
 }
 

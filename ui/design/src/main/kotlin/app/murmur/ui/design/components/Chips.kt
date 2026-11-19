@@ -3,22 +3,24 @@ package app.murmur.ui.design.components
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.indication
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -62,17 +64,21 @@ fun MurmurChip(
     } else {
         Modifier.selectable(selected = selected, interactionSource = interaction, indication = null, enabled = enabled, role = Role.RadioButton, onClick = onClick)
     }
+    // Corner radius fixed at half the visual height: a full pill at 100 % font scale that stays a rounded rectangle
+    // when large text grows the chip (DESIGN 8, up to 200 %).
+    val shape = RoundedCornerShape(visual / 2)
     Row(
         modifier
+            .alpha(if (enabled) 1f else DISABLED_ALPHA)
             .then(click)
             .padding(vertical = hitPad(visual))
             .widthIn(min = MinTouch)
-            .height(visual)
-            .clip(MurmurShapes.full)
+            .heightIn(min = visual)
+            .clip(shape)
             .background(if (on) c.ink else Color.Transparent)
-            .border(1.dp, if (on) c.ink else c.line2, MurmurShapes.full)
+            .border(1.dp, if (on) c.ink else c.line2, shape)
             .indication(interaction, LocalIndication.current)
-            .padding(start = if (leadingIcon != null) 10.dp else 12.dp, end = if (dropdown) 8.dp else 12.dp),
+            .padding(start = if (leadingIcon != null) 10.dp else 12.dp, end = if (dropdown) 8.dp else 12.dp, top = 4.dp, bottom = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -96,7 +102,7 @@ enum class BadgeKind {
     InTraining,
 }
 
-/** 20 dp badge, xs radius, monoBadge type (DESIGN 4). Not interactive. */
+/** 20 dp badge (taller only when large text needs it), xs radius, monoBadge type (DESIGN 4). Not interactive. */
 @Composable
 fun MurmurBadge(text: String, kind: BadgeKind, modifier: Modifier = Modifier) {
     val c = MurmurTheme.colors
@@ -108,11 +114,11 @@ fun MurmurBadge(text: String, kind: BadgeKind, modifier: Modifier = Modifier) {
     }
     Row(
         modifier
-            .height(20.dp)
+            .heightIn(min = 20.dp)
             .clip(MurmurShapes.xs)
             .background(bg)
             .then(if (kind == BadgeKind.Language) Modifier.border(1.dp, c.line2, MurmurShapes.xs) else Modifier)
-            .padding(horizontal = 6.dp),
+            .padding(horizontal = 6.dp, vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(text, style = MurmurTheme.type.monoBadge, color = fg, maxLines = 1)
@@ -129,16 +135,16 @@ fun NoRussianBadge(modifier: Modifier = Modifier) =
 fun InTrainingBadge(modifier: Modifier = Modifier) =
     MurmurBadge(stringResource(R.string.design_in_training), BadgeKind.InTraining, modifier)
 
-/** In-use pill (DESIGN 4): 24 dp, full radius, accent fill, bold check plus "In use", 11 sp / 600. */
+/** In-use pill (DESIGN 4): 24 dp (grows with large text), 12 dp radius, accent fill, bold check plus "In use", 11 sp / 600. */
 @Composable
 fun InUsePill(modifier: Modifier = Modifier, text: String = stringResource(R.string.design_in_use)) {
     val c = MurmurTheme.colors
     Row(
         modifier
-            .height(24.dp)
-            .clip(MurmurShapes.full)
+            .heightIn(min = 24.dp)
+            .clip(RoundedCornerShape(12.dp))
             .background(c.accent)
-            .padding(horizontal = 8.dp),
+            .padding(horizontal = 8.dp, vertical = 2.dp),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

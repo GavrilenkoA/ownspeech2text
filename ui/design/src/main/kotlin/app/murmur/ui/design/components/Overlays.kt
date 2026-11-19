@@ -2,19 +2,19 @@ package app.murmur.ui.design.components
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.rememberTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -23,9 +23,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
@@ -42,13 +40,18 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalAccessibilityManager
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
@@ -61,15 +64,17 @@ import app.murmur.ui.design.Elevation
 import app.murmur.ui.design.Motion
 import app.murmur.ui.design.MurmurShapes
 import app.murmur.ui.design.MurmurTheme
+import app.murmur.ui.design.R
 import app.murmur.ui.design.REDUCED_MOTION_FADE_MS
 import app.murmur.ui.design.elevation
 import app.murmur.ui.design.rememberIsWide
+import kotlin.coroutines.resume
 import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlin.coroutines.resume
 
 // ---------------------------------------------------------------- Snackbar
 
@@ -250,21 +255,27 @@ fun MurmurDialog(
     }
 }
 
-/** A dialog window covering the whole screen, platform dim off, our scrim drawn instead; taps on it dismiss. */
+/**
+ * A dialog window covering the whole screen, platform dim off, our scrim drawn instead (at [scrimAlpha]); taps on it,
+ * and the back key, call [onDismiss]. TalkBack users get the scrim as a "Dismiss" button.
+ */
 @Composable
-private fun FullWindowDialog(onDismiss: () -> Unit, content: @Composable () -> Unit) {
+private fun FullWindowDialog(onDismiss: () -> Unit, scrimAlpha: () -> Float = { 1f }, content: @Composable () -> Unit) {
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
     ) {
         val window = (LocalView.current.parent as? DialogWindowProvider)?.window
         SideEffect { window?.setDimAmount(0f) }
+        val dismissLabel = stringResource(R.string.design_dismiss)
         Box(Modifier.fillMaxSize()) {
             Box(
                 Modifier
                     .fillMaxSize()
+                    .graphicsLayer { alpha = scrimAlpha() }
                     .background(MurmurTheme.colors.scrim)
-                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onDismiss),
+                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onDismiss)
+                    .semantics { contentDescription = dismissLabel },
             )
             content()
         }
@@ -306,8 +317,9 @@ fun SheetSurface(side: Boolean, modifier: Modifier = Modifier, content: @Composa
 
 /**
  * Modal sheet (DESIGN 4, 3.5): a bottom sheet on compact width (slides up, drag to dismiss, handle); a 420 dp right
- * side sheet on medium+ (slides in from the right, 360 ms decelerate; a 150 ms fade under reduced motion). Scrim and
- * back dismiss. Content starts at the sheet's padding; give it 24 dp horizontal padding (prototype).
+ * side sheet on medium+ (slides in from the right, 360 ms decelerate, out in 240 ms accelerate; a 150 ms fade under
+ * reduced motion). Scrim tap and back play the exit and then call [onDismiss]; removing the sheet from composition
+ * without that removes it at once. Content starts at the sheet's padding; give it 24 dp horizontal padding (prototype).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -330,13 +342,27 @@ fun MurmurSheet(onDismiss: () -> Unit, content: @Composable ColumnScope.() -> Un
         return
     }
     val reduced = MurmurTheme.reducedMotion
-    val state = remember { MutableTransitionState(false) }.apply { targetState = true }
-    FullWindowDialog(onDismiss) {
+    // Enter on first composition; a scrim tap or back first plays the exit, then reports [onDismiss] once the sheet
+    // is gone (like ModalBottomSheet on compact width).
+    val state = remember { MutableTransitionState(false).apply { targetState = true } }
+    val dismiss by rememberUpdatedState(onDismiss)
+    var reported by remember { mutableStateOf(false) }
+    LaunchedEffect(state) {
+        snapshotFlow { state.isIdle && !state.currentState && !state.targetState }.first { it }
+        if (!reported) { reported = true; dismiss() }
+    }
+    val requestDismiss = { state.targetState = false }
+    val enterMs = if (reduced) REDUCED_MOTION_FADE_MS else Motion.longMs
+    val exitMs = if (reduced) REDUCED_MOTION_FADE_MS else Motion.mediumMs
+    // One transition drives scrim and sheet, so the state is idle only when both are done.
+    val transition = rememberTransition(state, label = "sideSheet")
+    val scrim = transition.animateFloat({ tween(if (targetState) enterMs else exitMs) }, label = "scrim") { if (it) 1f else 0f }
+    FullWindowDialog(requestDismiss, scrimAlpha = { scrim.value }) {
         Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing), contentAlignment = Alignment.CenterEnd) {
-            AnimatedVisibility(
-                visibleState = state,
-                enter = if (reduced) fadeIn(tween(REDUCED_MOTION_FADE_MS)) else slideInHorizontally(tween(Motion.longMs, easing = Motion.decelerateEasing)) { it },
-                exit = if (reduced) fadeOut(tween(REDUCED_MOTION_FADE_MS)) else slideOutHorizontally(tween(Motion.mediumMs, easing = Motion.accelerateEasing)) { it },
+            transition.AnimatedVisibility(
+                visible = { it },
+                enter = if (reduced) fadeIn(tween(enterMs)) else slideInHorizontally(tween(enterMs, easing = Motion.decelerateEasing)) { it },
+                exit = if (reduced) fadeOut(tween(exitMs)) else slideOutHorizontally(tween(exitMs, easing = Motion.accelerateEasing)) { it },
             ) {
                 SheetSurface(side = true, content = content)
             }

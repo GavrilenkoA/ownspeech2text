@@ -36,9 +36,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
@@ -47,7 +49,6 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import app.murmur.ui.design.AppInfoProvider
 import app.murmur.ui.design.MurmurIcons
 import app.murmur.ui.design.MurmurShapes
@@ -183,7 +184,7 @@ fun AudioPlayer(
 }
 
 /** App tile sizes (DESIGN 4): 20 dp in lists, 36 dp in headers and the tone list. */
-enum class AppTileSize(val size: Dp, val radius: Dp, val letterSp: Int) { Small(20.dp, 6.dp, 10), Large(36.dp, 10.dp, 15) }
+enum class AppTileSize(val size: Dp, val radius: Dp, val letterDp: Dp) { Small(20.dp, 6.dp, 10.dp), Large(36.dp, 10.dp, 15.dp) }
 
 /**
  * Host app identity: the real launcher [icon] when there is one, else a letter tile in a stable colour from the
@@ -204,11 +205,15 @@ fun AppTile(
     }
     val palette = TokenColors.appTilePalette
     val bg = palette[Math.floorMod(packageName.hashCode(), palette.size)]
-    Box(modifier.size(size.size).clip(shape).background(bg), contentAlignment = Alignment.Center) {
+    // The letter tile stands in for a launcher icon, so like the icon it does not scale with the font: the letter is
+    // sized in dp. It is decorative (the app name is always shown next to it), hence no semantics, and white on the
+    // palette only needs the 3:1 of a graphic (ContrastTest).
+    val letter = with(LocalDensity.current) { size.letterDp.toSp() }
+    Box(modifier.size(size.size).clip(shape).background(bg).clearAndSetSemantics {}, contentAlignment = Alignment.Center) {
         Text(
             label.trim().take(1).uppercase(),
-            style = MurmurTheme.type.label.copy(fontSize = size.letterSp.sp, lineHeight = size.letterSp.sp, fontWeight = FontWeight.SemiBold),
-            color = Color.White,
+            style = MurmurTheme.type.label.copy(fontSize = letter, lineHeight = letter, fontWeight = FontWeight.SemiBold),
+            color = Color.White, maxLines = 1,
         )
     }
 }

@@ -11,8 +11,6 @@
     <string name="design_recording_position">Позиция в записи</string>
     <string name="design_loading">Загрузка</string>
     <string name="design_dismiss">Закрыть</string>
-    <string name="design_selected">Выбрано</string>
-    <string name="design_not_selected">Не выбрано</string>
     <string name="design_paused">Пауза</string>
     <string name="design_percent">%1$d%%</string>
 </resources>

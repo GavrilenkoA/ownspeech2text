@@ -5,9 +5,9 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,8 +15,8 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import app.murmur.ui.design.Motion
+import app.murmur.ui.design.MurmurColors
 import app.murmur.ui.design.MurmurIcons
 import app.murmur.ui.design.MurmurShapes
 import app.murmur.ui.design.MurmurTheme
@@ -173,7 +174,7 @@ fun ListRow(
     Row(
         modifier
             .fillMaxWidth()
-            .then(if (selected) Modifier.background(c.accentSoft) else Modifier)
+            .then(if (selected) Modifier.background(rowBackground(c, true)) else Modifier)
             .then(click)
             .alpha(if (enabled) 1f else DISABLED_ALPHA)
             .heightIn(min = minHeight)
@@ -192,28 +193,38 @@ fun ListRow(
             Text(title, style = t.rowTitle, color = titleColor ?: c.ink)
             if (subtitle != null) {
                 Text(
-                    subtitle, style = t.rowSub, color = if (selected) c.ink2 else c.ink3,
+                    subtitle, style = t.rowSub, color = rowSecondaryInk(c, selected),
                     modifier = Modifier.padding(top = 2.dp),
                 )
             }
         }
-        RowTrailingContent(trailing)
+        RowTrailingContent(trailing, selected)
     }
 }
 
+/**
+ * Secondary text and glyphs of a row (subtitle, trailing value, chevron): ink3, or ink2 on a selected (accentSoft)
+ * row, where ink3 is 4.1:1 in the light theme and fails DESIGN 8's 4.5:1.
+ */
+internal fun rowSecondaryInk(c: MurmurColors, selected: Boolean): Color = if (selected) c.ink2 else c.ink3
+
+/** Background of a row: accentSoft when selected, else the group's surface. */
+internal fun rowBackground(c: MurmurColors, selected: Boolean): Color = if (selected) c.accentSoft else c.surface
+
 @Composable
-private fun RowScope.RowTrailingContent(trailing: RowTrailing) {
+private fun RowScope.RowTrailingContent(trailing: RowTrailing, selected: Boolean) {
     val c = MurmurTheme.colors
     val t = MurmurTheme.type
+    val secondary = rowSecondaryInk(c, selected)
     when (trailing) {
         RowTrailing.None -> Unit
         is RowTrailing.Chevron -> {
             if (trailing.value != null) {
-                Text(trailing.value, style = t.body, color = c.ink3, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(trailing.value, style = t.body, color = secondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            Icon(MurmurIcons.chevR, null, tint = c.ink3, modifier = Modifier.size(20.dp))
+            Icon(MurmurIcons.chevR, null, tint = secondary, modifier = Modifier.size(20.dp))
         }
-        is RowTrailing.Value -> Text(trailing.text, style = t.body, color = trailing.color ?: c.ink3, maxLines = 1)
+        is RowTrailing.Value -> Text(trailing.text, style = t.body, color = trailing.color ?: secondary, maxLines = 1)
         is RowTrailing.Switch -> MurmurSwitch(trailing.checked, onCheckedChange = null)
         is RowTrailing.Radio -> MurmurRadio(trailing.selected, onClick = null)
         is RowTrailing.Status -> StatusLabel(trailing.text, trailing.kind, icon = trailing.icon)

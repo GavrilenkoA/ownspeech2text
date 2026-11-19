@@ -4,21 +4,22 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Rect
 import android.util.Log
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.Text
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
-import org.junit.Assert.assertFalse
-import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material3.Text
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.SemanticsProperties
@@ -28,12 +29,21 @@ import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import app.murmur.ui.design.gallery.ComponentGallery
+import app.murmur.ui.design.gallery.GALLERY_DISABLED_CHIP_TAG
+import app.murmur.ui.design.gallery.GALLERY_ENABLED_CHIP_TAG
+import app.murmur.ui.design.gallery.GALLERY_PRESSED_TAG
+import app.murmur.ui.design.gallery.GALLERY_PRIMARY_TAG
 import app.murmur.ui.design.gallery.GALLERY_TAG
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -64,6 +74,13 @@ class GalleryScreenshotTest {
     @Test
     fun galleryDark() = check(dark = true)
 
+    /**
+     * DESIGN 8: the UI works up to 200 % font scale. Same checks at fontScale 2 (layout does not depend on the theme,
+     * so light only): nothing is cut or ellipsized, every clickable keeps 48 dp, every tab is named.
+     */
+    @Test
+    fun galleryLightFontScale200() = check(dark = false, fontScale = 2f)
+
     /** The two checks below must catch real violations, or a green gallery run would prove nothing. */
     @Test
     fun checksDetectViolations() {
@@ -91,22 +108,82 @@ class GalleryScreenshotTest {
         assertTrue(small.size.width < floor(Sizes.touchTargetMin.value * density) - 0.5f)
     }
 
-    private fun check(dark: Boolean) {
+    private fun check(dark: Boolean, fontScale: Float = 1f) {
         lateinit var scroll: ScrollState
         rule.setContent {
-            MurmurTheme(darkTheme = dark) {
-                scroll = rememberScrollState()
-                ComponentGallery(scrollState = scroll)
+            CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, fontScale)) {
+                MurmurTheme(darkTheme = dark) {
+                    scroll = rememberScrollState()
+                    ComponentGallery(scrollState = scroll)
+                }
             }
         }
         rule.waitForIdle()
-        val name = "gallery-$device-${if (dark) "dark" else "light"}"
+        val name = "gallery-$device-${if (dark) "dark" else "light"}" + if (fontScale != 1f) "-fs${(fontScale * 100).toInt()}" else ""
         assertTouchTargets(name)
         assertNoTextOverflow(name)
+        assertNamedControls(name)
         assertTouchBoundsWhileScrolling(scroll, name)
         val file = captureFullLength(scroll, name)
         assertTrue("$file written", file.length() > 0)
+        assertPressedAndDisabledStates(name, if (dark) TokenColors.dark else TokenColors.light)
     }
+
+    /** TalkBack names every tab (nav destinations, segments) and every button: text or a content description. */
+    private fun assertNamedControls(name: String) {
+        val roles = setOf(Role.Tab, Role.Button, Role.DropdownList)
+        val nodes = rule.onAllNodes(SemanticsMatcher("has a role") { it.config.getOrNull(SemanticsProperties.Role) in roles })
+            .fetchSemanticsNodes()
+        val tabs = nodes.count { it.config.getOrNull(SemanticsProperties.Role) == Role.Tab }
+        assertTrue("tabs found in $name", tabs >= 13)
+        val unnamed = nodes.filter { n ->
+            val text = n.config.getOrNull(SemanticsProperties.Text)?.joinToString { it.text }.orEmpty()
+            val cd = n.config.getOrNull(SemanticsProperties.ContentDescription)?.joinToString().orEmpty()
+            text.isBlank() && cd.isBlank()
+        }.map { "#${it.id} ${it.config.getOrNull(SemanticsProperties.Role)} ${it.size.width / density}x${it.size.height / density} dp" }
+        Log.i(TAG, "$name: ${nodes.size} tabs and buttons named ($tabs tabs)")
+        assertTrue("unnamed controls in $name:\n" + unnamed.joinToString("\n"), unnamed.isEmpty())
+    }
+
+    /**
+     * The gallery's static states are really drawn: the held "Pressed" primary button is accentPressed while the
+     * plain one is accent, and the disabled chip is dimmed (its strongest pixel is far closer to the background).
+     */
+    private fun assertPressedAndDisabledStates(name: String, c: MurmurColors) {
+        fun fill(tag: String): Int {
+            rule.onNodeWithTag(tag).performScrollTo()
+            rule.waitForIdle()
+            val img = rule.onNodeWithTag(tag).captureToImage().asAndroidBitmap()
+            return img.getPixel((8 * density).toInt(), img.height / 2)
+        }
+        val plain = fill(GALLERY_PRIMARY_TAG)
+        val pressed = fill(GALLERY_PRESSED_TAG)
+        Log.i(TAG, "$name: primary #%08X, pressed #%08X".format(plain, pressed))
+        assertColor("$name primary", c.accent.toArgb(), plain)
+        assertColor("$name pressed primary", c.accentPressed.toArgb(), pressed)
+        fun strongest(tag: String): Int {
+            rule.onNodeWithTag(tag).performScrollTo()
+            rule.waitForIdle()
+            val img = rule.onNodeWithTag(tag).captureToImage().asAndroidBitmap()
+            val bg = c.bg.toArgb()
+            var best = 0
+            for (y in 0 until img.height) for (x in 0 until img.width) best = maxOf(best, channelDistance(img.getPixel(x, y), bg))
+            return best
+        }
+        val enabled = strongest(GALLERY_ENABLED_CHIP_TAG)
+        val disabled = strongest(GALLERY_DISABLED_CHIP_TAG)
+        Log.i(TAG, "$name: chip contrast to bg enabled $enabled, disabled $disabled")
+        assertTrue("$name disabled chip dimmed ($disabled vs $enabled)", disabled < enabled * 0.6)
+    }
+
+    private fun channelDistance(a: Int, b: Int): Int = maxOf(
+        abs(android.graphics.Color.red(a) - android.graphics.Color.red(b)),
+        abs(android.graphics.Color.green(a) - android.graphics.Color.green(b)),
+        abs(android.graphics.Color.blue(a) - android.graphics.Color.blue(b)),
+    )
+
+    private fun assertColor(what: String, expected: Int, actual: Int) =
+        assertTrue("$what: expected #%08X, got #%08X".format(expected, actual), channelDistance(expected, actual) <= 4)
 
     private fun assertTouchTargets(name: String) {
         val min = floor(Sizes.touchTargetMin.value * density) - 0.5f
@@ -152,7 +229,6 @@ class GalleryScreenshotTest {
         assertTrue("text overflows in $name:\n" + overflowing.joinToString("\n"), overflowing.isEmpty())
     }
 
-    /** Scrolls the gallery one viewport at a time and stitches the captures into one tall PNG. */
     /**
      * `hasVisualOverflow` as the semantics action reports it cannot be used as is: for wrap-content text the action
      * returns a MultiParagraph laid out at the parent's max width while `size` is the wrapped width, so
@@ -184,6 +260,7 @@ class GalleryScreenshotTest {
         assertEquals("every clickable was fully on screen once", all, checked.intersect(all))
     }
 
+    /** Scrolls the gallery one viewport at a time and stitches the captures into one tall PNG. */
     private fun captureFullLength(scroll: ScrollState, name: String): File {
         val node = rule.onNodeWithTag(GALLERY_TAG)
         val first = node.captureToImage().asAndroidBitmap()
