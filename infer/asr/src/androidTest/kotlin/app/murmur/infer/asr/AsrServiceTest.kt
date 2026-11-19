@@ -25,7 +25,7 @@ import kotlin.concurrent.thread
  * WP-06 acceptance on the x86_64 emulator with real models on the CPU, through the real binder service in its own
  * :asr process (the client side is WP-05's; this test talks AIDL directly). Models: `tools/models/fetch
  * gigaam-v3-e2e-rnnt@onnx-int8 parakeet-tdt-0.6b-v3@onnx-int8 nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms
- * silero-vad-v5@onnx`, copied by infer/asr/tools/push-test-models.sh.
+ * t-one@onnx silero-vad-v5@onnx`, copied by infer/asr/tools/push-test-models.sh.
  */
 @RunWith(AndroidJUnit4::class)
 class AsrServiceTest {
@@ -147,11 +147,16 @@ class AsrServiceTest {
         Models.requireInstalled(asr)
         val en = Clip.load("en_pauses.wav")
         val first15s = Clip(en.file, en.lang, en.ref, en.samples.copyOf(15 * 16_000))
+        Models.requireInstalled(vad)
         AsrConnection().use { c ->
-            c.load(asr, null).requireOk()
+            c.load(asr, vad).requireOk()
             val run = stream(c, first15s, realTime = true, AsrSessionOptions(language = "en", emitPartials = true))
             report("nemotron.partialsBeforeEof", run.partialsBeforeEof)
             report("nemotron.finishAfterEofMs", run.finishAfterEofMs)
+            report("nemotron.speechMs", run.transcript.speechMs)
+            // the VAD runs beside the streaming recognizer: real speech time, not 0 (ARCHITECTURE 5.2 row 26)
+            assertTrue("speechMs ${run.transcript.speechMs}", run.transcript.speechMs in 5_000L..run.transcript.audioMs)
+            assertTrue(run.events.count<AsrEvent.Speech>() >= 2)
             assertTrue("Partial events while audio flows (${run.partialsBeforeEof})", run.partialsBeforeEof >= 3)
             assertTrue(run.transcript.text.isNotBlank())
             assertEquals(ComputeUnit.CPU, run.transcript.unit)
@@ -159,6 +164,60 @@ class AsrServiceTest {
             val lastPartial = (run.events.list.last { it.second is AsrEvent.Partial }.second as AsrEvent.Partial).text
             assertTrue(run.transcript.text.startsWith(lastPartial.take(20)))
             peakRss(c, "nemotron")
+        }
+    }
+
+    @Test
+    fun tOneReportsTheSpeechTimeOfItsStreamingSession() {
+        val asr = Models.spec("t-one@onnx")
+        Models.requireInstalled(asr); Models.requireInstalled(vad)
+        val ru = Clip.load("ru_pauses.wav")
+        AsrConnection().use { c ->
+            c.load(asr, vad).requireOk()
+            val run = stream(c, ru, realTime = false, AsrSessionOptions(language = "ru"))
+            val wer = WordErrorRate.wer(ru.ref, run.transcript.text)
+            report("tone.wer", "%.4f".format(wer))
+            report("tone.speechMs", run.transcript.speechMs)
+            report("tone.audioMs", run.transcript.audioMs)
+            assertEquals(ru.samples.size * 1000L / 16_000, run.transcript.audioMs)
+            assertTrue("speechMs ${run.transcript.speechMs}", run.transcript.speechMs in 10_000L..run.transcript.audioMs)
+            assertTrue("WER ${"%.3f".format(wer)} <= 0.15", wer <= 0.15)
+            assertEquals(ComputeUnit.CPU, run.transcript.unit)
+        }
+    }
+
+    /**
+     * A session started after a failed load does not inherit that error; a finish() after the session was aborted
+     * (its model replaced before the stop tap) is answered at once with the abort reason.
+     */
+    @Test
+    fun loadErrorsAndAbortsReachOnlyTheSessionsTheyConcern() {
+        val asr = Models.spec("gigaam-v3-e2e-rnnt@onnx-int8")
+        val other = Models.spec("nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms")
+        Models.requireInstalled(asr); Models.requireInstalled(other); Models.requireInstalled(vad)
+        val ru = Clip.load("ru_pauses.wav")
+        AsrConnection().use { c ->
+            val broken = asr.copy(dir = asr.dir + ".absent")
+            assertTrue(c.load(broken, vad).error is MurmurError.EngineLoadFailed)
+
+            val events = Events()
+            val (read, write) = ParcelFileDescriptor.createPipe()
+            val session = c.service.startSession(InferApi.json.encodeToString(AsrSessionOptions.serializer(), AsrSessionOptions()), read, events)
+            read.close()
+            writePcm(write, ru.samples.copyOf(5 * 16_000), realTime = false)
+            SystemClock.sleep(500)
+            assertEquals("no Failure from the earlier load", 0, events.count<AsrEvent.Failure>())
+
+            c.load(asr, vad).requireOk()                    // attaches to the waiting session
+            c.load(other, null).requireOk()                 // replaces the model before the stop tap
+            val result = Result()
+            val t0 = SystemClock.elapsedRealtime()
+            session.finish(result)
+            assertTrue("finish answered", result.await(5))
+            report("replaced.finishMs", result.atMs - t0)
+            assertEquals(MurmurError.AsrFailed("model_replaced"), result.error)
+            assertTrue(result.atMs - t0 <= 1_000)
+            assertEquals(1, events.count<AsrEvent.Failure>())
         }
     }
 

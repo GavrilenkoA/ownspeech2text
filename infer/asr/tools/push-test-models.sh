@@ -3,7 +3,7 @@
 # (run-as; the APK must be installed first). Models come from tools/models/fetch, never from the network here.
 #   infer/asr/tools/push-test-models.sh <adb serial> [artifactId ...]
 # Default set: silero-vad-v5@onnx gigaam-v3-e2e-rnnt@onnx-int8 parakeet-tdt-0.6b-v3@onnx-int8
-#              nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms
+#              nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms t-one@onnx
 set -euo pipefail
 serial=${1:?usage: push-test-models.sh <serial> [artifactId ...]}; shift
 pkg=app.murmur.infer.asr.test
@@ -13,7 +13,7 @@ common=$(git -C "$here" rev-parse --path-format=absolute --git-common-dir)
 models=${MURMUR_MODELS:-$(dirname "$common")/.cache/models}
 ids=("$@")
 [ ${#ids[@]} -gt 0 ] || ids=(silero-vad-v5@onnx gigaam-v3-e2e-rnnt@onnx-int8 parakeet-tdt-0.6b-v3@onnx-int8
-                              nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms)
+                              nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms t-one@onnx)
 for id in "${ids[@]}"; do
   src="$models/$id"
   [ -f "$src/fetch.ok" ] || { echo "not fetched: $id (tools/models/fetch $id)" >&2; exit 2; }
