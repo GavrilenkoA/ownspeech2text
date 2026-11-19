@@ -3,6 +3,7 @@ package app.murmur.infer.asr.ocr
 import android.content.Context
 import android.os.SharedMemory
 import app.murmur.infer.api.IResultCallback
+import app.murmur.infer.asr.qnnep.QnnEpAndroid
 
 /**
  * The seam between AsrService (WP-06) and OCR (WP-07): AsrService forwards loadOcr / recognizeScreen / unloadAll to
@@ -18,7 +19,12 @@ interface OcrHandler {
 }
 
 object OcrHandlers {
-    /** ORT CPU EP + the Kotlin port of ml/ocr ([OrtOcrHandler]). */
-    @Suppress("UNUSED_PARAMETER") // the context is part of the seam (WP-21's QNN handler needs nativeLibraryDir)
-    fun create(context: Context): OcrHandler = OrtOcrHandler()
+    /**
+     * ORT + the Kotlin port of ml/ocr ([OrtOcrHandler]): CPU EP for `ort/ppocr-*` artifacts, Qualcomm's QNN plugin EP
+     * from the APK's nativeLibraryDir for `ort-qnn/ppocr-*` artifacts (WP-21).
+     */
+    fun create(context: Context): OcrHandler {
+        val libDir = context.applicationInfo.nativeLibraryDir
+        return OrtOcrHandler(qnn = { QnnEpAndroid.ep(libDir) })
+    }
 }

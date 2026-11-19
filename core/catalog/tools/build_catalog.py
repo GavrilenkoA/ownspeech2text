@@ -20,6 +20,7 @@ import hashlib
 import json, re
 import os
 import sys
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -29,7 +30,7 @@ CACHE = REPO / ".cache/spikes/architect/catalog-files"
 ASR = json.loads((REPO / "docs/research/asr-catalog.json").read_text(encoding="utf-8"))
 LLM = json.loads((REPO / "docs/research/llm-catalog.json").read_text(encoding="utf-8"))
 OFFLINE = "--offline" in sys.argv
-CATALOG_VERSION = "2026-11-20.1"
+CATALOG_VERSION = "2026-11-20.2"
 
 UA = {"User-Agent": "murmur-catalog-builder/1"}
 
@@ -136,6 +137,57 @@ def gh_file(repo: str, tag: str, path: str, bytes_: int, sha256: str, archive: s
     return f
 
 
+# WP-21: the ORT QNN plugin EP artifacts are our own host compiles (native/qnn-contexts/compile.sh, QAIRT 2.52 via
+# onnxruntime-qnn 2.8.0, SM8750). Their bytes and sha256 come from the committed build manifest; QNN compiles are not
+# bit-reproducible, so the pinned files are exactly the ones that build wrote (and the simulator suite checked).
+# Hosting is an owner decision (docs/OWNER_QUESTIONS.md, WP-21): the owner HF repo below does not exist yet, so the
+# URLs answer 404 until the files are uploaded at that tag. No shipped build offers these downloads: the ort-qnn
+# runtimes are reported only by a -Pmurmur.qnn=true build whose QNN EP registered (RuntimeKeys.qnnEp, ADR-048/059).
+QNN_CTX_MANIFEST = json.loads((REPO / "native/qnn-contexts/manifest.json").read_text(encoding="utf-8"))
+NPU_CTX_REPO = "murmur-dictation/murmur-npu-contexts"
+NPU_CTX_REVISION = "qairt-2.52.0-r1"
+
+
+def npu_ctx_files(artifact_id: str) -> tuple[list[dict], dict]:
+    """FileSpecs of one compiled artifact (its zip, or its plain files) + the manifest entry."""
+    m = QNN_CTX_MANIFEST["artifacts"][artifact_id]
+    plain = m.get("archive") is None
+    rows = m["files"] if plain else [m["archive"]]
+    out = []
+    for r in rows:
+        path = f"{artifact_id.replace('@', '--')}/{r['name']}"
+        url = f"https://huggingface.co/{NPU_CTX_REPO}/resolve/{NPU_CTX_REVISION}/{path}"
+        if not OFFLINE:
+            try:
+                info = hf_paths_info(NPU_CTX_REPO, NPU_CTX_REVISION, [path]).get(path)
+            except urllib.error.HTTPError as e:
+                info = None
+                print(f"  pending host {NPU_CTX_REPO}@{NPU_CTX_REVISION}: HTTP {e.code} for {path}", file=sys.stderr, flush=True)
+            if info is not None:
+                lfs = (info.get("lfs") or {}).get("oid")
+                assert info["size"] == r["bytes"] and lfs in (None, r["sha256"]), (path, info, r)
+        f = {"name": r["name"], "url": url, "bytes": r["bytes"], "sha256": r["sha256"], "source": "huggingface",
+             "repo": NPU_CTX_REPO, "revision": NPU_CTX_REVISION, "path": path}
+        if not plain:
+            f["archive"] = "zip"
+        out.append(f)
+    return out, m
+
+
+def npu_ctx_artifact(artifact_id: str, runtime: str, *, window: float | None = None, notes: str) -> dict:
+    files, m = npu_ctx_files(artifact_id)
+    v = QNN_CTX_MANIFEST["versions"]
+    mb = -(-sum(f["bytes"] for f in files) * 3 // (2 * 1024 * 1024))
+    a = {"id": artifact_id, "runtime": runtime, "format": "onnx-epcontext", "quant": "fp16", "units": ["npu"],
+         "socs": [v["soc"]], "files": files, "layout": m["layout"], "memoryMb": {"npu": mb},
+         "notes": f"{notes} Host AOT compile: onnxruntime-qnn {v['onnxruntime_qnn']} (QAIRT {v['qairt']}), HTP v{v['htp_arch']}, "
+                  "100 % on the HTP (CPU fallback disabled). Off by default: adopted only after DEVICE_CHECKLIST DC4 (ADR-059). "
+                  "memoryMb estimated (download bytes x 1.5). Hosting pending (owner)."}
+    if window:
+        a["maxWindowSec"] = window
+    return a
+
+
 def from_asr_files(src: dict) -> list[dict]:
     out = []
     for f in src["files"]:
@@ -235,6 +287,9 @@ def asr_models() -> list[dict]:
     model("gigaam-v3-e2e-ctc", "gigaam", "GigaAM v3 CTC", "SberDevices", "gigaam-v3-e2e-ctc@onnx-int8", std, [
         asr_artifact("gigaam-v3-e2e-ctc@onnx-int8", "sherpa/offline-ctc", ["cpu"],
                      layout={"model": "model.int8.onnx", "tokens": "tokens.txt"}, window=20.0, memory={"cpu": 401}, quant="int8"),
+        npu_ctx_artifact("gigaam-v3-e2e-ctc@qnn-sm8750-20s", "ort-qnn/gigaam-ctc", window=20.0,
+                         notes="fp32 istupakov/gigaam-v3-onnx v3_e2e_ctc.onnx fixed to [1,64,2000] (20 s); 64-bin mel front end "
+                               "and greedy CTC in the app (WP-21)."),
     ], "optional", "Russian only, CTC decoder.",
         follow=[{"id": "npu-port", "note": "fp16 [1,64,2000] compiles 100 % onto the HTP (asr-ocr.md 5.4)."}])
     model("t-one", "t-one", "T-one", "T-Bank", "t-one@onnx", {"streaming": True, "punctuation": False, "casing": False, "sampleRate": 8000}, [
@@ -317,7 +372,9 @@ def aux_models() -> list[dict]:
            "artifacts": [{"id": "pp-ocrv6-tiny-det@onnx", "runtime": "ort/ppocr-det", "format": "onnx", "units": ["cpu"],
                           "files": [hf_file("PaddlePaddle/PP-OCRv6_tiny_det_onnx", "2ba1506", "inference.onnx",
                                             sha256="193bab7a" if OFFLINE else None, name="det.onnx")],
-                          "layout": {"model": "det.onnx"}, "memoryMb": {"cpu": 60}}],
+                          "layout": {"model": "det.onnx"}, "memoryMb": {"cpu": 60}},
+                         npu_ctx_artifact("pp-ocrv6-tiny-det@qnn-sm8750", "ort-qnn/ppocr-det",
+                                          notes="One context per detector input 960x416, 416x960, 960x864, 864x960, 960x960 (other window shapes are padded into the smallest that holds them).")],
            "followUps": [{"id": "npu-port", "note": "fp16 fixed-shape graphs compile 100 % onto the HTP (asr-ocr.md 7.5); decide after phone CPU vs QNN times."}],
            "evidence": "docs/research/verify/asr-ocr.md"}
     rec = {"id": "pp-ocrv5-cyrillic-mobile-rec", "kind": "ocr-rec", "displayName": "PP-OCRv5 Cyrillic recogniser",
@@ -328,7 +385,9 @@ def aux_models() -> list[dict]:
            "artifacts": [{"id": "pp-ocrv5-cyrillic-mobile-rec@onnx", "runtime": "ort/ppocr-rec", "format": "onnx", "units": ["cpu"],
                           "files": [hf_file("PaddlePaddle/cyrillic_PP-OCRv5_mobile_rec_onnx", "2cef881", "inference.onnx", name="rec.onnx"),
                                     hf_file("PaddlePaddle/cyrillic_PP-OCRv5_mobile_rec_onnx", "2cef881", "inference.yml", name="rec.yml")],
-                          "layout": {"model": "rec.onnx", "dict": "rec.yml"}, "memoryMb": {"cpu": 80}}],
+                          "layout": {"model": "rec.onnx", "dict": "rec.yml"}, "memoryMb": {"cpu": 80}},
+                         npu_ctx_artifact("pp-ocrv5-cyrillic-mobile-rec@qnn-sm8750", "ort-qnn/ppocr-rec",
+                                          notes="One context per ml/ocr bucket width 320..3200 at height 48, batch 1 (padding changes the output, so every bucket has its own).")],
            "followUps": [{"id": "npu-port", "note": "Width buckets 320/640/1280 compile onto the HTP in fp16 (asr-ocr.md 7.5)."}],
            "evidence": "docs/research/verify/asr-ocr.md"}
     return [vad, det, rec]
