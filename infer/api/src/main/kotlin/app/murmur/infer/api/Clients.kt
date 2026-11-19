@@ -92,6 +92,9 @@ abstract class BinderHost internal constructor(
 
     final override suspend fun shutdown() = connector.shutdown()
 
+    /** Unbind without waiting (the service unloads and exits by itself); see [ServiceConnector.disconnect]. */
+    suspend fun disconnect() = connector.disconnect()
+
     protected abstract fun probeJson(binder: IBinder): String
     protected abstract fun memoryJson(binder: IBinder): String
 
@@ -193,9 +196,11 @@ abstract class BinderHost internal constructor(
             else -> r
         }
 
+    /** Every other call or stream on [binding] fails with the same timeout (not `ProcessDied`) when it is killed. */
     internal suspend fun timedOut(call: BinderCall, binding: ServiceConnector.Binding): Outcome<Nothing> {
-        if (call.killOnTimeout) connector.kill(binding)
-        return Outcome.Err(call.timeoutError())
+        val error = call.timeoutError()
+        if (call.killOnTimeout) connector.kill(binding, error)
+        return Outcome.Err(error)
     }
 
     protected fun <T> Outcome<String>.decode(s: kotlinx.serialization.KSerializer<T>): Outcome<T> =
@@ -227,6 +232,12 @@ internal class ResultCallback(private val reply: CompletableDeferred<Outcome<Str
  * PCM: [startSession] creates a pipe, keeps the write end here and passes the read end to :asr; [AsrSession.accept]
  * never blocks (a lock-free ring drained by a writer thread, [PcmPump]). Replay after a crash or a unit fallback:
  * start a new session and `accept(PcmChunk(wholeSessionBuffer, 0))` once; any size is accepted, in order.
+ * **One producer per session:** the replay and the live frames that follow it must be accepted from one thread (the
+ * capture thread), or at least never at the same time: audio from two producers has no order. Overlapping calls are
+ * detected and fail the session with `AsrFailed(`[PCM_CONCURRENT]`)` instead of feeding the recognizer garbage.
+ *
+ * [startSession] never throws except for cancellation, and a cancelled start leaks nothing (use count, pipe, writer
+ * thread, a session already opened in :asr).
  *
  * Screenshots go through [SharedMemory] (never a parcel). :asr has a single `unloadAll()` (4.3), so [unload] and
  * [unloadOcr] both unload ASR, VAD and OCR together.
@@ -331,32 +342,47 @@ class AsrClient(
 
     override suspend fun startSession(options: AsrSessionOptions): AsrSession {
         val t = timeouts()
-        connector.beginUse() // released when the session ends
-        val (binding, binder) = when (val a = connector.acquire()) {
-            is Outcome.Ok -> a.value
-            is Outcome.Err -> { connector.endUse(); return FailedAsrSession(a.error) }
+        connector.beginUse() // released by the session's end(), or here when no session is made
+        var session: BinderAsrSession? = null
+        var readEnd: ParcelFileDescriptor? = null
+        try {
+            val (binding, binder) = when (val a = connector.acquire()) {
+                is Outcome.Ok -> a.value
+                is Outcome.Err -> { connector.endUse(); return FailedAsrSession(a.error) }
+            }
+            val pipe = try {
+                ParcelFileDescriptor.createPipe()
+            } catch (_: IOException) {
+                connector.endUse()
+                return FailedAsrSession(MurmurError.AsrFailed("pipe"))
+            }
+            readEnd = pipe[0]
+            val s = BinderAsrSession(binding, pipe[1])
+            session = s // owns the use from here: its end() releases it
+            s.open()
+            val optionsJson = InferApi.encode(AsrSessionOptions.serializer(), options)
+            // attach() inside the call: a reply that arrives after a timeout or a cancellation cancels the remote session.
+            val r = connector.blocking(t.scaled(t.callMs)) {
+                svc(binder).startSession(optionsJson, pipe[0], s.callback)?.also { s.attach(it) }
+            }
+            when (val x = settle(BinderCall.ASR_START_SESSION, binding, r)) {
+                is Outcome.Ok -> if (x.value == null) s.fail(MurmurError.AsrFailed("no session"))
+                is Outcome.Err -> s.fail(x.error)
+            }
+            return s
+        } catch (e: Throwable) {
+            // Cancelled (a press cancels Preparing, stop during Arming): the use, the write end and the writer thread
+            // go with the session; a remote session that still arrives is cancelled by attach().
+            if (session != null) session.cancel() else connector.endUse()
+            throw e
+        } finally {
+            // :asr holds its own descriptor of the read end now (or the call failed): ours is not needed either way.
+            readEnd?.let { runCatching { it.close() } }
         }
-        val pipe = try {
-            ParcelFileDescriptor.createPipe()
-        } catch (_: IOException) {
-            connector.endUse()
-            return FailedAsrSession(MurmurError.AsrFailed("pipe"))
-        }
-        val readEnd = pipe[0]
-        val session = BinderAsrSession(binding, pipe[1])
-        val optionsJson = InferApi.encode(AsrSessionOptions.serializer(), options)
-        val r = connector.blocking(t.scaled(t.callMs)) { svc(binder).startSession(optionsJson, readEnd, session.callback) }
-        // :asr holds its own descriptor of the read end now (or the call failed): ours is not needed either way.
-        runCatching { readEnd.close() }
-        when (val s = settle(BinderCall.ASR_START_SESSION, binding, r)) {
-            is Outcome.Ok -> s.value?.let { session.attach(it) } ?: session.fail(MurmurError.AsrFailed("no session"))
-            is Outcome.Err -> session.fail(s.error)
-        }
-        return session
     }
 
     /** One dictation's session: pipe writer + events + finish/cancel; ends (and releases the host) exactly once. */
-    private inner class BinderAsrSession(
+    internal inner class BinderAsrSession(
         private val binding: ServiceConnector.Binding,
         writeEnd: ParcelFileDescriptor,
     ) : AsrSession {
@@ -375,9 +401,11 @@ class AsrClient(
             onOverflow = { fail(MurmurError.AsrFailed(PCM_OVERFLOW)) },
             // EPIPE: the reader in :asr is gone (ARCHITECTURE 4.4).
             onWriteError = { fail(MurmurError.ProcessDied(InferProcess.ASR)) },
+            onConcurrentOffer = { fail(MurmurError.AsrFailed(PCM_CONCURRENT)) },
             threadName = "murmur-pcm-asr",
         )
-        private val watch = binding.watch { fail(it) }
+        /** Registered by [open], once the object exists: a dead binding runs the watcher at once. */
+        @Volatile private var watch: ((MurmurError) -> Unit)? = null
 
         val callback = object : IAsrSessionCallback.Stub() {
             override fun onEvent(asrEventJson: String?) {
@@ -387,7 +415,17 @@ class AsrClient(
             }
         }
 
-        fun attach(s: IAsrSession) { remote = s }
+        fun open() {
+            val w = binding.watch { fail(it) }
+            watch = w
+            if (ended.get()) binding.unwatch(w)
+        }
+
+        /** The remote session; if this one already ended (cancelled while the start was in flight), it is cancelled. */
+        fun attach(s: IAsrSession) {
+            remote = s
+            if (ended.get()) runCatching { s.cancel() }
+        }
 
         /** The session cannot go on: events get one Failure, finish() returns [e]. First failure wins. */
         fun fail(e: MurmurError) {
@@ -437,13 +475,14 @@ class AsrClient(
         override fun cancel() {
             if (ended.get()) return
             pump.abort()
-            remote?.let { s -> connector.scope.launch(Dispatchers.IO) { runCatching { s.cancel() } } }
             end()
+            // After end(): a remote attached from now on sees ended and cancels itself (attach), so none is missed.
+            remote?.let { s -> connector.scope.launch(Dispatchers.IO) { runCatching { s.cancel() } } }
         }
 
         private fun end() {
             if (!ended.compareAndSet(false, true)) return
-            binding.unwatch(watch)
+            watch?.let { binding.unwatch(it) }
             if (failure == null) pump.abort()
             channel.close()
             connector.endUse()
@@ -462,6 +501,8 @@ class AsrClient(
         const val FRAME_NAME = "murmur-frame"
         /** AsrFailed detail when more audio was pending than [PcmPump.DEFAULT_MAX_PENDING_SAMPLES]. */
         const val PCM_OVERFLOW = "pcm_overflow"
+        /** AsrFailed detail when two threads called [AsrSession.accept] at the same time. */
+        const val PCM_CONCURRENT = "pcm_concurrent"
     }
 }
 

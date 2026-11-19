@@ -33,6 +33,7 @@ import java.util.concurrent.atomic.AtomicInteger
  * - generate streams pieces "0,", "1,", ... ["pieces"] of them, one per ["pieceDelayMs"] on one engine thread;
  *   cancel() stops it with onDone(STOP_CANCELLED); the process kills itself after ["killAfterPieces"].
  * - bench answers ["ppTps"].
+ * - onUnbind unloads and exits, unless ["exitOnUnbind"]=false (an engine stuck in native code: only a kill helps).
  */
 class FakeLlmService : Service() {
     private val engine = Executors.newSingleThreadScheduledExecutor()
@@ -50,6 +51,7 @@ class FakeLlmService : Service() {
     override fun onBind(intent: Intent?): IBinder = binder
 
     override fun onUnbind(intent: Intent?): Boolean {
+        if (control("exitOnUnbind") == "false") return false
         InferProcessLifecycle.unloadAndExit { binder.unload() }
         return false
     }

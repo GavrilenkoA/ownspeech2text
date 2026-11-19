@@ -5,6 +5,7 @@ import java.io.OutputStream
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.locks.LockSupport
 
@@ -22,7 +23,10 @@ import java.util.concurrent.locks.LockSupport
  *   fails visibly instead of feeding the recognizer audio with a hole in it.
  * - [close] writes everything still pending, then closes [out] (EOF for the reader); [abort] closes at once.
  *
- * One producer at a time (the capture thread, or the executor replaying a buffer before capture continues).
+ * - One producer at a time (the capture thread, or the executor replaying a buffer before capture continues). Calls
+ *   from different threads are fine one after the other; two [offer] calls that overlap are detected (a lock-free
+ *   flag, never a wait): the chunk of the later call and everything after it are dropped, [concurrentOffer] is
+ *   set and [onConcurrentOffer] runs once, so a misuse fails loudly instead of corrupting the ring.
  */
 class PcmPump(
     private val out: OutputStream,
@@ -30,6 +34,7 @@ class PcmPump(
     private val maxPendingSamples: Long = DEFAULT_MAX_PENDING_SAMPLES,
     private val onOverflow: () -> Unit = {},
     private val onWriteError: (IOException) -> Unit = {},
+    private val onConcurrentOffer: () -> Unit = {},
     threadName: String = "murmur-pcm-writer",
 ) {
     private val capacity: Int = Integer.highestOneBit((ringSamples - 1).coerceAtLeast(1)) shl 1
@@ -45,6 +50,9 @@ class PcmPump(
     /** Producer-only: while true, new chunks go to [spill] so that they stay behind the spilled ones. */
     private var spilling = false
 
+    /** Held by the producer for the length of one [offer]; also orders consecutive producers (happens-before). */
+    private val producing = AtomicBoolean(false)
+
     @Volatile private var closing = false
     @Volatile private var aborted = false
     @Volatile private var failed = false
@@ -52,10 +60,13 @@ class PcmPump(
 
     @Volatile var overflowed = false
         private set
+    /** Two [offer] calls overlapped: the pump takes nothing more. */
+    private val concurrent = AtomicBoolean(false)
+    val concurrentOffer: Boolean get() = concurrent.get()
     @Volatile var acceptedSamples = 0L
         private set
-    @Volatile var droppedSamples = 0L
-        private set
+    private val dropped = AtomicLong()
+    val droppedSamples: Long get() = dropped.get()
     @Volatile var writtenSamples = 0L
         private set
 
@@ -75,13 +86,26 @@ class PcmPump(
      */
     fun offer(samples: ShortArray, offset: Int = 0, length: Int = samples.size - offset): Boolean {
         if (length <= 0) return true
-        if (closing || failed || overflowed) {
-            droppedSamples += length
+        if (!producing.compareAndSet(false, true)) {
+            dropped.addAndGet(length.toLong())
+            if (concurrent.compareAndSet(false, true)) onConcurrentOffer()
+            return false
+        }
+        try {
+            return offerOwned(samples, offset, length)
+        } finally {
+            producing.set(false)
+        }
+    }
+
+    private fun offerOwned(samples: ShortArray, offset: Int, length: Int): Boolean {
+        if (closing || failed || overflowed || concurrentOffer) {
+            dropped.addAndGet(length.toLong())
             return false
         }
         if (pendingSamples + length > maxPendingSamples) {
             overflowed = true
-            droppedSamples += length
+            dropped.addAndGet(length.toLong())
             onOverflow()
             return false
         }

@@ -194,4 +194,60 @@ class PcmPumpTest {
         assertArrayEquals(le(listOf(c)), reader.bytes.toByteArray())
         assertFalse(pump.offer(c)) // after close
     }
+
+    /** The replay on one thread, then live audio from another (handed over, never at the same time): all in order. */
+    @Test
+    fun consecutiveProducersOnDifferentThreadsKeepTheOrder() {
+        val (out, input) = pipe()
+        val reader = Reader(input).apply { start() }
+        val pump = PcmPump(out)
+        val replay = ShortArray(60 * 16_000) { i -> (i * 13 + (i shr 7)).toShort() }
+        val live = (0 until 100).map { chunk(it) }
+        val replayer = Thread { assertTrue(pump.offer(replay)) }.apply { start(); join() }
+        val capture = Thread { for (c in live) assertTrue(pump.offer(c)) }.apply { start(); join() }
+        assertFalse(replayer.isAlive || capture.isAlive)
+        pump.close()
+        assertTrue(pump.awaitClosed(10_000))
+        assertTrue(reader.eof.await(10, TimeUnit.SECONDS))
+        assertArrayEquals(le(listOf(replay) + live), reader.bytes.toByteArray())
+        assertFalse(pump.concurrentOffer)
+        assertEquals(0L, pump.droppedSamples)
+    }
+
+    /**
+     * Two producers at the same time (a replay racing live capture): the overlap is detected, reported once, and the
+     * pump takes nothing more, so the recognizer never gets interleaved audio. The replays are large (each is a
+     * multi-millisecond copy into the spill) while the other thread offers without pause: they overlap.
+     */
+    @Test
+    fun overlappingProducersAreDetectedReportedOnceAndStopThePump() {
+        val (out, input) = pipe()
+        val reader = Reader(input).apply { start() }
+        val reports = AtomicInteger()
+        val pump = PcmPump(out, maxPendingSamples = Long.MAX_VALUE, onConcurrentOffer = { reports.incrementAndGet() })
+        val replay = ShortArray(4 * 16_000 * 60)
+        val stop = java.util.concurrent.atomic.AtomicBoolean(false)
+        val spinning = CountDownLatch(1)
+        val capture = Thread {
+            val c = chunk(0)
+            spinning.countDown()
+            while (!stop.get() && !pump.concurrentOffer) {
+                pump.offer(c)
+                val t = System.nanoTime()
+                while (System.nanoTime() - t < 20_000) Thread.onSpinWait() // ~50k offers/s: bounded spill growth
+            }
+        }.apply { start() }
+        spinning.await()
+        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10)
+        while (!pump.concurrentOffer && System.nanoTime() < deadline) pump.offer(replay)
+        stop.set(true)
+        capture.join()
+        assertTrue("no overlap detected in 10 s", pump.concurrentOffer)
+        assertEquals(1, reports.get())
+        assertFalse(pump.offer(chunk(1)))
+        assertTrue(pump.droppedSamples > 0)
+        pump.abort()
+        assertTrue(pump.awaitClosed(5_000))
+        reader.join(5_000)
+    }
 }

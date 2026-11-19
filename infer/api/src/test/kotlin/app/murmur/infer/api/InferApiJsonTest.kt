@@ -124,6 +124,10 @@ class InferApiJsonTest {
             MurmurError.Timeout(Stage.LLM_PREFIX),
             MurmurError.Timeout(Stage.BENCH),
             MurmurError.UnitUnavailable(ComputeUnit.NPU),
+            // The error a service returns for a failed load, and the guard's verdict: both cross binder too.
+            MurmurError.EngineLoadFailed(ModelKind.LLM, "qnn:1002"),
+            MurmurError.EngineLoadFailed(ModelKind.ASR, null),
+            MurmurError.GuardRejected("length"),
             MurmurError.EngineRuntimeMissing("qnn"),
             MurmurError.OutOfMemory(ModelKind.LLM),
             MurmurError.LlmContextOverflow(neededTokens = 5_000, nCtx = 4_096),

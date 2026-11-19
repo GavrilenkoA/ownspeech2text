@@ -20,7 +20,7 @@ import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executor
 import java.util.concurrent.Executors
-import java.util.concurrent.atomic.AtomicInteger
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -56,6 +56,8 @@ import kotlinx.coroutines.withTimeoutOrNull
  *   A host is never left running without a timer: [DEFAULT_IDLE_MS] applies until the first [scheduleIdleExit].
  * - [shutdown]: unload now, unbind, wait until the process is gone ([BinderTimeouts.exitWaitMs]); a process that is
  *   still there is killed (same UID). `force` (after a timeout) skips the unload and kills at once.
+ * - [disconnect]: unbind now without waiting (the service unloads and exits in `onUnbind`).
+ * - Cancelling a [connect] (or a call that binds) mid-bind drops the half-made binding and its process: state Down.
  */
 class ServiceConnector(
     private val bindContext: () -> Context,
@@ -85,7 +87,7 @@ class ServiceConnector(
     @Volatile private var current: Binding? = null
     private var crashes = 0
 
-    private val inUse = AtomicInteger()
+    private val uses = UseCounter()
     @Volatile private var idleMs: Long = DEFAULT_IDLE_MS
     private var idleJob: Job? = null
 
@@ -128,7 +130,7 @@ class ServiceConnector(
         /** [w] runs once if the process dies (now, if it is already dead). Returns a handle for [unwatch]. */
         fun watch(w: (MurmurError) -> Unit): (MurmurError) -> Unit {
             watchers += w
-            if (dead.isCompleted) { watchers -= w; w(MurmurError.ProcessDied(process)) }
+            if (dead.isCompleted && watchers.remove(w)) w(endReason)
             return w
         }
 
@@ -140,16 +142,30 @@ class ServiceConnector(
             runCatching { ctx.unbindService(this) }
         }
 
-        fun died() {
-            if (!dead.complete(Unit)) return
+        /** What the watchers receive: `ProcessDied`, or the timeout that made :main kill the process. */
+        @Volatile var endReason: MurmurError = MurmurError.ProcessDied(process)
+            private set
+
+        /**
+         * The process is gone (or about to be, by our kill). [reason] is what calls and streams on this binding fail
+         * with: a kill after a timeout passes that timeout, so that one event never reads as both a crash and a timeout.
+         */
+        fun died(reason: MurmurError = MurmurError.ProcessDied(process)) {
+            synchronized(this) {
+                if (dead.isCompleted) return
+                endReason = reason
+                dead.complete(Unit)
+            }
             ready.complete(null)
             runCatching { binder?.unlinkToDeath(this, 0) }
             unbind()
-            // State first: whoever receives ProcessDied below already sees Crashed.
+            // State first: whoever receives the error below already sees Crashed (or Down after our own kill).
             onBindingDead(this)
-            val error = MurmurError.ProcessDied(process)
-            watchers.toList().forEach { runCatching { it(error) } }
-            watchers.clear()
+            // Whoever removes a watcher runs it: here, or watch() for one added after `dead` completed. Exactly once.
+            while (true) {
+                val w = watchers.firstOrNull() ?: break
+                if (watchers.remove(w)) runCatching { w(reason) }
+            }
         }
     }
 
@@ -174,20 +190,46 @@ class ServiceConnector(
         val ctx = bindContext() // once per connect: every attempt below is the same logical bind
         val deadline = SystemClock.elapsedRealtime() + t.scaled(t.bindMs)
         var attempt = 0
-        while (true) {
-            attempt++
-            when (val r = attemptBind(ctx, t, deadline)) {
-                is Attempt.Done -> return r.result
-                is Attempt.Died -> {
-                    // Right after a kill the system can still hand out the dying process's binder; bind again.
-                    if (attempt < MAX_BIND_ATTEMPTS && SystemClock.elapsedRealtime() + RETRY_DELAY_MS < deadline) {
-                        delay(RETRY_DELAY_MS)
-                        continue
+        try {
+            while (true) {
+                attempt++
+                when (val r = attemptBind(ctx, t, deadline)) {
+                    is Attempt.Done -> return r.result
+                    is Attempt.Died -> {
+                        // Right after a kill the system can still hand out the dying process's binder; bind again.
+                        if (attempt < MAX_BIND_ATTEMPTS && SystemClock.elapsedRealtime() + RETRY_DELAY_MS < deadline) {
+                            delay(RETRY_DELAY_MS)
+                            continue
+                        }
+                        return Outcome.Err(startupDeath(r.binding))
                     }
-                    return Outcome.Err(startupDeath(r.binding))
                 }
             }
+        } catch (e: CancellationException) {
+            withContext(NonCancellable) { abandonStart() }
+            throw e
         }
+    }
+
+    /**
+     * The caller went away mid-bind: nobody will finish this binding, so it must not stay [current] (a death would
+     * then never be reported, and the next connect would race a process it does not know). Kill whatever started.
+     */
+    private suspend fun abandonStart() {
+        val b = current
+        if (b == null || !b.starting) {
+            synchronized(lock) { if (current == null) _state.value = HostState.Down }
+            return
+        }
+        b.starting = false
+        if (b.dead.isCompleted) {
+            synchronized(lock) {
+                if (current === b) current = null
+                _state.value = HostState.Down
+            }
+            return
+        }
+        terminate(b, force = true)
     }
 
     private sealed interface Attempt {
@@ -295,9 +337,12 @@ class ServiceConnector(
         b.binder?.takeIf { it.isBinderAlive && !b.dead.isCompleted }?.let { b to it }
     }
 
-    /** After a timeout: kill the process of [b] unless it is already gone or replaced by a newer binding. */
-    internal suspend fun kill(b: Binding) = withContext(NonCancellable + Dispatchers.IO) {
-        lifecycle.withLock { if (current === b) terminate(b, force = true) }
+    /**
+     * After a timeout: kill the process of [b] unless it is already gone or replaced by a newer binding. Calls and
+     * streams still open on [b] fail with [reason] (the timeout), not with `ProcessDied`.
+     */
+    internal suspend fun kill(b: Binding, reason: MurmurError) = withContext(NonCancellable + Dispatchers.IO) {
+        lifecycle.withLock { if (current === b) terminate(b, force = true, reason = reason) }
     }
 
     /** Marks the binding dead after a [DeadObjectException] (the death callbacks may arrive later or not at all). */
@@ -307,16 +352,16 @@ class ServiceConnector(
 
     /** A call, session or stream starts: the idle timer stops until the matching [endUse]. */
     fun beginUse() {
-        inUse.incrementAndGet()
+        uses.begin()
         synchronized(lock) { idleJob?.cancel(); idleJob = null }
     }
 
     fun endUse() {
-        if (inUse.decrementAndGet() <= 0) {
-            inUse.set(0)
-            armIdle()
-        }
+        if (uses.end()) armIdle()
     }
+
+    /** Uses in flight (calls, sessions, generations); 0 when the idle timer may run. */
+    internal val usesInFlight: Int get() = uses.count
 
     /** Keep the process for [ms] after the last use, then unload and exit. Re-armed by every use. */
     fun scheduleIdleExit(ms: Long) {
@@ -330,7 +375,7 @@ class ServiceConnector(
         synchronized(lock) {
             idleJob?.cancel()
             idleJob = null
-            if (inUse.get() > 0 || current == null) return
+            if (uses.count > 0 || current == null) return
             val ms = idleMs
             idleJob = scope.launch {
                 delay(ms)
@@ -342,6 +387,25 @@ class ServiceConnector(
 
     // --- exit ----------------------------------------------------------------------------------------------------
 
+    /**
+     * Unbind now and return without waiting: the service unloads and kills itself in `onUnbind`; calls still open on
+     * this binding fail with `ProcessDied` when it goes. [shutdown] is the variant that waits (and kills if needed).
+     */
+    suspend fun disconnect() = withContext(NonCancellable + Dispatchers.IO) {
+        lifecycle.withLock {
+            synchronized(lock) { idleJob?.cancel(); idleJob = null }
+            val b = current
+            if (b != null) {
+                b.intentional = true
+                b.unbind()
+            }
+            synchronized(lock) {
+                if (current === b) current = null
+                _state.value = HostState.Down
+            }
+        }
+    }
+
     /** Unload now, unbind, wait until the process is gone; kill it if it is still there after the wait. */
     suspend fun shutdown(force: Boolean = false) {
         synchronized(lock) { idleJob?.cancel(); idleJob = null }
@@ -350,7 +414,7 @@ class ServiceConnector(
 
     private suspend fun shutdownInternal(force: Boolean, idle: Boolean) = withContext(NonCancellable + Dispatchers.IO) {
         lifecycle.withLock {
-            if (idle && inUse.get() > 0) return@withLock
+            if (idle && uses.count > 0) return@withLock
             val b = current
             if (b == null) {
                 _state.value = HostState.Down
@@ -361,7 +425,11 @@ class ServiceConnector(
     }
 
     /** Caller holds [lifecycle]. Ends [b] for good: state Down once the process is gone. Not cancellable. */
-    private suspend fun terminate(b: Binding, force: Boolean) = withContext(NonCancellable) {
+    private suspend fun terminate(
+        b: Binding,
+        force: Boolean,
+        reason: MurmurError = MurmurError.ProcessDied(process),
+    ) = withContext(NonCancellable) {
         val t = timeouts()
         b.intentional = true
         val binder = b.binder
@@ -369,6 +437,8 @@ class ServiceConnector(
             blocking(t.scaled(t.callMs)) { unloadAll(binder) }
         }
         val pid = b.pid.takeIf { it > 0 } ?: b.processName?.let { pidOf(b.ctx, it) } ?: 0
+        // Watchers learn the reason before the kill's own death callbacks can run them with ProcessDied.
+        if (reason !is MurmurError.ProcessDied) b.died(reason)
         b.unbind()
         if (force && pid > 0) Process.killProcess(pid)
         if (pid > 0 && !awaitExit(b, pid, t.exitWaitMs)) {

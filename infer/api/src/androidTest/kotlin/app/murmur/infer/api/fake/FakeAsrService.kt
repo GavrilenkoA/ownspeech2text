@@ -40,20 +40,30 @@ import kotlinx.serialization.builtins.ListSerializer
  * - recognizeScreen: maps the frame read-only, touches every page ["ocr"=touch, default] or CRC32s it ["ocr"=crc],
  *   checks that a writable mapping is refused, answers one line "crc32=<hex> ro=<bool>".
  * - apiVersion: ["apiVersion"] or the real one.
+ * - onBind answers after ["onBindDelayMs"] (a slow process start); startSession after ["startSessionDelayMs"].
+ * - onUnbind unloads and exits, unless ["exitOnUnbind"]=false: a process whose engine is stuck in native code, so that
+ *   only the client's kill can remove it.
+ * - probe facts: "sessions", "session.eofs" (readers that reached EOF), "session.cancels" (remote cancel() calls).
  */
 class FakeAsrService : Service() {
     private val worker = Executors.newSingleThreadExecutor()
     private val unloads = AtomicInteger()
     private val sessions = AtomicInteger()
+    private val eofs = AtomicInteger()
+    private val cancels = AtomicInteger()
 
     override fun onCreate() {
         super.onCreate()
         InferProcessLifecycle.installQuietCrashHandler("fake-asr")
     }
 
-    override fun onBind(intent: Intent?): IBinder = binder
+    override fun onBind(intent: Intent?): IBinder {
+        control("onBindDelayMs")?.toLong()?.let { Thread.sleep(it) }
+        return binder
+    }
 
     override fun onUnbind(intent: Intent?): Boolean {
+        if (control("exitOnUnbind") == "false") return false
         InferProcessLifecycle.unloadAndExit { binder.unloadAll() }
         return false
     }
@@ -68,7 +78,8 @@ class FakeAsrService : Service() {
             ProcessProbe(
                 InferProcess.ASR, setOf("fake"), setOf(ComputeUnit.CPU),
                 mapOf("pid" to Process.myPid().toString(), "unloads" to unloads.get().toString(),
-                    "sessions" to sessions.get().toString()),
+                    "sessions" to sessions.get().toString(), "session.eofs" to eofs.get().toString(),
+                    "session.cancels" to cancels.get().toString()),
             ),
         )
 
@@ -92,6 +103,7 @@ class FakeAsrService : Service() {
 
         override fun startSession(optionsJson: String?, pcmRead: ParcelFileDescriptor, cb: IAsrSessionCallback): IAsrSession {
             InferApi.decode(AsrSessionOptions.serializer(), requireNotNull(optionsJson))
+            control("startSessionDelayMs")?.toLong()?.let { Thread.sleep(it) }
             sessions.incrementAndGet()
             // Own the descriptor beyond this transaction.
             val pcm = pcmRead.dup().also { pcmRead.close() }
@@ -161,6 +173,7 @@ class FakeAsrService : Service() {
                 }
             }
             runCatching { input.close() }
+            eofs.incrementAndGet()
         }
 
         override fun finish(cb: IResultCallback) {
@@ -174,6 +187,7 @@ class FakeAsrService : Service() {
         }
 
         override fun cancel() {
+            cancels.incrementAndGet()
             runCatching { input.close() }
         }
     }

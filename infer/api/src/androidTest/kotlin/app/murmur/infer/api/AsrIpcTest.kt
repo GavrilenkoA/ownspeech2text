@@ -26,6 +26,7 @@ import java.util.Collections
 import java.util.zip.CRC32
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -230,7 +231,8 @@ class AsrIpcTest {
 
     @Test
     fun aLoadThatNeverAnswersTimesOutAndTheProcessIsKilled() = runBlocking {
-        FakeControl.set(ctx, FakeControl.ASR, "loadAsr" to "hang")
+        // A runtime stuck in native code does not exit on unbind: only the client's own kill removes it.
+        FakeControl.set(ctx, FakeControl.ASR, "loadAsr" to "hang", "exitOnUnbind" to false)
         val c = client(BinderTimeouts(asrLoadMs = 3_000))
         assertTrue(c.connect())
         val t0 = SystemClock.elapsedRealtime()
@@ -241,20 +243,156 @@ class AsrIpcTest {
         assertTrue("returned after $ms ms", ms in 3_000..4_500)
         assertNull("process not killed", pidof(asrProcess))
         assertEquals(HostState.Down, c.state.value)
+        assertEquals(0, c.connector.usesInFlight)
     }
 
     @Test
     fun aFinishThatNeverAnswersTimesOutWithAsrFinal() = runBlocking {
-        FakeControl.set(ctx, FakeControl.ASR, "finish" to "hang")
+        FakeControl.set(ctx, FakeControl.ASR, "finish" to "hang", "exitOnUnbind" to false)
         val c = client(BinderTimeouts(asrFinalBaseMs = 1_000))
+        val deaths = Collections.synchronizedList(mutableListOf<Int>())
+        val deathWatch = launch(Dispatchers.Default) { c.deaths.collect { deaths += it } }
         val session = c.startSession(AsrSessionOptions())
+        val events = Collections.synchronizedList(mutableListOf<AsrEvent>())
+        val collector = launch(Dispatchers.Default) { session.events.collect { events += it } }
         session.accept(PcmChunk(ShortArray(16_000), 0)) // 1 s, none of it committed yet -> 1 s + 0.5 s
         val t0 = SystemClock.elapsedRealtime()
         val r = session.finish()
         val ms = SystemClock.elapsedRealtime() - t0
         assertEquals(Outcome.Err(MurmurError.Timeout(Stage.ASR_FINAL)), r)
         assertTrue("returned after $ms ms", ms in 1_500..3_000)
-        assertNull(pidof(asrProcess))
+        assertNull("process not killed", pidof(asrProcess))
+        collector.join()
+        // One event, one meaning: the timeout, not also a crash (no ProcessDied, no death, state Down).
+        assertEquals(listOf<AsrEvent>(AsrEvent.Failure(MurmurError.Timeout(Stage.ASR_FINAL))), events.filterIsInstance<AsrEvent.Failure>())
+        assertEquals(HostState.Down, c.state.value)
+        deathWatch.cancel()
+        assertEquals(emptyList<Int>(), deaths)
+    }
+
+    @Test
+    fun aStartSessionThatTimesOutFailsWithTimeoutNotProcessDied() = runBlocking {
+        FakeControl.set(ctx, FakeControl.ASR, "startSessionDelayMs" to 5_000, "exitOnUnbind" to false)
+        val c = client(BinderTimeouts(callMs = 1_000))
+        assertTrue(c.connect())
+        val t0 = SystemClock.elapsedRealtime()
+        val session = c.startSession(AsrSessionOptions())
+        val ms = SystemClock.elapsedRealtime() - t0
+        assertTrue("returned after $ms ms", ms in 1_000..2_500)
+        val timeout = MurmurError.Timeout(Stage.CALL)
+        assertEquals(listOf<AsrEvent>(AsrEvent.Failure(timeout)), withTimeout(1_000) { session.events.toList() })
+        assertEquals(Outcome.Err(timeout), session.finish())
+        assertNull("process not killed", pidof(asrProcess))
+        assertEquals(HostState.Down, c.state.value)
+        assertEquals(0, c.connector.usesInFlight)
+    }
+
+    /** A stuck process (no exit in onUnbind): shutdown() waits exitWaitMs, then kills it itself. */
+    @Test
+    fun shutdownKillsAProcessThatDoesNotExitAfterTheExitWait() = runBlocking {
+        FakeControl.set(ctx, FakeControl.ASR, "exitOnUnbind" to false)
+        val c = client()
+        assertTrue(c.connect())
+        val exitWait = BinderTimeouts().exitWaitMs
+        val t0 = SystemClock.elapsedRealtime()
+        c.shutdown()
+        val ms = SystemClock.elapsedRealtime() - t0
+        report("asr.shutdown_stuck_ms", ms)
+        assertNull("process still there after shutdown()", pidof(asrProcess))
+        assertTrue("shutdown took $ms ms", ms in exitWait..exitWait + 1_000)
+        assertEquals(HostState.Down, c.state.value)
+    }
+
+    @Test
+    fun disconnectUnbindsWithoutWaitingAndTheServiceExits() = runBlocking {
+        val c = client()
+        assertTrue(c.connect())
+        val pid1 = (c.state.value as HostState.Up).pid
+        val t0 = SystemClock.elapsedRealtime()
+        c.disconnect()
+        val ms = SystemClock.elapsedRealtime() - t0
+        report("asr.disconnect_ms", ms)
+        assertTrue("disconnect took $ms ms", ms < 500)
+        assertEquals(HostState.Down, c.state.value)
+        assertNotNull("the service did not exit after the unbind", waitUntil(2_000) { pidof(asrProcess) == null })
+        assertTrue(c.connect())
+        assertNotEquals(pid1, (c.state.value as HostState.Up).pid)
+    }
+
+    /** Cancelled mid-bind (onBind takes 1.5 s): no half binding stays, state Down, nothing runs, connect works again. */
+    @Test
+    fun aConnectCancelledMidBindLeavesNothingBehind() = runBlocking {
+        FakeControl.set(ctx, FakeControl.ASR, "onBindDelayMs" to 1_500)
+        val c = client()
+        val deaths = Collections.synchronizedList(mutableListOf<Int>())
+        val deathWatch = launch(Dispatchers.Default) { c.deaths.collect { deaths += it } }
+        val connecting = launch(Dispatchers.Default) { c.connect() }
+        assertNotNull(waitUntil(1_000) { c.state.value == HostState.Starting })
+        Thread.sleep(400)
+        assertEquals(HostState.Starting, c.state.value)
+        connecting.cancel()
+        connecting.join()
+        report("asr.state_after_cancelled_connect", c.state.value)
+        assertEquals(HostState.Down, c.state.value)
+        assertNotNull("process left running", waitUntil(2_000) { pidof(asrProcess) == null })
+        FakeControl.clear(ctx)
+        assertTrue(c.connect())
+        assertEquals(pidof(asrProcess), (c.state.value as HostState.Up).pid)
+        assertTrue(c.load(spec(ModelKind.ASR), null) is Outcome.Ok)
+        deathWatch.cancel()
+        assertEquals("a cancelled bind is not a crash", emptyList<Int>(), deaths)
+    }
+
+    /** Cancelled while binding and while :asr opens the session: the use is released and the idle exit fires. */
+    @Test
+    fun aCancelledStartSessionLeaksNoUseAndTheIdleExitStillFires() = runBlocking {
+        val c = client()
+        // 1: cancelled inside acquire() (the bind is slow).
+        FakeControl.set(ctx, FakeControl.ASR, "onBindDelayMs" to 1_000)
+        val first = launch(Dispatchers.Default) { c.startSession(AsrSessionOptions()) }
+        Thread.sleep(300)
+        first.cancel()
+        first.join()
+        assertEquals(0, c.connector.usesInFlight)
+        assertNotNull(waitUntil(2_000) { pidof(asrProcess) == null })
+        // 2: cancelled while the startSession call is in flight; :asr opens the session after the caller left.
+        FakeControl.set(ctx, FakeControl.ASR, "onBindDelayMs" to 0, "startSessionDelayMs" to 1_000)
+        assertTrue(c.connect())
+        val second = launch(Dispatchers.Default) { c.startSession(AsrSessionOptions()) }
+        Thread.sleep(300)
+        second.cancel()
+        second.join()
+        assertEquals(0, c.connector.usesInFlight)
+        // The late remote session is cancelled and its reader sees EOF (our write end and writer thread are gone).
+        assertNotNull("remote session not cancelled", waitUntil(3_000) {
+            runBlocking { c.probe().facts.let { it["session.cancels"] == "1" && it["session.eofs"] == "1" } }
+        })
+        c.scheduleIdleExit(500)
+        val gone = waitUntil(500 + 2_000 + 1_000) { pidof(asrProcess) == null }
+        report("asr.idle_exit_after_cancelled_start_ms", gone ?: -1)
+        assertNotNull("no idle exit after a cancelled startSession", gone)
+        assertTrue("exited after $gone ms, before its idle time", gone!! >= 450)
+    }
+
+    /** :asr died between acquire() and the session object: the session fails cleanly, nothing throws or leaks. */
+    @Test
+    fun aSessionOnAnAlreadyDeadBindingFailsWithProcessDied() = runBlocking {
+        val c = client()
+        assertTrue(c.connect())
+        val (binding, _) = c.connector.live()!!
+        android.os.Process.killProcess((c.state.value as HostState.Up).pid)
+        withTimeout(3_000) { binding.dead.await() }
+        c.connector.beginUse() // what startSession holds when it builds the session
+        val pipe = android.os.ParcelFileDescriptor.createPipe()
+        val session = c.BinderAsrSession(binding, pipe[1])
+        session.open()
+        val died = MurmurError.ProcessDied(InferProcess.ASR)
+        assertEquals(listOf<AsrEvent>(AsrEvent.Failure(died)), withTimeout(1_000) { session.events.toList() })
+        assertEquals(Outcome.Err(died), session.finish())
+        session.accept(PcmChunk(ShortArray(320), 0)) // dropped, never throws
+        assertEquals(0, c.connector.usesInFlight)
+        // The write end is closed: the read end sees EOF.
+        assertEquals(-1, android.os.ParcelFileDescriptor.AutoCloseInputStream(pipe[0]).use { it.read() })
     }
 
     @Test

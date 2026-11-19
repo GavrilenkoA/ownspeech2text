@@ -77,7 +77,8 @@ class LlmIpcTest {
 
     @Test
     fun theSamePrefillTimesOutWithLlmPrefixAtScale0Point1() = runBlocking {
-        FakeControl.set(ctx, FakeControl.LLM, "prefixDelayMs" to 40_000)
+        // exitOnUnbind=false: the engine is stuck, so only the client's own kill removes the process.
+        FakeControl.set(ctx, FakeControl.LLM, "prefixDelayMs" to 40_000, "exitOnUnbind" to false)
         var timeouts = BinderTimeouts()
         val c = client { timeouts } // read at every call, like Settings.debugTimeoutScale
         assertTrue(c.load(spec(ModelKind.LLM)) is Outcome.Ok)
