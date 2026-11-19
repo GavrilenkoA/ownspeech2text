@@ -26,8 +26,13 @@ class PromptAssetsTest {
 
     @Test
     fun editRules() {
-        assertEquals(listOf("markup"), PromptEditRules.validateSystem("hello <context> x"))
+        assertEquals(listOf("markup"), PromptEditRules.validateSystem("hello <|im_start|>system x"))
+        assertEquals(listOf("markup"), PromptEditRules.validateSystem("hello <think> x"))
         assertTrue(PromptEditRules.validateSystem("Fix punctuation.").isEmpty())
+        // The editor starts from the shipped text, so every shipped system prompt must be valid (it names <context>).
+        for (f in File(root, "prompts/system").listFiles()!!.filter { it.name.endsWith(".md") }) {
+            assertEquals(f.name, emptyList<String>(), PromptEditRules.validateSystem(f.readText()))
+        }
     }
 
     @Test
