@@ -25,8 +25,9 @@ import app.murmur.core.store.AudioStore
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.withTimeoutOrNull
-import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.ScheduledExecutorService
+import java.util.concurrent.TimeUnit
 
 /**
  * Microphone capture in `:main` (ADR-024; lifted from the platform spike's Recorder.kt): RecordingFgs first, then
@@ -38,11 +39,13 @@ import java.util.concurrent.Executors
  * Failures at start: no permission -> MicPermissionMissing; AudioRecord not initialised / builder refused ->
  * MicStartFailed; not RECORDING after startRecording -> MicBusy; isClientSilenced or a first second of exact zeros ->
  * MicSilenced. Mid-recording problems arrive on [CaptureHandle.signals]: Silenced (AudioRecordingCallback),
- * Lost (read error: the input stream died; a mere route change keeps recording on the new device), CallStarted
- * (AudioManager mode, see [CallModes]; also when a call is already up at start).
+ * Lost(MicLost) when the input stream died ([MicReadWatch]: read error, reads that stay empty, or no samples for 1 s; a
+ * mere route change keeps recording on the new device), CallStarted when a call starts during the recording
+ * ([CallWatch]: a call already up at start is not signalled).
  *
- * No audio focus is requested (decision of WP-09, measured on the API 36 emulator: recording is not affected by other
- * apps' playback or focus; a focus request would only fade other apps out).
+ * No audio focus is requested (decision of WP-09, measured on the API 36 emulator: while another app, with its own UID,
+ * comes to the front, takes AUDIOFOCUS_GAIN and plays, the recording keeps pace with the wall clock and is not
+ * silenced; a focus request would only fade other apps out).
  *
  * @param fgsContext the context the FGS is started from: the accessibility service while connected (WIU through the
  *   binding, platform spike b), else the application.
@@ -55,6 +58,10 @@ class AndroidAudioCapture(
     private val startTimeoutMs: Long = START_TIMEOUT_MS,
 ) : AudioCapture {
 
+    /** Where the time of the last [start] went (codes and numbers only), for the latency checks. */
+    @Volatile internal var lastStart: StartTimings? = null
+        private set
+
     override suspend fun start(session: SessionId, keepRecording: Boolean, audioKey: String): Outcome<CaptureHandle> {
         if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             return Outcome.Err(MurmurError.MicPermissionMissing)
@@ -62,6 +69,7 @@ class AndroidAudioCapture(
         val fgsGeneration = RecordingFgsController.start(fgsContext())
         val writer = if (keepRecording) store.newWriter(audioKey) else null
         val source = AudioRecordSource(modes)
+        lastStart = source.timings
         val capture = CaptureSession(writer, source)
         capture.doOnEnd { RecordingFgsController.stop(fgsGeneration) }
         source.begin(capture, session)
@@ -86,6 +94,19 @@ class AndroidAudioCapture(
     }
 }
 
+/**
+ * Milliseconds from the start request (uptime) to: AudioRecord built, RECORDING state, the first buffer of any
+ * content, the first non-zero sample (= capture started; -1 while it has not happened).
+ */
+internal class StartTimings {
+    @Volatile var builtMs = -1L
+    @Volatile var recordingMs = -1L
+    @Volatile var firstBufferMs = -1L
+    @Volatile var startedMs = -1L
+
+    override fun toString() = "built=$builtMs recording=$recordingMs first_buffer=$firstBufferMs started=$startedMs"
+}
+
 /** The AudioRecord thread of one capture. */
 internal class AudioRecordSource(private val modes: AudioModeSource) : CaptureSession.Source {
     @Volatile private var running = true
@@ -93,7 +114,14 @@ internal class AudioRecordSource(private val modes: AudioModeSource) : CaptureSe
     override val finished = CompletableDeferred<Unit>()
     /** Ok at the first non-zero sample; Err for every start failure. */
     val started = CompletableDeferred<Outcome<Unit>>()
-    private val callbacks: ExecutorService = Executors.newSingleThreadExecutor { Thread(it, "audio-callbacks") }
+    val timings = StartTimings()
+    /** Mode listener, recording callback and the stall watchdog. */
+    private val callbacks: ScheduledExecutorService =
+        Executors.newSingleThreadScheduledExecutor { Thread(it, "audio-callbacks") }
+    private val watch = MicReadWatch()
+    /** Guards stop-from-the-watchdog against release on the capture thread. */
+    private val recLock = Any()
+    private var released = false
 
     override fun halt() { running = false }
 
@@ -117,6 +145,7 @@ internal class AudioRecordSource(private val modes: AudioModeSource) : CaptureSe
                 fail(MurmurError.MicStartFailed("build:${e.javaClass.simpleName}")); return
             }
             rec = r
+            timings.builtMs = SystemClock.uptimeMillis() - t0
             if (r.state != AudioRecord.STATE_INITIALIZED) { fail(MurmurError.MicStartFailed("init")); return }
             val cb = object : AudioManager.AudioRecordingCallback() {
                 override fun onRecordingConfigChanged(configs: MutableList<AudioRecordingConfiguration>) {
@@ -126,18 +155,25 @@ internal class AudioRecordSource(private val modes: AudioModeSource) : CaptureSe
             }
             r.registerAudioRecordingCallback(callbacks, cb)
             recordingCallback = cb
-            modeWatch = modes.observe(callbacks) { mode ->
-                Log.i(AndroidAudioCapture.TAG, "mode_changed ${CallModes.name(mode)} session=${id.value}")
-                if (CallModes.isCall(mode)) session.signal(CaptureSignal.CallStarted)
+            val modeAtStart = modes.mode
+            val calls = CallWatch(modeAtStart)
+            fun onMode(mode: Int, from: String) {
+                val call = calls.onMode(mode)
+                if (from == "listener" || call) {
+                    Log.i(AndroidAudioCapture.TAG, "mode_changed ${CallModes.name(mode)} call_started=$call session=${id.value}")
+                }
+                if (call) session.signal(CaptureSignal.CallStarted)
             }
+            modeWatch = modes.observe(callbacks) { onMode(it, "listener") }
+            // A change between the first read and the registration is caught here (a repeat of the same mode is not).
+            onMode(modes.mode, "recheck")
             try {
                 r.startRecording()
             } catch (e: IllegalStateException) {
                 fail(MurmurError.MicStartFailed("start")); return
             }
             if (r.recordingState != AudioRecord.RECORDSTATE_RECORDING) { fail(MurmurError.MicBusy); return }
-            val modeAtStart = modes.mode
-            if (CallModes.isCall(modeAtStart)) session.signal(CaptureSignal.CallStarted)
+            timings.recordingMs = SystemClock.uptimeMillis() - t0
 
             val gate = MicStartGate()
             val frames = FrameAssembler { frame, n ->
@@ -148,8 +184,10 @@ internal class AudioRecordSource(private val modes: AudioModeSource) : CaptureSe
                             if (r.activeRecordingConfiguration?.isClientSilenced == true) {
                                 fail(MurmurError.MicSilenced)
                             } else {
-                                Log.i(AndroidAudioCapture.TAG, "mic_started ms=${SystemClock.uptimeMillis() - t0} " +
+                                timings.startedMs = SystemClock.uptimeMillis() - t0
+                                Log.i(AndroidAudioCapture.TAG, "mic_started ms=${timings.startedMs} $timings " +
                                     "mode=${CallModes.name(modeAtStart)} session=${id.value}")
+                                armWatchdog(r, session, id)
                                 started.complete(Outcome.Ok(Unit))
                             }
                         }
@@ -161,12 +199,14 @@ internal class AudioRecordSource(private val modes: AudioModeSource) : CaptureSe
             val buf = ShortArray(PcmFormat.FRAME_SAMPLES)
             while (running && !failed) {
                 val n = r.read(buf, 0, buf.size)
-                when {
-                    n > 0 -> frames.push(buf, 0, n)
-                    n < 0 -> {
-                        Log.w(AndroidAudioCapture.TAG, "read_error code=$n session=${id.value}")
-                        if (!started.isCompleted) fail(MurmurError.MicStartFailed("read:$n"))
-                        else session.signal(CaptureSignal.Lost(MurmurError.MicStartFailed("read:$n")))
+                if (n > 0 && timings.firstBufferMs < 0) timings.firstBufferMs = SystemClock.uptimeMillis() - t0
+                when (val v = watch.onRead(n, SystemClock.uptimeMillis())) {
+                    MicReadWatch.Verdict.Samples -> frames.push(buf, 0, n)
+                    is MicReadWatch.Verdict.Retry -> SystemClock.sleep(v.ms)
+                    is MicReadWatch.Verdict.Lost -> {
+                        Log.w(AndroidAudioCapture.TAG, "mic_lost cause=${v.cause} session=${id.value}")
+                        if (!started.isCompleted) fail(MurmurError.MicStartFailed(v.cause))
+                        else session.signal(CaptureSignal.Lost(MurmurError.MicLost(v.cause)))
                         break
                     }
                 }
@@ -175,12 +215,35 @@ internal class AudioRecordSource(private val modes: AudioModeSource) : CaptureSe
             modeWatch?.let { runCatching { it.close() } }
             rec?.let { r ->
                 recordingCallback?.let { runCatching { r.unregisterAudioRecordingCallback(it) } }
-                runCatching { r.stop() }
-                r.release()
+                synchronized(recLock) {
+                    runCatching { r.stop() }
+                    r.release()
+                    released = true
+                }
             }
+            // Only after both listeners are gone: nothing is dispatched to a shut-down executor.
+            callbacks.shutdownNow()
             if (!started.isCompleted) started.complete(Outcome.Err(MurmurError.MicStartFailed("ended")))
             finished.complete(Unit)
-            callbacks.shutdown()
+        }
+    }
+
+    /**
+     * From the first sample on: a read that blocks without delivering for [MicReadWatch.MAX_GAP_MS] is a lost input.
+     * The watchdog signals Lost and stops the AudioRecord, which unblocks the read so that the capture can end.
+     */
+    private fun armWatchdog(r: AudioRecord, session: CaptureSession, id: SessionId) {
+        watch.armed(SystemClock.uptimeMillis())
+        val period = MicReadWatch.WATCHDOG_PERIOD_MS
+        runCatching {
+            callbacks.scheduleWithFixedDelay({
+                if (running && !failed && watch.stalled(SystemClock.uptimeMillis())) {
+                    Log.w(AndroidAudioCapture.TAG, "mic_lost cause=stall session=${id.value}")
+                    failed = true
+                    session.signal(CaptureSignal.Lost(MurmurError.MicLost("stall")))
+                    synchronized(recLock) { if (!released) runCatching { r.stop() } }
+                }
+            }, period, period, TimeUnit.MILLISECONDS)
         }
     }
 

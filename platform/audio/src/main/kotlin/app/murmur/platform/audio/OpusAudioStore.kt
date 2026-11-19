@@ -11,19 +11,26 @@ import android.media.MediaMuxer
 import android.os.Process
 import android.util.Log
 import app.murmur.core.audio.PcmFormat
+import app.murmur.core.audio.PcmMath
 import app.murmur.core.audio.Resampler
 import app.murmur.core.store.AudioRef
 import app.murmur.core.store.AudioStore
 import app.murmur.core.store.AudioWriter
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.BufferedOutputStream
 import java.io.File
 import java.io.FileOutputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.LinkedBlockingQueue
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
 
 /**
  * How history audio is compressed (ADR-018): Opus at 24 kbit/s in Ogg (MediaCodec encoder + [OggOpusWriter]), or,
@@ -61,7 +68,9 @@ enum class HistoryCodec(val mime: String, val extension: String, val bitRate: In
  * into `filesDir/history/audio/<AudioKey>.ogg` (Opus, 24 kbit/s, ~90 KB per 30 s), or `.m4a` (AAC-LC) when the device
  * has no Opus encoder. A file is written as `<key>.<ext>.part` and renamed when the encoder finished, so a file with
  * the final name is always complete. [readPcm] decodes back to 16 kHz mono PCM16 (Retry / Re-polish) with
- * MediaExtractor + MediaCodec. keepRecordings=false is honoured by the capture, which then never asks for a writer.
+ * MediaExtractor + MediaCodec, aligned with what was captured: sample i of the result is sample i the ASR saw (the
+ * codec's delay is removed, see [CodecLag]) and the length is the recorded duration.
+ * keepRecordings=false is honoured by the capture, which then never asks for a writer.
  */
 class OpusAudioStore(
     context: Context,
@@ -69,6 +78,7 @@ class OpusAudioStore(
     val dir: File = File(context.filesDir, "history/audio"),
 ) : AudioStore {
     private val active = HashSet<String>()
+    private val scratch = File(context.cacheDir, "audio-lag-probe")
 
     override fun newWriter(key: String): AudioWriter {
         require(KEY.matches(key)) { "audio key must be a plain file name" }
@@ -86,7 +96,11 @@ class OpusAudioStore(
 
     override suspend fun readPcm(ref: AudioRef): ShortArray? = withContext(Dispatchers.IO) {
         val f = ownedFile(ref.path)?.takeIf { it.isFile } ?: return@withContext null
-        decodeToPcm16k(f)
+        val pcm = decodeToPcm16k(f) ?: return@withContext null
+        val fileCodec = HistoryCodec.ofExtension(f.extension) ?: return@withContext pcm
+        val lead = CodecLag.of(fileCodec, scratch).coerceIn(0, pcm.size)
+        val want = if (ref.durationMs > 0) PcmFormat.msToSamples(ref.durationMs).toInt() else pcm.size - lead
+        pcm.copyOfRange(lead, minOf(pcm.size, lead + want))
     }
 
     override suspend fun exists(ref: AudioRef): Boolean = withContext(Dispatchers.IO) { ownedFile(ref.path)?.isFile == true }
@@ -201,8 +215,56 @@ class OpusAudioStore(
 }
 
 /**
+ * How many 16 kHz samples this device's encoder + decoder chain puts in front of the audio (encoder look-ahead and
+ * priming that the container does not remove: measured on the API 36 emulator, Opus 215 and AAC 1539 samples).
+ * Measured once per codec and process on the device itself, by encoding a 1 s chirp with the same writer and decoding
+ * it with the same decoder, so it is right for whatever codec implementation the phone has. 0 if the probe fails.
+ */
+internal object CodecLag {
+    private val cache = ConcurrentHashMap<HistoryCodec, Int>()
+    private val lock = Mutex()
+    private const val MAX_LAG = 3_200 // 200 ms
+
+    suspend fun of(codec: HistoryCodec, scratch: File): Int = cache[codec] ?: lock.withLock {
+        cache[codec] ?: measure(codec, scratch).also { cache[codec] = it }
+    }
+
+    /** A linear 150 Hz -> 3.5 kHz sweep with 50 ms fades: sharp autocorrelation, so the lag is unambiguous. */
+    fun probe(): ShortArray {
+        val n = PcmFormat.SAMPLE_RATE
+        val fade = n / 20
+        return ShortArray(n) { i ->
+            val t = i.toDouble() / PcmFormat.SAMPLE_RATE
+            val phase = 2 * PI * (150 * t + (3_500 - 150) / 2.0 * t * t)
+            val edge = minOf(i, n - 1 - i)
+            val env = if (edge >= fade) 1.0 else 0.5 - 0.5 * cos(PI * edge / fade)
+            (8_000 * env * sin(phase)).toInt().toShort()
+        }
+    }
+
+    private suspend fun measure(codec: HistoryCodec, scratch: File): Int {
+        val file = File(scratch, "probe.${codec.extension}")
+        return try {
+            scratch.mkdirs()
+            val pcm = probe()
+            val w = EncodingWriter(codec, file) {}
+            w.write(pcm, pcm.size)
+            w.close() ?: return 0
+            val decoded = OpusAudioStore.decodeToPcm16k(file) ?: return 0
+            PcmMath.snr(pcm, decoded, maxLag = MAX_LAG, searchWindow = pcm.size / 2).lag.coerceAtLeast(0)
+                .also { Log.i("MurmurAudioStore", "codec_lag ${codec.label} samples=$it") }
+        } finally {
+            file.delete()
+        }
+    }
+}
+
+/**
  * One history file being encoded. [write] only copies the samples into a queue (the capture thread never blocks);
- * a background-priority encoder thread, started at the first write, owns the MediaCodec and the container writer.
+ * an encoder thread, started at the first write, owns the MediaCodec and the container writer. It runs at default
+ * priority, not background: stop() waits until the file is finished, and a background thread starved by :asr / :llm
+ * falls behind while recording (measured on the emulator with every core busy: 961 ms from stop() to the result at
+ * background priority after 5 s of audio). Encoding costs a few percent of one core, so this takes little from others.
  */
 internal class EncodingWriter(
     private val codec: HistoryCodec,
@@ -324,7 +386,7 @@ internal class EncodingWriter(
     }
 
     private fun encode() {
-        Process.setThreadPriority(Process.THREAD_PRIORITY_BACKGROUND)
+        Process.setThreadPriority(Process.THREAD_PRIORITY_DEFAULT)
         val part = File(target.path + OpusAudioStore.PART)
         var mc: MediaCodec? = null
         var container: Container? = null

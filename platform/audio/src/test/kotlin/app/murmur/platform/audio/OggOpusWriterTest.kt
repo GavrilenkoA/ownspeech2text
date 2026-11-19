@@ -84,6 +84,60 @@ class OggOpusWriterTest {
         input.indices.forEach { assertArrayEquals(input[it], audio[it]) }
     }
 
+    /**
+     * A packet count that is a multiple of the page size: the end-of-stream flag and the trimmed granule must land on
+     * a page that carries packets, never on an empty page whose granule is lower than the page before it.
+     */
+    @Test
+    fun aPacketCountThatFillsTheLastPageStillEndsOnAPageWithPackets() {
+        for (count in listOf(50, 100, 150)) {
+            val out = ByteArrayOutputStream()
+            val w = OggOpusWriter(out, opusHead(), packetsPerPage = 50)
+            val input = (0 until count).map { packet(40 + it % 5, it) }
+            input.forEach(w::writePacket)
+            val fed = count * 960L - 480 // the last frame was half padding
+            w.finish(inputSamples48k = fed)
+            val audio = parse(out.toByteArray()).drop(2)
+
+            assertEquals("pages for $count packets", count / 50, audio.size)
+            assertTrue("every audio page carries packets", audio.all { it.packets.isNotEmpty() })
+            assertEquals("only the last page has EOS", listOf(0x04), audio.map { it.flags }.filter { it != 0 })
+            assertEquals(0x04, audio.last().flags)
+            assertEquals("end trim", 312 + fed, audio.last().granule)
+            val granules = audio.map { it.granule }
+            assertEquals("granules increase", granules.sorted(), granules)
+            assertEquals(granules.size, granules.toSet().size)
+            assertEquals(input.size, audio.flatMap { it.packets }.size)
+        }
+    }
+
+    /** The trim may only shorten the last page: it never moves the granule below the previous page's end. */
+    @Test
+    fun theEndTrimNeverGoesBelowThePreviousPage() {
+        val out = ByteArrayOutputStream()
+        val w = OggOpusWriter(out, opusHead(), packetsPerPage = 50)
+        repeat(60) { w.writePacket(packet(40, it)) }
+        w.finish(inputSamples48k = 10_000) // nonsense: far less than the first page already holds
+        val audio = parse(out.toByteArray()).drop(2)
+        assertEquals(50 * 960L, audio[0].granule)
+        assertEquals(50 * 960L, audio[1].granule)
+        assertEquals(0x04, audio[1].flags)
+    }
+
+    @Test
+    fun theStreamCarriesNoLiteralProductNameAndARandomSerial() {
+        val serials = (0 until 4).map {
+            val out = ByteArrayOutputStream()
+            OggOpusWriter(out, opusHead()).apply { writePacket(packet(40, 1)); finish(960) }
+            val pages = parse(out.toByteArray())
+            val vendorLen = ByteBuffer.wrap(pages[1].packets.single(), 8, 4).order(ByteOrder.LITTLE_ENDIAN).int
+            val vendor = String(pages[1].packets.single(), 12, vendorLen, Charsets.UTF_8)
+            assertEquals(app.murmur.core.model.ProductName.NAME, vendor)
+            pages[0].serial
+        }
+        assertTrue("serial is chosen per stream: $serials", serials.toSet().size > 1)
+    }
+
     @Test
     fun largePacketsAreLacedAcrossSegments() {
         val out = ByteArrayOutputStream()

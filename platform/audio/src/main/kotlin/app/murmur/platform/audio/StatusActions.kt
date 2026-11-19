@@ -32,6 +32,11 @@ interface StatusActionHandler {
 /** Receives the notification actions (explicit, not exported) and forwards them to the [StatusActionHandler]. */
 class StatusActionReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action == ACTION_UNHIDE) {
+            // The hidden time is over (the wall-clock alarm of AndroidStatusNotifier): not a user action.
+            AndroidStatusNotifier(context).flipBackIfShown(intent.getStringExtra(EXTRA_MODELS) ?: return)
+            return
+        }
         val action = when (intent.action) {
             ACTION_HIDE -> StatusAction.Hide(System.currentTimeMillis() + HIDE_MS)
             ACTION_SHOW -> StatusAction.ShowNow
@@ -52,6 +57,8 @@ class StatusActionReceiver : BroadcastReceiver() {
         const val ACTION_SHOW = "app.murmur.platform.audio.action.SHOW_NOW"
         const val ACTION_START = "app.murmur.platform.audio.action.START_DICTATION"
         const val ACTION_STOP = "app.murmur.platform.audio.action.STOP_DICTATION"
+        internal const val ACTION_UNHIDE = "app.murmur.platform.audio.action.UNHIDE"
+        internal const val EXTRA_MODELS = "models"
         /** DESIGN 5.4: the bubble hides for one hour. */
         const val HIDE_MS = 60 * 60 * 1000L
         private const val TAG = "MurmurStatus"
@@ -82,6 +89,17 @@ internal object StatusChannel {
             Intent(action).setClass(context, StatusActionReceiver::class.java),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
+
+    /** The alarm that flips "Show now" back to "Hide 1 h" (one per app: the extras are replaced, cancel ignores them). */
+    fun unhideIntent(context: Context, modelsLine: String): PendingIntent =
+        PendingIntent.getBroadcast(
+            context, REQ_UNHIDE,
+            Intent(StatusActionReceiver.ACTION_UNHIDE).setClass(context, StatusActionReceiver::class.java)
+                .putExtra(StatusActionReceiver.EXTRA_MODELS, modelsLine),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+
+    private const val REQ_UNHIDE = 100
 
     /** Tapping the notification body opens the app (its launcher activity), if it has one. */
     fun openAppIntent(context: Context): PendingIntent? {

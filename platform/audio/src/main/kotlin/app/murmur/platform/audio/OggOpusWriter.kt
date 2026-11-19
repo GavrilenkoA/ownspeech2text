@@ -1,7 +1,9 @@
 package app.murmur.platform.audio
 
+import app.murmur.core.model.ProductName
 import java.io.Closeable
 import java.io.OutputStream
+import kotlin.random.Random
 
 /**
  * Ogg encapsulation of an Opus stream (RFC 7845), written by hand instead of MediaMuxer(MUXER_OUTPUT_OGG): the
@@ -10,19 +12,27 @@ import java.io.OutputStream
  * to one second of packets (~0.3 kbit/s of overhead) and the last page's granule position trims the encoder's padding.
  * MediaExtractor reads the result like any other .opus/.ogg file. Pure Kotlin (JVM-tested).
  *
+ * A full page is held back until the next packet arrives, so that [finish] always puts the end-of-stream flag and the
+ * trimmed granule position on a page that carries packets (an empty EOS page after a full one would carry a granule
+ * lower than its predecessor's, which decoders reject or ignore, losing the end trim).
+ *
  * @param opusHead the identification header (`OpusHead`, RFC 7845 5.1) the encoder reports as csd-0.
+ * @param serial the logical stream serial; RFC 3533 asks for a random one.
  */
 class OggOpusWriter(
     private val out: OutputStream,
     opusHead: ByteArray,
-    vendor: String = "murmur",
-    private val serial: Int = 0x4D75_726D,
+    vendor: String = ProductName.NAME,
+    private val serial: Int = Random.nextInt(),
     private val packetsPerPage: Int = 50,
 ) : Closeable {
     /** Pre-skip in 48 kHz samples, from the header. */
     val preSkip: Int
     private var sequence = 0
+    /** Granule position at the end of the packets written so far (pending ones included). */
     private var granule = 0L
+    /** Granule position at the end of the last page written (0 until the first audio page). */
+    private var writtenGranule = 0L
     private val pending = ArrayList<ByteArray>()
     private var finished = false
 
@@ -39,9 +49,10 @@ class OggOpusWriter(
     fun writePacket(packet: ByteArray) {
         check(!finished) { "finished" }
         require(packet.isNotEmpty()) { "empty packet" }
+        // The page is written only now that a further packet exists: the last page always keeps packets for finish().
+        if (pending.size >= packetsPerPage || segmentsOf(pending) > MAX_SEGMENTS - MAX_PACKET_SEGMENTS) flush(0)
         granule += samples48k(packet)
         pending += packet
-        if (pending.size >= packetsPerPage || segmentsOf(pending) > MAX_SEGMENTS - MAX_PACKET_SEGMENTS) flush(0)
     }
 
     /**
@@ -50,18 +61,22 @@ class OggOpusWriter(
      */
     fun finish(inputSamples48k: Long) {
         if (finished) return
+        // RFC 7845 4.4: the end trim may only drop samples of the last page.
         val end = preSkip + inputSamples48k
-        if (end in 0 until granule) granule = end
-        flush(EOS, force = true)
+        if (end < granule) granule = maxOf(end, writtenGranule)
+        // pending is empty only when no packet was ever written: then the EOS page is the (empty) first audio page.
+        page(pending.toList(), granule, EOS)
+        pending.clear()
         finished = true
         out.flush()
     }
 
     override fun close() = out.close()
 
-    private fun flush(flags: Int, force: Boolean = false) {
-        if (pending.isEmpty() && !force) return
+    private fun flush(flags: Int) {
+        if (pending.isEmpty()) return
         page(pending.toList(), granule, flags)
+        writtenGranule = granule
         pending.clear()
     }
 
