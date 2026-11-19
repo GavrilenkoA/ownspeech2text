@@ -103,6 +103,40 @@ class OrchestratorFlowTest {
         h.assertInserted("skipped:none")
     }
 
+    /** I4 (review F4): the field text, window title and transcript do not outlive the dictation in executor memory. */
+    @Test fun theSessionMemoryIsDroppedOnceTheDictationIsWrittenOut() = runTest {
+        val h = harness { target.target = FakeTargetReader.defaultTarget().let { it.copy(field = it.field?.copy(beforeCursor = "секрет")) } }
+        h.at(0); h.tap(); h.at(1_000)
+        assertEquals("секрет", h.o.sessionMemory?.target?.field?.beforeCursor)
+        h.at(2_800); h.tap(); h.at(2_900)
+        assertTrue(h.state is DictationState.Done)
+        assertNull(h.o.sessionMemory)
+        assertEquals(EntryStatus.INSERTED, h.only().status)
+        h.assertNoInternalErrors()
+    }
+
+    /** Row 44: Copied at the DELIVERY timer; the ladder still finishes and writes the row, then the memory goes. */
+    @Test fun aSlowDeliveryIsCopiedAtTheTimerAndStillWritesTheEntry() = runTest {
+        val h = harness { inserter.insertDelayMs = 3_000 }
+        h.at(0); h.tap(); h.at(2_800); h.tap()
+        while (h.state !is DictationState.Delivering) h.at(h.now + 1)
+        val t0 = h.now
+        h.at(t0 + 1_999)
+        assertTrue(h.state is DictationState.Delivering)
+        h.at(t0 + 2_000)
+        assertEquals(DictationState.Done(SessionId(1), DictationOutcome.Copied(null)), h.state)
+        assertEquals(DictationBubble.Copied(null), h.o.bubble.value)
+        assertNotNull(h.o.sessionMemory?.target)                             // the delivery coroutine still needs it
+        h.at(t0 + 3_000)
+        val e = h.only()
+        assertEquals(EntryStatus.INSERTED, e.status)
+        assertEquals(DictationState.Done(SessionId(1), DictationOutcome.Copied(e.id)), h.state)
+        assertNull(h.o.sessionMemory)
+        h.press(UserInput.ResultTap)
+        assertEquals(listOf<OpenTarget>(OpenTarget.Entry(e.id)), h.w.navigator.opened)
+        h.assertNoInternalErrors()
+    }
+
     @Test fun passwordAtDeliveryStoresAndCopiesNothing() = runTest {
         val password = FakeTargetReader.defaultTarget().let {
             it.copy(field = it.field!!.copy(inputType = 0x00000081, isPassword = true))
@@ -155,7 +189,7 @@ class OrchestratorFlowTest {
         h.at(0); h.tap(); h.at(1_000)
         h.o.onAccessibilityLost()
         h.scope.testScheduler.advanceUntilIdle()
-        assertEquals(DictationOutcome.Failed(MurmurError.AccessibilityOff, h.only().id), h.outcomes().single())
+        assertEquals(DictationOutcome.Failed(MurmurError.AccessibilityOff, h.only().id, audioKept = true), h.outcomes().single())
         val e = h.only()
         assertEquals(EntryStatus.FAILED, e.status)
         assertEquals("perm.a11y", e.failureCode)
@@ -366,7 +400,7 @@ class OrchestratorFlowTest {
         assertEquals(EntryStatus.FAILED, e.status)
         assertEquals("audio.no_speech", e.failureCode)
         assertNotNull(e.audio)
-        assertEquals(DictationOutcome.Failed(MurmurError.NoSpeech, e.id), (h.state as DictationState.Done).outcome)
+        assertEquals(DictationOutcome.Failed(MurmurError.NoSpeech, e.id, audioKept = true), (h.state as DictationState.Done).outcome)
         h.press(UserInput.ResultAction); h.at(3_100)
         assertEquals(SessionId(2), h.state.session)
         assertTrue(h.state is DictationState.Listening)

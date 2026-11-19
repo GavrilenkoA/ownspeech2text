@@ -23,7 +23,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import java.time.LocalDate
 
-class InMemoryHistoryRepository : HistoryRepository {
+/** [writeDelayMs] = how long insert / update take (coroutine time: a pill tapped before its entry is written). */
+class InMemoryHistoryRepository(var writeDelayMs: Long = 0) : HistoryRepository {
     private val rows = MutableStateFlow<List<HistoryEntry>>(emptyList())
     private val deleted = mutableSetOf<EntryId>()
     private var nextId = 1L
@@ -36,11 +37,15 @@ class InMemoryHistoryRepository : HistoryRepository {
             listOfNotNull(e.finalText, e.rawText).any { it.contains(query, ignoreCase = true) } }
     }
     override suspend fun insert(entry: HistoryEntry): EntryId {
+        if (writeDelayMs > 0) kotlinx.coroutines.delay(writeDelayMs)
         val id = EntryId(nextId++)
         rows.value = rows.value + entry.copy(id = id)
         return id
     }
-    override suspend fun update(entry: HistoryEntry) { rows.value = rows.value.map { if (it.id == entry.id) entry else it } }
+    override suspend fun update(entry: HistoryEntry) {
+        if (writeDelayMs > 0) kotlinx.coroutines.delay(writeDelayMs)
+        rows.value = rows.value.map { if (it.id == entry.id) entry else it }
+    }
     override suspend fun markDeleted(ids: Set<EntryId>) { deleted += ids; rows.value = rows.value.toList() }
     override suspend fun restore(ids: Set<EntryId>) { deleted -= ids; rows.value = rows.value.toList() }
     override suspend fun commitDeletes() { rows.value = rows.value.filter { it.id !in deleted }; deleted.clear() }

@@ -62,6 +62,7 @@ import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -129,6 +130,9 @@ class DictationOrchestrator(
     val levels: StateFlow<FloatArray> = _levels.asStateFlow()
 
     private var run: SessionRun? = null
+
+    /** The executor's memory of the last session; null once it ended and its writers finished (I4). Tests only. */
+    internal val sessionMemory: SessionRun? get() = run
     private var lastSession = 0L
     private var pendingInApp: InAppTarget? = null
     private val timers = HashMap<Timer, Job>()
@@ -184,11 +188,35 @@ class DictationOrchestrator(
     }
 
     /**
-     * History "Try again": re-transcribe the stored audio of a Failed entry and clean it up with the current settings
-     * (no screen context: it is never stored). The entry becomes Copied (the text is put on the clipboard).
+     * History "Try again" (WP-11 Deliver 4): the stored audio of a Failed entry runs through the normal flow from
+     * Finishing as a new session (the error pill's Retry does the same, row 49): ASR, cleanup with the current settings
+     * (no screen context: it is never stored), delivery into the focused field when there is one outside this app,
+     * else the clipboard. The same entry is updated. Waits for a running dictation to end first. Ok(entry) when the text
+     * was inserted or copied, else the session's error.
      */
-    suspend fun retry(entry: EntryId): Outcome<EntryId> =
-        background(resume = false) { guarded { doRetry(entry) } } ?: Outcome.Err(MurmurError.Internal("interrupted"))
+    suspend fun retry(entry: EntryId): Outcome<EntryId> {
+        var started: SessionId? = null
+        while (started == null) {
+            state.first { it is DictationState.Idle || it is DictationState.Done }
+            started = withContext(serial) {
+                if (dictationRunning()) null
+                else {
+                    dispatch(DictationEvent.RetryRequested(entry, deps.clock.elapsedMs()))
+                    (_state.value as? DictationState.Arming)?.takeIf { it.retryOf == entry }?.session
+                }
+            }
+        }
+        var last: DictationState? = null
+        state.first { st ->
+            if (st.session == started) last = st
+            st.session != started || (st is DictationState.Done && !st.recording)
+        }
+        return when (val o = (last as? DictationState.Done)?.outcome) {
+            is DictationOutcome.Inserted, is DictationOutcome.Copied -> Outcome.Ok(entry)
+            is DictationOutcome.Failed -> Outcome.Err(o.error)
+            is DictationOutcome.Discarded, null -> Outcome.Err(MurmurError.Internal("retry_not_delivered"))
+        }
+    }
 
     /** History "Re-polish": re-run cleanup on rawText with the current prompt/tone/model; Original stays, revision + 1. */
     suspend fun repolish(entry: EntryId): Outcome<EntryId> =
@@ -223,7 +251,12 @@ class DictationOrchestrator(
     private fun dispatch(event: DictationEvent) {
         val settings = deps.settings.settings.value
         val cfg = effectiveConfig(settings)
-        val e = if (event is DictationEvent.Input && event.session == null) event.copy(session = SessionId(lastSession + 1)) else event
+        val next = SessionId(lastSession + 1)
+        val e = when {
+            event is DictationEvent.Input && event.session == null -> event.copy(session = next)
+            event is DictationEvent.RetryRequested && event.session == null -> event.copy(session = next)
+            else -> event
+        }
         val old = _state.value
         val t = DictationMachine.reduce(old, e, cfg)
         val new = t.state
@@ -251,7 +284,7 @@ class DictationOrchestrator(
         backgroundJob?.cancel()     // ARCHITECTURE 5.4: a press cancels preparation; the dictation never waits for it.
         lastSession = arming.session.value
         run = SessionRun(arming.session, arming.mode, deps.clock.now(), settings, cfg,
-            inApp = if (arming.mode == StartMode.IN_APP) pendingInApp else null)
+            inApp = if (arming.mode == StartMode.IN_APP) pendingInApp else null, retryOf = arming.retryOf)
     }
 
     /** Leaving the working states: timers do not outlive them, and the screen context is dropped (I4). */
@@ -282,6 +315,17 @@ class DictationOrchestrator(
         r.buffer.clear()
         r.buffer.trimToSize()
         _levels.value = FloatArray(LEVEL_BARS)
+        // I4: the target snapshot (field text, window title), the privacy decision and the transcript go as soon as the
+        // delivery and RecordFailure coroutines that write them out are done (row 44 delivers after Done).
+        val writers = r.writers.toList()
+        work.launch {
+            writers.joinAll()
+            r.target = null
+            r.decision = null
+            r.transcript = null
+            r.retryEntry = null
+            if (run === r) run = null
+        }
     }
 
     private fun runFor(s: SessionId): SessionRun? = run?.takeIf { it.session == s }
@@ -330,11 +374,12 @@ class DictationOrchestrator(
                 }
             }
             is Effect.Deliver -> runFor(effect.session)?.let { r ->
-                launchFor(r, { DictationEvent.Delivered(r.session, DeliveryResult.CopiedOnly(null, internal("deliver", it))) }) { deliver(r, effect) }
+                r.writers += launchFor(r, { DictationEvent.Delivered(r.session, DeliveryResult.CopiedOnly(null, internal("deliver", it))) }) { deliver(r, effect) }
             }
             is Effect.RecordFailure -> runFor(effect.session)?.let { r ->
-                launchFor(r, { DictationEvent.FailureRecorded(r.session, null) }) {
-                    post(DictationEvent.FailureRecorded(r.session, recorder.failure(r, effect.error, effect.keepAudio)))
+                r.writers += launchFor(r, { DictationEvent.FailureRecorded(r.session, null) }) {
+                    val recorded = recorder.failure(r, effect.error, effect.keepAudio)
+                    post(DictationEvent.FailureRecorded(r.session, recorded?.id, audioKept = recorded?.audioKept == true))
                 }
             }
             is Effect.StartTimer -> startTimer(effect)
@@ -343,7 +388,6 @@ class DictationOrchestrator(
             is Effect.ScheduleIdleUnload -> scheduleIdle(effect.ms)
             is Effect.CancelEngines -> runFor(effect.session)?.let { cancelEngines(it) }
             is Effect.Open -> deps.navigator.open(effect.target)
-            is Effect.RetryEntry -> work.launch { retry(effect.entry) }
         }
     }
 
@@ -382,21 +426,30 @@ class DictationOrchestrator(
         val settings = r.settings
         val c = r.config
         fun fail(e: MurmurError) = DictationEvent.PreflightFailed(s, e)
+        // A retry records nothing (its audio is stored) and may come from History with the service off; it is delivered
+        // into the focused field only when that is a usable one, else copied (NotDelivered without the service).
+        val retry = r.retryOf != null
         val perms = deps.permissions.state.value
-        if (mode != StartMode.IN_APP && !perms.a11yConnected) return fail(MurmurError.AccessibilityOff)
-        if (!perms.micGranted) return fail(MurmurError.MicPermissionMissing)
+        if (mode != StartMode.IN_APP && !retry && !perms.a11yConnected) return fail(MurmurError.AccessibilityOff)
+        if (!retry && !perms.micGranted) return fail(MurmurError.MicPermissionMissing)
         val snap = when (mode) {
             StartMode.NOTIFICATION -> deps.target.snapshotAfterShade(c.scaled(c.shadeCollapseWaitMs))
             StartMode.IN_APP -> r.inApp?.snapshot
             StartMode.TAP, StartMode.HOLD -> deps.target.snapshot()
-        } ?: return fail(MurmurError.NoEditableField)
-        r.target = snap
-        val field = snap.field
+        }
+        if (snap == null && !retry) return fail(MurmurError.NoEditableField)
+        val field = snap?.field
         if (field != null && (field.isPassword || FieldKinds.isPassword(field.inputType))) return fail(MurmurError.PasswordField)
         val excluded = BuiltInDenylist.packages + settings.hiddenInPackages
-        if (mode != StartMode.IN_APP && (snap.pkg in excluded || snap.pkg == c.ownPackage)) return fail(MurmurError.AppExcluded)
-        val decision = if (mode == StartMode.IN_APP) PrivacyDecision(PrivacyLevel.APP_ONLY, takeScreenshot = false, reason = "in_app", skipLlm = false)
-            else deps.context.decide(snap, ContextSettings(useScreen = settings.useScreen, excludedPackages = excluded))
+        val excludedApp = mode != StartMode.IN_APP && snap != null && (snap.pkg in excluded || snap.pkg == c.ownPackage)
+        if (excludedApp && !retry) return fail(MurmurError.AppExcluded)
+        // A retry from this app (History) or an excluded one has no target: no field context, clipboard only.
+        r.target = snap?.takeIf { !excludedApp }
+        val decision = when {
+            mode == StartMode.IN_APP -> PrivacyDecision(PrivacyLevel.APP_ONLY, takeScreenshot = false, reason = "in_app", skipLlm = false)
+            snap == null || excludedApp -> PrivacyDecision(PrivacyLevel.NONE, takeScreenshot = false, reason = "retry", skipLlm = false)
+            else -> deps.context.decide(snap, ContextSettings(useScreen = settings.useScreen, excludedPackages = excluded))
+        }
         r.decision = decision
         val models = when (val m = deps.models.resolve(settings)) {
             is Outcome.Err -> return fail(m.error)
@@ -417,7 +470,8 @@ class DictationOrchestrator(
         val plan = SessionPlan(
             cleanup = skip == null,
             cleanupSkipReason = skip,
-            screenshot = mode != StartMode.IN_APP && decision.takeScreenshot && settings.useScreen && models.ocrDet != null && models.ocrRec != null,
+            // A retry re-runs stored data only: the screen now is not the screen it was dictated against.
+            screenshot = mode != StartMode.IN_APP && !retry && decision.takeScreenshot && settings.useScreen && models.ocrDet != null && models.ocrRec != null,
             asrUnit = models.asr.unit,
             speechMeasured = !models.asrTraits.streaming,
         )
@@ -432,6 +486,7 @@ class DictationOrchestrator(
     // ---------------------------------------------------------------- capture
 
     private suspend fun startCapture(r: SessionRun) {
+        if (r.retryOf != null) return loadStoredAudio(r, r.retryOf)
         val s = r.session
         val key = AudioKey.of(r.createdAt.toEpochMilli(), s).value
         val keep = r.mode != StartMode.IN_APP && r.settings.keepRecordings && RetentionPolicy.keepsHistory(r.settings.retentionDays)
@@ -463,6 +518,31 @@ class DictationOrchestrator(
                 post(DictationEvent.MicStarted(s, deps.clock.elapsedMs()))
             }
         }
+    }
+
+    /** A retry's capture: the entry's stored recording becomes the session buffer, then MicStarted(recordedMs). */
+    private suspend fun loadStoredAudio(r: SessionRun, id: EntryId) {
+        val entry = deps.history.entry(id).first()
+        val ref = entry?.audio
+        val pcm = ref?.let { deps.audioStore.readPcm(it) }?.takeIf { it.isNotEmpty() }
+        if (r.captureCancelled || r.ended) return
+        if (entry == null || ref == null || pcm == null) {
+            r.captureStopped.complete(null)
+            r.drained.complete(Unit)
+            post(DictationEvent.MicFailed(r.session, MurmurError.StorageFailed("audio")))
+            return
+        }
+        r.retryEntry = entry
+        var i = 0
+        while (i < pcm.size) {
+            val end = minOf(i + PcmFormat.FRAME_SAMPLES, pcm.size)
+            r.buffer += PcmChunk(pcm.copyOfRange(i, end), i.toLong())
+            i = end
+        }
+        val ms = PcmFormat.samplesToMs(pcm.size.toLong())
+        r.captureStopped.complete(CaptureResult(ms, ref, pcm.maxOf { kotlin.math.abs(it.toInt()) }, silenced = false))
+        r.drained.complete(Unit)
+        post(DictationEvent.MicStarted(r.session, deps.clock.elapsedMs(), recordedMs = ms))
     }
 
     private fun stopReasonOf(sig: CaptureSignal): StopReason = when (sig) {
@@ -776,9 +856,10 @@ class DictationOrchestrator(
         }
         // Step 2 (I5): the clipboard first.
         deps.inserter.copyToClipboard(text)
-        // Step 3.
+        // Step 3. A retry without a target (started in this app or an excluded one) is copied only.
         val snap = r.target
         var why: MurmurError? = when {
+            r.retryOf != null && snap == null -> MurmurError.NoEditableField
             current == null || field == null -> MurmurError.NoEditableField
             snap != null && current.pkg != snap.pkg -> MurmurError.TargetChanged
             else -> null
@@ -872,60 +953,6 @@ class DictationOrchestrator(
             else -> MurmurError.LlmFailed(null)
         }
         return OfflineCleanup(res.text, res.cleaned, res.outcome, res.llmMs, loaded.spec, version, error)
-    }
-
-    private suspend fun doRetry(id: EntryId): Outcome<EntryId> {
-        val entry = deps.history.entry(id).first() ?: return Outcome.Err(MurmurError.Internal("entry_missing"))
-        val ref = entry.audio ?: return Outcome.Err(MurmurError.Internal("no_audio"))
-        val pcm = deps.audioStore.readPcm(ref) ?: return Outcome.Err(MurmurError.StorageFailed("audio"))
-        val settings = deps.settings.settings.value
-        val cfg = effectiveConfig(settings)
-        val models = when (val m = deps.models.resolve(settings)) { is Outcome.Err -> return m; is Outcome.Ok -> m.value }
-        val asr = when (val l = keeper.loadAsr(models.asr, models.asrFallback, models.vad)) { is Outcome.Err -> return l; is Outcome.Ok -> l.value }
-        val session = deps.engines.asr.startSession(sessionOptions(settings))
-        feed(session, pcm)
-        val t0 = deps.clock.elapsedMs()
-        val fin = withTimeoutOrNull(cfg.asrFinalTimeoutMs(PcmFormat.samplesToMs(pcm.size.toLong()))) { session.finish() }
-            ?: Outcome.Err(MurmurError.Timeout(Stage.ASR_FINAL)).also { session.cancel() }
-        val tailMs = deps.clock.elapsedMs() - t0
-        val t = when (fin) {
-            is Outcome.Err -> { deps.history.update(entry.copy(failureCode = fin.error.code)); scheduleIdle(cfg.idleUnloadMs); return fin }
-            is Outcome.Ok -> fin.value
-        }
-        val pre = deps.guard.precheck(t.text)
-        if (pre.skip || pre.transcript.isBlank() || t.speechMs in 1 until cfg.minSpeechMs) {
-            deps.history.update(entry.copy(failureCode = MurmurError.NoSpeech.code))
-            scheduleIdle(cfg.idleUnloadMs)
-            return Outcome.Err(MurmurError.NoSpeech)
-        }
-        val raw = pre.transcript
-        val llm = models.llm
-        val cleanup = llm?.let {
-            val profile = cleaner.profile(it)
-            cleanupOffline(it, raw, settings, cfg, cleaner.systemOverride(profile, settings), settings.preferences)
-        }
-        val final = cleanup?.text ?: raw
-        if (final.isBlank()) {
-            deps.history.update(entry.copy(rawText = raw, failureCode = MurmurError.NoSpeech.code))
-            scheduleIdle(cfg.idleUnloadMs)
-            return Outcome.Err(MurmurError.NoSpeech)
-        }
-        val outcome = cleanup?.outcome ?: "skipped:${models.llmUnavailable ?: "no_model"}"
-        deps.inserter.copyToClipboard(final)
-        deps.history.update(entry.copy(
-            status = EntryStatus.COPIED,
-            finalText = final,
-            rawText = raw,
-            language = t.language,
-            asr = ModelUse(asr.spec.modelId, asr.spec.artifactId, asr.spec.unit),
-            cleanup = CleanupUse(cleanup?.spec?.let { ModelUse(it.modelId, it.artifactId, it.unit) }, cleanup?.promptVersion ?: llm?.profile.orEmpty(),
-                outcome, entry.cleanup?.tone),
-            insertMethod = InsertMethod.CLIPBOARD_ONLY,
-            failureCode = Cleaner.failureCodeOf(outcome, cleanup?.error),
-            timings = entry.timings.copy(speechMs = t.speechMs, asrTailMs = tailMs, llmMs = cleanup?.llmMs),
-        ))
-        scheduleIdle(cfg.idleUnloadMs)
-        return Outcome.Ok(entry.id)
     }
 
     private suspend fun doRepolish(id: EntryId): Outcome<EntryId> {

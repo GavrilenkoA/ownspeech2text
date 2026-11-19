@@ -43,8 +43,11 @@ object DictationMachine {
 
     // ---------------------------------------------------------------- Idle (rows 1-4)
 
-    private fun idle(e: DictationEvent, c: DictationConfig): Transition =
-        if (e is DictationEvent.Input) startFor(e, DictationState.Idle, c) ?: Transition(DictationState.Idle) else Transition(DictationState.Idle)
+    private fun idle(e: DictationEvent, c: DictationConfig): Transition = when (e) {
+        is DictationEvent.Input -> startFor(e, DictationState.Idle, c) ?: Transition(DictationState.Idle)
+        is DictationEvent.RetryRequested -> startRetry(e.entry, e.atMs, e.session ?: SessionId(1), c)
+        else -> Transition(DictationState.Idle)
+    }
 
     /** Rows 1-4 (and 46 / 49 from Done): a start input opens a new session; null = not a start input. */
     private fun startFor(e: DictationEvent.Input, from: DictationState, c: DictationConfig): Transition? {
@@ -68,6 +71,16 @@ object DictationMachine {
         }
         return Transition(DictationState.Arming(s, mode, atMs), effects)
     }
+
+    /**
+     * Retry of a Failed entry (row 49 / RetryRequested; WP-11 Deliver 4 "normal flow from Finishing"): a new session whose
+     * capture is the stored audio. Preflight checks the current target; MicStarted brings the recording, and the
+     * remembered stop takes Arming straight to Finishing (row 9).
+     */
+    private fun startRetry(entry: EntryId, atMs: Long, s: SessionId, c: DictationConfig) = Transition(
+        DictationState.Arming(s, StartMode.TAP, atMs, stopRequested = true, retryOf = entry),
+        listOf(Effect.Preflight(s, StartMode.TAP), Effect.StartCapture(s), Effect.StartTimer(s, Timer.MIC_START, c.scaled(c.micStartTimeoutMs))),
+    )
 
     // ---------------------------------------------------------------- Arming (rows 5-13, 21-24)
 
@@ -94,7 +107,9 @@ object DictationMachine {
             // Row 7.
             is DictationEvent.MicStarted -> {
                 if (st.micStartedAtMs != null) return Transition(st)
-                complete(st.copy(micStartedAtMs = e.atMs), listOf(Effect.CancelTimer(Timer.MIC_START)), c)
+                val recorded = if (st.retryOf != null) e.recordedMs.coerceAtLeast(0) else 0
+                val next = if (recorded > 0) st.copy(micStartedAtMs = e.atMs - recorded, stopAtMs = e.atMs) else st.copy(micStartedAtMs = e.atMs)
+                complete(next, listOf(Effect.CancelTimer(Timer.MIC_START)), c)
             }
             // Row 11.
             is DictationEvent.MicFailed -> failed(s, e.error, null, c,
@@ -149,8 +164,11 @@ object DictationMachine {
                 ),
             )
         }
-        val stop = stop(st.session, st.mode, mic, maxOf(mic, st.stopAtMs ?: mic), plan, st.engines, c)
-        return Transition(stop.state, effects + stop.effects)
+        val retry = st.retryOf != null
+        val stop = stop(st.session, st.mode, mic, maxOf(mic, st.stopAtMs ?: mic), plan, st.engines, c, wholeRecording = retry)
+        // A retry decodes stored audio: there is no live recording to freeze, the bubble shows Transcribing at once.
+        val state = (stop.state as? DictationState.Finishing)?.takeIf { retry }?.copy(showTranscribing = true) ?: stop.state
+        return Transition(state, effects + stop.effects)
     }
 
     private fun armingStopError(r: StopReason): MurmurError = when (r) {
@@ -205,15 +223,22 @@ object DictationMachine {
         }
     }
 
-    /** Row 14 (shared by 9, 15, 17, 18). */
-    private fun stop(s: SessionId, mode: StartMode, startedAt: Long, stoppedAt: Long, plan: SessionPlan, engines: EngineStatus, c: DictationConfig): Transition {
+    /**
+     * Row 14 (shared by 9, 15, 17, 18). ASR_FINAL covers the open tail (at most asrMaxTailMs: the segmenter decodes
+     * while recording), or the [wholeRecording] for a retry, which feeds all of it at the stop.
+     */
+    private fun stop(
+        s: SessionId, mode: StartMode, startedAt: Long, stoppedAt: Long, plan: SessionPlan, engines: EngineStatus, c: DictationConfig,
+        wholeRecording: Boolean = false,
+    ): Transition {
         val asr = engines.asr
         if (asr is AsrReadiness.Failed) {
             return failed(s, asr.error, null, c,
                 Effect.StopCapture(s), Effect.CancelTimer(Timer.WARN), Effect.CancelTimer(Timer.MAX_DURATION),
                 Effect.RecordFailure(s, asr.error, keepAudio = true), Effect.CancelEngines(s), Effect.ScheduleIdleUnload(c.idleUnloadMs))
         }
-        val tail = minOf(stoppedAt - startedAt, c.asrMaxTailMs).coerceAtLeast(0)
+        val recorded = (stoppedAt - startedAt).coerceAtLeast(0)
+        val tail = if (wholeRecording) recorded else minOf(recorded, c.asrMaxTailMs)
         return Transition(
             DictationState.Finishing(s, mode, startedAt, stoppedAt, plan, engines),
             listOf(
@@ -414,6 +439,8 @@ object DictationMachine {
         return when (e) {
             // Row 45.
             is DictationEvent.TimerFired -> if (e.timer == Timer.RESULT_DISMISS) Transition(DictationState.Idle) else Transition(st)
+            // A History retry replaces the pill like a new press (row 46).
+            is DictationEvent.RetryRequested -> startRetry(e.entry, e.atMs, e.session ?: SessionId(s.value + 1), c)
             is DictationEvent.Input -> startFor(e, st, c) ?: when (e.input) {
                 // Rows 47/48 (an Inserted pill tap dismisses too).
                 UserInput.ResultTap -> when (val o = st.outcome) {
@@ -424,10 +451,12 @@ object DictationMachine {
                 UserInput.ResultAction -> resultAction(st, e, c)
                 else -> Transition(st)
             }
-            // The entry written by RecordFailure arrives after the pill is shown.
+            // The entry written by RecordFailure arrives after the pill is shown; a Retry tapped meanwhile runs now.
             is DictationEvent.FailureRecorded -> {
                 val o = st.outcome
-                if (o is DictationOutcome.Failed && o.entry == null) Transition(st.copy(outcome = o.copy(entry = e.entry))) else Transition(st)
+                if (o !is DictationOutcome.Failed || !st.recording) return Transition(st)
+                val recorded = st.copy(outcome = o.copy(entry = e.entry, audioKept = e.entry != null && e.audioKept), recording = false, retryAtMs = null)
+                st.retryAtMs?.let { at -> retry(recorded, at, null, c) } ?: Transition(recorded)
             }
             // A delivery that finished after row 44: the Copied pill now opens its entry.
             is DictationEvent.Delivered -> {
@@ -447,13 +476,27 @@ object DictationMachine {
     private fun resultAction(st: DictationState.Done, e: DictationEvent.Input, c: DictationConfig): Transition {
         val o = st.outcome as? DictationOutcome.Failed ?: return Transition(st)
         return when (BubbleMapping.errorBubble(o.error).action) {
-            // Row 49: NoSpeech = a new dictation (row 1); otherwise re-transcribe the stored audio.
-            BubbleAction.RETRY -> if (o.error == MurmurError.NoSpeech) start(StartMode.TAP, e.atMs, e.session ?: SessionId(st.session.value + 1), c)
-                else Transition(DictationState.Idle, listOfNotNull(o.entry?.let { Effect.RetryEntry(it) }))
+            BubbleAction.RETRY -> retry(st, e.atMs, e.session, c)
             // Row 50.
             BubbleAction.OPEN_MODELS -> Transition(DictationState.Idle, listOf(Effect.Open(OpenTarget.Models(ModelKind.ASR))))
             BubbleAction.OPEN_ENTRY -> Transition(DictationState.Idle, listOfNotNull(o.entry?.let { Effect.Open(OpenTarget.Entry(it)) }))
             null -> Transition(DictationState.Idle)
+        }
+    }
+
+    /**
+     * Row 49, RETRY: NoSpeech = a new dictation (row 1); otherwise the stored audio runs again from Finishing. While
+     * the entry is still being written, the tap is remembered; with nothing kept (recordings off, retention 0) a new
+     * dictation retries the load instead.
+     */
+    private fun retry(st: DictationState.Done, atMs: Long, session: SessionId?, c: DictationConfig): Transition {
+        val o = st.outcome as DictationOutcome.Failed
+        val next = session ?: SessionId(st.session.value + 1)
+        return when {
+            o.error == MurmurError.NoSpeech -> start(StartMode.TAP, atMs, next, c)
+            st.recording -> Transition(st.copy(retryAtMs = atMs))
+            o.entry != null && o.audioKept -> startRetry(o.entry, atMs, next, c)
+            else -> start(StartMode.TAP, atMs, next, c)
         }
     }
 
@@ -465,7 +508,8 @@ object DictationMachine {
             if (error != MurmurError.AccessibilityOff) add(Effect.Haptic(HapticKind.REJECT))
             add(Effect.StartTimer(s, Timer.RESULT_DISMISS, c.scaled(c.errorShowMs)))
         }
-        return Transition(DictationState.Done(s, DictationOutcome.Failed(error, entry)), effects.toList() + pill)
+        val recording = effects.any { it is Effect.RecordFailure }
+        return Transition(DictationState.Done(s, DictationOutcome.Failed(error, entry), recording = recording), effects.toList() + pill)
     }
 
     /** Row 12: discard; processes stay warm. */
@@ -533,5 +577,6 @@ object DictationMachine {
         is DictationEvent.ProcessDied -> session
         is DictationEvent.ExternalStop -> session
         is DictationEvent.FailureRecorded -> session
+        is DictationEvent.RetryRequested -> null
     }
 }

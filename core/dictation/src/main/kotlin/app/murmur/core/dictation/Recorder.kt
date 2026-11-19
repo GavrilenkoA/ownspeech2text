@@ -25,7 +25,9 @@ import java.time.LocalDate
  * History row + metrics row of one dictation (ARCHITECTURE 11 step 6, 12). Text only, never screen text (D9);
  * `context_words` is a number (ADR-043). Retention 0 writes no history row and no audio (RetentionPolicy.keepsHistory);
  * the numbers-only metrics row is independent of history retention (ADR-035). IN_APP practice stores nothing.
- * A failing write never blocks delivery: the text is already out.
+ * A failing write never blocks delivery: the text is already out. A retry (SessionRun.retryOf) updates its entry in
+ * place, keeps its audio and adds no metrics row: the dictation's numbers row was written when it first failed, and
+ * metrics rows are append-only (ADR-035), so a second row would count one dictation and its recording time twice.
  */
 internal class Recorder(
     private val history: HistoryRepository,
@@ -38,6 +40,9 @@ internal class Recorder(
     private fun storesNothing(run: SessionRun) = run.mode == StartMode.IN_APP
 
     private fun keepsHistory(run: SessionRun) = !storesNothing(run) && RetentionPolicy.keepsHistory(run.settings.retentionDays)
+
+    /** What RecordFailure stored: the entry and whether it holds the recording (Retry can re-run it). */
+    data class Recorded(val id: EntryId, val audioKept: Boolean)
 
     /** A delivered (or not delivered) text: Inserted / Copied / Failed(NotDelivered, NothingToInsert). */
     suspend fun text(
@@ -53,6 +58,10 @@ internal class Recorder(
         if (storesNothing(run)) return null
         val capture = run.captureStopped.await()
         val stopToDone = run.stopAtElapsedMs?.let { clock.elapsedMs() - it }
+        run.retryEntry?.let { e ->
+            val failureCode = failure?.code ?: Cleaner.failureCodeOf(outcome, null)
+            return updateRetried(run, e, status, finalText, rawText, outcome, method, failureCode, stopToDone)
+        }
         writeMetrics(run, status, finalText.orEmpty(), rawText.orEmpty(), capture, stopToDone, cleaned)
         if (!keepsHistory(run)) { capture?.audio?.let { deleteQuietly(it) }; return null }
         val failureCode = failure?.code ?: Cleaner.failureCodeOf(outcome, null)
@@ -60,22 +69,63 @@ internal class Recorder(
     }
 
     /** RecordFailure: a Failed entry, with the audio when [keepAudio] (I6: the only path that keeps audio without text). */
-    suspend fun failure(run: SessionRun, error: MurmurError, keepAudio: Boolean): EntryId? {
+    suspend fun failure(run: SessionRun, error: MurmurError, keepAudio: Boolean): Recorded? {
         if (storesNothing(run)) return null
         val capture = run.captureStopped.await()
         val audio = capture?.audio
         val stopToDone = run.stopAtElapsedMs?.let { clock.elapsedMs() - it }
+        run.retryEntry?.let { e ->
+            val id = updateRetried(run, e, EntryStatus.FAILED, null, null, null, null, error.code, stopToDone) ?: return null
+            return Recorded(id, audioKept = e.audio != null)
+        }
         writeMetrics(run, EntryStatus.FAILED, "", "", capture, stopToDone, cleaned = false)
         if (!keepsHistory(run) || !keepAudio) audio?.let { deleteQuietly(it) }
         if (!keepsHistory(run)) return null
         val kept = audio?.takeIf { keepAudio }
-        return insert(run, EntryStatus.FAILED, null, null, null, null, error.code, kept, capture, stopToDone)
+        val id = insert(run, EntryStatus.FAILED, null, null, null, null, error.code, kept, capture, stopToDone) ?: return null
+        return Recorded(id, audioKept = kept != null)
     }
 
-    /** Password at delivery / cancel after the file was written: nothing may remain. */
+    /** Password at delivery / cancel after the file was written: nothing may remain. A retry's audio is the entry's own. */
     suspend fun discardAudio(run: SessionRun) {
+        if (run.retryOf != null) return
         run.captureStopped.await()?.audio?.let { deleteQuietly(it) }
     }
+
+    /** The retried entry with this run's result; recording, app and creation time stay the dictation's own. */
+    private suspend fun updateRetried(
+        run: SessionRun, e: HistoryEntry, status: EntryStatus, finalText: String?, rawText: String?, outcome: String?,
+        method: InsertMethod?, failureCode: String?, stopToDone: Long?,
+    ): EntryId? {
+        if (!keepsHistory(run)) return null
+        val t = run.transcript
+        val updated = e.copy(
+            status = status,
+            finalText = finalText,
+            rawText = rawText ?: e.rawText,
+            language = t?.language ?: e.language,
+            asr = run.asrSpec?.use() ?: e.asr,
+            cleanup = outcome?.let { cleanupUse(run, it, e.app.pkg) } ?: e.cleanup,
+            insertMethod = method,
+            failureCode = failureCode,
+            timings = e.timings.copy(
+                speechMs = t?.speechMs ?: e.timings.speechMs,
+                stopToDoneMs = stopToDone,
+                asrTailMs = run.asrTailMs,
+                llmMs = run.llmMs,
+                ocrMs = null,
+            ),
+            contextWords = null,
+        )
+        return try { history.update(updated); e.id } catch (x: Exception) { if (x is kotlinx.coroutines.CancellationException) throw x; null }
+    }
+
+    private fun cleanupUse(run: SessionRun, outcome: String, pkg: String) = CleanupUse(
+        model = run.llmSpec?.takeIf { run.promptVersion != null }?.use(),
+        promptVersion = run.promptVersion ?: run.models?.llm?.profile.orEmpty(),
+        outcome = outcome,
+        tone = run.settings.tonePerApp[pkg]?.name?.lowercase(),
+    )
 
     private suspend fun insert(
         run: SessionRun, status: EntryStatus, finalText: String?, rawText: String?, outcome: String?, method: InsertMethod?,
@@ -83,7 +133,6 @@ internal class Recorder(
     ): EntryId? {
         val target = run.target ?: return null
         val t = run.transcript
-        val llm = run.models?.llm
         val entry = HistoryEntry(
             id = EntryId(0),
             createdAt = run.createdAt,
@@ -94,14 +143,7 @@ internal class Recorder(
             rawText = rawText,
             language = t?.language,
             asr = run.asrSpec?.use(),
-            cleanup = outcome?.let {
-                CleanupUse(
-                    model = run.llmSpec?.takeIf { run.promptVersion != null }?.use(),
-                    promptVersion = run.promptVersion ?: llm?.profile.orEmpty(),
-                    outcome = it,
-                    tone = run.settings.tonePerApp[target.pkg]?.name?.lowercase(),
-                )
-            },
+            cleanup = outcome?.let { cleanupUse(run, it, target.pkg) },
             audio = audio,
             timings = Timings(
                 recordMs = capture?.durationMs ?: 0,

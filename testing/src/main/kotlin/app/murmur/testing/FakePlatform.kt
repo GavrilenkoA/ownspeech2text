@@ -146,12 +146,20 @@ class FakeTargetReader(
     }
 }
 
-/** Records what would be inserted; [result] decides the outcome. [calls] keeps the order ("clipboard", "insert"). */
-class RecordingInserter(var result: InsertResult = InsertResult.Inserted(InsertMethod.COMMIT_TEXT)) : Inserter {
+/**
+ * Records what would be inserted; [result] decides the outcome. [calls] keeps the order ("clipboard", "insert").
+ * [insertDelayMs] = how long the ladder takes (coroutine time; the DELIVERY timer test).
+ */
+class RecordingInserter(var result: InsertResult = InsertResult.Inserted(InsertMethod.COMMIT_TEXT), var insertDelayMs: Long = 0) : Inserter {
     val inserted = mutableListOf<String>()
     val clipboard = mutableListOf<String>()
     val calls = mutableListOf<String>()
-    override suspend fun insert(target: A11ySnapshot, text: String): InsertResult { calls += "insert"; inserted += text; return result }
+    override suspend fun insert(target: A11ySnapshot, text: String): InsertResult {
+        calls += "insert"
+        if (insertDelayMs > 0) delay(insertDelayMs)
+        inserted += text
+        return result
+    }
     override fun copyToClipboard(text: String): Boolean { calls += "clipboard"; clipboard += text; return true }
 }
 

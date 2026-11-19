@@ -98,7 +98,7 @@ class OrchestratorEnginesTest {
         assertEquals(EntryStatus.FAILED, e.status)
         assertEquals("engine.process_died.asr", e.failureCode)
         assertNotNull(e.audio)
-        assertEquals(DictationOutcome.Failed(MurmurError.ProcessDied(InferProcess.ASR), e.id), h.outcomes().single())
+        assertEquals(DictationOutcome.Failed(MurmurError.ProcessDied(InferProcess.ASR), e.id, audioKept = true), h.outcomes().single())
         h.assertNoInternalErrors()
     }
 
@@ -264,7 +264,7 @@ class OrchestratorEnginesTest {
         h.w.memory.source = { if (h.w.engines.asrHost.state.value is HostState.Up) 1_000 else 6_000 }
         h.w.engines.asr.script = "   "                                     // blank text: row 26
         h.dictate(startAt = h.now + 1_000)
-        assertEquals(DictationOutcome.Failed(MurmurError.NoSpeech, h.history().maxBy { it.createdAt }.id), h.outcomes().last())
+        assertEquals(DictationOutcome.Failed(MurmurError.NoSpeech, h.history().maxBy { it.createdAt }.id, audioKept = true), h.outcomes().last())
         assertEquals(0, h.w.engines.asrHost.shutdowns)
         assertTrue(h.w.engines.asrHost.state.value is HostState.Up)
         assertTrue(h.w.engines.llm.loadAttempts.isEmpty())

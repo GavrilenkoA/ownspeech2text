@@ -176,7 +176,7 @@ class DictationMachineTest {
         assertEquals(row14Effects, r.effects)
         val failed = readyEngines.copy(asr = AsrReadiness.Failed(MurmurError.UnitUnavailable(ComputeUnit.NPU)))
         val f = reduce(listening(engines = failed), tap(3_100))
-        assertEquals(DictationState.Done(s, DictationOutcome.Failed(MurmurError.UnitUnavailable(ComputeUnit.NPU), null)), f.state)
+        assertEquals(DictationState.Done(s, DictationOutcome.Failed(MurmurError.UnitUnavailable(ComputeUnit.NPU), null), recording = true), f.state)
         assertTrue(f.effects.containsAll(listOf(Effect.StopCapture(s), Effect.RecordFailure(s, MurmurError.UnitUnavailable(ComputeUnit.NPU), keepAudio = true))))
     }
 
@@ -206,7 +206,7 @@ class DictationMachineTest {
 
     @Test fun row19_serviceLostWhileListeningFailsAndKeepsTheAudio() {
         val r = reduce(listening(), DictationEvent.ExternalStop(s, StopReason.A11Y_OFF, 1_200))
-        assertEquals(DictationState.Done(s, DictationOutcome.Failed(MurmurError.AccessibilityOff, null)), r.state)
+        assertEquals(DictationState.Done(s, DictationOutcome.Failed(MurmurError.AccessibilityOff, null), recording = true), r.state)
         assertTrue(r.effects.containsAll(listOf(Effect.StopCapture(s), Effect.CancelEngines(s), Effect.RecordFailure(s, MurmurError.AccessibilityOff, true))))
         assertTrue(r.effects.none { it is Effect.Haptic })   // no overlay without the service
     }
@@ -262,11 +262,11 @@ class DictationMachineTest {
         )
         for (e in cases) {
             val r = reduce(finishing(), e)
-            assertEquals(DictationState.Done(s, DictationOutcome.Failed(MurmurError.NoSpeech, null)), r.state)
+            assertEquals(DictationState.Done(s, DictationOutcome.Failed(MurmurError.NoSpeech, null), recording = true), r.state)
             assertTrue(r.effects.containsAll(listOf(Effect.CancelTimer(Timer.ASR_FINAL), Effect.RecordFailure(s, MurmurError.NoSpeech, keepAudio = true))))
         }
         // A VAD-fed (batch) model measures speech: 0 ms is no speech, as the table says, whatever text it returned.
-        assertEquals(DictationState.Done(s, DictationOutcome.Failed(MurmurError.NoSpeech, null)),
+        assertEquals(DictationState.Done(s, DictationOutcome.Failed(MurmurError.NoSpeech, null), recording = true),
             reduce(finishing(), DictationEvent.TranscriptReady(s, t.copy(speechMs = 0), false)).state)
         // A streaming model has no VAD (Transcript.speechMs = 0, "not measured"): the text and the precheck decide.
         val streaming = finishing().copy(plan = plan.copy(speechMeasured = false))
@@ -311,10 +311,10 @@ class DictationMachineTest {
 
     @Test fun row30_secondAsrFailureOrAnyOtherAsrErrorFailsWithAudio() {
         val twice = reduce(finishing(readyEngines.copy(asrCrashes = 1)), DictationEvent.ProcessDied(s, InferProcess.ASR))
-        assertEquals(DictationState.Done(s, DictationOutcome.Failed(MurmurError.ProcessDied(InferProcess.ASR), null)), twice.state)
+        assertEquals(DictationState.Done(s, DictationOutcome.Failed(MurmurError.ProcessDied(InferProcess.ASR), null), recording = true), twice.state)
         assertTrue(twice.effects.containsAll(listOf(Effect.RecordFailure(s, MurmurError.ProcessDied(InferProcess.ASR), true), Effect.CancelEngines(s))))
         val other = reduce(finishing(), DictationEvent.AsrFailed(s, MurmurError.AsrFailed("decode")))
-        assertEquals(DictationState.Done(s, DictationOutcome.Failed(MurmurError.AsrFailed("decode"), null)), other.state)
+        assertEquals(DictationState.Done(s, DictationOutcome.Failed(MurmurError.AsrFailed("decode"), null), recording = true), other.state)
         val timeout = reduce(finishing(readyEngines.copy(asrCrashes = 1)), DictationEvent.TimerFired(s, Timer.ASR_FINAL))
         assertEquals(MurmurError.Timeout(Stage.ASR_FINAL), ((timeout.state as DictationState.Done).outcome as DictationOutcome.Failed).error)
     }
@@ -466,10 +466,23 @@ class DictationMachineTest {
     }
 
     @Test fun row49_retryStartsANewDictationForNoSpeechElseRetranscribesTheEntry() {
-        val noSpeech = reduce(DictationState.Done(s, DictationOutcome.Failed(MurmurError.NoSpeech, entry)), DictationEvent.Input(UserInput.ResultAction, 9_000, SessionId(2)))
+        val action = DictationEvent.Input(UserInput.ResultAction, 9_000, SessionId(2))
+        val noSpeech = reduce(DictationState.Done(s, DictationOutcome.Failed(MurmurError.NoSpeech, entry, audioKept = true)), action)
         assertEquals(DictationState.Arming(SessionId(2), StartMode.TAP, 9_000), noSpeech.state)
-        val load = reduce(DictationState.Done(s, DictationOutcome.Failed(MurmurError.EngineLoadFailed(ModelKind.ASR, null), entry)), input(UserInput.ResultAction))
-        assertEquals(Transition(DictationState.Idle, listOf(Effect.RetryEntry(entry))), load)
+        // A load failure with the recording kept: the stored audio runs again from Finishing as session 2.
+        val loadError = MurmurError.EngineLoadFailed(ModelKind.ASR, null)
+        val load = reduce(DictationState.Done(s, DictationOutcome.Failed(loadError, entry, audioKept = true)), action)
+        assertEquals(DictationState.Arming(SessionId(2), StartMode.TAP, 9_000, stopRequested = true, retryOf = entry), load.state)
+        assertEquals(listOf(Effect.Preflight(SessionId(2), StartMode.TAP), Effect.StartCapture(SessionId(2)), Effect.StartTimer(SessionId(2), Timer.MIC_START, 2_000)), load.effects)
+        // Tapped before RecordFailure returned: remembered, then run with the entry.
+        val pending = reduce(DictationState.Done(s, DictationOutcome.Failed(loadError, null), recording = true), action)
+        assertEquals(Transition(DictationState.Done(s, DictationOutcome.Failed(loadError, null), recording = true, retryAtMs = 9_000)), pending)
+        val ran = reduce(pending.state, DictationEvent.FailureRecorded(s, entry, audioKept = true))
+        assertEquals(DictationState.Arming(SessionId(2), StartMode.TAP, 9_000, stopRequested = true, retryOf = entry), ran.state)
+        // Nothing kept to re-run (recordings off, retention 0): Retry is a new dictation that retries the load.
+        val nothing = reduce(pending.state, DictationEvent.FailureRecorded(s, entry, audioKept = false))
+        assertEquals(DictationState.Arming(SessionId(2), StartMode.TAP, 9_000), nothing.state)
+        assertEquals(DictationState.Arming(SessionId(2), StartMode.TAP, 9_000), reduce(pending.state, DictationEvent.FailureRecorded(s, null)).state)
     }
 
     @Test fun row50_openActionsOpenModelsOrTheEntry() {
@@ -515,9 +528,41 @@ class DictationMachineTest {
     // ------------------------------------------------------------------ beyond the rows
 
     @Test fun failureRecordedGivesTheErrorPillItsEntry() {
-        val done = DictationState.Done(s, DictationOutcome.Failed(MurmurError.EngineLoadFailed(ModelKind.ASR, null), null))
-        val r = reduce(done, DictationEvent.FailureRecorded(s, entry))
-        assertEquals(DictationState.Done(s, DictationOutcome.Failed(MurmurError.EngineLoadFailed(ModelKind.ASR, null), entry)), r.state)
+        val error = MurmurError.EngineLoadFailed(ModelKind.ASR, null)
+        val failed = reduce(finishing(), DictationEvent.AsrFailed(s, error))
+        assertEquals(DictationState.Done(s, DictationOutcome.Failed(error, null), recording = true), failed.state)
+        val r = reduce(failed.state, DictationEvent.FailureRecorded(s, entry, audioKept = true))
+        assertEquals(Transition(DictationState.Done(s, DictationOutcome.Failed(error, entry, audioKept = true))), r)
+        // Failures that record nothing (row 6) do not wait for an entry.
+        assertEquals(DictationState.Done(s, DictationOutcome.Failed(MurmurError.LowStorage, null)), reduce(arming(), DictationEvent.PreflightFailed(s, MurmurError.LowStorage)).state)
+    }
+
+    @Test fun retryRequestedRunsTheStoredAudioFromFinishing() {
+        val r = reduce(DictationState.Idle, DictationEvent.RetryRequested(entry, 1_000, s))
+        val armed = DictationState.Arming(s, StartMode.TAP, 1_000, stopRequested = true, retryOf = entry)
+        assertEquals(armed, r.state)
+        assertEquals(DictationBubble.Transcribing, BubbleMapping.of(armed))
+        assertFalse(r.effects.any { it is Effect.Haptic })
+        // A tap while it arms is ignored (it is already "stopped").
+        assertEquals(Transition(armed), reduce(armed, tap(1_500)))
+        // The stored 300 s recording arrives with MicStarted: Finishing spans it and ASR_FINAL covers all of it.
+        val withPlan = reduce(armed, DictationEvent.PreflightPassed(s, plan.copy(screenshot = false))).state
+        val f = reduce(withPlan, DictationEvent.MicStarted(s, 1_200, recordedMs = 300_000))
+        val fin = f.state as DictationState.Finishing
+        assertEquals(1_200L - 300_000, fin.startedAtMs)
+        assertEquals(1_200L, fin.stoppedAtMs)
+        assertTrue(fin.showTranscribing)
+        assertEquals(DictationBubble.Transcribing, BubbleMapping.of(fin))
+        assertTrue(Effect.FinishAsr(s) in f.effects)
+        assertTrue(Effect.StartTimer(s, Timer.ASR_FINAL, c.asrFinalTimeoutMs(300_000)) in f.effects)
+        // A History retry replaces a result pill like a press (row 46).
+        val fromDone = reduce(DictationState.Done(s, DictationOutcome.Inserted(entry, false)), DictationEvent.RetryRequested(entry, 2_000))
+        assertEquals(DictationState.Arming(SessionId(2), StartMode.TAP, 2_000, stopRequested = true, retryOf = entry), fromDone.state)
+        // Working states ignore it (the orchestrator waits for the running dictation first).
+        for (st in listOf(arming(), listening(), finishing(), polishing(), delivering())) assertEquals(Transition(st), reduce(st, DictationEvent.RetryRequested(entry, 2_000)))
+        // A live start ignores recordedMs.
+        val live = reduce(arming().copy(plan = plan), DictationEvent.MicStarted(s, 400, recordedMs = 5_000)).state as DictationState.Listening
+        assertEquals(400L, live.startedAtMs)
     }
 
     @Test fun timeoutScaleMultipliesEveryTimer() {
@@ -530,7 +575,9 @@ class DictationMachineTest {
 
     @Test fun reducerIsTotal() {
         val states = listOf(DictationState.Idle, arming(), arming().copy(plan = plan, engines = readyEngines), listening(), finishing(), polishing(),
-            polishing(started = true), delivering(), DictationState.Done(s, DictationOutcome.Copied(entry)), DictationState.Done(s, DictationOutcome.Failed(MurmurError.NoSpeech, entry)))
+            polishing(started = true), delivering(), DictationState.Done(s, DictationOutcome.Copied(entry)), DictationState.Done(s, DictationOutcome.Failed(MurmurError.NoSpeech, entry)),
+            DictationState.Done(s, DictationOutcome.Failed(MurmurError.EngineLoadFailed(ModelKind.ASR, null), null), recording = true, retryAtMs = 500),
+            DictationState.Arming(s, StartMode.TAP, 0, stopRequested = true, retryOf = entry))
         val inputs = listOf(UserInput.Tap, UserInput.HoldStart, UserInput.HoldRelease, UserInput.HoldSlideOff, UserInput.Cancel,
             UserInput.NotificationStart, UserInput.InAppStart, UserInput.ResultTap, UserInput.ResultAction).map { DictationEvent.Input(it, 1_000) }
         val events = inputs + Timer.entries.map { DictationEvent.TimerFired(s, it) } + StopReason.entries.map { DictationEvent.ExternalStop(s, it, 1_000) } + listOf(
@@ -538,12 +585,17 @@ class DictationMachineTest {
             DictationEvent.AsrReady(s, asrInfo, true), DictationEvent.AsrLoadFailed(s, MurmurError.NoVadModel), DictationEvent.LlmReady(s, llmInfo, 3_129, 9_216, null, false),
             DictationEvent.LlmLoadFailed(s, MurmurError.OutOfMemory(ModelKind.LLM)), DictationEvent.ContextReady(s, false, 0), DictationEvent.TranscriptReady(s, t, false),
             DictationEvent.AsrFailed(s, MurmurError.NoSpeech), DictationEvent.CleanupDone(s, "x", true, "accept"), DictationEvent.Delivered(s, DeliveryResult.NothingToInsert(null)),
-            DictationEvent.ProcessDied(s, InferProcess.ASR), DictationEvent.ProcessDied(s, InferProcess.LLM), DictationEvent.FailureRecorded(s, entry),
+            DictationEvent.ProcessDied(s, InferProcess.ASR), DictationEvent.ProcessDied(s, InferProcess.LLM), DictationEvent.FailureRecorded(s, entry, audioKept = true),
+            DictationEvent.RetryRequested(entry, 1_000), DictationEvent.MicStarted(s, 1, recordedMs = 2_000),
         )
         for (st in states) for (e in events) {
             val r = DictationMachine.reduce(st, e, c)
-            // Only a start input may open another session; nothing else ever leaves the session it belongs to.
-            if (e !is DictationEvent.Input) assertTrue("$st / $e", r.state.session == null || r.state.session == st.session)
+            // Only a start input, a retry request or a remembered Retry may open another session; nothing else ever
+            // leaves the session it belongs to.
+            val pendingRetry = st is DictationState.Done && st.retryAtMs != null && e is DictationEvent.FailureRecorded
+            if (e !is DictationEvent.Input && e !is DictationEvent.RetryRequested && !pendingRetry) {
+                assertTrue("$st / $e", r.state.session == null || r.state.session == st.session)
+            }
             if (r.state.session != st.session && r.state.session != null) assertTrue("$st / $e", r.state is DictationState.Arming)
         }
     }

@@ -11,42 +11,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** History "Try again" / "Re-polish" and Settings "Try it" (WP-11 Deliver 4). */
+/** History "Re-polish" and Settings "Try it" (WP-11 Deliver 4); Retry is in RetryTest. */
 class BackgroundWorkTest {
-
-    @Test fun retryRetranscribesTheStoredAudioAndTheEntryBecomesCopied() = runTest {
-        val h = harness {
-            models.npuFirst = true; models.cpuFallback = false
-            engines.asr.loadErrors[ComputeUnit.NPU] = MurmurError.EngineLoadFailed(ModelKind.ASR, "qnn")
-        }
-        h.dictate()
-        val failed = h.only()
-        assertEquals(EntryStatus.FAILED, failed.status)
-        // The CPU artifact got installed; the NPU stays marked failed, so the resolver picks CPU.
-        h.w.models.cpuFallback = true
-        val r = h.o.retry(failed.id)
-        assertEquals(Outcome.Ok(failed.id), r)
-        val e = h.only()
-        assertEquals(EntryStatus.COPIED, e.status)
-        assertEquals("Привет это тестовая диктовка.", e.finalText)
-        assertEquals("привет это тестовая диктовка", e.rawText)
-        assertEquals("accept", e.cleanup?.outcome)
-        assertEquals(ComputeUnit.CPU, e.asr?.unit)
-        assertEquals(listOf("Привет это тестовая диктовка."), h.w.inserter.clipboard)
-        assertEquals(2_800L * 16, h.w.engines.asr.sessions.last().samples)  // the whole recording, fed at once
-        h.assertNoInternalErrors()
-    }
-
-    @Test fun errorPillRetryRunsTheSameRetry() = runTest {
-        val h = harness { engines.asr.finishError = MurmurError.EngineLoadFailed(ModelKind.ASR, "runtime") }
-        h.at(0); h.tap(); h.at(2_800); h.tap(); h.at(3_000)
-        assertEquals(DictationBubble.Error(BubbleError.LOAD_FAILED, BubbleAction.RETRY), h.o.bubble.value)
-        h.w.engines.asr.finishError = null
-        h.o.onInput(UserInput.ResultAction)
-        h.scope.testScheduler.advanceUntilIdle()
-        assertEquals(EntryStatus.COPIED, h.only().status)
-        h.assertNoInternalErrors()
-    }
 
     @Test fun repolishRerunsCleanupOnTheRawTextAndBumpsTheRevision() = runTest {
         val h = harness()

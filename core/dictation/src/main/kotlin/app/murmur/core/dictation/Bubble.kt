@@ -27,7 +27,9 @@ enum class BubbleAction { RETRY, OPEN_MODELS, OPEN_ENTRY }
 object BubbleMapping {
     fun of(state: DictationState): DictationBubble = when (state) {
         DictationState.Idle -> DictationBubble.Idle
-        is DictationState.Arming -> DictationBubble.Listening(state.pressedAtMs, state.mode == StartMode.HOLD, warn = false)
+        // A retry has no live recording: it is decoding stored audio from the start.
+        is DictationState.Arming -> if (state.retryOf != null) DictationBubble.Transcribing
+            else DictationBubble.Listening(state.pressedAtMs, state.mode == StartMode.HOLD, warn = false)
         is DictationState.Listening -> DictationBubble.Listening(state.startedAtMs, state.mode == StartMode.HOLD, state.warn)
         is DictationState.Finishing -> if (state.showTranscribing) DictationBubble.Transcribing
             else DictationBubble.Listening(state.startedAtMs, state.mode == StartMode.HOLD, warn = false, frozenAtMs = state.stoppedAtMs)

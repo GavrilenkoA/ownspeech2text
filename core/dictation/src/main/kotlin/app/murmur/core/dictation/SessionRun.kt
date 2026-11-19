@@ -6,9 +6,11 @@ import app.murmur.core.context.PrivacyDecision
 import app.murmur.core.engine.AsrSession
 import app.murmur.core.engine.LoadSpec
 import app.murmur.core.engine.Transcript
+import app.murmur.core.model.EntryId
 import app.murmur.core.model.MurmurError
 import app.murmur.core.model.SessionId
 import app.murmur.core.ocr.ScreenText
+import app.murmur.core.store.HistoryEntry
 import app.murmur.core.store.Settings
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Job
@@ -27,7 +29,12 @@ internal class SessionRun(
     val settings: Settings,
     val config: DictationConfig,
     val inApp: InAppTarget?,
+    /** Retry of this Failed entry: its stored audio is the capture, and the recorder updates it instead of adding one. */
+    val retryOf: EntryId? = null,
 ) {
+    /** The entry being retried, as read when its audio was loaded. */
+    var retryEntry: HistoryEntry? = null
+
     // Preflight
     var target: A11ySnapshot? = null
     var decision: PrivacyDecision? = null
@@ -82,6 +89,8 @@ internal class SessionRun(
 
     // Delivery
     var a11yLost = false
+    /** Delivery and RecordFailure coroutines: they read the target and transcript, which are dropped after them (I4). */
+    val writers = mutableListOf<Job>()
     var ended = false
 }
 

@@ -66,14 +66,14 @@ internal class EngineKeeper(private val engines: Engines, private val health: Un
             val first = loadAsrOn(primary, vad)
             if (first is Outcome.Ok) return Outcome.Ok(AsrLoaded(primary, first.value, fellBack = false))
             val error = (first as Outcome.Err).error
-            health.markFailed(primary.artifactId, primary.unit, error.code)
+            mark(primary, error)
             if (fallback == null || fallback == primary) {
                 return Outcome.Err(if (primary.unit == ComputeUnit.NPU) MurmurError.UnitUnavailable(ComputeUnit.NPU) else error)
             }
             up(engines.asrHost) ?: return Outcome.Err(MurmurError.ProcessDied(InferProcess.ASR))
             return when (val second = loadAsrOn(fallback, vad)) {
                 is Outcome.Ok -> Outcome.Ok(AsrLoaded(fallback, second.value, fellBack = true))
-                is Outcome.Err -> { health.markFailed(fallback.artifactId, fallback.unit, second.error.code); second }
+                is Outcome.Err -> { mark(fallback, second.error); second }
             }
         } finally {
             asrLoading--
@@ -89,6 +89,15 @@ internal class EngineKeeper(private val engines: Engines, private val health: Un
         } finally {
             asrLoading--
         }
+    }
+
+    /**
+     * ARCHITECTURE 4.4: a load error, a runtime/op rejection or a death during the load means the unit cannot run the
+     * artifact, and the selector skips it until the app version changes (ADR-050). Running out of memory says nothing
+     * about the unit (other apps hold the memory now), so it is not marked: the next press tries it again.
+     */
+    private suspend fun mark(spec: LoadSpec, error: MurmurError) {
+        if (error !is MurmurError.OutOfMemory) health.markFailed(spec.artifactId, spec.unit, error.code)
     }
 
     /** The resolved LLM is already loaded in the running :llm (no extra memory needed for it). */
@@ -132,13 +141,13 @@ internal class EngineKeeper(private val engines: Engines, private val health: Un
                 is Step.Loaded -> return Outcome.Ok(r.value)
                 is Step.PrefixFailed -> return Outcome.Err(r.error)
                 is Step.LoadFailed -> {
-                    health.markFailed(first.artifactId, first.unit, r.error.code)
+                    mark(first, r.error)
                     val fb = llm.fallback?.takeIf { allowFallback && it != first } ?: return Outcome.Err(r.error)
                     up(engines.llmHost) ?: return Outcome.Err(MurmurError.ProcessDied(InferProcess.LLM))
                     return when (val r2 = loadLlmOn(llm, fb, prefix)) {
                         is Step.Loaded -> Outcome.Ok(r2.value.copy(fellBack = true))
                         is Step.PrefixFailed -> Outcome.Err(r2.error)
-                        is Step.LoadFailed -> { health.markFailed(fb.artifactId, fb.unit, r2.error.code); Outcome.Err(r2.error) }
+                        is Step.LoadFailed -> { mark(fb, r2.error); Outcome.Err(r2.error) }
                     }
                 }
             }
