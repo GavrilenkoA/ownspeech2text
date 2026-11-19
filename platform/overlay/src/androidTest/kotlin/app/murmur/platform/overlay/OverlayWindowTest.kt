@@ -1,5 +1,6 @@
 package app.murmur.platform.overlay
 
+import android.app.UiAutomation
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.os.SystemClock
@@ -41,7 +42,8 @@ import kotlin.math.roundToInt
 @RunWith(AndroidJUnit4::class)
 class OverlayWindowTest {
     private val inst = InstrumentationRegistry.getInstrumentation()
-    private val ua = inst.uiAutomation
+    // A default UiAutomation suppresses every accessibility service, including the one that hosts the bubble.
+    private val ua = inst.getUiAutomation(UiAutomation.FLAG_DONT_SUPPRESS_ACCESSIBILITY_SERVICES)
     private val ctx = inst.targetContext
     private val settings = InMemorySettingsRepository()
     private val dictation = MutableStateFlow<DictationBubble>(DictationBubble.Idle)
@@ -57,7 +59,7 @@ class OverlayWindowTest {
 
     private fun log(step: String, s: OverlayHost.Snapshot) =
         Log.i(TAG, "step=$step w=${s.screenW} h=${s.screenH} rot=${s.rotation} right=${s.rightEdge} y=${s.circleTop} " +
-            "frac=${s.yFraction?.let { "%.3f".format(it) }} visual=${s.visual}")
+            "frac=${s.yFraction?.let { "%.3f".format(it) }} visual=${s.visual} alpha=${s.rootAlpha}")
 
     private fun <T> onMain(block: () -> T): T {
         var out: T? = null
@@ -67,6 +69,9 @@ class OverlayWindowTest {
     }
 
     private fun snap(): OverlayHost.Snapshot = onMain { host.snapshot() }
+
+    /** Ready and drawn by its own window again: the drag layer's settle animation is over (the window is touchable). */
+    private fun settled(s: OverlayHost.Snapshot) = s.visual == BubbleVisual.Ready && s.rootAlpha == 1f
 
     private fun waitUntil(what: String, timeoutMs: Long = 10_000, cond: () -> Boolean) {
         val end = SystemClock.uptimeMillis() + timeoutMs
@@ -93,7 +98,11 @@ class OverlayWindowTest {
         sh("settings put secure accessibility_enabled 1")
         service = OverlayTestService.await(20) ?: error("test accessibility service did not connect")
         sh("am start -W -n $TARGET_PKG/.TargetActivity")
-        waitUntil("target window") { service.windows.any { it.root?.packageName == TARGET_PKG } }
+        try {
+            waitUntil("target window") { service.windows.any { it.root?.packageName == TARGET_PKG } }
+        } catch (e: AssertionError) {
+            throw AssertionError("${'$'}{e.message}; windows: ${'$'}{describeWindows()}")
+        }
         onMain {
             host = OverlayHost(service, Display.DEFAULT_DISPLAY, dictation, levels, { inputs += it }, settings)
             host.attach()
@@ -112,9 +121,12 @@ class OverlayWindowTest {
 
     @Test
     fun bubbleIsAnAccessibilityOverlayOverTheTargetApp_placedAboveTheKeyboard() {
+        // TargetActivity asks for the keyboard (stateVisible); wait until the IME window is in the window list.
+        waitUntil("keyboard") { service.fieldAndIme().second != null }
         val (fieldTop, imeTop) = service.fieldAndIme()
         Log.i(TAG, "target fieldTop=$fieldTop imeTop=$imeTop")
         assertNotNull("the target's EditText has input focus", fieldTop)
+        assertNotNull(imeTop)
         onMain { host.updateVisibility(focusedInput(fieldTop, imeTop)) }
         waitUntil("Ready") { snap().visual == BubbleVisual.Ready }
         SystemClock.sleep(500)
@@ -142,24 +154,43 @@ class OverlayWindowTest {
         //    of the usable area when no keyboard is up), and never below imeTop - 12 dp.
         val d = ctx.resources.displayMetrics.density
         val top = s.circleTop!!
-        if (imeTop != null) assertEquals(imeTop - (12 * d).roundToInt() - s.diameterPx, top)
+        assertEquals(imeTop!! - (12 * d).roundToInt() - s.diameterPx, top)
         assertTrue(top >= (16 * d).roundToInt())
 
-        // 5. Pixels: the mark is drawn where the bubble is.
-        val shot: Bitmap = checkNotNull(ua.takeScreenshot()) { "no screenshot" }
-        Shots.save("overlay-over-target", shot)
+        // 5. Pixels: the mark is drawn where the bubble is (polled: the first frame of a window can be slow here).
         val cx = s.screenW - (8 * d).roundToInt() - s.diameterPx / 2
         val cy = top + s.diameterPx / 2
         var ink = 0
-        for (dx in -s.diameterPx / 3..s.diameterPx / 3) for (dy in -s.diameterPx / 3..s.diameterPx / 3) {
-            val p = shot.getPixel(cx + dx, cy + dy)
-            if (((p shr 16) and 0xFF) < 80 && ((p shr 8) and 0xFF) < 80 && (p and 0xFF) < 80) ink++
+        var shot: Bitmap? = null
+        val end = SystemClock.uptimeMillis() + 10_000
+        while (ink <= 20 && SystemClock.uptimeMillis() < end) {
+            shot = checkNotNull(ua.takeScreenshot()) { "no screenshot" }
+            ink = inkPixels(shot, cx, cy, s.diameterPx / 3)
+            if (ink <= 20) SystemClock.sleep(250)
         }
+        Shots.save("overlay-over-target", shot!!)
         assertTrue("ink pixels of the mark: $ink", ink > 20)
     }
 
+    /** Dark (ink) pixels in the square of half-size [r] around ([cx], [cy]). */
+    private fun inkPixels(b: Bitmap, cx: Int, cy: Int, r: Int): Int {
+        var ink = 0
+        for (dx in -r..r) for (dy in -r..r) {
+            val p = b.getPixel(cx + dx, cy + dy)
+            if (((p shr 16) and 0xFF) < 80 && ((p shr 8) and 0xFF) < 80 && (p and 0xFF) < 80) ink++
+        }
+        return ink
+    }
+
+    /**
+     * Drag tests run without hold-to-talk: on a loaded emulator a synchronous injection can take longer than the
+     * 250 ms hold threshold, which would turn the press into a hold. Hold-to-talk has its own test.
+     */
+    private fun withoutHoldToTalk() = kotlinx.coroutines.runBlocking { settings.update { it.copy(holdToTalk = false) } }
+
     @Test
     fun dragSnapsToTheNearerEdge_flingDecides_hideAndUndo() {
+        withoutHoldToTalk()
         onMain { host.updateVisibility(focusedInput()) }
         waitUntil("Ready") { snap().visual == BubbleVisual.Ready }
         val d = ctx.resources.displayMetrics.density
@@ -169,7 +200,7 @@ class OverlayWindowTest {
         // Slow drag to 30% of the width: nearer edge = left.
         val start = centre(s)
         swipe(start, Pair(s.screenW * 0.3f, start.second + 200f), steps = 20, durationMs = 600, holdAtEndMs = 200)
-        waitUntil("snapped left") { snap().let { !it.rightEdge && it.visual == BubbleVisual.Ready } }
+        waitUntil("snapped left") { snap().let { !it.rightEdge && settled(it) } }
         s = snap(); log("snap-left", s)
         val expectedTop = (start.second + 200f - s.diameterPx / 2f).roundToInt()
         assertTrue("y ${s.circleTop} vs $expectedTop", abs(s.circleTop!! - expectedTop) <= (2 * d).roundToInt())
@@ -181,13 +212,13 @@ class OverlayWindowTest {
 
         // Slow drag to 70%: right.
         swipe(centre(s), Pair(s.screenW * 0.7f, centre(s).second), steps = 20, durationMs = 600, holdAtEndMs = 200)
-        waitUntil("snapped right") { snap().let { it.rightEdge && it.visual == BubbleVisual.Ready } }
+        waitUntil("snapped right") { snap().let { it.rightEdge && settled(it) } }
         s = snap(); log("snap-right", s)
 
         // Fast flick toward the left that ends right of the centre: the fling (> 1000 dp/s) wins.
         val c = centre(s)
         swipe(c, Pair(s.screenW * 0.6f, c.second), steps = 4, durationMs = 60, holdAtEndMs = 0)
-        waitUntil("flung left") { snap().let { !it.rightEdge && it.visual == BubbleVisual.Ready } }
+        waitUntil("flung left") { snap().let { !it.rightEdge && settled(it) } }
         s = snap(); log("fling-left", s)
 
         // Drag onto the hide target (bottom centre): hidden for an hour, snackbar with Undo.
@@ -200,14 +231,25 @@ class OverlayWindowTest {
         assertNotNull(until)
         assertTrue(until!! - before in 3_590_000L..3_610_000L)
         assertTrue(s.snackbarShown)
+        Log.i(TAG, "snackbar window: " + sh("dumpsys window windows").split("Window #").firstOrNull { it.contains("MurmurBubbleSnack}") }
+            ?.lines()?.filter { it.contains("mAttrs") || it.contains("mFrame") || it.contains("mHasSurface") }?.joinToString(" | ") { it.trim().take(200) })
+        Log.i(TAG, "a11y windows at snackbar: ${describeWindows()}")
         assertTrue("no input was sent to the orchestrator by dragging", inputs.isEmpty())
 
         // Undo through the accessibility tree (TalkBack's path): the bubble comes back, the setting is cleared.
         val undo = ctx.getString(R.string.bubble_action_undo)
-        val node = checkNotNull(service.windows.mapNotNull { it.root }.flatMap { it.findAccessibilityNodeInfosByText(undo) }.firstOrNull()) {
-            "Undo not found in the overlay windows"
+        var node: AccessibilityNodeInfo? = null
+        try {
+            waitUntil("Undo in the overlay windows") {
+                node = service.windows.mapNotNull { it.root }.firstNotNullOfOrNull { clickableWithText(it, undo) }
+                node != null
+            }
+        } catch (e: AssertionError) {
+            val dump = service.windows.joinToString(" || ") { w -> "${w.type}/${w.title}/${w.root?.let { dumpNode(it) }}" }
+            throw AssertionError("${e.message}; snackbar=${snap().snackbarShown}; $dump")
         }
-        assertTrue(node.performAction(AccessibilityNodeInfo.ACTION_CLICK))
+        Log.i(TAG, "undo node: clickable=${node!!.isClickable} windows=${describeWindows()}")
+        assertTrue(node!!.performAction(AccessibilityNodeInfo.ACTION_CLICK))
         waitUntil("unhidden") { snap().visual == BubbleVisual.Ready }
         waitUntil("setting cleared") { settings.settings.value.hiddenUntilEpochMs == null }
         log("undo", snap())
@@ -215,6 +257,7 @@ class OverlayWindowTest {
 
     @Test
     fun tapsReachTheOrchestrator_listeningShowsTheCancelCircle() {
+        withoutHoldToTalk() // a tap must not become a hold when the loaded emulator delays the release
         onMain { host.updateVisibility(focusedInput()) }
         waitUntil("Ready") { snap().visual == BubbleVisual.Ready }
         tap(centre(snap()))
@@ -229,6 +272,7 @@ class OverlayWindowTest {
         tap(cancel)
         waitUntil("Cancel sent") { inputs.lastOrNull() == UserInput.Cancel }
         // Hold to talk on Ready: press >= 250 ms, release.
+        kotlinx.coroutines.runBlocking { settings.update { it.copy(holdToTalk = true) } }
         dictation.value = DictationBubble.Idle
         waitUntil("Ready again") { snap().visual == BubbleVisual.Ready && !snap().cancelShown }
         val c = centre(snap())
@@ -239,6 +283,7 @@ class OverlayWindowTest {
 
     @Test
     fun survivesSizeAndRotationChangesWithTheSameEdgeAndProportionalY() {
+        withoutHoldToTalk()
         onMain { host.updateVisibility(focusedInput()) }
         waitUntil("Ready") { snap().visual == BubbleVisual.Ready }
         val s0 = snap(); log("inner-0", s0)
@@ -270,8 +315,9 @@ class OverlayWindowTest {
 
         // Left edge, with a stored position on the inner display only: the cover display reprojects it.
         val c = centre(snap())
+        Log.i(TAG, "drag from $c; ${bubbleWindowDump()}")
         swipe(c, Pair(snap().screenW * 0.2f, c.second), steps = 20, durationMs = 600, holdAtEndMs = 200)
-        waitUntil("left") { snap().let { !it.rightEdge && it.visual == BubbleVisual.Ready } }
+        waitUntil("left") { snap().let { !it.rightEdge && settled(it) } }
         val left = snap(); log("left", left)
         sh("wm size 1080x2520")
         waitUntil("cover size") { snap().screenW == 1080 }
@@ -308,6 +354,31 @@ class OverlayWindowTest {
         }
     }
 
+    private fun bubbleWindowDump(): String =
+        sh("dumpsys window windows").split("Window #").firstOrNull { it.contains("MurmurBubble}") }.orEmpty()
+            .lines().filter { it.contains("mFrame") || it.contains("ty=") || it.contains("touchable", ignoreCase = true) }
+            .joinToString(" | ") { it.trim().take(160) }
+
+    /** The clickable node that carries [text] (itself, or the nearest clickable ancestor), as TalkBack activates it. */
+    private fun clickableWithText(n: AccessibilityNodeInfo, text: String): AccessibilityNodeInfo? {
+        if (n.text?.toString() == text || n.contentDescription?.toString() == text) {
+            var c: AccessibilityNodeInfo? = n
+            while (c != null && !c.isClickable) c = c.parent
+            return c
+        }
+        for (i in 0 until n.childCount) n.getChild(i)?.let { child -> clickableWithText(child, text)?.let { return it } }
+        return null
+    }
+
+    private fun dumpNode(n: AccessibilityNodeInfo, depth: Int = 0): String {
+        if (depth > 6) return ""
+        val kids = (0 until n.childCount).mapNotNull { n.getChild(it) }.joinToString(",") { dumpNode(it, depth + 1) }
+        return "[${n.className?.toString()?.substringAfterLast('.')} t=${n.text} d=${n.contentDescription}${if (kids.isEmpty()) "" else " $kids"}]"
+    }
+
+    private fun describeWindows(): String =
+        service.windows.joinToString { "${it.type}/${it.root?.packageName}/${it.title}/${it.root?.let { r -> dumpNode(r) }}" }
+
     private fun committedState(): String =
         sh("dumpsys device_state").lines().firstOrNull { it.contains("mCommittedState") }.orEmpty()
 
@@ -319,8 +390,8 @@ class OverlayWindowTest {
         return Pair(x, s.circleTop!! + s.diameterPx / 2f)
     }
 
-    private fun inject(action: Int, down: Long, x: Float, y: Float) {
-        val ev = MotionEvent.obtain(down, SystemClock.uptimeMillis(), action, x, y, 0)
+    private fun inject(action: Int, down: Long, x: Float, y: Float, at: Long = SystemClock.uptimeMillis()) {
+        val ev = MotionEvent.obtain(down, at, action, x, y, 0)
         ev.source = InputDevice.SOURCE_TOUCHSCREEN
         assertTrue(ua.injectInputEvent(ev, true))
         ev.recycle()
@@ -328,28 +399,33 @@ class OverlayWindowTest {
 
     private fun tap(p: Pair<Float, Float>) {
         val down = SystemClock.uptimeMillis()
-        inject(MotionEvent.ACTION_DOWN, down, p.first, p.second)
+        inject(MotionEvent.ACTION_DOWN, down, p.first, p.second, down)
         SystemClock.sleep(60)
-        inject(MotionEvent.ACTION_UP, down, p.first, p.second)
+        inject(MotionEvent.ACTION_UP, down, p.first, p.second, down + 60)
     }
 
     private fun swipe(from: Pair<Float, Float>, to: Pair<Float, Float>, steps: Int, durationMs: Long, holdAtEndMs: Long) {
+        // Event times are the finger's own clock (as a touchscreen stamps them), independent of how long each
+        // synchronous injection takes on a loaded emulator.
         val down = SystemClock.uptimeMillis()
-        inject(MotionEvent.ACTION_DOWN, down, from.first, from.second)
+        inject(MotionEvent.ACTION_DOWN, down, from.first, from.second, down)
+        val dt = durationMs / steps
         for (i in 1..steps) {
-            SystemClock.sleep(durationMs / steps)
+            SystemClock.sleep(dt)
             val t = i / steps.toFloat()
-            inject(MotionEvent.ACTION_MOVE, down, from.first + (to.first - from.first) * t, from.second + (to.second - from.second) * t)
+            inject(MotionEvent.ACTION_MOVE, down, from.first + (to.first - from.first) * t, from.second + (to.second - from.second) * t, down + i * dt)
         }
+        var last = down + steps * dt
         if (holdAtEndMs > 0) {
             // Still finger: the release velocity falls to zero.
             val end = SystemClock.uptimeMillis() + holdAtEndMs
             while (SystemClock.uptimeMillis() < end) {
                 SystemClock.sleep(50)
-                inject(MotionEvent.ACTION_MOVE, down, to.first, to.second)
+                last = maxOf(last + 50, SystemClock.uptimeMillis())
+                inject(MotionEvent.ACTION_MOVE, down, to.first, to.second, last)
             }
         }
-        inject(MotionEvent.ACTION_UP, down, to.first, to.second)
+        inject(MotionEvent.ACTION_UP, down, to.first, to.second, last + 8)
     }
 
     private companion object {

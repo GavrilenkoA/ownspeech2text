@@ -54,9 +54,7 @@ class BubbleGestureRecognizer(
     private var moved = false
     private val samples = ArrayDeque<Triple<Long, Float, Float>>()
 
-    val active: Boolean get() = phase != Phase.IDLE && phase != Phase.DONE
     val dragging: Boolean get() = phase == Phase.DRAGGING
-    val holding: Boolean get() = phase == Phase.HOLDING
 
     /** When [tick] must run to start a hold, or null. */
     fun holdDeadline(): Long? = if (phase == Phase.PRESSED && policy.canHold && !moved) downT + HOLD_MS else null
@@ -89,7 +87,9 @@ class BubbleGestureRecognizer(
                 return emptyList()
             }
             Phase.DRAGGING -> {
-                record(t, x, y)
+                // Only real movement counts for the velocity; a resting finger leaves the last sample to age.
+                val last = samples.last()
+                if (x != last.second || y != last.third) record(t, x, y)
                 return listOf(Gesture.DragMove(x, y))
             }
             else -> return emptyList()
@@ -107,7 +107,11 @@ class BubbleGestureRecognizer(
                 }
             }
             Phase.HOLDING -> listOf(Gesture.HoldRelease)
-            Phase.DRAGGING -> { record(t, x, y); listOf(Gesture.DragEnd(x, y, velocityDpPerSec())) }
+            Phase.DRAGGING -> {
+                val last = samples.last()
+                if (x != last.second || y != last.third) record(t, x, y)
+                listOf(Gesture.DragEnd(x, y, velocityDpPerSec(t)))
+            }
             else -> emptyList()
         }
         phase = Phase.IDLE
@@ -137,11 +141,15 @@ class BubbleGestureRecognizer(
         while (samples.size > 2 && t - samples.first().first > VELOCITY_WINDOW_MS) samples.removeFirst()
     }
 
-    /** Horizontal release velocity over the last 100 ms, in dp/s. */
-    private fun velocityDpPerSec(): Float {
+    /**
+     * Horizontal release velocity over the 100 ms before the last movement, in dp/s. A finger that rested for more
+     * than 40 ms before lifting has no velocity (as Android's VelocityTracker assumes the pointer stopped).
+     */
+    private fun velocityDpPerSec(upT: Long): Float {
         if (samples.size < 2) return 0f
-        val (t0, x0, _) = samples.first()
         val (t1, x1, _) = samples.last()
+        if (upT - t1 > STOPPED_MS) return 0f
+        val (t0, x0, _) = samples.firstOrNull { t1 - it.first <= VELOCITY_WINDOW_MS } ?: return 0f
         val dt = (t1 - t0).coerceAtLeast(1L)
         return (x1 - x0) / density / dt * 1000f
     }
@@ -153,5 +161,6 @@ class BubbleGestureRecognizer(
         const val HOLD_MS = 250L
         const val SLIDE_OFF_DP = 64f
         const val VELOCITY_WINDOW_MS = 100L
+        const val STOPPED_MS = 40L
     }
 }

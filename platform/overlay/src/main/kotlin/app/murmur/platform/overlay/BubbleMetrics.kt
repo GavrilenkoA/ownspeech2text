@@ -14,8 +14,6 @@ data class BubbleMetrics(val sizeDp: Int) {
     /** Ready hit area: 56 dp at 52 (the visual plus 2 dp each side), never below 48. */
     val readyHit: Float = maxOf(TOUCH_MIN, diameter + 4f)
     val pillHeight: Float = diameter
-    /** Labels may wrap to 2 lines at large font scales; the pill then grows to 64 dp (DESIGN 8). */
-    val pillMaxTextHeight: Float = 64f * scale
     val listeningWidth: Float = 164f * scale
     val maxWidth: Float = MAX_WIDTH
 

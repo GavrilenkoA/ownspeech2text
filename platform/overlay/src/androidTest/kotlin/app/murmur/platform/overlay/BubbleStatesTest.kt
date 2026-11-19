@@ -174,8 +174,15 @@ class BubbleStatesTest {
         rule.waitForIdle()
     }
 
-    private fun shot(name: String) {
-        Shots.save(name, rule.onNodeWithTag(STAGE).captureToImage().asAndroidBitmap())
+    private fun shot(name: String) = Shots.save(name, capture(STAGE))
+
+    /** captureToImage gives the window 2 s to redraw; a loaded emulator can miss that, so up to three attempts. */
+    private fun capture(tag: String): android.graphics.Bitmap {
+        repeat(2) {
+            try { return rule.onNodeWithTag(tag).captureToImage().asAndroidBitmap() }
+            catch (e: androidx.compose.ui.test.ComposeTimeoutException) { android.util.Log.w("WP03", "capture $tag timed out once") }
+        }
+        return rule.onNodeWithTag(tag).captureToImage().asAndroidBitmap()
     }
 
     @Test
@@ -220,11 +227,11 @@ class BubbleStatesTest {
             scene = null; snack = null; drag = w to 740
             rule.mainClock.advanceTimeBy(2_000)
             rule.waitForIdle()
-            Shots.save("b-drag--$dev", rule.onNodeWithTag(DRAG).captureToImage().asAndroidBitmap())
+            Shots.save("b-drag--$dev", capture(DRAG))
             drag = null; snack = w
             rule.mainClock.advanceTimeBy(1_000)
             rule.waitForIdle()
-            Shots.save("b-hidden--$dev", rule.onNodeWithTag(SNACK).captureToImage().asAndroidBitmap())
+            Shots.save("b-hidden--$dev", capture(SNACK))
             rule.onNodeWithTag(TAG_UNDO).assert(SemanticsMatcher.keyIsDefined(SemanticsActions.OnClick))
             assertTouchTargets("hidden")
         }

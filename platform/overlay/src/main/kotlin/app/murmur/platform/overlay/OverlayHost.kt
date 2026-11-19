@@ -117,6 +117,9 @@ class OverlayHost(
     private var rightEdge = true
     private var circleTop: Int? = null
     private var lastInput: PlacementInput? = null
+    /** Fraction of the usable range and display size at the last explicit placement (reprojection keeps the fraction). */
+    private var placedFraction = BubblePlacement.DEFAULT_FRACTION
+    private var placedSize: Pair<Int, Int>? = null
     private var lastShownVisual: BubbleVisual = BubbleVisual.Ready
     private var lastVisual: BubbleVisual = BubbleVisual.Hidden
     private var visualRectInWindow: Rect? = null
@@ -223,12 +226,20 @@ class OverlayHost(
         val idleVisual = visual == BubbleVisual.Ready || visual == BubbleVisual.Rest || visual == BubbleVisual.Hidden
         val becameVisible = lastVisual == BubbleVisual.Hidden && visual != BubbleVisual.Hidden
         if (controller.drag == null && !settling) {
-            val old = lastInput
             val top = circleTop
+            val sizeChanged = placedSize != null && placedSize != input.screenW to input.screenH
+            val changed = input.withoutCurrent() != lastInput?.withoutCurrent()
+            // Without a field and without a stored position the bubble keeps its proportional y (DESIGN 5.4, platform
+            // spike a): insets that change mid-transition, the keyboard, a fold or a rotation never shift that fraction.
+            val proportional = input.stored == null && input.fieldTop == null
             when {
-                top == null || becameVisible || (idleVisual && input.withoutCurrent() != old?.withoutCurrent()) ->
-                    place(BubblePlacement.place(input), reason)
-                replace && old != null -> place(BubblePlacement.reproject(Placement(rightEdge, 0, top), old, input), reason)
+                top == null -> place(BubblePlacement.place(input), input, reason)
+                // Fold / unfold / rotation / Size setting: same edge and proportional y, unless this display (cover vs
+                // inner) has a stored position. A focused field re-places with the next visibility input.
+                sizeChanged || replace || (proportional && (becameVisible || (idleVisual && changed))) ->
+                    if (input.stored != null) place(BubblePlacement.place(input), input, reason)
+                    else place(proportionalPlacement(input), input, reason, keepFraction = true)
+                becameVisible || (idleVisual && changed) -> place(BubblePlacement.place(input), input, reason)
                 else -> circleTop = BubblePlacement.clampY(top, input)
             }
         }
@@ -260,13 +271,20 @@ class OverlayHost(
         controller.nextDeadline(now)?.let { main.postDelayed(deadlineRunnable, (it - now).coerceAtLeast(0L) + 1L) }
     }
 
-    private fun place(p: Placement, reason: String) {
+    /** [keepFraction]: the placement was derived from [placedFraction] (and maybe clamped); keep the original. */
+    private fun place(p: Placement, input: PlacementInput, reason: String, keepFraction: Boolean = false) {
         rightEdge = p.rightEdge
         circleTop = p.y
-        val input = placementInput()
+        if (!keepFraction) placedFraction = BubblePlacement.fractionOf(p.y, input)
+        placedSize = input.screenW to input.screenH
         Log.i(TAG, "bubble_placed display=$displayId reason=$reason w=${input.screenW} h=${input.screenH} " +
-            "rot=${display.rotation} right=${p.rightEdge} y=${p.y} frac=${"%.3f".format(BubblePlacement.fractionOf(p.y, input))}")
+            "rot=${display.rotation} right=${p.rightEdge} y=${p.y} frac=${"%.3f".format(placedFraction)}")
     }
+
+    private fun proportionalPlacement(input: PlacementInput) = Placement(
+        rightEdge, BubblePlacement.xFor(rightEdge, input.screenW, input.bubbleDiameterPx, input.density),
+        BubblePlacement.clampY(BubblePlacement.yForFraction(placedFraction, input), input),
+    )
 
     private fun positionBubble(visual: BubbleVisual) {
         val top = circleTop ?: return
@@ -325,19 +343,23 @@ class OverlayHost(
 
     private fun handle(gestures: List<Gesture>) {
         for (g in gestures) {
+            if (g is Gesture.DragEnd) Log.i(TAG, "bubble_drag_end display=$displayId vx_dp_s=${g.vxDpPerSec.roundToInt()}")
             if (g is Gesture.DragStart) startDrag(g.x, g.y) else controller.onGesture(g)
             if (g is Gesture.DragMove || g is Gesture.DragEnd || g == Gesture.DragCancel) updateDragScene()
         }
         if (gestures.isNotEmpty()) refresh("gesture")
     }
 
-    /** Finger offset inside the circle drawn while dragging; a press on a wide pill grabs the circle at its docked end. */
+    /**
+     * Finger offset inside the circle drawn while dragging, from the placement (not from view measurements, which lag
+     * a moving window): every visual is centred on the docked circle, and a wide pill is grabbed at its docked end.
+     */
     private fun grabOffset(rawX: Float, rawY: Float): Offset {
-        val r = pillRectOnScreen() ?: return Offset(0f, 0f)
-        val d = metrics.diameter * density()
-        val x = if (rightEdge) (rawX - (r.right - d)) else (rawX - r.left)
-        val y = rawY - (r.top + r.bottom - d) / 2f
-        return Offset(x.coerceIn(0f, d), y.coerceIn(0f, d))
+        val input = placementInput()
+        val d = input.bubbleDiameterPx.toFloat()
+        val top = circleTop ?: return Offset(d / 2f, d / 2f)
+        val left = BubblePlacement.xFor(rightEdge, input.screenW, input.bubbleDiameterPx, input.density)
+        return Offset((rawX - left).coerceIn(0f, d), (rawY - top).coerceIn(0f, d))
     }
 
     private fun startDrag(x: Float, y: Float) {
@@ -485,17 +507,7 @@ class OverlayHost(
         return PxRect(loc[0] + r.left, loc[1] + r.top, loc[0] + r.right, loc[1] + r.bottom)
     }
 
-    private fun onDisplayChanged() {
-        val old = lastInput
-        val new = placementInput()
-        val top = circleTop
-        if (old != null && top != null && controller.drag == null && (old.screenW != new.screenW || old.screenH != new.screenH)) {
-            // Same edge, proportional y; a stored position for this display (cover vs inner) wins.
-            val p = if (new.stored != null) BubblePlacement.place(new) else BubblePlacement.reproject(Placement(rightEdge, 0, top), old, new)
-            place(p, "display")
-        }
-        refresh("display")
-    }
+    private fun onDisplayChanged() = refresh("display")
 
     // ------------------------------------------------------------------------------------------------------------
     // Plumbing
@@ -561,8 +573,8 @@ class OverlayHost(
         override fun hideForAnHour() = this@OverlayHost.hideForAnHour()
         override fun dragSettled(rightEdge: Boolean, circleTop: Int, stored: Boolean) {
             val input = placementInput()
-            this@OverlayHost.rightEdge = rightEdge
-            this@OverlayHost.circleTop = circleTop
+            val x = BubblePlacement.xFor(rightEdge, input.screenW, input.bubbleDiameterPx, input.density)
+            place(Placement(rightEdge, x, circleTop), input, if (stored) "drag" else "drag-cancel")
             if (stored) {
                 val key = BubblePlacement.displayKey(displayId, input.screenW, input.screenH, input.density)
                 val pos = BubblePlacement.stored(rightEdge, circleTop, input)
@@ -571,7 +583,6 @@ class OverlayHost(
             }
             settling = true
             main.removeCallbacks(showTarget)
-            val x = BubblePlacement.xFor(rightEdge, input.screenW, input.bubbleDiameterPx, input.density)
             dragScene = dragScene?.copy(settleTo = Offset(x.toFloat(), circleTop.toFloat()))
             if (dragScene == null) finishSettle()
         }
@@ -612,6 +623,8 @@ class OverlayHost(
         val hiddenUntilMs: Long?,
         val snackbarShown: Boolean,
         val cancelShown: Boolean,
+        /** Alpha of the bubble window's root view (0 while hidden or while the drag layer draws the bubble). */
+        val rootAlpha: Float,
     )
 
     fun snapshot(): Snapshot {
@@ -622,6 +635,7 @@ class OverlayHost(
             yFraction = top?.let { BubblePlacement.fractionOf(it, input) },
             screenW = input.screenW, screenH = input.screenH, rotation = display.rotation, diameterPx = input.bubbleDiameterPx,
             hiddenUntilMs = controller.hiddenUntilMs, snackbarShown = snackView != null, cancelShown = cancelShown,
+            rootAlpha = root.alpha,
         )
     }
 
