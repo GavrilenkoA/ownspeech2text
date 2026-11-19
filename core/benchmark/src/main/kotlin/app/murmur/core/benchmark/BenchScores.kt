@@ -27,14 +27,14 @@ object BenchScores {
     private fun newest(records: List<BenchmarkRecord>): Map<Pair<ArtifactId, ComputeUnit>, BenchmarkRecord> =
         records.groupBy { it.artifactId to it.unit }.mapValues { (_, l) -> l.maxBy { it.atEpochMs } }
 
-    /** null for an invalid record (ARCHITECTURE 10: invalid records never score). */
+    /** null for an invalid record (ARCHITECTURE 10: invalid records never score) and for a non-positive time. */
     fun score(record: BenchmarkRecord): Double? {
         val r = record.result
         if (!r.valid) return null
         return when (r) {
             is BenchmarkResultData.Asr -> if (r.rtfx > 0) 1000.0 / r.rtfx else null
-            is BenchmarkResultData.Llm -> r.e2eMs
-            is BenchmarkResultData.Ocr -> r.msPerScreenshot.toDouble()
+            is BenchmarkResultData.Llm -> r.e2eMs.takeIf { it > 0 }
+            is BenchmarkResultData.Ocr -> r.msPerScreenshot.toDouble().takeIf { it > 0 }
         }
     }
 

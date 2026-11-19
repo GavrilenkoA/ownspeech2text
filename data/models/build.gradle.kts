@@ -8,6 +8,8 @@ dependencies {
     implementation(project(":core:model"))
     implementation(project(":core:engine"))
     implementation(project(":core:dictation"))
+    // BenchScores (ADR-071/080): the one selection score and measured LLM speed, owned by WP-14.
+    implementation(project(":core:benchmark"))
     implementation(project(":data:db"))
     implementation(libs.androidx.room.runtime)   // MurmurDatabase's supertype, for RoomCustomModelStore(db)
     implementation(libs.commons.compress)

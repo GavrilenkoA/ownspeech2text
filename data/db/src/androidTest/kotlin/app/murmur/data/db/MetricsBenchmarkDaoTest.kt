@@ -56,7 +56,8 @@ class MetricsBenchmarkDaoTest {
         val npuNewInvalid = asr(ComputeUnit.NPU, 2_000, valid = false, reason = "wer_high")
         val cpuValid = asr(ComputeUnit.CPU, 1_500, valid = true)
         val llm = BenchmarkRecord(ArtifactId("lfm3-1.7b@q4_0"), ComputeUnit.GPU, "0.1.0", "fp", 3_000,
-            BenchmarkResultData.Llm(40.9, 2_597.0, 310.0, 1_300.0, 2_100, 1_160, "GPU", 0.97, guardAction = "accept", stopReason = 1))
+            BenchmarkResultData.Llm(40.9, 2_597.0, 310.0, 1_300.0, 2_100, 1_160, "GPU", 0.97, guardAction = "accept", stopReason = 1),
+            notes = mapOf("thermal.before" to "0", "thermal.after" to "1", "llm.tg128.tps" to "41.2")) // ADR-080: kept by Room
         listOf(npuOldValid, cpuValid, npuNewInvalid, llm).forEach { repo.save(it) }
 
         val parakeet = ArtifactId("parakeet-tdt-0.6b-v3@qnn-sm8750")

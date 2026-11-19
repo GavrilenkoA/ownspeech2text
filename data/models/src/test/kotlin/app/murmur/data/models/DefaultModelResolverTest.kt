@@ -19,6 +19,7 @@ import app.murmur.core.model.ModelId
 import app.murmur.core.model.MurmurError
 import app.murmur.core.model.Outcome
 import app.murmur.core.model.UnitPreference
+import app.murmur.core.benchmark.BenchScores
 import app.murmur.core.store.BenchmarkRecord
 import app.murmur.core.store.BenchmarkResultData
 import app.murmur.core.store.CleanupChoice
@@ -260,9 +261,9 @@ class DefaultModelResolverTest {
         // LLM speed comes from the newest record of the chosen (artifact, unit) (ADR-071).
         bench.save(BenchmarkRecord(lfm, NPU, "1", "fp", 3, BenchmarkResultData.Llm(40.9, 569.0, 120.0, 1300.0, 900, 1200, "NPU", 1.0)))
         assertEquals(LlmSpeed(prefillTps = 569.0, decodeTps = 40.9), ok(resolver(Installed(everything)).resolve(Settings())).llm!!.speed)
-        val scores = BenchScores(listOf(asr(CPU, 20.0, true, 1, pCpu), asr(CPU, 40.0, false, 2, pCpu)))
+        val scores = BenchScores.lookup(listOf(asr(CPU, 20.0, true, 1, pCpu), asr(CPU, 40.0, false, 2, pCpu)))
         assertNull(scores.score(pCpu, CPU))
-        assertEquals(50.0, BenchScores(listOf(asr(NPU, 20.0, true, 1, pNpu))).score(pNpu, NPU)!!, 1e-9)
+        assertEquals(50.0, BenchScores.lookup(listOf(asr(NPU, 20.0, true, 1, pNpu))).score(pNpu, NPU)!!, 1e-9)
     }
 
     @Test

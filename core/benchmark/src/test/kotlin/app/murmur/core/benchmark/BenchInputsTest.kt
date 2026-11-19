@@ -85,7 +85,7 @@ class BenchInputsTest {
     }
 
     @Test
-    fun ocrGoldenToleranceFollowsTheMlOcrReadme() {
+    fun ocrGoldenToleranceFollowsTheMlOcrReadmeForSmallSamples() {
         val golden = ScreenText(listOf(1080, 2520), List(50) { i -> OcrLine("строка номер $i", 0.95, listOf(10, 100 * i, 500, 100 * i + 40)) })
         assertNull(OcrGoldenMatch.check(golden, golden))
         fun with(i: Int, line: OcrLine, base: ScreenText = golden) = base.copy(lines = base.lines.toMutableList().also { it[i] = line })
@@ -95,14 +95,16 @@ class BenchInputsTest {
         assertEquals("ocr_conf", OcrGoldenMatch.check(golden, with(0, l0.copy(conf = 0.92))))
         assertEquals("ocr_line_count", OcrGoldenMatch.check(golden, golden.copy(lines = golden.lines.drop(1))))
         assertEquals("ocr_no_boxes", OcrGoldenMatch.check(golden, golden.copy(lines = emptyList())))
-        // 1 of 50 lines differs (98 % identical, allowed) but by 1 of 14 characters: CER 7 % > 0.5 % on the rest.
-        assertEquals("ocr_text", OcrGoldenMatch.check(golden, with(0, l0.copy(text = "строка намер 0"))))
+        // ADR-080: 1 of 50 lines (ceil(2 % x 50) = 1) may differ; 1 edit over the run's ~720 code points is <= 0.5 %.
+        assertEquals(1, OcrGoldenMatch.allowedDifferent(50))
+        assertNull(OcrGoldenMatch.check(golden, with(0, l0.copy(text = "строка намер 0"))))
+        // One line rewritten: within the line allowance but 20 edits / ~720 code points = 2.8 % > 0.5 %.
+        assertEquals("ocr_text", OcrGoldenMatch.check(golden, with(0, l0.copy(text = "совсем другая строка"))))
         val long = "a".repeat(400)
         val g2 = with(0, l0.copy(text = long))
-        // 1 differing line with CER 1/400 = 0.25 % <= 0.5 %, and 49/50 = 98 % identical: within tolerance.
         assertNull(OcrGoldenMatch.check(g2, with(0, l0.copy(text = long.dropLast(1) + "b"), g2)))
-        // Two differing lines: 96 % identical.
-        assertEquals("ocr_text", OcrGoldenMatch.check(g2, with(1, golden.lines[1].copy(text = "x"), with(0, l0.copy(text = long.dropLast(1) + "b"), g2))))
+        // Two differing lines: more than ceil(2 % x 50) = 1.
+        assertEquals("ocr_text", OcrGoldenMatch.check(g2, with(1, golden.lines[1].copy(text = "строка номер 1."), with(0, l0.copy(text = long.dropLast(1) + "b"), g2))))
     }
 
     @Test
@@ -113,14 +115,21 @@ class BenchInputsTest {
         val a = page(25, long)
         val b = page(25, "заголовок")
         val aOff = a.copy(lines = a.lines.toMutableList().also { it[0] = it[0].copy(text = long.dropLast(1) + "в") })
-        // Alone, page a has 24/25 = 96 % identical lines; over the run (50 lines) it is 49/50 = 98 %.
-        assertEquals("ocr_text", OcrGoldenMatch.check(a, aOff))
+        val bOff = b.copy(lines = b.lines.toMutableList().also { it[0] = it[0].copy(text = "заголовак") })
+        // Each page alone may have one differing line (ceil(2 % x 25) = 1); the run of 50 lines may have one, not two.
+        assertNull(OcrGoldenMatch.check(a, aOff))
+        assertNull(OcrGoldenMatch.check(b, bOff))
         assertNull(OcrGoldenMatch.check(listOf(a to aOff, b to b)))
-        // The bundled pages have 14 + 29 = 43 lines: 98 % leaves no differing line, so one character off is invalid.
+        assertEquals("ocr_text", OcrGoldenMatch.check(listOf(a to aOff, b to bOff)))
+        // The bundled pages have 14 + 29 = 43 lines and 691 code points: one character off on one line is still valid
+        // (a rounding difference on the NPU, ADR-080); a second differing line, or one line rewritten, is not.
         val (cover, inner) = inputs.pages.map { it.golden }
         assertEquals(43, cover.lines.size + inner.lines.size)
-        val coverOff = cover.copy(lines = cover.lines.toMutableList().also { it[3] = it[3].copy(text = it[3].text + ".") })
-        assertEquals("ocr_text", OcrGoldenMatch.check(listOf(cover to coverOff, inner to inner)))
+        fun off(p: ScreenText, i: Int, text: String) = p.copy(lines = p.lines.toMutableList().also { it[i] = it[i].copy(text = text) })
+        val coverOff = off(cover, 3, cover.lines[3].text + ".")
+        assertNull(OcrGoldenMatch.check(listOf(cover to coverOff, inner to inner)))
+        assertEquals("ocr_text", OcrGoldenMatch.check(listOf(cover to coverOff, inner to off(inner, 5, inner.lines[5].text + "."))))
+        assertEquals("ocr_text", OcrGoldenMatch.check(listOf(cover to cover, inner to off(inner, 2, "Совсем не то"))))
         assertNull(OcrGoldenMatch.check(listOf(cover to cover, inner to inner)))
     }
 

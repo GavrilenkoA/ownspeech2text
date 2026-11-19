@@ -1,15 +1,18 @@
 package app.murmur.data.db
 
 import android.content.Context
+import androidx.room.AutoMigration
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
-/** Single Room database of the :main process (ADR-012). Schema JSON exported to data/db/schemas. */
+/** Single Room database of the :main process (ADR-012). Schema JSON exported to data/db/schemas (one file per version). */
 @Database(
     entities = [HistoryRow::class, MetricsRow::class, BenchmarkRow::class, CustomModelRow::class],
-    version = 1,
+    version = 2,
     exportSchema = true,
+    // 2: benchmark.notes (BenchmarkRecord.notes, ADR-080).
+    autoMigrations = [AutoMigration(from = 1, to = 2)],
 )
 abstract class MurmurDatabase : RoomDatabase() {
     abstract fun history(): HistoryDao

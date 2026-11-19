@@ -1,8 +1,8 @@
 package app.murmur.data.models
 
+import app.murmur.core.benchmark.BenchScores
 import app.murmur.core.catalog.Artifact
 import app.murmur.core.catalog.ArtifactSelector
-import app.murmur.core.catalog.BenchLookup
 import app.murmur.core.catalog.Candidate
 import app.murmur.core.catalog.Catalog
 import app.murmur.core.catalog.CatalogRepository
@@ -31,7 +31,6 @@ import app.murmur.core.model.Outcome
 import app.murmur.core.model.UnitPreference
 import app.murmur.core.store.BenchmarkRecord
 import app.murmur.core.store.BenchmarkRepository
-import app.murmur.core.store.BenchmarkResultData
 import app.murmur.core.store.CleanupChoice
 import app.murmur.core.store.InstallState
 import app.murmur.core.store.InstalledModelsRepository
@@ -128,7 +127,7 @@ class DefaultModelResolver(
             else -> null
         } ?: return Outcome.Err(MurmurError.CatalogInvalid("not installed"))
         val dev = device.ensure()
-        val bench = BenchScores(benchmarks.latest(id).first())
+        val bench = BenchScores.lookup(benchmarks.latest(id).first())
         val ranked = ArtifactSelector.ranked(entry, dev, UnitPreference.Auto, bench, setOf(id), health)
             .filter { it.artifact.id == id }
         val specs = ranked.map { loadSpec(entry, art, it.unit, dir) }
@@ -186,8 +185,8 @@ class DefaultModelResolver(
         val fallback = ArtifactSelector.fallbackAfter(r.ranked, primary)
         val traits = entry.llm!!
         val gguf = ggufFile(primary.artifact) ?: return null to LLM_NO_MODEL
-        val speed = (r.records[primary.artifact.id].orEmpty().latestFor(primary.unit)?.result as? BenchmarkResultData.Llm)
-            ?.takeIf { it.valid && it.prefillTps > 0 && it.decodeTps > 0 }
+        // ADR-071 / ADR-080: the newest record of the chosen (artifact, unit), the same one the selection scored.
+        val speed = BenchScores.llmSpeed(r.records[primary.artifact.id].orEmpty(), primary.artifact.id, primary.unit)
             ?.let { LlmSpeed(prefillTps = it.prefillTps, decodeTps = it.decodeTps) }
         return ActiveLlm(
             spec = r.spec(primary),
@@ -207,7 +206,7 @@ class DefaultModelResolver(
         val dirs = mutableMapOf<ArtifactId, String>()
         for (a in entry.artifacts) (installed.state(a.id).first() as? InstallState.Installed)?.let { dirs[a.id] = it.dir }
         val records = entry.artifacts.associate { a -> a.id to benchmarks.latest(a.id).first() }
-        val bench = BenchScores(records.values.flatten())
+        val bench = BenchScores.lookup(records.values.flatten())
         val pref = settings.unitPreference[entry.id.value] ?: UnitPreference.Auto
         var ranked = ArtifactSelector.ranked(entry, dev, pref, bench, dirs.keys, health)
         if (ranked.isEmpty() && pref is UnitPreference.Pinned)
@@ -272,25 +271,3 @@ class DefaultModelResolver(
         }
     }
 }
-
-/**
- * [BenchLookup] over stored records: the latest record of (artifact, unit) decides; an invalid latest record scores
- * null (ARCHITECTURE 10: a fast but wrong unit is never chosen, and an older valid run does not outvote it). Score:
- * ASR processing ms per audio second (1000 / rtfx), LLM end-to-end ms of the fixed case, OCR ms per screenshot.
- */
-class BenchScores(records: List<BenchmarkRecord>) : BenchLookup {
-    private val latest: Map<Pair<ArtifactId, ComputeUnit>, BenchmarkRecord> =
-        records.groupBy { it.artifactId to it.unit }.mapValues { (_, l) -> l.maxBy { it.atEpochMs } }
-
-    override fun score(artifact: ArtifactId, unit: ComputeUnit): Double? {
-        val r = latest[artifact to unit]?.result ?: return null
-        if (!r.valid) return null
-        return when (r) {
-            is BenchmarkResultData.Asr -> if (r.rtfx > 0) 1000.0 / r.rtfx else null
-            is BenchmarkResultData.Llm -> r.e2eMs.takeIf { it > 0 }
-            is BenchmarkResultData.Ocr -> r.msPerScreenshot.toDouble().takeIf { it > 0 }
-        }
-    }
-}
-
-private fun List<BenchmarkRecord>.latestFor(unit: ComputeUnit): BenchmarkRecord? = filter { it.unit == unit }.maxByOrNull { it.atEpochMs }

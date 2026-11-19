@@ -128,7 +128,7 @@ class LlmOcrBenchmarkTest {
         val events = rig.runner.run(entry, rig.candidates(entry)).onEach { e ->
             if (e is BenchProgress.Step && e.step == BenchStep.OCR_PAGE && !e.done) {
                 val lines = pages.getValue(e.sampleId!!).golden.lines
-                // The cover page is right; one inner line is wrong (42 of 43 lines identical over the run).
+                // The cover page is right; one inner line is rewritten: 1 of 43 lines may differ, but its edits exceed 0.5 % of the run (ADR-080).
                 ocr.lines = if (e.sampleId == "inner") lines.toMutableList().also { it[2] = it[2].copy(text = "Совсем не то") } else lines
             }
         }.toList()

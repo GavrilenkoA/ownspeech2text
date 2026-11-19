@@ -89,6 +89,8 @@ data class BenchmarkRow(
     @ColumnInfo(name = "invalid_reason") val invalidReason: String?,
     /** BenchmarkResultData JSON. */
     val result: String,
+    /** BenchmarkRecord.notes as a JSON object of strings (measurement context, ADR-080); added in schema 2. */
+    @ColumnInfo(defaultValue = "{}") val notes: String = "{}",
 )
 
 /** User-added Hugging Face models (D3): the full ModelEntry as JSON, origin = custom. */

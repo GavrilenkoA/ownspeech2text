@@ -16,6 +16,8 @@ import app.murmur.core.store.InsertMethod
 import app.murmur.core.store.ModelUse
 import app.murmur.core.store.Timings
 import app.murmur.core.store.Words
+import kotlinx.serialization.builtins.MapSerializer
+import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 import java.time.Instant
 import java.time.LocalDate
@@ -152,6 +154,7 @@ internal fun BenchmarkRecord.toRow() = BenchmarkRow(
     valid = result.valid,
     invalidReason = result.invalidReason,
     result = benchJson.encodeToString(BenchmarkResultData.serializer(), result),
+    notes = benchJson.encodeToString(benchNotes, notes),
 )
 
 internal fun BenchmarkRow.toRecord() = BenchmarkRecord(
@@ -161,4 +164,7 @@ internal fun BenchmarkRow.toRecord() = BenchmarkRecord(
     buildFingerprint = fingerprint,
     atEpochMs = atMs,
     result = benchJson.decodeFromString(BenchmarkResultData.serializer(), result),
+    notes = benchJson.decodeFromString(benchNotes, notes),
 )
+
+private val benchNotes = MapSerializer(String.serializer(), String.serializer())
