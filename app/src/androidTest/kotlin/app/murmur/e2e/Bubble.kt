@@ -79,6 +79,18 @@ object Bubble {
         val b = checkNotNull(bounds()) { "no bubble overlay on screen" }
         return b.centerX() > screenWidth / 2
     }
+
+    /**
+     * Waits until the bubble sits on the [right] (or left) edge of the current display, after a size or rotation change
+     * re-placed it (the overlay moves once the display change reached it). Fails with the bounds last seen.
+     */
+    fun awaitEdge(right: Boolean, screenWidth: () -> Int, timeoutMs: Long = 5_000) {
+        var seen: Rect? = null
+        E2e.waitUntil("bubble on the ${if (right) "right" else "left"} edge (last bounds $seen, width ${screenWidth()})", timeoutMs, pollMs = 100) {
+            seen = bounds()
+            seen?.let { (it.centerX() > screenWidth() / 2) == right } ?: false
+        }
+    }
 }
 
 /**

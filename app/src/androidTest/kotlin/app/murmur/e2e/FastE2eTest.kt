@@ -16,11 +16,8 @@ import org.junit.runner.RunWith
 class FastE2eTest : DictationTest() {
     @Before
     fun fakeWorld() {
-        val fakes = Pipeline.requireFakes()
         // Each word of the fake cleanup takes 250 ms: Polishing stays on screen long enough to be seen and recorded.
-        fakes.llm.delayPerPieceMs = 250
-        fakes.llm.hang = false
-        Fixtures.installCapture(Fixtures.toneBurst())
+        Pipeline.fakeWorld(llmMsPerWord = 250)
     }
 
     @Test

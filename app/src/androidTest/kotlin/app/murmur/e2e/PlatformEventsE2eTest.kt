@@ -18,7 +18,8 @@ import java.util.regex.Pattern
 
 /**
  * Platform events during a dictation (ADR-058, WP-20 brief 4 a-g), each against the outcome ARCHITECTURE 4.4 / 5.2
- * documents and the history row. Run on `murmur_fold7_inner` with the host bridge (hinge sensor, modem).
+ * documents and the history row. Run on `murmur_fold7_inner` with the host bridge (hinge sensor, modem): on the fake
+ * engines (`--suite events`) or on the real CPU engines with the FLEURS clip (`--suite events-real`).
  * On fake engines a process "kill" is the fake host's crash (the same death signal the binder clients raise); with real
  * engines it is a SIGKILL of the process ([Pipeline.crash]).
  */
@@ -27,8 +28,8 @@ class PlatformEventsE2eTest : DictationTest() {
     @Before
     fun world() {
         HostBridge.requireRunning()
-        Pipeline.fakes?.llm?.let { it.delayPerPieceMs = 250; it.hang = false }
-        if (Pipeline.fakes != null) Fixtures.installCapture(Fixtures.toneBurst(totalMs = 4_000, speechMs = 3_000))
+        if (Pipeline.fakes != null) Pipeline.fakeWorld(llmMsPerWord = 250, wav = Fixtures.toneBurst(totalMs = 4_000, speechMs = 3_000))
+        else Pipeline.realWorld()
         TargetApp.open(TargetApp.Target.PLAIN)
     }
 
@@ -43,16 +44,15 @@ class PlatformEventsE2eTest : DictationTest() {
     /** (a) fold + unfold while Listening: the dictation continues, the bubble keeps its edge, the text is inserted. */
     @Test
     fun foldAndUnfoldDuringListening() {
+        DeviceEvents.requireHinge()
         dictate(listenMs = 4_000) {
             val width = DeviceEvents::displayWidth
             val rightBefore = Bubble.dockedRight(width())
             DeviceEvents.fold()
-            E2e.waitFor("bubble back on the folded display", 5_000, pollMs = 100) { Bubble.bounds() }
-            assertEquals("edge after fold", rightBefore, Bubble.dockedRight(width()))
+            Bubble.awaitEdge(rightBefore, width)
             assertTrue("still Listening after fold: ${rec.state}", rec.state is DictationState.Listening)
             DeviceEvents.unfold()
-            E2e.waitFor("bubble back on the unfolded display", 5_000, pollMs = 100) { Bubble.bounds() }
-            assertEquals("edge after unfold", rightBefore, Bubble.dockedRight(width()))
+            Bubble.awaitEdge(rightBefore, width)
             assertTrue("still Listening after unfold: ${rec.state}", rec.state is DictationState.Listening)
         }
         assertInsertedRow()
@@ -113,12 +113,26 @@ class PlatformEventsE2eTest : DictationTest() {
     /** (d') a second :asr death in the same dictation: Failed with the audio kept ("Try again"). */
     @Test
     fun secondAsrDeathFailsWithAudio() {
+        val sessionsBefore = Pipeline.fakes?.asr?.sessions?.size
         dictate(listenMs = 5_000) {
             SystemClock.sleep(1_000)
-            Pipeline.crash(InferProcess.ASR)
+            val first = Pipeline.crash(InferProcess.ASR)
             E2e.waitUntil("first ASR crash counted", 15_000, pollMs = 50) { rec.enginesOf(rec.state)?.asrCrashes == 1 }
             E2e.waitUntil("ASR ready again", 30_000, pollMs = 50) {
                 rec.enginesOf(rec.state)?.asr is app.murmur.core.dictation.AsrReadiness.Ready
+            }
+            // The second death must hit the restarted process, not the first one again: wait for the new session
+            // (fakes: a second session on a host that is up again; real engines: a new pid).
+            val fakes = Pipeline.fakes
+            if (fakes != null) {
+                E2e.waitUntil("restarted ASR session on a live host", 10_000, pollMs = 50) {
+                    fakes.asr.sessions.size >= sessionsBefore!! + 2 && fakes.asrHost.state.value is app.murmur.core.engine.HostState.Up
+                }
+            } else {
+                val killed = first.substringAfterLast(' ').toInt()   // "kill -9 pid <pid>"
+                E2e.waitUntil("a new :asr process after pid $killed", 30_000, pollMs = 100) {
+                    Processes.pidOf(Processes.ASR)?.let { it != killed } ?: false
+                }
             }
             Pipeline.crash(InferProcess.ASR)
             E2e.waitUntil("ASR failed after the second death", 15_000, pollMs = 50) {
@@ -176,8 +190,13 @@ class PlatformEventsE2eTest : DictationTest() {
         val d = E2e.device
         val actionPattern = Pattern.compile(Pattern.quote(action), Pattern.CASE_INSENSITIVE)
         if (!d.wait(Until.hasObject(By.text(actionPattern)), 3_000)) {
-            // The notification may be collapsed in the shade: expand it by its title row.
-            d.findObject(By.text(title))?.click()
+            // A silent notification is shown collapsed: expand it with the expand button of its own row (never tap the
+            // title, that would open the app).
+            val row = d.wait(Until.findObject(By.text(title)), 5_000) ?: throw AssertionError("'$title' is not in the shade")
+            val y = row.visibleBounds.centerY()
+            val expand = d.findObjects(By.res("android", "expand_button")).firstOrNull { y in it.visibleBounds.top..it.visibleBounds.bottom }
+                ?: throw AssertionError("no expand button in the row of '$title'")
+            expand.click()
         }
         val button = d.wait(Until.findObject(By.text(actionPattern)), 5_000) ?: throw AssertionError("'$action' is not in the shade")
         button.click()

@@ -2,7 +2,7 @@
 # Emulator end-to-end suites of WP-20 (ARCHITECTURE 16; docs/wp/WP-20-integration-e2e-device.md, Deliver 4).
 #
 #   tools/e2e/run_emulator_e2e.sh [--serial emulator-5588] [--suite harness,fast,matrix,events,real,privacy | all]
-#                                 [--boot <avd>] [--keep-emulator] [--no-build] [--timeout-scale 4]
+#                                 [--boot <avd>] [--keep-emulator] [--no-build] [--timeout-scale 8]
 #
 # Suites (each one `am instrument` of the app's androidTest APK, plus host-side checks):
 #   harness  the harness itself: target app logging (its own TargetAppTest), host bridge, fold/rotation/call/shade,
@@ -11,6 +11,7 @@
 #            history row, bubble Listening -> Polishing -> Inserted. Both AVDs.
 #   matrix   TargetMatrixE2eTest: every field kind of the target, password and FLAG_SECURE (fakes)
 #   events   PlatformEventsE2eTest (a)-(g) during Listening (fakes; murmur_fold7_inner; needs the host bridge)
+#   events-real  the same tests on the real CPU engines (models pushed as for real; kills are SIGKILLs of :asr/:llm)
 #   real     RealE2eTest: GigaAM RNN-T + VAD + OCR + Qwen3.5 0.8B on CPU, FLEURS ru clip, then the privacy checks
 #            (no app network bytes after the model push, no transcript word in the app's log lines)
 #   privacy  PrivacyManifestTest + the network check, without a dictation
@@ -30,7 +31,7 @@ SUITES="harness"
 BOOT_AVD=""
 KEEP=0
 BUILD=1
-TIMEOUT_SCALE=4
+TIMEOUT_SCALE=8
 while [ $# -gt 0 ]; do
   case "$1" in
     --serial) SERIAL="$2"; shift 2 ;;
@@ -46,7 +47,7 @@ done
 [ "$SUITES" = "all" ] && SUITES="harness,fast,matrix,events"
 IFS=',' read -r -a suites <<<"$SUITES"
 for s in "${suites[@]}"; do
-  case "$s" in harness|fast|matrix|events|real|privacy) ;; *) echo "unknown suite $s" >&2; exit 2 ;; esac
+  case "$s" in harness|fast|matrix|events|events-real|real|privacy) ;; *) echo "unknown suite $s" >&2; exit 2 ;; esac
 done
 has_suite() { [[ ",$SUITES," == *",$1,"* ]]; }
 
@@ -85,7 +86,7 @@ if [ -n "$BOOT_AVD" ]; then
   done
   [ "$(free -g | awk '/^Mem:/{print $7}')" -ge 14 ] || die "not enough free memory to boot an emulator"
   port="${SERIAL#emulator-}"
-  cpu_host=0; has_suite real && cpu_host=1
+  cpu_host=0; { has_suite real || has_suite events-real; } && cpu_host=1
   # The brief asks for 4 GB guest RAM for the real suite (-memory 4096); boot.sh has no switch for it yet (toolchain
   # owner), so the AVD's own hw.ramSize applies; the report records MemTotal.
   MURMUR_EMU_READ_ONLY=1 MURMUR_EMU_CPU_HOST=$cpu_host "$root/tools/heavy" "$root/tools/emulator/boot.sh" "$BOOT_AVD" "$port" \
@@ -97,7 +98,7 @@ fi
 # --- build + install ----------------------------------------------------------------------------------------------
 if [ "$BUILD" = 1 ]; then
   gradle_args=(--max-workers=6 :app:assembleDebug :app:assembleDebugAndroidTest :testapps:target:assembleDebug :testapps:target:assembleDebugAndroidTest)
-  has_suite real && gradle_args+=("-Pmurmur.nativeLibsDir=$NATIVE_LIBS")
+  { has_suite real || has_suite events-real; } && gradle_args+=("-Pmurmur.nativeLibsDir=$NATIVE_LIBS")
   log "building: ${gradle_args[*]}"
   "$root/tools/gw" "${gradle_args[@]}" > "$out/build.txt" 2>&1 || { tail -30 "$out/build.txt"; die "build failed"; }
   tail -1 "$out/build.txt"
@@ -239,14 +240,30 @@ if has_suite privacy; then
   else result_row privacy-network FAIL "app uid $app_uid: $before -> $after bytes"; overall=1; fi
 fi
 
-if has_suite real; then
+real_prepared=0
+real_world() { # real engines: the FLEURS clip + the pinned models, pushed once per run
   start_bridge
   fake_mode off
+  [ "$real_prepared" = 1 ] && return
+  # Fresh app data, as after an install: the device profile is cached per app version and a rebuilt APK keeps it.
+  "${ADB[@]}" shell pm clear "$PKG" >/dev/null
+  "${ADB[@]}" shell pm grant "$PKG" android.permission.RECORD_AUDIO
+  "${ADB[@]}" shell pm grant "$PKG" android.permission.POST_NOTIFICATIONS
   python3 -I "$root/tools/e2e/fleurs_clip.py" "$out/fleurs" || die "FLEURS clip"
   "${ADB[@]}" push "$out/fleurs/fleurs-ru.wav" "$DEVICE_DIR/fleurs-ru.wav" >/dev/null
   "${ADB[@]}" push "$out/fleurs/fleurs-ru.txt" "$DEVICE_DIR/fleurs-ru.txt" >/dev/null
   "${ADB[@]}" shell chmod 644 "$DEVICE_DIR/fleurs-ru.wav" "$DEVICE_DIR/fleurs-ru.txt"
   python3 -I "$root/tools/e2e/push_models.py" "$SERIAL" "${REAL_ARTIFACTS[@]}" | tee "$out/push_models.txt" || die "model push"
+  real_prepared=1
+}
+
+if has_suite events-real; then
+  real_world
+  instrument events-real "$PKG.test" "app.murmur.e2e.PlatformEventsE2eTest" -e e2e.bridge 1 -e e2e.timeoutScale "$TIMEOUT_SCALE"
+fi
+
+if has_suite real; then
+  real_world
   before=$(net_bytes)
   instrument real "$PKG.test" "app.murmur.e2e.RealE2eTest" -e e2e.timeoutScale "$TIMEOUT_SCALE"
   after=$(net_bytes)

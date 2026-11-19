@@ -21,8 +21,7 @@ import org.junit.runner.RunWith
 class TargetMatrixE2eTest : DictationTest() {
     @Before
     fun fakeWorld() {
-        Pipeline.requireFakes().llm.delayPerPieceMs = 0
-        Fixtures.installCapture(Fixtures.toneBurst())
+        Pipeline.fakeWorld(llmMsPerWord = 0)
     }
 
     private fun dictateInto(target: TargetApp.Target) {

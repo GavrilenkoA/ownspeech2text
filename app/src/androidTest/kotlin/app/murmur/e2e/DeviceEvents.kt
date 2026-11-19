@@ -41,6 +41,14 @@ object DeviceEvents {
 
     private fun sameSize(a: String, b: String) = a.split('x').map { it.toInt() }.sorted() == b.split('x').map { it.toInt() }.sorted()
 
+    /**
+     * True on an AVD with a hinge sensor (murmur_fold7_inner; TOOLCHAIN 4.5). The cover AVD is a plain phone: its
+     * console answers `KO` to `sensor set hinge-angle0`, so posture tests run on the inner AVD only.
+     */
+    fun hasHinge(): Boolean = E2e.shell("dumpsys device_state").contains("hinge sensor", ignoreCase = true)
+
+    fun requireHinge() = org.junit.Assume.assumeTrue("no hinge sensor on this AVD: fold tests run on murmur_fold7_inner", hasHinge())
+
     /** Fold: the inner display becomes the cover size (`wm size 1080x2520`) and the hinge closes (`hinge-angle0 0`). */
     fun fold() {
         E2e.shell("wm size $COVER_SIZE")

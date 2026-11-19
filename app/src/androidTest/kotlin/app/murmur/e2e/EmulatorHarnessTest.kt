@@ -48,6 +48,7 @@ class EmulatorHarnessTest {
 
     @Test
     fun foldAndUnfoldChangeDisplaySizeAndPosture() {
+        DeviceEvents.requireHinge()
         TargetApp.open()
         DeviceEvents.fold()
         assertEquals(DeviceEvents.COVER_SIZE, DeviceEvents.overrideSize() ?: DeviceEvents.physicalSize())

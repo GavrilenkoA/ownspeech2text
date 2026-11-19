@@ -3,6 +3,7 @@ package app.murmur.e2e
 import android.os.SystemClock
 import app.murmur.core.dictation.DictationOutcome
 import app.murmur.core.dictation.DictationState
+import app.murmur.core.dictation.UserInput
 import app.murmur.core.store.EntryStatus
 import app.murmur.core.store.HistoryEntry
 import org.junit.After
@@ -35,10 +36,14 @@ abstract class DictationTest {
         if (!::rec.isInitialized) return
         E2e.note("states=${rec.stateKinds()} bubbles=${rec.bubbleKinds()}")
         rec.close()
+        // A failed test may leave its dictation running: discard it (the x button's input) so the next test starts clean.
+        val s = E2e.container.orchestrator.state.value
+        if (s is DictationState.Arming || s is DictationState.Listening) E2e.container.orchestrator.onInput(UserInput.Cancel)
         DeviceEvents.restore()
         if (!Accessibility.connected) Accessibility.enable()
-        // Let a result pill dismiss so that the next test starts from Idle.
-        E2e.waitUntil("orchestrator back to Idle", 15_000, pollMs = 100) { E2e.container.orchestrator.state.value is DictationState.Idle }
+        // Let a result pill dismiss (Error 6 s, x debugTimeoutScale) so that the next test starts from Idle.
+        val scale = E2e.container.settings.settings.value.debugTimeoutScale.coerceAtLeast(1f)
+        E2e.waitUntil("orchestrator back to Idle", (15_000 * scale).toLong(), pollMs = 100) { E2e.container.orchestrator.state.value is DictationState.Idle }
     }
 
     /** Tap → Listening → [during] while it listens for [listenMs] → tap. Returns when the stop tap was delivered. */
