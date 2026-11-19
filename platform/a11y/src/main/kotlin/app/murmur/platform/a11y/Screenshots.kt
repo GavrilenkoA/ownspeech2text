@@ -2,6 +2,7 @@ package app.murmur.platform.a11y
 
 import app.murmur.core.model.MurmurError
 import app.murmur.core.model.Outcome
+import app.murmur.core.ocr.CaptureKind
 import app.murmur.core.ocr.Rect
 import app.murmur.core.ocr.ScreenImage
 import kotlinx.coroutines.delay
@@ -87,7 +88,7 @@ class ScreenshotChain(
             }
             when (r) {
                 // A window capture holds only the app's pixels; a dark app is not a secure one (error 6 covers that).
-                is ShotResult.Frame -> return done(Outcome.Ok(r.image), path)
+                is ShotResult.Frame -> return done(Outcome.Ok(r.image.withKind(CaptureKind.WINDOW)), path)
                 is ShotResult.Failed -> {
                     if (r.code == ShotError.SECURE_WINDOW) { errors += r.code; return done(Outcome.Err(MurmurError.SecureWindow), path) }
                     if (errors.lastOrNull() != r.code) errors += r.code
@@ -99,7 +100,7 @@ class ScreenshotChain(
         val d = displayShot(displayId)
         return when (d) {
             is ShotResult.Frame -> {
-                val img = d.image.let { ScreenImage(it.width, it.height, it.argb, shooter.exclusionRects(displayId, it.width, it.height)) }
+                val img = d.image.let { ScreenImage(it.width, it.height, it.argb, shooter.exclusionRects(displayId, it.width, it.height), CaptureKind.DISPLAY) }
                 if (FrameCheck.isBlack(img)) done(Outcome.Err(MurmurError.SecureWindow), ShotPath.DISPLAY)
                 else done(Outcome.Ok(img), ShotPath.DISPLAY)
             }

@@ -2,13 +2,8 @@ package app.murmur.core.context
 
 import app.murmur.core.ocr.Rect
 
-/** Which screenshot path produced the pixels (ARCHITECTURE 9.1), when the caller knows it. */
-enum class CaptureKind {
-    /** takeScreenshotOfWindow of the target window: pixel (0, 0) is the window's top-left. */
-    WINDOW,
-    /** takeScreenshot of the display (fallback after error 5): pixel (0, 0) is the display's top-left. */
-    DISPLAY,
-}
+/** Which screenshot path produced the pixels; defined next to [app.murmur.core.ocr.ScreenImage], which carries it. */
+typealias CaptureKind = app.murmur.core.ocr.CaptureKind
 
 /**
  * The pixel frame of a screenshot, expressed in screen coordinates: pixel (0, 0) of the capture is screen point

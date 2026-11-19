@@ -2,6 +2,7 @@ package app.murmur.platform.a11y
 
 import app.murmur.core.model.MurmurError
 import app.murmur.core.model.Outcome
+import app.murmur.core.ocr.CaptureKind
 import app.murmur.core.ocr.Rect
 import app.murmur.core.ocr.ScreenImage
 import kotlinx.coroutines.launch
@@ -58,6 +59,17 @@ class ScreenshotChainTest {
         assertTrue(img.exclude.isEmpty())
         assertEquals(ShotPath.WINDOW, rec.path)
         assertEquals(listOf("w10"), s.calls.map { it.first })
+    }
+
+    /** The capture path reaches the context assembler as ScreenImage.kind (CaptureFrame places field.box with it). */
+    @Test
+    fun theFrameCarriesTheCapturePath() = runTest {
+        val w = shooter().apply { windowResults[10] = ArrayDeque(listOf(ShotResult.Frame(frame()))) }
+        assertEquals(CaptureKind.WINDOW, (chain(w).capture(PKG, 10, 0).first as Outcome.Ok).value.kind)
+        val d = shooter().apply { resolved = null; focus = FocusWindow(10, PKG); displayResults += ShotResult.Frame(frame()) }
+        val (o, rec) = chain(d).capture(PKG, -1, 0)
+        assertEquals(ShotPath.DISPLAY, rec.path)
+        assertEquals(CaptureKind.DISPLAY, (o as Outcome.Ok).value.kind)
     }
 
     @Test

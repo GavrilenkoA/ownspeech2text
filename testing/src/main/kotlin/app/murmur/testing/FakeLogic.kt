@@ -119,7 +119,12 @@ class SimpleContextAssembler(private val ownPackage: String = "app.murmur") : Co
     override fun assemble(snapshot: A11ySnapshot, decision: PrivacyDecision, screen: ScreenText?, asrLanguage: String?) =
         assemble(snapshot, decision, screen?.let { ScreenOutcome.Text(it) } ?: if (decision.takeScreenshot) ScreenOutcome.Failed else ScreenOutcome.NotTaken, asrLanguage)
 
+    /** The last screen outcome the orchestrator passed (capture kind, cause of a missing screen). */
+    @Volatile var lastScreen: ScreenOutcome? = null
+        private set
+
     override fun assemble(snapshot: A11ySnapshot, decision: PrivacyDecision, screen: ScreenOutcome, asrLanguage: String?): CtxV2 {
+        lastScreen = screen
         val text = (screen as? ScreenOutcome.Text)?.text?.takeIf { decision.level == PrivacyLevel.FULL && it.lines.isNotEmpty() }
         val privacy = when {
             decision.level != PrivacyLevel.FULL -> Privacy(decision.level, decision.reason)

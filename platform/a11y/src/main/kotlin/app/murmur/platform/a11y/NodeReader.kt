@@ -130,6 +130,7 @@ internal class NodeReader(private val service: MurmurAccessibilityService) {
             field = field,
             excludeRects = if (size == null) emptyList() else ExclusionRects.of(ws, service.packageName, target.displayId, size.x, size.y),
             capturedAtMs = System.currentTimeMillis(),
+            windowBoundsInScreen = target.bounds,
         )
     }
 

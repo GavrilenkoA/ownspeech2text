@@ -1,6 +1,5 @@
 package app.murmur.platform.a11y
 
-import android.content.Intent
 import android.os.SystemClock
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import app.murmur.core.dictation.UserInput
@@ -26,7 +25,7 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/** snapshotAfterShade (ADR-056) and the notification "Start dictation" receiver. */
+/** snapshotAfterShade (ADR-056) and the notification "Start dictation" handling (NotificationStart, ADR-079). */
 @RunWith(AndroidJUnit4::class)
 class ShadeTest {
     @Before fun setUp() {
@@ -79,7 +78,7 @@ class ShadeTest {
     fun notificationStartClosesTheShadeAndForwardsTheInput() = runBlocking {
         expandAndAwaitShade()
         host.inputs.clear()
-        context.sendBroadcast(Intent(A11yIntents.ACTION_START_DICTATION).setClassName(context, A11yIntents.RECEIVER_CLASS))
+        NotificationStart.start(context) // what the host's StatusActionHandler does for StatusAction.StartDictation
         val s = service().targetReader.snapshotAfterShade(1_000)
         note("notification_start inputs=${host.inputs.map { it.javaClass.simpleName }} pkg=${s?.pkg}")
         waitFor("NotificationStart forwarded", 2_000) { host.inputs.firstOrNull() }

@@ -818,7 +818,7 @@ class DictationOrchestrator(
             is Outcome.Err -> if (shot.error == MurmurError.SecureWindow) ScreenOutcome.SecureWindow else ScreenOutcome.Failed
             is Outcome.Ok -> withTimeoutOrNull(r.config.scaled(r.config.ocrBudgetMs)) {
                 if (r.ocrLoaded.await()) deps.engines.ocr.recognize(shot.value).getOrNull() else null
-            }?.let { ScreenOutcome.Text(it) } ?: ScreenOutcome.Failed
+            }?.let { ScreenOutcome.Text(it, shot.value.kind) } ?: ScreenOutcome.Failed
         }
         if (shot is Outcome.Ok) r.ocrMs = deps.clock.elapsedMs() - t0
         val ctx = deps.context.assemble(target, decision, outcome, null)

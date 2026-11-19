@@ -52,18 +52,31 @@ data class Rect(val x0: Int, val y0: Int, val x1: Int, val y1: Int) {
     val area get() = width.toLong() * height
 }
 
+/** Which screenshot path produced the pixels (ARCHITECTURE 9.1), when the capturer knows it. */
+enum class CaptureKind {
+    /** takeScreenshotOfWindow of the target window: pixel (0, 0) is the window's top-left. */
+    WINDOW,
+    /** takeScreenshot of the display (fallback after error 5): pixel (0, 0) is the display's top-left. */
+    DISPLAY,
+}
+
 /**
  * A screenshot handed to the OCR engine. ARGB_8888 pixels (Android Bitmap layout, little-endian
  * 0xAARRGGBB per Int) at the captured resolution; [exclude] = OCR exclusion rectangles (status bar,
  * IME window, Murmur's own overlay) when the display capture fallback was used (window capture needs none).
+ * [kind] = the capture path as the capturer (:platform:a11y) reports it; it stays in :main (the IPC frame carries
+ * pixels and [exclude] only) and lets the context assembler place field.box (CaptureFrame). null = unknown.
  */
 class ScreenImage(
     val width: Int,
     val height: Int,
     val argb: IntArray,
     val exclude: List<Rect> = emptyList(),
+    val kind: CaptureKind? = null,
 ) {
     init { require(argb.size == width * height) { "pixel count" } }
+
+    fun withKind(kind: CaptureKind): ScreenImage = ScreenImage(width, height, argb, exclude, kind)
 }
 
 /** Intermediate stages, exposed for the parity test against ml/ocr/golden (stage-level comparison). */

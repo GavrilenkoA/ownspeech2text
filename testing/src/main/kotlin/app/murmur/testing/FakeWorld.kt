@@ -30,10 +30,11 @@ class FakeWorld(
     val permissions: FakePermissionMonitor = FakePermissionMonitor(),
     val guard: PassThroughGuard = PassThroughGuard(),
     val system: FakeSystemConditions = FakeSystemConditions(),
+    val context: SimpleContextAssembler = SimpleContextAssembler(),
 ) {
     fun deps() = DictationDeps(
         clock = clock, settings = settings, models = models, engines = engines, audio = audio, target = target,
-        inserter = inserter, context = SimpleContextAssembler(), renderer = FakePromptRenderer(), guard = guard,
+        inserter = inserter, context = context, renderer = FakePromptRenderer(), guard = guard,
         prompts = ClasspathPromptAssets(), history = history, metrics = metrics, audioStore = audioStore,
         feedback = feedback, memory = memory, unitHealth = unitHealth, navigator = navigator, permissions = permissions,
         deliveryMetrics = SimpleDeliveryMetrics(), system = system,

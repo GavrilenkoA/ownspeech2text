@@ -19,6 +19,7 @@ import app.murmur.core.dictation.TargetReader
 import app.murmur.core.model.MurmurError
 import app.murmur.core.model.Outcome
 import app.murmur.core.model.SessionId
+import app.murmur.core.ocr.CaptureKind
 import app.murmur.core.ocr.ScreenImage
 import app.murmur.core.store.AudioStore
 import app.murmur.core.store.AudioWriter
@@ -117,6 +118,8 @@ class FakeTargetReader(
     var screenshotError: MurmurError? = null,
     var currentOverride: A11ySnapshot? = null,
     var shadeDelayMs: Long = 0,
+    /** The capture path the real reader reports on ScreenImage.kind (window capture = the normal path). */
+    var captureKind: CaptureKind? = CaptureKind.WINDOW,
 ) : TargetReader {
     var screenshots = 0; private set
     var shadeWaits = 0; private set
@@ -132,7 +135,7 @@ class FakeTargetReader(
     override suspend fun screenshot(target: A11ySnapshot): Outcome<ScreenImage> {
         screenshots++
         screenshotError?.let { return Outcome.Err(it) }
-        return Outcome.Ok(ScreenImage(4, 2, IntArray(8)))
+        return Outcome.Ok(ScreenImage(4, 2, IntArray(8), kind = captureKind))
     }
     override suspend fun current(): A11ySnapshot? = currentOverride ?: target
 

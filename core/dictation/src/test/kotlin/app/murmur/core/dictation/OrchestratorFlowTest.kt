@@ -4,6 +4,8 @@ import app.murmur.core.dictation.DictationBubble.Inserted
 import app.murmur.core.dictation.DictationBubble.Listening
 import app.murmur.core.dictation.DictationBubble.Polishing
 import app.murmur.core.dictation.DictationBubble.Transcribing
+import app.murmur.core.context.CaptureKind
+import app.murmur.core.context.ScreenOutcome
 import app.murmur.core.model.AudioKey
 import app.murmur.core.model.ModelKind
 import app.murmur.core.model.MurmurError
@@ -356,6 +358,16 @@ class OrchestratorFlowTest {
         assertNull(late.only().contextWords)
         assertEquals("accept", late.only().cleanup?.outcome)
         late.assertNoInternalErrors()
+    }
+
+    /** The capturer's path (ScreenImage.kind) reaches the assembler, which places field.box with it (CaptureFrame). */
+    @Test fun theCaptureKindReachesTheContextAssembler() = runTest {
+        for (kind in listOf(CaptureKind.WINDOW, CaptureKind.DISPLAY, null)) {
+            val h = harness { target.captureKind = kind }
+            h.dictate(stopAt = h.now + 2_800) // one test scheduler for all three runs
+            assertEquals(kind, (h.w.context.lastScreen as ScreenOutcome.Text).capture)
+            h.assertInserted("accept")
+        }
     }
 
     @Test fun secureWindowRunsCleanupWithoutTheScreen() = runTest {

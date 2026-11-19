@@ -1,8 +1,6 @@
 package app.murmur.platform.a11y
 
-import android.content.BroadcastReceiver
 import android.content.Context
-import android.content.Intent
 import app.murmur.core.context.A11ySnapshot
 import app.murmur.core.dictation.InsertResult
 import app.murmur.core.dictation.Inserter
@@ -38,23 +36,14 @@ class BridgedInserter : Inserter {
 }
 
 /**
- * Intents into this module. The status notification (WP-09, `:platform:audio`, which cannot depend on this module)
- * builds its "Start dictation" action as
- * `PendingIntent.getBroadcast(ctx, 0, Intent(ACTION_START_DICTATION).setClassName(ctx, RECEIVER_CLASS), FLAG_IMMUTABLE)`.
- */
-object A11yIntents {
-    const val ACTION_START_DICTATION = "app.murmur.platform.a11y.action.START_DICTATION"
-    const val RECEIVER_CLASS = "app.murmur.platform.a11y.NotificationStartReceiver"
-}
-
-/**
- * Notification "Start dictation" (DESIGN 5.1, ADR-056). A broadcast action does not collapse the shade by itself, so the
+ * Notification "Start dictation" (DESIGN 5.1, ADR-056, ADR-079). The status notification and its one receiver belong to
+ * WP-09 (`:platform:audio` StatusActionReceiver -> `StatusActionHandler`, implemented by the Application); the host
+ * answers `StatusAction.StartDictation` with [start]. A broadcast action does not collapse the shade by itself, so the
  * service closes it (GLOBAL_ACTION_DISMISS_NOTIFICATION_SHADE); the orchestrator then takes its target snapshot with
- * snapshotAfterShade. Not exported: only this app's own PendingIntent reaches it.
+ * snapshotAfterShade.
  */
-class NotificationStartReceiver : BroadcastReceiver() {
-    override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action != A11yIntents.ACTION_START_DICTATION) return
+object NotificationStart {
+    fun start(context: Context) {
         A11yBridge.service.value?.dismissNotificationShade()
         (context.applicationContext as? A11yServiceHost)?.onUserInput(UserInput.NotificationStart)
     }
