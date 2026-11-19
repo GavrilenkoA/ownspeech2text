@@ -115,7 +115,7 @@ class DebugWiring(private val context: Context, private val scope: CoroutineScop
                 app = AppRef(pkg, label, who), status = status, finalText = text, rawText = raw, language = "ru",
                 asr = ModelUse(ModelId("parakeet-tdt-0.6b-v3"), ArtifactId("parakeet-tdt-0.6b-v3@qnn-sm8750-20s"), ComputeUnit.NPU),
                 cleanup = if (status == EntryStatus.FAILED) null else CleanupUse(
-                    ModelUse(ModelId("lfm3-1.7b"), ArtifactId("lfm3-1.7b@q4_0"), ComputeUnit.NPU), "default.v4", "accept", "casual",
+                    ModelUse(ModelId("lfm3-1.7b"), ArtifactId("lfm3-1.7b@q4_0"), ComputeUnit.NPU), "default.v1", "accept", "casual",
                 ),
                 audio = null,
                 timings = Timings(recordMs = durMs, speechMs = durMs - 1_000, stopToDoneMs = 1_300, asrTailMs = 400, llmMs = 900, ocrMs = 500),

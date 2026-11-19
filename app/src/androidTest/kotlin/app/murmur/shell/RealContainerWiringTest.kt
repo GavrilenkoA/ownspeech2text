@@ -18,7 +18,8 @@ import org.junit.runner.RunWith
 /**
  * The debug build without the fake container (`-e murmurFake off`, the build the owner installs on the phone): the
  * :testing benchmark runner must not be wired, because it saves made-up records into the real database that the real
- * resolver ranks compute units from. Until WP-14's runner is wired, "Run benchmark" reports that the runtime is missing.
+ * resolver ranks compute units from. The real container wires WP-14's DefaultBenchmarkRunner (ADR-087): a run of a model
+ * that is not installed fails and stores nothing, and no record ever carries the fake fingerprint.
  */
 @RunWith(AndroidJUnit4::class)
 class RealContainerWiringTest {
