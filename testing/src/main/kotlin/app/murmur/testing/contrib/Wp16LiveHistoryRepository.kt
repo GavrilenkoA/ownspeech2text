@@ -12,8 +12,9 @@ import java.time.LocalDate
 
 /**
  * [InMemoryHistoryRepository] whose flows also re-emit after [markDeleted], [restore] and [commitDeletes], as the Room
- * store's do. (The shared fake re-assigns an equal row list after a soft delete, which its StateFlow conflates, so
- * observers do not see the row disappear; reported to WP-11.) Everything else is delegated unchanged.
+ * store's do. (The shared fake used to re-assign an equal row list after a soft delete, which its StateFlow conflated;
+ * fixed in the shared fake at integration pass 6, so this wrapper is now only an extra re-emission.) Everything else
+ * is delegated unchanged.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class Wp16LiveHistoryRepository(val inner: InMemoryHistoryRepository = InMemoryHistoryRepository()) : HistoryRepository by inner {

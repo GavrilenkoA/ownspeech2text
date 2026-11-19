@@ -21,21 +21,23 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import java.time.LocalDate
 
 /** [writeDelayMs] = how long insert / update take (coroutine time: a pill tapped before its entry is written). */
 class InMemoryHistoryRepository(var writeDelayMs: Long = 0) : HistoryRepository {
     private val rows = MutableStateFlow<List<HistoryEntry>>(emptyList())
-    private val deleted = mutableSetOf<EntryId>()
+    /** Soft-deleted ids as a flow of their own, so that a delete or restore re-emits like the Room store's queries. */
+    private val deleted = MutableStateFlow<Set<EntryId>>(emptySet())
     private var nextId = 1L
 
-    private fun visible() = rows.map { l -> l.filter { it.id !in deleted }.sortedByDescending { it.createdAt } }
+    private fun visible() = combine(rows, deleted) { l, d -> l.filter { it.id !in d }.sortedByDescending { it.createdAt } }
     override fun entries(): Flow<List<HistoryEntry>> = visible()
     override fun entry(id: EntryId): Flow<HistoryEntry?> = visible().map { l -> l.firstOrNull { it.id == id } }
     override fun search(query: String, pkg: String?): Flow<List<HistoryEntry>> = visible().map { l ->
         l.filter { e -> (pkg == null || e.app.pkg == pkg) &&
-            listOfNotNull(e.finalText, e.rawText).any { it.contains(query, ignoreCase = true) } }
+            listOfNotNull(e.finalText, e.rawText).any { fold(it).contains(fold(query)) } }
     }
     override suspend fun insert(entry: HistoryEntry): EntryId {
         if (writeDelayMs > 0) kotlinx.coroutines.delay(writeDelayMs)
@@ -47,9 +49,13 @@ class InMemoryHistoryRepository(var writeDelayMs: Long = 0) : HistoryRepository 
         if (writeDelayMs > 0) kotlinx.coroutines.delay(writeDelayMs)
         rows.value = rows.value.map { if (it.id == entry.id) entry else it }
     }
-    override suspend fun markDeleted(ids: Set<EntryId>) { deleted += ids; rows.value = rows.value.toList() }
-    override suspend fun restore(ids: Set<EntryId>) { deleted -= ids; rows.value = rows.value.toList() }
-    override suspend fun commitDeletes() { rows.value = rows.value.filter { it.id !in deleted }; deleted.clear() }
+    override suspend fun markDeleted(ids: Set<EntryId>) { deleted.value = deleted.value + ids }
+    override suspend fun restore(ids: Set<EntryId>) { deleted.value = deleted.value - ids }
+    override suspend fun commitDeletes() {
+        val gone = deleted.value
+        rows.value = rows.value.filter { it.id !in gone }
+        deleted.value = emptySet()
+    }
     override suspend fun deleteBefore(firstKeptDay: LocalDate): Int {
         val before = rows.value.size
         rows.value = rows.value.filter { !it.localDay.isBefore(firstKeptDay) }
@@ -57,6 +63,9 @@ class InMemoryHistoryRepository(var writeDelayMs: Long = 0) : HistoryRepository 
     }
     override suspend fun deleteAll() { rows.value = emptyList() }
     fun snapshot(): List<HistoryEntry> = rows.value
+
+    /** As the Room store's search shadow (WP-12 `Words.fold`): case-insensitive, "ё" = "е". */
+    private fun fold(s: String) = s.lowercase().replace('ё', 'е')
 }
 
 class InMemoryMetricsRepository : MetricsRepository {

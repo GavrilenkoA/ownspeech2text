@@ -193,7 +193,7 @@ class AppContainer(private val context: Context) {
         HistoryDeps(
             history = history, settings = settings, audio = audioStore, clock = clock,
             retry = { orchestrator.retry(it) }, repolish = { orchestrator.repolish(it) }, apps = apps,
-            modelName = { id -> catalog.catalog.value.model(id)?.displayName },
+            modelName = { id -> catalog.catalog.value.model(id)?.displayName }, appScope = appScope,
         )
     }
     val dashboardDeps: DashboardDeps by lazy {

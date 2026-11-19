@@ -26,6 +26,31 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class FakesTest {
+    /** Integration pass 6 (WP-16 note): a soft delete / restore re-emits like the Room store; search folds "ё". */
+    @Test
+    fun inMemoryHistoryReEmitsAfterASoftDeleteAndFoldsYo() = runTest {
+        val history = InMemoryHistoryRepository()
+        val ids = app.murmur.testing.contrib.Wp16HistoryFixture.seed(history, audio = null)
+        val first = ids.first()
+        val seen = mutableListOf<Int>()
+        val job = launch { history.entries().collect { seen += it.size } }
+        testScheduler.advanceUntilIdle()
+        history.markDeleted(setOf(first))
+        testScheduler.advanceUntilIdle()
+        assertEquals(null, history.entry(first).first())
+        history.restore(setOf(first))
+        testScheduler.advanceUntilIdle()
+        history.markDeleted(setOf(first)); history.commitDeletes()
+        testScheduler.advanceUntilIdle()
+        job.cancel()
+        val n = ids.size
+        assertEquals(listOf(n, n - 1, n, n - 1), seen.distinctUntilChangedList())
+        assertEquals(n - 1, history.snapshot().size)
+        assertTrue(history.search("ПРОШЕЛ", null).first().isNotEmpty()) // stored text has "прошёл"
+    }
+
+    private fun List<Int>.distinctUntilChangedList() = fold(mutableListOf<Int>()) { acc, v -> if (acc.lastOrNull() != v) acc += v; acc }
+
     @Test
     fun fakeAsrNeedsSpeech() = runTest {
         val asr = FakeAsrEngine(script = "тест")

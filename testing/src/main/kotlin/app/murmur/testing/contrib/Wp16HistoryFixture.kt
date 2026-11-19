@@ -126,7 +126,7 @@ object Wp16HistoryFixture {
             rawText = it.raw,
             language = if (it.text?.any { c -> c in 'а'..'я' || c in 'А'..'Я' } == true) "ru" else "en",
             asr = ASR,
-            cleanup = if (failed) null else CleanupUse(LLM, "default.v4", "accept", if (it.pkg == TELEGRAM) "casual" else null),
+            cleanup = if (failed) null else CleanupUse(LLM, "default.v1", "accept", if (it.pkg == TELEGRAM) "casual" else null),
             audio = audio,
             timings = Timings(recordMs = it.durationMs, speechMs = it.durationMs - 800, stopToDoneMs = if (failed) null else 1_300, asrTailMs = 400, llmMs = if (failed) null else 900, ocrMs = 120),
             insertMethod = when (it.status) { EntryStatus.INSERTED -> InsertMethod.COMMIT_TEXT; EntryStatus.COPIED -> InsertMethod.CLIPBOARD_ONLY; EntryStatus.FAILED -> null },

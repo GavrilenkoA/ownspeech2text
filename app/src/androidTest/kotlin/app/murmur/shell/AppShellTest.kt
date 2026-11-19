@@ -97,7 +97,7 @@ class AppShellTest {
         launch(DeepLink.intent(Device.context, DeepLink.Entry(EntryId(entry))))
         compose.waitForTag("detail-entry-$entry")
         compose.onNodeWithTag("detail-entry-$entry").assertIsDisplayed()
-        compose.onNodeWithTag("screen-history-entry").assertIsDisplayed()
+        compose.onNodeWithTag("history-detail").assertIsDisplayed()
         if (Device.wide()) {
             compose.onNodeWithTag("screen-history").assertIsDisplayed()
             val list = compose.onNodeWithTag("screen-history").fetchSemanticsNode().boundsInRoot
