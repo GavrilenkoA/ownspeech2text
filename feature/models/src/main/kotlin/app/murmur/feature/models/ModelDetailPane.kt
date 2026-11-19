@@ -144,12 +144,15 @@ internal fun ModelDetailContent(
                         modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
                     )
                 }
-                if (view.unitOptions.isNotEmpty()) UnitPicker(view, onPin, onDownload)
             }
             if (kind != ModelKind.VAD && view.row.state != RowState.InTraining) {
                 BenchSection(view, kind, nowMs, onBenchmark)
             } else {
                 Box(Modifier.height(24.dp))
+            }
+            // Below the benchmark (the frame's order: facts, then "Benchmark on this phone"); no frame of its own.
+            if (view.unitOptions.isNotEmpty()) {
+                Box(Modifier.padding(start = 20.dp, end = 20.dp, bottom = 24.dp)) { UnitPicker(view, onPin, onDownload) }
             }
         }
         ActionBar(view, onUse, onDownload = { onDownload(null) }, onPause, onResume, onDelete)
@@ -208,7 +211,7 @@ private fun UnitPicker(view: ModelDetailView, onPin: (ComputeUnit?) -> Unit, onD
     val c = MurmurTheme.colors
     val t = MurmurTheme.type
     val loc = HubTexts.locale()
-    Column(Modifier.padding(top = 24.dp).testTag(HubTags.UNIT_PICKER)) {
+    Column(Modifier.testTag(HubTags.UNIT_PICKER)) {
         Text(stringResource(R.string.detail_unit_title), style = t.titleSm, color = c.ink, modifier = Modifier.semantics { heading() })
         Text(stringResource(R.string.detail_unit_hint), style = t.caption, color = c.ink3, modifier = Modifier.padding(top = 2.dp))
         Column(
@@ -284,7 +287,8 @@ internal fun detailCells(rec: BenchmarkRecord): List<Big4Cell> {
     val tps = stringResource(R.string.bench_unit_tps)
     return when (val r = rec.result) {
         is BenchmarkResultData.Asr -> listOf(
-            Big4Cell(Format.rtf(r.rtfx, loc), stringResource(R.string.bench_unit_x), stringResource(R.string.bench_rtf)),
+            // "14×": the sign belongs to the number (prototype: no <small> unit).
+            Big4Cell(Format.rtf(r.rtfx, loc) + stringResource(R.string.bench_unit_x), "", stringResource(R.string.bench_rtf)),
             Big4Cell(Format.seconds(r.loadMsCold.toDouble(), loc), s, stringResource(R.string.bench_load)),
             memCell(r.peakMemMb),
             Big4Cell(Format.seconds(r.tailMs.toDouble(), loc), s, stringResource(R.string.bench_ready_after)),

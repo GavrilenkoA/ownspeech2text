@@ -168,7 +168,8 @@ internal class Big4Cell(val number: String, val unit: String, val label: String)
 internal fun Big4(cells: List<Big4Cell>, modifier: Modifier = Modifier) {
     val c = MurmurTheme.colors
     val t = MurmurTheme.type
-    val numberStyle = t.title.copy(fontSize = 26.sp, lineHeight = 30.sp, letterSpacing = (-0.6).sp, fontFeatureSettings = "tnum")
+    // Proportional figures: the frames render Onest without tabular digits here (a lone number per cell).
+    val numberStyle = t.title.copy(fontSize = 26.sp, lineHeight = 30.sp, letterSpacing = (-0.6).sp)
     Column(
         modifier
             .fillMaxWidth()
@@ -192,8 +193,8 @@ internal fun Big4(cells: List<Big4Cell>, modifier: Modifier = Modifier) {
                                 append(cell.number)
                                 if (cell.unit.isNotEmpty()) {
                                     withStyle(SpanStyle(fontSize = 14.sp, fontWeight = t.label.fontWeight, color = c.ink3, letterSpacing = 0.sp)) {
-                                        // prototype: <small> with margin-left 3px; "14×" has no unit gap.
-                                        append(if (cell.unit == "×") cell.unit else " " + cell.unit)
+                                        // prototype: <small> with margin-left 3px.
+                                        append("\u2009" + cell.unit)
                                     }
                                 }
                             },

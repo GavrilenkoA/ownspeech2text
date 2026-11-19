@@ -334,9 +334,10 @@ object HubLogic {
         val selected = isSelected(entry, input)
         val state = rowState(entry, input, units, selected)
         val shown = units.shown
+        // DESIGN 6.4 frames: one runtime badge, the unit the model runs on (filled). The other claimed units are
+        // listed in the detail ("Runs on", unit picker). Nothing usable here: the claimed units, outlined.
         val badges = when {
-            shown != null -> listOf(UnitBadge(shown.unit, true)) +
-                units.usableUnits.filter { it != shown.unit }.map { UnitBadge(it, false) }
+            shown != null -> listOf(UnitBadge(shown.unit, true))
             else -> units.claimedUnits.ifEmpty { entry.artifacts.flatMap { it.units }.distinct() }.map { UnitBadge(it, false) }
         }
         val ocrMs = if (entry.kind == ModelKind.OCR_DET || entry.kind == ModelKind.OCR_REC) {

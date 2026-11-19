@@ -55,7 +55,7 @@ class HubLogicTest {
         val u = HubLogic.units(asr, both)
         assertEquals(ComputeUnit.NPU, u.chosen!!.unit)
         assertEquals(npuArtifact(asr).id, u.chosen!!.artifact.id)
-        assertEquals(listOf(UnitBadge(ComputeUnit.NPU, true), UnitBadge(ComputeUnit.CPU, false)), HubLogic.row(asr, both).units)
+        assertEquals(listOf(UnitBadge(ComputeUnit.NPU, true)), HubLogic.row(asr, both).units)
         // Nothing installed: a download fetches the NPU build.
         assertEquals(npuArtifact(asr).id, HubLogic.units(asr, input(fold7)).planned!!.artifact.id)
         // Unit picker: Auto + NPU + CPU.

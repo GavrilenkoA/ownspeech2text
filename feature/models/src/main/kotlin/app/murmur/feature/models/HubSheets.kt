@@ -254,7 +254,7 @@ internal fun resultCells(rec: BenchmarkRecord): List<Big4Cell> {
     val tps = stringResource(R.string.bench_unit_tps)
     return when (val r = rec.result) {
         is BenchmarkResultData.Asr -> listOf(
-            Big4Cell(Format.rtf(r.rtfx, loc), stringResource(R.string.bench_unit_x), stringResource(R.string.bench_rtf)),
+            Big4Cell(Format.rtf(r.rtfx, loc) + stringResource(R.string.bench_unit_x), "", stringResource(R.string.bench_rtf)),
             Big4Cell(Format.seconds(r.loadMsCold.toDouble(), loc), s, stringResource(R.string.bench_load)),
             memCell(r.peakMemMb),
             Big4Cell(ranOn(r.ranOn), "", stringResource(R.string.bench_ran_on)),
@@ -335,17 +335,21 @@ internal fun ColumnScope.AddModelSheetContent(
 ) {
     val c = MurmurTheme.colors
     val t = MurmurTheme.type
+    val preview = state.preview
+    if (preview != null) {
+        Column(Modifier.padding(horizontal = 24.dp).verticalScroll(rememberScrollState()).testTag(HubTags.ADD_SHEET)) {
+            AddPreview(preview, onSave, onBack)
+        }
+        return
+    }
+    // The fields scroll; the error and "Check model" stay in view below them (the side sheet is only 776 dp tall).
     Column(
         Modifier
+            .weight(1f, fill = false)
             .padding(horizontal = 24.dp)
             .verticalScroll(rememberScrollState())
             .testTag(HubTags.ADD_SHEET),
     ) {
-        val preview = state.preview
-        if (preview != null) {
-            AddPreview(preview, onSave, onBack)
-            return@Column
-        }
         Text(stringResource(R.string.add_title), style = t.title, color = c.ink)
         Text(stringResource(R.string.add_body, ProductName.NAME), style = t.body, color = c.ink2, modifier = Modifier.padding(top = 6.dp))
         HubTextField(
@@ -381,6 +385,8 @@ internal fun ColumnScope.AddModelSheetContent(
                 FormatRow(stringResource(R.string.add_format_std), stringResource(R.string.add_format_std_sub), state.format == PromptFormat.STANDARD) { onEdit { it.copy(format = PromptFormat.STANDARD) } }
             }
         }
+    }
+    Column(Modifier.padding(horizontal = 24.dp)) {
         state.error?.let { e ->
             Banner(BannerKind.Err, stringResource(R.string.add_err_title), HubTexts.addError(e), Modifier.padding(top = 16.dp))
         }

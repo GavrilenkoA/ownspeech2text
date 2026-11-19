@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -351,19 +352,19 @@ private fun RowControl(row: ModelRow, onSelect: () -> Unit, onDownload: () -> Un
     when (val s = row.state) {
         is RowState.NotDownloaded -> {
             val size = Format.sizeText(s.bytes, loc)
-            DownloadPill(size, stringResource(R.string.models_cd_download, row.name, size), onDownload)
+            DownloadPill(size, stringResource(R.string.models_cd_download, row.name, size), onDownload, Modifier.alignVisualTop(PILL_PAD, 0.dp))
         }
         is RowState.Downloading, is RowState.Queued ->
-            MurmurIconButton(MurmurIcons.pause, stringResource(R.string.models_cd_pause), onPause, tonal = true, small = true, iconSize = 18.dp)
+            MurmurIconButton(MurmurIcons.pause, stringResource(R.string.models_cd_pause), onPause, Modifier.alignVisualTop(ICON_PAD, ICON_PAD), tonal = true, small = true, iconSize = 18.dp)
         is RowState.Paused ->
-            MurmurIconButton(MurmurIcons.refresh, stringResource(R.string.models_cd_resume), onResume, tonal = true, small = true, iconSize = 18.dp)
+            MurmurIconButton(MurmurIcons.refresh, stringResource(R.string.models_cd_resume), onResume, Modifier.alignVisualTop(ICON_PAD, ICON_PAD), tonal = true, small = true, iconSize = 18.dp)
         is RowState.Failed ->
-            MurmurIconButton(MurmurIcons.refresh, stringResource(R.string.models_cd_retry), onResume, tonal = true, small = true, iconSize = 18.dp)
+            MurmurIconButton(MurmurIcons.refresh, stringResource(R.string.models_cd_retry), onResume, Modifier.alignVisualTop(ICON_PAD, ICON_PAD), tonal = true, small = true, iconSize = 18.dp)
         RowState.Checking -> RingProgress(1f, showPercent = false)
         is RowState.Preparing -> RingProgress(s.progress)
         RowState.Ready -> if (row.selectable) {
             val cd = stringResource(R.string.models_cd_select, row.name)
-            MurmurRadio(selected = false, onClick = onSelect, modifier = Modifier.semantics { contentDescription = cd })
+            MurmurRadio(selected = false, onClick = onSelect, modifier = Modifier.alignVisualTop(RADIO_PAD, RADIO_PAD).semantics { contentDescription = cd })
         }
         RowState.InUse -> InUsePill()
         RowState.InTraining -> InTrainingBadge()
@@ -429,3 +430,15 @@ private fun SupportRow(row: ModelRow, onOpen: () -> Unit, onDownload: () -> Unit
         }
     }
 }
+
+/** Hit padding around the row controls' visuals (48 dp targets): radio 22, small icon button 40, pill 36 dp. */
+private val RADIO_PAD = 13.dp
+private val ICON_PAD = 4.dp
+private val PILL_PAD = 6.dp
+
+/**
+ * The prototype puts a control's *visual* at the row's 16 dp padding (top and end). Our controls carry an invisible
+ * hit margin around the visual, so shift them by that margin; the 48 dp target then overlaps the row padding.
+ */
+private fun Modifier.alignVisualTop(vertical: androidx.compose.ui.unit.Dp, horizontal: androidx.compose.ui.unit.Dp): Modifier =
+    this.offset(x = horizontal, y = -vertical)
