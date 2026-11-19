@@ -166,3 +166,7 @@ Still in work: WP-10, 15, 16, 17, 20 (early paths).
 - Wave 3: `AppContainer.feedback` is `OverlayFeedback` already; keep it when taking over `AppContainer` from WP-15.
   DEVICE_CHECKLIST: WP-03's three proposed new steps (drag a Listening pill, haptics per setting, Small size with
   TalkBack) are listed in the integration report for you to place; its DC5 / DC10 notes were added as one-liners.
+- `platform/overlay/tools/run_emulator_tests.sh` needs the **inner** AVD (`murmur_fold7_inner`): on the cover AVD
+  `survivesPostureChanges` and `survivesSizeAndRotationChangesWithTheSameEdgeAndProportionalY` fail by design (no
+  hinge posture, `wm size reset` is 1080). The orchestrator's internal errors are logged as `MurmurDictation
+  internal_error`; an e2e run should fail on any such line.

@@ -155,3 +155,5 @@ Still in work: WP-10, 15, 16, 17, 20 (early paths).
   practice field keeps its own button (DESIGN 5.2).
 - Settings changes reach the bubble directly (`OverlayHost` collects `SettingsRepository.settings`: size, tuck-in,
   show always, positions, hidden-until, feedback); no extra wiring.
+- `AppContainer` passes `onInternalError = { Log.e("MurmurDictation", "internal_error", it) }` to the orchestrator
+  (integration pass 3: unexpected errors in its loop were swallowed without a trace). Keep it at the merge.
