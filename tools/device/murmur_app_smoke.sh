@@ -14,11 +14,17 @@
 # (Preparing proves every NPU load); then the scripted dictations, all in one run so that the idle exit is real:
 #   ru10 (≈10 s Russian), en10 (≈10 s English), mixed60 (≈60 s mixed), cold3 (first dictation after 70 s idle, 3 s),
 #   edit10 (right after a prompt edit), npu10 (LLM pinned to NPU while :asr holds its QNN context),
-# then checks that :asr and :llm exit within 70 s and MemAvailable comes back. Per dictation it asserts ASR deviceName
+#   tmo10 (timeouts forced short, debugTimeoutScale 0.1: the dictation must still end, and the client's
+#   "process still alive ... killing" lines are counted),
+# then checks that :asr and :llm exit within 70 s and MemAvailable comes back, then presses once more and cancels while
+# :asr is still being bound or loaded (:asr must be gone idleUnloadSec + 2 s later). It also runs WP-04's prompt/guard
+# goldens on ART (core/prompt/tools/run_on_art.sh, when this tree has it) and records mic start times, the history codec
+# probe and the client kill lines from logcat. Per dictation it asserts ASR deviceName
 # = qnn, LLM deviceName = HTP0, no fallback in UnitHealth, no process death, and records timings from history,
-# PSS of the three processes (dumpsys meminfo, every 2 s) and MemAvailable.
-# On an emulator (dry run: NONINTERACTIVE=1, CPU build, GigaAM + Qwen3.5 pushed from the shared model cache, VAD + OCR
-# downloaded in the app) the NPU asserts are SKIPPED and npu10 is skipped.
+# PSS of the three processes (/proc/<pid>/smaps_rollup, every 2 s) and MemAvailable.
+# On an emulator (dry run: NONINTERACTIVE=1, CPU build, GigaAM + Qwen3.5 pushed from the shared model cache and then
+# prepared in the app, VAD + OCR downloaded in the app) the NPU asserts are SKIPPED and npu10 is skipped. The dry run's
+# audio is FLEURS dev speech (CC-BY-4.0): one ru and one en clip, and 60 s of distinct ru/en utterances for mixed60.
 # Report: .cache/device-reports/dc8-<serial>-<time>/report.md + report.json (+ the step JSONs, meminfo.csv, logcat).
 # Exit 0 = every assert that applies passed; 3 = APK without the NPU libraries; 1 = an assert failed.
 set -uo pipefail
@@ -43,8 +49,8 @@ RUNNER="$PKG.test/androidx.test.runner.AndroidJUnitRunner"
 STEPS=app.murmur.e2e.DeviceSmokeSteps
 DEVICE_DIR=/data/local/tmp/murmur-e2e
 NPU_LIBS=(lib/arm64-v8a/libQnnHtp.so lib/arm64-v8a/libggml-htp-v79.so)
-CASES_PHONE="ru10:10,en10:10,mixed60:60,cold3:3:idle70,edit10:10:edit,npu10:10:pinnpu"
-CASES_EMULATOR="ru10:10,en10:10,mixed60:60,cold3:3:idle70,edit10:10:edit"
+CASES_PHONE="ru10:10,en10:10,mixed60:60,cold3:3:idle70,edit10:10:edit,npu10:10:pinnpu,tmo10:10:scale0.1"
+CASES_EMULATOR="ru10:10,en10:10,mixed60:60,cold3:3:idle70,edit10:10:edit,tmo10:10:scale0.1"
 EMU_PUSHED=(gigaam-v3-e2e-rnnt@onnx-int8 qwen3.5-0.8b@q4_0)
 EMU_DOWNLOADED=silero-vad-v5@onnx,pp-ocrv6-tiny-det@onnx,pp-ocrv5-cyrillic-mobile-rec@onnx
 
@@ -56,17 +62,19 @@ declare -A SAY=(
   [cold3]="Короткое сообщение: уже еду."
   [edit10]="Напомни мне, пожалуйста, купить молоко, хлеб и кофе по дороге домой."
   [npu10]="This is the forced NPU run: the cleanup model and the speech model share the NPU."
+  [tmo10]="Короткие тайм-ауты: этот текст может вставиться без обработки, это нормально."
 )
 
 render_report() { # <out dir> <mode: skeleton|emulator|phone>
   python3 -I - "$1" "$2" <<'PY'
 import json, os, sys, csv
 out, mode = sys.argv[1], sys.argv[2]
-cases = ["ru10", "en10", "mixed60", "cold3", "edit10", "npu10"]
+cases = ["ru10", "en10", "mixed60", "cold3", "edit10", "npu10", "tmo10"]
 def load(n):
     p = os.path.join(out, n)
     return json.load(open(p)) if os.path.isfile(p) else None
-facts, prep, idle = load("facts.json"), load("prepare.json"), load("idle.json")
+facts, prep, idle, cancel = load("facts.json"), load("prepare.json"), load("idle.json"), load("cancel.json")
+logs = load("logcat-facts.json") or {}
 pss = {}
 if os.path.isfile(os.path.join(out, "meminfo.csv")):
     for r in csv.DictReader(open(os.path.join(out, "meminfo.csv"))):
@@ -105,7 +113,18 @@ for c in cases:
         continue
     d = d or {}
     asr, llm = d.get("asr") or {}, d.get("llm") or {}
-    check(c, "outcome Inserted with cleanup", None if mode == "skeleton" else (d.get("outcome") == "Inserted" and not d.get("noCleanup")),
+    if c == "tmo10":
+        # Forced short timeouts: any end is right (raw text, Copied, or Failed with the audio kept); a hang is not.
+        check(c, "forced timeouts: the dictation ended (no hang)", None if mode == "skeleton" else d.get("outcome") is not None,
+              {"outcome": d.get("outcome"), "cleanup": d.get("cleanupOutcome"), "skip": d.get("skipReason"), "error": d.get("error"),
+               "timeoutScale": d.get("timeoutScale"), "clientKills": logs.get("clientKills")})
+        continue
+    # The pipeline check: the text was inserted and the cleanup model ran to a guard verdict. "accept" and "fallback:*"
+    # (the guard kept the raw text: a judgement of the model's output, recorded for the owner) both pass; "skipped:*"
+    # means cleanup never got to run (LLM not ready, died, failed, timed out) and fails.
+    verdict = d.get("cleanupOutcome") or ""
+    check(c, "outcome Inserted, cleanup ran (guard verdict)", None if mode == "skeleton" else
+          (d.get("outcome") == "Inserted" and verdict.split(":")[0] in ("accept", "fallback")),
           {"outcome": d.get("outcome"), "cleanup": d.get("cleanupOutcome"), "skip": d.get("skipReason"), "error": d.get("error")})
     check(c, "ASR deviceName = qnn", (asr.get("deviceName") == "qnn") if npu else None, asr.get("deviceName"))
     check(c, "LLM deviceName = HTP0", (llm.get("deviceName") == "HTP0") if npu else None, llm.get("deviceName"))
@@ -132,6 +151,22 @@ else:
     check("idle", ":asr and :llm exited within 70 s of the last Done", None if mode == "skeleton" else
           (i.get("asrRunning") is False and i.get("llmRunning") is False),
           {"asrExitMs": i.get("asrExitAfterDoneMs"), "llmExitMs": i.get("llmExitAfterDoneMs"), "memAvailableMb": i.get("memAvailableMb")})
+if cancel is None and mode != "skeleton":
+    check("cancel", "cancel check ran", False, "no cancel.json (see step-dictate.txt)")
+else:
+    k = cancel or {}
+    check("cancel", ":asr gone idleUnloadSec + 2 s after a cancel during Arming / ASR load", None if mode == "skeleton" else
+          k.get("asrRunningAfter") is False,
+          {k2: k.get(k2) for k2 in ("cancelledIn", "idleUnloadSec", "asrExitAfterCancelMs", "asrRunningAfter", "llmRunningAfter", "historyRows")})
+art = load("art.json")
+if art is None and mode != "skeleton":
+    check("art", "prompt + guard goldens on ART ran", False, "no art.json")
+else:
+    a = art or {}
+    check("art", "prompt + guard goldens on ART (core/prompt/tools/run_on_art.sh)", None if mode == "skeleton" or a.get("skipped") else a.get("ok"),
+          a.get("result") or a.get("skipped"))
+rows.append({"case": "logs", "check": "measured", "status": "info", "value": {
+    "micStartedMs": logs.get("micStartedMs"), "codecProbe": logs.get("codecProbe"), "clientKills": logs.get("clientKills")}})
 report = {"mode": mode, "facts": facts, "rows": rows, "failed": failed}
 json.dump(report, open(os.path.join(out, "report.json"), "w"), ensure_ascii=False, indent=2)
 with open(os.path.join(out, "report.md"), "w") as md:
@@ -234,7 +269,8 @@ if [ "$emulator" = 1 ]; then
   # ADR-063: the 3 GB AVD runs GigaAM + Qwen3.5 on CPU. The big files come from the shared cache (no 1 GB download per
   # run); the small ones go through the in-app download job + Preparing, as on the phone.
   python3 -I "$root/tools/e2e/push_models.py" "$ANDROID_SERIAL" "${EMU_PUSHED[@]}" | tee "$out/push_models.txt" || exit 2
-  step prepare -e dc8.step prepare -e dc8.artifacts "$EMU_DOWNLOADED" || echo "prepare step failed (report continues)"
+  step prepare -e dc8.step prepare -e dc8.artifacts "$EMU_DOWNLOADED" -e dc8.prepareInstalled "$(IFS=,; echo "${EMU_PUSHED[*]}")" \
+    -e dc8.emulator 1 || echo "prepare step failed (report continues)"
   dictate_args+=(-e dc8.models gigaam-v3-e2e-rnnt,qwen3.5-0.8b -e dc8.emulator 1)
   cases="$CASES_EMULATOR"
 else
@@ -245,7 +281,7 @@ fi
 # --- audio for the non-interactive run --------------------------------------------------------------------------
 if [ "${NONINTERACTIVE:-0}" = 1 ]; then
   wav="$out/wav"; mkdir -p "$wav"
-  python3 -I "$root/tools/e2e/fleurs_clip.py" "$wav" ru > /dev/null && python3 -I "$root/tools/e2e/fleurs_clip.py" "$wav" en > /dev/null || exit 2
+  for l in ru en mixed60; do python3 -I "$root/tools/e2e/fleurs_clip.py" "$wav" "$l" > /dev/null || exit 2; done
   python3 -I - "$wav" <<'PY'
 import struct, sys, pathlib
 d = pathlib.Path(sys.argv[1])
@@ -253,14 +289,11 @@ def pcm(name): return (d / name).read_bytes()[44:]
 def wav(path, data):
     path.write_bytes(b"RIFF" + struct.pack("<I", 36 + len(data)) + b"WAVEfmt " + struct.pack("<IHHIIHH", 16, 1, 1, 16000, 32000, 2, 16)
                      + b"data" + struct.pack("<I", len(data)) + data)
-ru, en, gap = pcm("fleurs-ru.wav"), pcm("fleurs-en.wav"), b"\0\0" * 8000
-mixed = b""
-while len(mixed) < 60 * 32000:
-    mixed += ru + gap + en + gap
-for name, data in {"ru10": ru, "en10": en, "mixed60": mixed[:60 * 32000], "cold3": ru[:3 * 32000], "edit10": ru, "npu10": en}.items():
+ru, en, mixed = pcm("fleurs-ru.wav"), pcm("fleurs-en.wav"), pcm("fleurs-mixed60.wav")
+for name, data in {"ru10": ru, "en10": en, "mixed60": mixed, "cold3": ru[:3 * 32000], "edit10": ru, "npu10": en, "tmo10": ru}.items():
     wav(d / f"{name}.wav", data)
 PY
-  for c in ru10 en10 mixed60 cold3 edit10 npu10; do "${ADB[@]}" push "$wav/$c.wav" "$DEVICE_DIR/dc8/$c.wav" > /dev/null 2>&1; done
+  for c in ru10 en10 mixed60 cold3 edit10 npu10 tmo10; do "${ADB[@]}" push "$wav/$c.wav" "$DEVICE_DIR/dc8/$c.wav" > /dev/null 2>&1; done
   "${ADB[@]}" shell chmod -R a+r "$DEVICE_DIR/dc8"
   dictate_args+=(-e dc8.wavDir "$DEVICE_DIR/dc8")
 fi
@@ -269,7 +302,13 @@ fi
 "${ADB[@]}" logcat -c
 echo "time_ms,case,main,asr,llm,memAvailableKb" > "$out/meminfo.csv"
 current="-"
-pss_of() { "${ADB[@]}" shell dumpsys meminfo "$1" 2>/dev/null | awk '/TOTAL PSS:/{print $3; exit} /^ *TOTAL /{print $2; exit}' | tr -d '\r'; }
+# PSS in kB from /proc/<pid>/smaps_rollup read as the app's uid: `dumpsys meminfo` would force a GC in the process
+# every sample and disturb what is measured.
+pss_of() {
+  local pid; pid="$("${ADB[@]}" shell pidof "$1" 2>/dev/null | tr -d '\r' | awk '{print $1}')"
+  [ -n "$pid" ] || return 0
+  "${ADB[@]}" shell run-as "$PKG" cat "/proc/$pid/smaps_rollup" 2>/dev/null | awk '/^Pss:/{print $2; exit}'
+}
 sampler() {
   while :; do
     c="$(cat "$out/.case" 2>/dev/null || echo -)"
@@ -281,7 +320,7 @@ sampler() {
 echo "$current" > "$out/.case"
 sampler & sampler_pid=$!
 "${ADB[@]}" logcat -v raw -s E2E:I > "$out/steps-e2e.log" 2>/dev/null & log_pid=$!
-"${ADB[@]}" shell am instrument -w -e class "$STEPS" -e dc8.step dictate -e dc8.cases "$cases" -e dc8.idleCheckSec 70 \
+"${ADB[@]}" shell am instrument -w -e class "$STEPS" -e dc8.step dictate -e dc8.cases "$cases" -e dc8.idleCheckSec 70 -e dc8.cancelCheck 1 \
   "${dictate_args[@]}" "$RUNNER" > "$out/step-dictate.txt" 2>&1 & inst_pid=$!
 seen=0
 while kill -0 "$inst_pid" 2>/dev/null; do
@@ -305,4 +344,27 @@ for j in $("${ADB[@]}" shell run-as "$PKG" ls files/dc8 2>/dev/null | tr -d '\r'
   "${ADB[@]}" shell run-as "$PKG" cat "files/dc8/$j" > "$out/$j"
 done
 "${ADB[@]}" logcat -d -v threadtime > "$out/logcat.txt" 2>&1
+# Codes and numbers from the app's own log lines (WP-05 client kills, WP-09 mic start and codec probe).
+python3 -I - "$out" <<'PY'
+import json, re, sys, os
+out = sys.argv[1]
+text = open(os.path.join(out, "logcat.txt"), errors="replace").read()
+json.dump({
+    "micStartedMs": [int(m) for m in re.findall(r"MurmurCapture *: mic_started ms=(\d+)", text)],
+    "codecProbe": sorted(set(re.findall(r"codec_lag (\S+) samples=(\d+)", text))) or "not logged in this run (probed once per install)",
+    "clientKills": len(re.findall(r"process still alive after \d+ ms; killing", text)),
+}, open(os.path.join(out, "logcat-facts.json"), "w"))
+PY
+
+# --- WP-04: the prompt renderer and guard goldens on this device's ART/ICU ---------------------------------------
+art="$root/core/prompt/tools/run_on_art.sh"
+if [ -x "$art" ]; then
+  echo "== step art"
+  "$art" "$ANDROID_SERIAL" > "$out/art.txt" 2>&1
+  ok="$(grep -E '^OK \(' "$out/art.txt" | tail -1)"
+  if [ -n "$ok" ]; then python3 -I -c 'import json,sys; json.dump({"ok": True, "result": sys.argv[2]}, open(sys.argv[1], "w"))' "$out/art.json" "$ok"
+  else python3 -I -c 'import json,sys; json.dump({"ok": False, "result": sys.argv[2]}, open(sys.argv[1], "w"))' "$out/art.json" "$(grep -E '^Tests run:|FAIL' "$out/art.txt" | tail -1)"; fi
+else
+  python3 -I -c 'import json,sys; json.dump({"skipped": "core/prompt/tools/run_on_art.sh is not in this tree (WP-04 not merged)"}, open(sys.argv[1], "w"))' "$out/art.json"
+fi
 render_report "$out" "$mode"

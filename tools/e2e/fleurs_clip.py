@@ -2,6 +2,8 @@
 """Pinned FLEURS dev clips (CC-BY-4.0, google/fleurs, public, no token) for the real end-to-end test and the DC8 dry run.
 
   tools/e2e/fleurs_clip.py <out_dir> [ru|en]   -> <out_dir>/fleurs-<lang>.wav (PCM16 mono 16 kHz) + fleurs-<lang>.txt
+  tools/e2e/fleurs_clip.py <out_dir> mixed60   -> <out_dir>/fleurs-mixed60.wav + .txt: 60 s of distinct ru and en
+                                                  utterances, alternating, 0.5 s apart (DC8's mixed case)
 
 The dev tarball (187 MB) and its TSV are downloaded once into <main checkout>/.cache/e2e/fleurs/ (shared by every
 worktree; MURMUR_FLEURS_DIR overrides), pinned to a dataset commit and checked against their sha256. The reference is
@@ -89,9 +91,63 @@ def wav16(pcm: bytes) -> bytes:
             + b"data" + struct.pack("<I", len(pcm)) + pcm)
 
 
+def rows(tsv: pathlib.Path):
+    """(file, transcription, samples) per distinct sentence id, in TSV order."""
+    seen = set()
+    for line in tsv.read_text(encoding="utf-8").splitlines():
+        cols = line.split("\t")
+        if len(cols) > 5 and cols[0] not in seen:
+            seen.add(cols[0])
+            yield cols[1], cols[3].strip(), int(cols[5])
+
+
+def mixed60(out: pathlib.Path, d: pathlib.Path) -> None:
+    """Greedy, deterministic for the pinned revision: ru and en in turn, 5-12 s sentences without digits."""
+    total, gap = 60 * 16000, 8000
+    pools = {l: [r for r in rows(fetch(f"{l}_dev.tsv", d)) if r[0] != CLIPS[l] and 80000 <= r[2] <= 192000
+                 and not any(ch.isdigit() for ch in r[1])] for l in ("ru", "en")}
+    chosen, used, turn = [], 0, 0
+    while True:
+        lang = ("ru", "en")[turn % 2]
+        pick = next((r for r in pools[lang] if used + r[2] + gap <= total), None)
+        if pick is None:
+            other = ("ru", "en")[(turn + 1) % 2]
+            if next((r for r in pools[other] if used + r[2] + gap <= total), None) is None:
+                break
+            turn += 1
+            continue
+        pools[lang].remove(pick)
+        chosen.append((lang, pick))
+        used += pick[2] + gap
+        turn += 1
+    audio = {}
+    for lang in ("ru", "en"):
+        want = {r[0] for l, r in chosen if l == lang}
+        with tarfile.open(fetch(f"{lang}_dev.tar.gz", d)) as t:
+            for m in t:
+                name = m.name.removeprefix("dev/")
+                if name in want:
+                    want.discard(name)
+                    audio[name] = to_pcm16(t.extractfile(m).read())
+    pcm = bytearray()
+    for _, r in chosen:
+        pcm += audio[r[0]] + b"\0\0" * gap
+    pcm = bytes(pcm[: total * 2]).ljust(total * 2, b"\0")
+    (out / "fleurs-mixed60.wav").write_bytes(wav16(pcm))
+    (out / "fleurs-mixed60.txt").write_text(" ".join(r[1] for _, r in chosen) + "\n", encoding="utf-8")
+    langs = "".join(l[0] for l, _ in chosen)
+    print(f"{out / 'fleurs-mixed60.wav'}: {len(pcm) // 32} ms; {len(chosen)} utterances ({langs})")
+
+
 def main() -> None:
     out = pathlib.Path(sys.argv[1] if len(sys.argv) > 1 else ".")
     lang = sys.argv[2] if len(sys.argv) > 2 else "ru"
+    if lang == "mixed60":
+        out.mkdir(parents=True, exist_ok=True)
+        d = cache_dir()
+        d.mkdir(parents=True, exist_ok=True)
+        mixed60(out, d)
+        return
     if lang not in CLIPS:
         sys.exit(f"language {lang}: one of {sorted(CLIPS)}")
     clip = CLIPS[lang]

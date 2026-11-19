@@ -33,16 +33,24 @@ import java.io.File
  *   -e dc8.step facts                                  device profile, probes of both processes, installed artifacts
  *   -e dc8.step prepare -e dc8.pack <id>               download a catalog pack (Wi-Fi rule off), wait for Preparing →
  *                       | -e dc8.artifacts <a,b>       Installed; or exactly these artifacts
+ *                       [-e dc8.prepareInstalled <a,b>] then run Preparing on these already installed artifacts (the
+ *                                                       emulator's pushed models: the LLM builds and stores its prefix
+ *                                                       snapshot there, as after a download on the phone)
  *   -e dc8.step dictate -e dc8.cases <case,case,...>   the scripted dictations, all in ONE instrumentation run (its end
  *                                                       kills every app process, which would fake the idle exit)
- *        case = <name>:<seconds>[:idle<N>][:edit][:pin<unit>]
+ *        case = <name>:<seconds>[:idle<N>][:edit][:pin<unit>][:scale<x>]
  *          idle<N>   wait N s first and record whether :asr/:llm were still running (cold case, "first after 70 s idle")
  *          edit      change "My preferences" right before (the prefix must be rebuilt: "right after a prompt edit")
  *          pin<unit> pin the cleanup model to npu/gpu/cpu ("forced LLM-on-NPU while :asr holds QNN")
+ *          scale<x>  Settings.debugTimeoutScale = x for this case only (scale0.1: the forced timeout of WP-05's DC8 note;
+ *                    the script then counts the client's "process still alive ... killing" lines)
  *        [-e dc8.wavDir <device dir>]  play <dir>/<name>.wav instead of the microphone (NONINTERACTIVE dry run)
  *        [-e dc8.models <asr>,<llm>]   select these models first (the emulator dry run: GigaAM + Qwen3.5, ADR-063)
- *        [-e dc8.emulator 1]           CPU emulator: LLM pinned to CPU, memory gate ignored, timeouts x4 (debug knobs)
+ *        [-e dc8.emulator 1]           CPU emulator (also for prepare): LLM pinned to CPU, memory gate ignored,
+ *                                      timeouts scaled (debug knobs; x8 as in Pipeline.timeoutScale)
  *        [-e dc8.idleCheckSec 70]      after the last case, record when :asr/:llm exit and MemAvailable afterwards
+ *        [-e dc8.cancelCheck 1]        then press, cancel while Arming or while the ASR still loads, and record whether
+ *                                      :asr is gone idleUnloadSec + 2 s later (WP-05: a cancelled bind leaves no process)
  * Logcat lines `E2E: dc8 speak case=<name> seconds=<n>` and `dc8 listening case=<name>` let the script show the text
  * to read at the right moment. The JSON holds codes, numbers and the inserted text (the owner's own scripted
  * phrases, kept in the local report only); nothing of it is logged.
@@ -99,6 +107,7 @@ class DeviceSmokeSteps : DictationTest() {
     /** One artifact per pack model (ArtifactSelector.choose on this device), downloaded and prepared like the hub does. */
     private fun prepare() = runBlocking {
         val c = E2e.container
+        if (arg("emulator") == "1") emulatorKnobs(models = null)
         val catalog = c.catalog.catalog.value
         val profile = c.deviceProfile.ensure()
         val settings = c.settings.settings.value
@@ -138,6 +147,22 @@ class DeviceSmokeSteps : DictationTest() {
                 put("health", JSONObject(ComputeUnit.entries.associate { u -> u.name to healthOf(id, u) }))
             })
         }
+        for (a in arg("prepareInstalled")?.split(',').orEmpty()) {
+            val id = ArtifactId(a)
+            val model = catalog.artifact(id)?.first?.id?.value ?: throw AssertionError("unknown artifact $a")
+            val t0 = SystemClock.uptimeMillis()
+            val r = c.orchestrator.prepareArtifact(id) {}
+            val report = (r as? app.murmur.core.model.Outcome.Ok)?.value
+            results.put(JSONObject().apply {
+                put("model", model); put("artifact", a); put("pushed", true)
+                put("state", if (report != null && report.proven.isNotEmpty()) "Installed" else "Failed")
+                (r as? app.murmur.core.model.Outcome.Err)?.let { put("error", it.error.code) }
+                report?.failed?.entries?.firstOrNull()?.let { put("error", "${it.key.name}:${it.value.code}") }
+                put("downloadMs", 0)
+                put("preparingMs", SystemClock.uptimeMillis() - t0)
+                put("health", JSONObject(ComputeUnit.entries.associate { u -> u.name to healthOf(id, u) }))
+            })
+        }
         write("prepare", JSONObject().put("pack", packId ?: JSONObject.NULL).put("artifacts", results).put("memAvailableMb", memAvailableMb()))
     }
 
@@ -147,41 +172,30 @@ class DeviceSmokeSteps : DictationTest() {
         else -> "unknown"
     }
 
-    private data class Case(val name: String, val seconds: Long, val preIdleSec: Long?, val edit: Boolean, val pin: ComputeUnit?)
+    private data class Case(
+        val name: String, val seconds: Long, val preIdleSec: Long?, val edit: Boolean, val pin: ComputeUnit?, val timeoutScale: Float?,
+    )
 
     private fun parse(spec: String): Case {
         val parts = spec.split(':')
-        require(parts.size >= 2) { "case $spec: <name>:<seconds>[:idle<N>][:edit][:pin<unit>]" }
+        require(parts.size >= 2) { "case $spec: <name>:<seconds>[:idle<N>][:edit][:pin<unit>][:scale<x>]" }
         val flags = parts.drop(2)
         return Case(
             name = parts[0], seconds = parts[1].toLong(),
             preIdleSec = flags.firstOrNull { it.startsWith("idle") }?.removePrefix("idle")?.toLong(),
             edit = "edit" in flags,
             pin = flags.firstOrNull { it.startsWith("pin") }?.removePrefix("pin")?.let { ComputeUnit.valueOf(it.uppercase()) },
+            timeoutScale = flags.firstOrNull { it.startsWith("scale") }?.removePrefix("scale")?.toFloat(),
         )
     }
 
     private fun dictateAll(spec: String) {
         val cases = spec.split(',').map(::parse)
         val models = arg("models")?.split(',')
-        val emulator = arg("emulator") == "1"
-        if (models != null || emulator) runBlocking {
-            E2e.container.settings.update { s ->
-                var n = s
-                if (models != null) {
-                    require(models.size == 2) { "dc8.models <asrModel>,<llmModel>" }
-                    n = n.copy(asrModel = ModelId(models[0]), cleanup = CleanupChoice.Model(ModelId(models[1])))
-                }
-                if (emulator) {
-                    val llm = (n.cleanup as? CleanupChoice.Model)?.id?.value
-                    n = n.copy(
-                        unitPreference = if (llm != null) n.unitPreference + (llm to UnitPreference.Pinned(ComputeUnit.CPU)) else n.unitPreference,
-                        debugIgnoreMemoryGate = true,
-                        debugTimeoutScale = 4f,
-                    )
-                }
-                n
-            }
+        if (arg("emulator") == "1") runBlocking { emulatorKnobs(models) }
+        else if (models != null) runBlocking {
+            require(models.size == 2) { "dc8.models <asrModel>,<llmModel>" }
+            E2e.container.settings.update { it.copy(asrModel = ModelId(models[0]), cleanup = CleanupChoice.Model(ModelId(models[1]))) }
         }
         var lastDoneAt = 0L
         for (case in cases) {
@@ -201,6 +215,53 @@ class DeviceSmokeSteps : DictationTest() {
                 .put("asrExitAfterDoneMs", asrGone ?: JSONObject.NULL).put("llmExitAfterDoneMs", llmGone ?: JSONObject.NULL)
                 .put("asrRunning", Processes.pidOf(Processes.ASR) != null).put("llmRunning", Processes.pidOf(Processes.LLM) != null)
                 .put("memAvailableMb", memAvailableMb()))
+        }
+        if (arg("cancelCheck") == "1") cancelDuringArming()
+    }
+
+    /** WP-05's DC8 note: a press cancelled while :asr is still being bound or loaded must not leave the process running. */
+    private fun cancelDuringArming() {
+        val c = E2e.container
+        val idleSec = c.settings.settings.value.idleUnloadSec.toLong()
+        rec.states.clear()
+        historyBefore = Pipeline.historyCount()
+        TargetApp.open(TargetApp.Target.PLAIN)
+        val asrBefore = Processes.pidOf(Processes.ASR) != null
+        Bubble.tapToStart()
+        val at = rec.awaitState("Arming, or Listening with the ASR still loading", 30_000) { s ->
+            s.takeIf { it is DictationState.Arming || (it is DictationState.Listening && it.engines.asr is AsrReadiness.Loading) }
+        }
+        c.orchestrator.onInput(app.murmur.core.dictation.UserInput.Cancel)
+        E2e.waitUntil("Idle after the cancel", 30_000, pollMs = 100) { c.orchestrator.state.value is DictationState.Idle }
+        val cancelledAt = SystemClock.uptimeMillis()
+        var asrGone: Long? = null
+        while (SystemClock.uptimeMillis() < cancelledAt + (idleSec + 2) * 1_000) {
+            if (asrGone == null && Processes.pidOf(Processes.ASR) == null) asrGone = SystemClock.uptimeMillis() - cancelledAt
+            SystemClock.sleep(500)
+        }
+        write("cancel", JSONObject().put("cancelledIn", at::class.simpleName).put("idleUnloadSec", idleSec)
+            .put("asrRunningBefore", asrBefore).put("asrExitAfterCancelMs", asrGone ?: JSONObject.NULL)
+            .put("asrRunningAfter", Processes.pidOf(Processes.ASR) != null).put("llmRunningAfter", Processes.pidOf(Processes.LLM) != null)
+            .put("historyRows", Pipeline.historyCount() - historyBefore))
+    }
+
+    /**
+     * The CPU emulator (dry run): [models] selected (asr, llm) when given, the cleanup model pinned to CPU, the memory
+     * gate ignored and timeouts scaled (debug knobs; x8 as in Pipeline.timeoutScale).
+     */
+    private suspend fun emulatorKnobs(models: List<String>?) {
+        E2e.container.settings.update { s ->
+            var n = s
+            if (models != null) {
+                require(models.size == 2) { "dc8.models <asrModel>,<llmModel>" }
+                n = n.copy(asrModel = ModelId(models[0]), cleanup = CleanupChoice.Model(ModelId(models[1])))
+            }
+            val llm = (n.cleanup as? CleanupChoice.Model)?.id?.value ?: Pipeline.LLM_MODEL
+            n.copy(
+                unitPreference = n.unitPreference + (llm to UnitPreference.Pinned(ComputeUnit.CPU)),
+                debugIgnoreMemoryGate = true,
+                debugTimeoutScale = Pipeline.timeoutScale,
+            )
         }
     }
 
@@ -232,6 +293,9 @@ class DeviceSmokeSteps : DictationTest() {
             out.put("asrRunningBefore", Processes.pidOf(Processes.ASR) != null)
             out.put("llmRunningBefore", Processes.pidOf(Processes.LLM) != null)
         }
+        val scaleBefore = c.settings.settings.value.debugTimeoutScale
+        case.timeoutScale?.let { x -> runBlocking { c.settings.update { it.copy(debugTimeoutScale = x) } } }
+        out.put("timeoutScale", c.settings.settings.value.debugTimeoutScale.toDouble())
         if (case.edit) {
             runBlocking { c.settings.update { it.copy(preferences = ((it.preferences ?: "") + " ").take(1_000)) } }
         }
@@ -245,6 +309,7 @@ class DeviceSmokeSteps : DictationTest() {
         val stopAt = SystemClock.uptimeMillis()
         val done = rec.awaitDone(300_000)
         val doneAt = SystemClock.uptimeMillis()
+        if (case.timeoutScale != null) runBlocking { c.settings.update { it.copy(debugTimeoutScale = scaleBefore) } }
         E2e.note("dc8 done case=${case.name}")
         val asr = rec.states.firstNotNullOfOrNull { rec.enginesOf(it.value)?.asr as? AsrReadiness.Ready }
         val llm = rec.states.firstNotNullOfOrNull { rec.enginesOf(it.value)?.llm as? LlmReadiness.Ready }
