@@ -3,7 +3,7 @@
 ROOT     := $(abspath ..)
 PY       ?= python3
 MODELS   ?= q2b lfm3 q08
-PROFILES ?= default.v4
+PROFILES ?= default.v1
 SET      ?= dev.v2
 RUNS     := $(ROOT)/.cache/ml/prompt/runs
 
@@ -25,7 +25,7 @@ sets-fixture:    ## v2 sets from the OCR fixture (no render/OCR): sets/*.v2fx.js
 goldens:         ## regenerate examples/golden_*.txt (v1, must not change) and examples/ctxv2_*.txt
 	$(PY) render.py --regen-goldens
 
-eval:            ## one run: make eval M=q2b PROFILE=default.v4 SET=dev.v2
+eval:            ## one run: make eval M=q2b PROFILE=default.v1 SET=dev.v2
 	cd $(ROOT) && tools/heavy $(PY) prompts/eval/run_eval.py --m $(M) --profile $(PROFILE) --set $(SET)
 
 sweep:           ## all MODELS x PROFILES on SET, sequentially

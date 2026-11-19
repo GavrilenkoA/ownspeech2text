@@ -214,10 +214,13 @@ CTX2_DEFAULT = {"budget": 1400, "order": "near", "min_conf": 0.5, "min_chars": 2
                 "dedup": True, "merge": True, "side": False, "terms": False, "line_max": 240, "place": "before"}
 # ctx v2 without a screen: privacy.level the phone sends for each privacy.reason (binding for app, data and eval;
 # context.schema.v2.json). app_only hides the field text before the cursor (kind and hint stay); full shows it.
-#   secure_window (FLAG_SECURE), denylisted_app, password_field -> app_only: the app/user marked the content sensitive
+#   secure_window (FLAG_SECURE), denylisted_app                -> app_only: the app/user marked the content sensitive
+#   password_field                                             -> none: the app never runs the LLM there (ADR-070,
+#                                                                 skipLlm); no eval or training example uses it
 #   screenshot_error, ocr_empty                                -> full: nothing sensitive, the screenshot just failed
-#   user_setting (screen context switched off by the user)     -> app_only or none, as the user chose
-NO_SCREEN_LEVEL = {"secure_window": "app_only", "denylisted_app": "app_only", "password_field": "app_only",
+#   user_setting (screen context switched off by the user)     -> app_only (the only "off" the settings offer; not in
+#                                                                 the table, core/context CtxV2JsonTest pins its keys)
+NO_SCREEN_LEVEL = {"secure_window": "app_only", "denylisted_app": "app_only", "password_field": "none",
                    "screenshot_error": "full", "ocr_empty": "full"}
 _CLOCK = re.compile(r"^[\d\s:.,/%+\-–—()|·•]*(?:[ap]\.?m\.?|ч|мин|lte|5g|4g|g)?[\d\s:.,/%+\-–—()|·•]*$", re.I)
 _ALNUM = re.compile(r"[^\W_]", re.U)
@@ -521,7 +524,7 @@ def regen_goldens_v2() -> None:
                     render_prompt(prof, g["context"], g["transcript"], tpl), encoding="utf-8")
 
 
-GOLDEN_V2_PROFILES = ("default.v4",)
+GOLDEN_V2_PROFILES = ("default.v1", "default.v4")  # shipped stock profile first (PROMPT_EVAL.md §0), v4 kept selectable
 
 
 def main(argv: list[str]) -> int:

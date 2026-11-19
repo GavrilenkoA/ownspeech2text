@@ -141,7 +141,7 @@
         "level": {
           "type": "string",
           "maxLength": 20,
-          "description": "full | app_only | none. full: app, field kind/hint, text before the cursor and screen text (if any). app_only: app, field kind and hint only (no screen text, no text before the cursor). none: as app_only and the app label is hidden. Unknown values (also the deprecated 'no_screenshot') render as full. Without a screen the phone MUST send the level that prompts/render.py NO_SCREEN_LEVEL gives for the reason: secure_window, denylisted_app, password_field -> app_only; screenshot_error, ocr_empty -> full; user_setting -> app_only or none as chosen by the user."
+          "description": "full | app_only | none. full: app, field kind/hint, text before the cursor and screen text (if any). app_only: app, field kind and hint only (no screen text, no text before the cursor). none: as app_only and the app label is hidden. Unknown values (also the deprecated 'no_screenshot') render as full. Without a screen the phone MUST send the level that prompts/render.py NO_SCREEN_LEVEL gives for the reason (ADR-070): secure_window, denylisted_app -> app_only; password_field -> none (the LLM is never run, so such a ctx is never rendered and appears in no eval or training example); screenshot_error, ocr_empty -> full; user_setting -> app_only."
         },
         "reason": {
           "type": [

@@ -135,9 +135,22 @@ def run(a) -> dict:
                 n_tr = srv.ntok(c["transcript"]) if c["transcript"] else 0
                 n_pred = min(1024, 2 * n_tr + 64)
                 ts = time.time()
-                srv.post(f"/slots/{slot}?action=restore", {"filename": slot_file})
-                res = srv.post("/completion", {**GREEDY, "prompt": full_ids, "n_predict": n_pred, "id_slot": slot,
-                                               "stop": ["<|im_end|>", "<|endoftext|>"]})
+                res, err = None, None
+                for _attempt in range(2):  # one retry: a request can time out on a loaded shared server
+                    try:
+                        srv.post(f"/slots/{slot}?action=restore", {"filename": slot_file})
+                        res = srv.post("/completion", {**GREEDY, "prompt": full_ids, "n_predict": n_pred,
+                                                       "id_slot": slot, "stop": ["<|im_end|>", "<|endoftext|>"]})
+                        break
+                    except Exception as e:  # noqa: BLE001
+                        err = f"{type(e).__name__}: {e}"
+                if res is None:  # kept as an explicit failure (empty output), never silently dropped
+                    print(f"ERROR {c['id']}: {err}", file=sys.stderr, flush=True)
+                    results[c["id"]] = {"id": c["id"], "out": "", "final": "", "guard": "error", "guard_reason": err,
+                                        "prompt_n": None, "user_tokens": len(full_ids) - prefix_tokens, "gen_n": None,
+                                        "prompt_ms": 0, "gen_ms": 0, "truncated": False,
+                                        "wall_s": round(time.time() - ts, 2), "error": err}
+                    continue
                 text = res["content"]
                 v = guard.guard(c["transcript"], text, c["ctx"])
                 tm = res.get("timings", {})
@@ -171,7 +184,8 @@ def run(a) -> dict:
             "prefix_prefill_ms": round(prefix_ms), "mean_user_tokens": round(sum(r["user_tokens"] for r in rows) / n, 1),
             "mean_gen_tokens": round(sum(r["gen_n"] or 0 for r in rows) / n, 1),
             "truncated": sum(r["truncated"] for r in rows),
-            "guard_fired": sum(r["guard"] != "accept" for r in rows), "wall_s": round(wall, 1),
+            "guard_fired": sum(r["guard"] not in ("accept", "error") for r in rows), "wall_s": round(wall, 1),
+            "errors": sum("error" in r for r in rows), "ids": a.ids or None,
             "ctx2": prof.get("ctx2"), "producer": producer, "guard_version": guard.GUARD_VERSION,
             "score_raw": s_raw, "score_guarded": s_fin}
     out.with_suffix(".meta.json").write_text(json.dumps(meta, ensure_ascii=False, indent=1), encoding="utf-8")

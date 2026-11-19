@@ -67,7 +67,7 @@ def _attach(item: dict, res: dict, src: str) -> None:
     ctx = to_v2.privacy_fix(res["ctx"], item["spec"])
     fb = [v["box"] for v in res.get("visible") or [] if v.get("role") == "field"]
     if "field" in ctx and fb and "box" not in ctx["field"]:
-        # the phone knows the focused node's bounds (getBoundsInScreen); build_ctx does not emit them (yet)
+        # fallback only: build_ctx emits field.box (focused node bounds, as getBoundsInScreen) since its 2026-11-19 update
         ctx["field"]["box"] = [min(b[0] for b in fb), min(b[1] for b in fb), max(b[2] for b in fb), max(b[3] for b in fb)]
     if not ctx["field"].get("hint") if "field" in ctx else False:
         ctx["field"].pop("hint", None)
@@ -80,7 +80,8 @@ def _attach(item: dict, res: dict, src: str) -> None:
     if st:
         c2["meta"]["check"]["screen_terms"] = st
     if res.get("meta"):
-        c2["meta"]["render"] = {k: res["meta"][k] for k in ("template", "device", "theme", "font_scale", "keyboard", "ocr")
+        c2["meta"]["render"] = {k: res["meta"][k] for k in ("template", "device", "theme", "font_scale", "keyboard", "ocr", "ocr_src",
+                                                         "screens", "screens_src", "chrome", "det_limit")
                                 if k in res["meta"]}
         c2["meta"]["render"]["producer"] = PRODUCER
     item["c2"] = c2

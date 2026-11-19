@@ -17,7 +17,7 @@ Results and decisions: `docs/ml/PROMPT_EVAL.md`. Everything here is stdlib Pytho
 | `device_prompt_bench.py` | Prefix/request prefill cost per profile and greedy parity with the host runs, on the phone over adb or on the host with `--local`. |
 | `score.py` | Deterministic scorer (no LLM judge). `--raw` scores the transcript itself (identity baseline). |
 | `run_eval.py` | Harness: llama-server, greedy, cached system prefix, N parallel slots; writes raw + guarded outputs. |
-| `report.py` | Re-scores stored runs (raw and after `prompts/guard.py`), guard statistics, per-category tables. |
+| `report.py` | Re-scores stored runs (raw and after `prompts/guard.py`), guard statistics, per-category tables (`--by-category`, `--stage final` for after the guard); warns on runs made on other contexts. |
 | `sweep.sh`, `models.json` | Sequential model × profile × set sweeps; local GGUF paths of the stock models. |
 | `run_smoke.py`, `smoke_cases.v1.jsonl` | Phase-1 smoke harness (kept for history; superseded). |
 
@@ -74,8 +74,8 @@ terms in Cyrillic), `whisper` (punctuated, may keep fillers and hallucinate tail
 
 ```
 make -C prompts test                                   # unit tests (renderer v1+v2 goldens, chat templates, scorer, guard)
-make -C prompts eval M=q2b PROFILE=default.v4 SET=dev.v2    # current prompt on the OCR-context dev set
-tools/heavy python3 prompts/eval/run_eval.py --m q2b --profile default.v4 --set dev.v2 \
+make -C prompts eval M=q2b PROFILE=default.v1 SET=dev.v2    # shipped stock prompt on the OCR-context dev set
+tools/heavy python3 prompts/eval/run_eval.py --m q2b --profile default.v1 --set dev.v2 \
     --ctx2 '{"order":"reading"}' --tag _reading         # ctx v2 option ablation (overrides the profile's ctx2)
 make -C prompts sets                                   # rebuild + validate sets
 make -C prompts eval M=q2b PROFILE=default.v2 SET=dev  # one run (tools/heavy, 6 threads, 3 slots)
@@ -99,6 +99,7 @@ Every v2 case stores `meta.render.producer`, a hash of the ml/ocr and ml/screens
 ## No-screen contexts
 
 Eval cases without a screenshot carry the privacy level the phone sends for the reason (`render.NO_SCREEN_LEVEL`,
-`context.schema.v2.json`): `secure_window`, `denylisted_app`, `password_field` → `app_only` (text before the cursor hidden);
-`screenshot_error`, `ocr_empty` → `full`. The no-screen dev/test cases cycle through `secure_window`, `screenshot_error`,
+`context.schema.v2.json`, ADR-070): `secure_window`, `denylisted_app` → `app_only` (text before the cursor hidden);
+`screenshot_error`, `ocr_empty` → `full`; `password_field` → `none`, but the app never runs the LLM on a password
+field, so no case uses it; `user_setting` → `app_only`. The no-screen dev/test cases cycle through `secure_window`, `screenshot_error`,
 `denylisted_app`, `ocr_empty` (`cases/to_v2.py NO_SCREEN_REASONS`).

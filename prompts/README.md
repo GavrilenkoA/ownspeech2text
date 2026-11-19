@@ -8,17 +8,19 @@ Eval tooling: `prompts/eval/README.md`. Everything is stdlib Python 3.11+.
 
 | Model state | Profile | System prompt | Few-shot turns | Context |
 |---|---|---|---|---|
-| stock model (no fine-tune) | `profiles/default.v4.json` | `system/default.v4.md` | `shots/default.v4.jsonl` (15) | ctx v2, `render.CTX2_DEFAULT` |
-| stock, short prefix | `profiles/default.v4s.json` | `system/default.v4.md` | `shots/default.v4s.jsonl` (8) | same |
+| **stock model (no fine-tune), default** | `profiles/default.v1.json` | `system/default.v1.md` | none (7 inline examples), prefix 1,047 tok (Qwen) | ctx v2, `render.CTX2_DEFAULT` |
+| stock, selectable (measured, not better on held-out test) | `profiles/default.v4.json` / `default.v4s.json` | `system/default.v4.md` | `shots/default.v4.jsonl` (15) / `default.v4s.jsonl` (8), prefix 3,116 / 2,001 tok | same |
 | Murmur fine-tune | — (`render.chat`) | `system/finetuned.v1.md` (training uses it today; `finetuned.v2.md` = OCR wording, adopt with the next fine-tune) | none | ctx v1 or v2 as in the training data |
 
-The recommended default per model and the numbers behind it are in `docs/ml/PROMPT_EVAL.md`.
+The recommended default per model and the numbers behind it are in `docs/ml/PROMPT_EVAL.md` (§0, §R.5: `default.v1`
+ships because neither v4s nor v4 beat it on the held-out test; the app catalog still names `default.v4` until its owner
+switches it).
 
 ## Files
 
 | File | What it is | Changes when |
 |---|---|---|
-| `system/default.v{1,2,3,4,5}.md`, `default_inline.v2.md` | Default system prompts for stock models. **v4 = current** (OCR wording, no-translation first). v1–v3 kept: history items and eval runs refer to them; v5 measured and rejected (PROMPT_EVAL.md §4.2). | Prompt release |
+| `system/default.v{1,…,6}.md`, `default_inline.v2.md` | Default system prompts for stock models. **v1 = shipped** (rules + inline examples; cheapest, not beaten on test). v4 = OCR wording + no-translation first + few-shot turns (selectable). v6 = v1 with v4's OCR paragraph (PROMPT_EVAL.md §R2: equal within noise, not shipped: one more answered question for LFM3 on test). v2/v3 history; v5 rejected. | Prompt release |
 | `system/finetuned.v{1,2}.md` | Short system prompt of Murmur fine-tunes (identical at training and inference). | Only with a new fine-tune |
 | `system/preferences_block.v1.md` | "My preferences" wrapper appended to either system prompt. | Prompt release |
 | `profiles/*.json` | A profile = system prompt + few-shot file + optional `answer_prefix` + `ctx2` (v2 context options). The unit the app ships and the eval measures. `v3x2.json` is eval-only. | Prompt release |
@@ -29,7 +31,7 @@ The recommended default per model and the numbers behind it are in `docs/ml/PROM
 | `render.py` | **Executable spec** of the prompt: sanitising, ctx v1 layout, ctx v2 layout (`render_context_v2`, `CTX2_DEFAULT`, `ocr_terms`), style line, chat templates (thinking off), profiles, cache prefix. Used by the data, training and eval pipelines. | Prompt release |
 | `guard.py` | **Executable spec** of the deterministic output guard (pre-LLM `precheck`, post-LLM `guard`). The Kotlin port must pass `tests/test_guard.py`. | Guard release |
 | `examples/golden_*` | ctx v1 goldens (v1 prompts) — must never change. | never |
-| `examples/ctxv2_*` | ctx v2 goldens: `.input.json` (OCR lines from real screenshot ground truth), `.context.txt` (`render_context`), `.{qwen3.5,lfm3}.default.v4.txt` (full prompt). The Kotlin renderer must reproduce them byte-for-byte. | `python3 render.py --regen-goldens` |
+| `examples/ctxv2_*` | ctx v2 goldens: `.input.json` (OCR lines from real screenshot ground truth), `.context.txt` (`render_context`), `.{qwen3.5,lfm3}.{default.v1,default.v4}.txt` (full prompt; `render.GOLDEN_V2_PROFILES`). The Kotlin renderer must reproduce them byte-for-byte. | `python3 render.py --regen-goldens` |
 | `eval/` | Dev/test sets (v1 superseded, v2 current), smoke cases, OCR fixture, scorer, harness, reports. | — |
 | `tests/` | `make test`: v1 goldens + chat templates, v2 renderer rules + goldens + set validity, scorer, guard contract. | — |
 
@@ -67,12 +69,12 @@ Screen text (OCR, nearest to the field first):        (if any line survives the 
 
 ## Rules for editing the prompt
 
-1. Bump the version (`default.v5`) instead of editing a released file; the app stores which version produced each history item.
+1. Bump the version (`default.v7`) instead of editing a released file; the app stores which version produced each history item.
 2. `make -C prompts sets goldens test`, then run the dev sweep (`make -C prompts sweep SET=dev.v2 PROFILES=…`) and compare
    with `make -C prompts report SET=dev.v2`. Look at the held-out test set only for the final candidates, once, with a
    ship rule written down before the run (PROMPT_EVAL.md §R).
-4. The guard (`guard.py`, `GUARD_VERSION`) is frozen; a rule change is accepted on dev runs only and bumps the version.
-5. If ml/ocr or ml/screens change, `run_eval.py` refuses the stale sets: rebuild (`make -C prompts sets goldens test`)
+3. The guard (`guard.py`, `GUARD_VERSION`) is frozen; a rule change is accepted on dev runs only and bumps the version.
+4. If ml/ocr or ml/screens change, `run_eval.py` refuses the stale sets: rebuild (`make -C prompts sets goldens test`)
    and re-run before comparing numbers.
-3. Users edit only the default instructions (stock models) and "My preferences" (all models). "Reset to default"
+5. Users edit only the default instructions (stock models) and "My preferences" (all models). "Reset to default"
    restores the shipped profile's system prompt.

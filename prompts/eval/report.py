@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Re-score stored runs (raw model output and output after prompts/guard.py) and print summary tables.
 
-  python3 prompts/eval/report.py .cache/ml/prompt/runs/*.dev.jsonl [--by-category] [--guard-detail]
+  python3 prompts/eval/report.py .cache/ml/prompt/runs/*.dev.jsonl [--by-category [--stage final]] [--guard-detail]
 
 Guard bookkeeping per run (definitions in docs/ml/PROMPT_EVAL.md):
   fired        guard returned fallback/empty instead of the model text
@@ -37,13 +37,27 @@ def analyse(run_path: Path) -> dict:
     set_name = meta.get("set") or ("test.v1.jsonl" if ".test." in run_path.name else "dev.v1.jsonl")
     cases = score.load_jsonl(HERE / "sets" / set_name)
     res = {r["id"]: r for r in score.load_jsonl(run_path)}
-    cases = [c for c in cases if c["id"] in res]
+    if meta.get("ids"):  # run_eval --ids subset: score what was asked for
+        cases = [c for c in cases if c["id"] in res]
+    lost = [c["id"] for c in cases if c["id"] not in res or "error" in res[c["id"]]]
+    if lost:  # harness failures count as failed cases (empty output, no guard), never shrink the denominator
+        print(f"WARNING {run_path.name}: {len(lost)} case(s) without model output, scored as failures: "
+              f"{', '.join(lost)}", file=sys.stderr)
+    set_prod = {((c.get("meta") or {}).get("render") or {}).get("producer") for c in cases} - {None}
+    if set_prod and meta.get("producer") not in set_prod:  # run made on contexts the set no longer has
+        print(f"WARNING {run_path.name}: run producer {meta.get('producer')} != set producer {sorted(set_prod)}; "
+              "scores use the current contexts", file=sys.stderr)
     ctx2 = meta.get("ctx2")
     if ctx2 is None and "+{" in (meta.get("profile") or ""):  # older runs: ablation options only in the profile name
         ctx2 = json.loads(meta["profile"][meta["profile"].index("+{") + 1:])
     raw_rows, final_rows, reasons, fired, right = [], [], Counter(), 0, 0
     fixed, broke, pre = [], [], 0
     for c in cases:
+        if c["id"] in lost:
+            rr = score.score_case(c, "", ctx2)
+            raw_rows.append(rr)
+            final_rows.append(rr)
+            continue
         out = res[c["id"]]["out"]
         v = guard.guard(c["transcript"], out, c["ctx"])
         rr, fr = score.score_case(c, out, ctx2), score.score_case(c, v.text, ctx2)
@@ -65,7 +79,7 @@ def analyse(run_path: Path) -> dict:
             "guard": {"fired": fired, "right": right, "reasons": dict(reasons),
                       "harmful_before": sum(map(harmful, raw_rows)), "harmful_after": sum(map(harmful, final_rows)),
                       "fire_rate": round(fired / n, 3), "pre_llm_skips": pre,
-                      "fixed": len(fixed), "broke": broke},
+                      "fixed": len(fixed), "broke": broke, "lost": len(lost)},
             "rows": {"raw": raw_rows, "final": final_rows}}
 
 
@@ -87,6 +101,8 @@ def main(argv=None) -> int:
     ap.add_argument("runs", nargs="+")
     ap.add_argument("--by-category", action="store_true")
     ap.add_argument("--guard-detail", action="store_true")
+    ap.add_argument("--stage", choices=("raw", "final"), default="raw",
+                    help="--by-category table: raw model output (default) or output after the guard")
     ap.add_argument("--json")
     a = ap.parse_args(argv)
     res = [analyse(Path(p)) for p in a.runs if not p.endswith((".meta.json", ".server.log"))]
@@ -94,12 +110,12 @@ def main(argv=None) -> int:
     for x in res:
         print(line(x))
     if a.by_category:
-        cats = sorted(res[0]["raw"]["by_category"])
-        print("\n| category | " + " | ".join(x["run"].removesuffix(".jsonl") for x in res) + " |")
+        cats = sorted(res[0][a.stage]["by_category"])
+        print(f"\n| category ({a.stage}) | " + " | ".join(x["run"].removesuffix(".jsonl") for x in res) + " |")
         print("|---|" + "---:|" * len(res))
         for c in cats + ["ru", "en", "mixed"]:
             key = "by_lang" if c in ("ru", "en", "mixed") else "by_category"
-            print(f"| {c} | " + " | ".join(f"{x['raw'][key].get(c, {}).get('pass', 0):.2f}" for x in res) + " |")
+            print(f"| {c} | " + " | ".join(f"{x[a.stage][key].get(c, {}).get('pass', 0):.2f}" for x in res) + " |")
     if a.guard_detail:
         for x in res:
             print(x["run"], json.dumps(x["guard"], ensure_ascii=False))
