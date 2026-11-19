@@ -114,7 +114,7 @@ Merged on `integration/wave1`: WP-01, 05, 06, 07, 08, 09, 11, 12, 13. Still in w
 ## Integration notes (wave-1 integration pass 2; ADR-078..080 in DECISIONS)
 
 Merged on `integration/wave1` in this pass: WP-04, WP-02, WP-14 (in addition to WP-01, 05, 06, 07, 08, 09, 11, 12, 13).
-Still in work: WP-03, 10, 20 (early paths).
+Still in work: WP-03, 10, 15, 16, 17, 20 (early paths).
 - WP-02 (ADR-079): `MurmurApp` already implements `A11yServiceHost`; `onUserInput`, `ownUiPackages` and `bubbleFor`
   have defaults (bubble = WP-03 `OverlayHost`; until WP-03 merges the service runs without a bubble and logs
   `bubble_attach_failed ... NotImplementedError`). `PermissionMonitor` reads `A11yStatus.get(context).read()`
@@ -133,3 +133,10 @@ Still in work: WP-03, 10, 20 (early paths).
   launcher-only `AppNavigator` (integration pass 2): without them enabling the merged accessibility service crashed
   the app (the service builds the orchestrator on connect). Extend/replace both (deep links, onboarding refreshes);
   never put `TODO()` back on a path the service or the orchestrator reaches.
+- One permission monitor (pass-2 verification): keep a single `PermissionMonitor` implementation, built on
+  `A11yStatus.get(ctx).read()`; do not keep a second ever-connected flag or call `RestrictedSettingsProbe` directly.
+  Whichever file survives, the other is deleted at the merge. The orchestrator's preflight re-reads the monitor
+  before it refuses a start (mic / service), so `refresh()` must be cheap and safe to call from the orchestrator.
+- Fakes in `AppContainer`: the integration's `benchmarkRunner` needs `DefaultModelResolver.benchSpecs`, which is not on
+  the `ModelResolver` port. If the resolver is typed as the port (to allow a fake), keep a separate
+  `DefaultModelResolver` reference for the runner, or use the not-wired runner only when a fake is installed.

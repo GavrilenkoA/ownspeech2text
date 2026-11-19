@@ -127,13 +127,15 @@ Merged on `integration/wave1`: WP-01, 05, 06, 07, 08, 09, 11, 12, 13. Still in w
 ## Integration notes (wave-1 integration pass 2; ADR-078..080 in DECISIONS)
 
 Merged on `integration/wave1` in this pass: WP-04, WP-02, WP-14 (in addition to WP-01, 05, 06, 07, 08, 09, 11, 12, 13).
-Still in work: WP-03, 10, 20 (early paths).
+Still in work: WP-03, 10, 15, 16, 17, 20 (early paths).
 - Capture kind is now reported (ADR-079): `ScreenImage.kind` (WINDOW / DISPLAY) from `ScreenshotChain`, passed as
   `ScreenOutcome.Text(text, capture)`; `A11ySnapshot.windowBoundsInScreen` is filled. The pass-1 note about
   `capture = null` is obsolete. Shared fakes: `FakeTargetReader.captureKind` (default WINDOW),
   `SimpleContextAssembler.lastScreen`, `FakeWorld.context`.
 - Notification start e2e (case g): the action goes WP-09 `StatusActionReceiver` → `StatusActionHandler` (MurmurApp)
-  → `NotificationStart.start(context)`; WP-02's own receiver is gone (ADR-079). WP-02's emulator suite:
+  → `NotificationStart.start(context)`; WP-02's own receiver is gone (ADR-079). `ShadeTest` calls
+  `NotificationStart.start` directly, so case (g) is the only test of the whole chain: send the real broadcast.
+  `FakePermissionMonitor.onRefresh` (pass-2 verification) says what a re-read finds; preflight re-reads before refusing. WP-02's emulator suite:
   `platform/a11y/tools/run_emulator_tests.sh <serial>` (also installs `:testapps:target`; file-install vs adb-install
   restricted-settings runs).
 - Wave-3 wiring: `AppContainer.benchmarkRunner` exists (ADR-080). The WP-14 emulator benchmark entry point

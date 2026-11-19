@@ -59,5 +59,5 @@ Merged on `integration/wave1`: WP-01, 05, 06, 07, 08, 09, 11, 12, 13. Still in w
 ## Integration notes (wave-1 integration pass 2; ADR-078..080 in DECISIONS)
 
 Merged on `integration/wave1` in this pass: WP-04, WP-02, WP-14 (in addition to WP-01, 05, 06, 07, 08, 09, 11, 12, 13).
-Still in work: WP-03, 10, 20 (early paths).
+Still in work: WP-03, 10, 15, 16, 17, 20 (early paths).
 - No contract of WP-02/04/14 changes the Dashboard inputs.
