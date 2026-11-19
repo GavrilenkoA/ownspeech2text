@@ -303,14 +303,35 @@ extern "C" int mllm_prefix_set(mllm_engine * e, const char * prefix, mllm_prefix
     return take_snapshot(e, info);
 }
 
+// RAM-mode state file: the snapshot exactly as mllm_prefix_set took it, so that saving writes e->snapshot as is and
+// loading reads it straight into e->snapshot (one copy from the file, one into the KV / recurrent buffers) instead of
+// llama_state_seq_load_file + a fresh snapshot (three full copies). Layout, little-endian:
+//   "MLLMST01" | uint32 n_tokens | n_tokens x int32 token | uint64 n_bytes | n_bytes snapshot
+// llama_state_seq_set_data_ext validates the blob against the loaded model and context (MLLM_E_STATE on mismatch).
+static const char kStateMagic[8] = {'M', 'L', 'L', 'M', 'S', 'T', '0', '1'};
+
 extern "C" int mllm_prefix_save(mllm_engine * e, const char * path) {
     if (!e || !path || e->prefix_tokens.empty()) return MLLM_E_ARG;
-    // Make seq 0 hold exactly the prefix, then write it with the token list for validation on load.
+    if (e->lp.prefix_mode == MLLM_PREFIX_RAM) {
+        if (e->snapshot.empty()) return e->fail(MLLM_E_STATE, "no snapshot to save");
+        FILE * f = fopen(path, "wb");
+        if (!f) return e->fail(MLLM_E_STATE, "cannot create state file");
+        const uint32_t n_tok = (uint32_t) e->prefix_tokens.size();
+        const uint64_t n_bytes = e->snapshot.size();
+        bool ok = fwrite(kStateMagic, 1, sizeof kStateMagic, f) == sizeof kStateMagic
+               && fwrite(&n_tok, sizeof n_tok, 1, f) == 1
+               && fwrite(e->prefix_tokens.data(), sizeof(llama_token), n_tok, f) == n_tok
+               && fwrite(&n_bytes, sizeof n_bytes, 1, f) == 1
+               && fwrite(e->snapshot.data(), 1, (size_t) n_bytes, f) == n_bytes;
+        ok = fflush(f) == 0 && ok;
+        ok = fclose(f) == 0 && ok;
+        return ok ? MLLM_OK : e->fail(MLLM_E_STATE, "state file write failed");
+    }
+    // DEVICE / SEQCP keep their data in backend buffers or in seq 0: write it with llama.cpp's own format.
     llama_memory_t mem = llama_get_memory(e->ctx);
-    if (e->lp.prefix_mode == MLLM_PREFIX_RAM || e->lp.prefix_mode == MLLM_PREFIX_DEVICE) {
-        const llama_state_seq_flags fl = e->lp.prefix_mode == MLLM_PREFIX_DEVICE ? LLAMA_STATE_SEQ_FLAGS_ON_DEVICE : 0;
+    if (e->lp.prefix_mode == MLLM_PREFIX_DEVICE) {
         llama_memory_seq_rm(mem, 0, -1, -1);
-        if (!llama_state_seq_set_data_ext(e->ctx, e->snapshot.data(), e->snapshot.size(), 0, fl))
+        if (!llama_state_seq_set_data_ext(e->ctx, e->snapshot.data(), e->snapshot.size(), 0, LLAMA_STATE_SEQ_FLAGS_ON_DEVICE))
             return e->fail(MLLM_E_STATE, "restore before save failed");
     }
     const size_t n = llama_state_seq_save_file(e->ctx, path, 0, e->prefix_tokens.data(), e->prefix_tokens.size());
@@ -320,10 +341,50 @@ extern "C" int mllm_prefix_save(mllm_engine * e, const char * path) {
 extern "C" int mllm_prefix_load(mllm_engine * e, const char * path, mllm_prefix_info * info) {
     if (!e || !path) return MLLM_E_ARG;
     if (info) memset(info, 0, sizeof(*info));
-    llama_memory_clear(llama_get_memory(e->ctx), true);
+    llama_memory_t mem = llama_get_memory(e->ctx);
+    llama_memory_clear(mem, true);
+    e->prefix_tokens.clear();
+    e->snapshot.clear();
+    e->prefix_live = false;
+    auto t0 = clk::now();
+    if (e->lp.prefix_mode == MLLM_PREFIX_RAM) {
+        FILE * f = fopen(path, "rb");
+        if (!f) return e->fail(MLLM_E_STATE, "cannot open state file");
+        char magic[sizeof kStateMagic];
+        uint32_t n_tok = 0;
+        uint64_t n_bytes = 0;
+        bool ok = fread(magic, 1, sizeof magic, f) == sizeof magic && memcmp(magic, kStateMagic, sizeof magic) == 0
+               && fread(&n_tok, sizeof n_tok, 1, f) == 1 && n_tok > 0 && n_tok <= (uint32_t) e->lp.n_ctx;
+        std::vector<llama_token> toks;
+        if (ok) {
+            toks.resize(n_tok);
+            ok = fread(toks.data(), sizeof(llama_token), n_tok, f) == n_tok && fread(&n_bytes, sizeof n_bytes, 1, f) == 1;
+        }
+        if (ok) {                                         // the blob must be exactly the rest of the file
+            const long here = ftell(f);
+            ok = here >= 0 && fseek(f, 0, SEEK_END) == 0 && (uint64_t) (ftell(f) - here) == n_bytes && fseek(f, here, SEEK_SET) == 0;
+        }
+        if (ok) {
+            e->snapshot.resize((size_t) n_bytes);
+            ok = fread(e->snapshot.data(), 1, (size_t) n_bytes, f) == n_bytes;
+        }
+        fclose(f);
+        if (!ok || !llama_state_seq_set_data_ext(e->ctx, e->snapshot.data(), e->snapshot.size(), 0, 0)) {
+            e->snapshot.clear();
+            llama_memory_clear(mem, true);
+            return e->fail(MLLM_E_STATE, "state file unreadable, truncated or not for this model");
+        }
+        e->prefix_tokens = std::move(toks);
+        e->prefix_live = true;
+        if (info) {
+            info->n_tokens       = (int32_t) e->prefix_tokens.size();
+            info->prefill_ms     = ms_since(t0);       // read + restore
+            info->snapshot_bytes = e->snapshot.size();
+        }
+        return MLLM_OK;
+    }
     std::vector<llama_token> toks((size_t) e->lp.n_ctx);
     size_t n_tok = 0;
-    auto t0 = clk::now();
     if (!llama_state_seq_load_file(e->ctx, path, 0, toks.data(), toks.size(), &n_tok))
         return e->fail(MLLM_E_STATE, "llama_state_seq_load_file failed");
     toks.resize(n_tok);

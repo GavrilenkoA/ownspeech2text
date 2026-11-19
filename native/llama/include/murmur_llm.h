@@ -128,7 +128,9 @@ int          mllm_load(const mllm_load_params * p, mllm_engine ** out, mllm_load
 // Prefill `prefix` (raw text, special tokens parsed, no BOS added: the rendered prompt carries it)
 // and snapshot the state. Replaces any previous prefix.
 int          mllm_prefix_set(mllm_engine * e, const char * prefix, mllm_prefix_info * info);
-// Optional persistence across process restarts (llama_state_seq_save_file / _load_file).
+// Persistence across process restarts. RAM mode: the snapshot itself ("MLLMST01" file, read straight back into the
+// snapshot and restored; info->prefill_ms = read + restore). Other modes: llama_state_seq_save_file / _load_file.
+// A missing, truncated, foreign or mismatching file is MLLM_E_STATE and leaves no prefix set.
 int          mllm_prefix_save(mllm_engine * e, const char * path);
 int          mllm_prefix_load(mllm_engine * e, const char * path, mllm_prefix_info * info);
 // Generate a continuation of prefix + suffix. If no prefix is set, `suffix` is the whole prompt.
