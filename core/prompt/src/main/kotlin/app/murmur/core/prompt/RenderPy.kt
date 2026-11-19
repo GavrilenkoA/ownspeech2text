@@ -11,8 +11,17 @@ import kotlinx.serialization.json.booleanOrNull
 import java.text.Normalizer
 
 /**
- * The request-independent functions of prompts/render.py, ported line by line (D8). Names follow the Python ones;
- * Python semantics that Kotlin lacks come from [Py]. Only ctx v2 is ported (ADR-040).
+ * The functions of prompts/render.py, ported line by line (D8). Names follow the Python ones; Python `str` semantics
+ * that Kotlin lacks come from [Py]. Only ctx v2 is ported (ADR-040). Further places where the languages differ:
+ * - Python `//` floors, Kotlin `/` truncates: box centres use [Math.floorDiv] (boxes may be partly off-screen).
+ * - unicodedata.normalize("NFC") is [Normalizer] (same Unicode algorithm; the JVM's Unicode version may be older).
+ * - The Python code works on dicts, the port on the typed [CtxV2]: `not field` (an empty field object) is a
+ *   [FieldInfo] whose members are all absent; a field object holding only explicit JSON nulls decodes the same way
+ *   and renders "no text field focused" where Python says "text field" (the phone never sends one).
+ * - Truthiness: `if hint`, `if lang`, `field.get("kind") or ...` treat "" like absent; ctx2 options follow Python
+ *   truthiness of JSON values ([Ctx2]).
+ * - `sorted(key=...)` is stable; the port sorts with the same key plus the block index Python's key already holds.
+ * - `render_context(None)` renders the v1 layout of an empty context; the port returns that constant ([EMPTY_CONTEXT]).
  */
 internal object RenderPy {
     const val MAX_BEFORE_CURSOR = 300

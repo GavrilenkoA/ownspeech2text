@@ -16,8 +16,11 @@ import java.util.Locale
  * - `str.casefold()`: full case folding; Java has none. [casefold] = full uppercase then full lowercase, which equals
  *   Python's folding except for U+0131, U+1E9E and Cherokee (handled explicitly).
  * - `str.lower()` / `str.upper()` of one character: Java's full (SpecialCasing) mappings with [Locale.ROOT].
+ * - `str.isupper()` / `str.islower()` of one character: Lu / Ll plus Other_Uppercase / Other_Lowercase, spelled out
+ *   (OpenJDK's Character includes them, Android's does not).
+ * - Regexes that stay on java.util.regex use explicit classes for `\w`/`\s`/`\b` (Android's regex is ICU-based).
  * PyTextTest checks every one of these against goldens/unicode.json (CPython's tables) for every code point that both
- * Unicode versions assign.
+ * Unicode versions assign, on the host JVM and on ART (the API 36 emulator runs the same suite through dalvikvm).
  */
 internal object Py {
     fun len(s: String): Int = s.codePointCount(0, s.length)
@@ -77,21 +80,34 @@ internal object Py {
         0x1F100, 0x1F10A,
     )
 
-    fun isDigit(cp: Int): Boolean {
-        if (isDecimal(cp)) return true
+    fun isDigit(cp: Int): Boolean = isDecimal(cp) || inRanges(DIGIT_NOT_DECIMAL, cp)
+
+    /**
+     * Other_Uppercase / Other_Lowercase (Unicode 16, as CPython 3.14 uses them). Spelled out because Android's
+     * Character.isUpperCase/isLowerCase are Lu/Ll only, while OpenJDK's include these (seen on the API 36 emulator).
+     */
+    private val OTHER_UPPERCASE = intArrayOf(0x2160, 0x216F, 0x24B6, 0x24CF, 0x1F130, 0x1F149, 0x1F150, 0x1F169, 0x1F170, 0x1F189)
+    private val OTHER_LOWERCASE = intArrayOf(
+        0xAA, 0xAA, 0xBA, 0xBA, 0x2B0, 0x2B8, 0x2C0, 0x2C1, 0x2E0, 0x2E4, 0x345, 0x345, 0x37A, 0x37A, 0x10FC, 0x10FC,
+        0x1D2C, 0x1D6A, 0x1D78, 0x1D78, 0x1D9B, 0x1DBF, 0x2071, 0x2071, 0x207F, 0x207F, 0x2090, 0x209C, 0x2170, 0x217F,
+        0x24D0, 0x24E9, 0x2C7C, 0x2C7D, 0xA69C, 0xA69D, 0xA770, 0xA770, 0xA7F2, 0xA7F4, 0xA7F8, 0xA7F9, 0xAB5C, 0xAB5F,
+        0xAB69, 0xAB69, 0x10780, 0x10780, 0x10783, 0x10785, 0x10787, 0x107B0, 0x107B2, 0x107BA, 0x1E030, 0x1E06D,
+    )
+
+    private fun inRanges(r: IntArray, cp: Int): Boolean {
         var i = 0
-        while (i < DIGIT_NOT_DECIMAL.size) {
-            if (cp >= DIGIT_NOT_DECIMAL[i] && cp <= DIGIT_NOT_DECIMAL[i + 1]) return true
+        while (i < r.size) {
+            if (cp >= r[i] && cp <= r[i + 1]) return true
             i += 2
         }
         return false
     }
 
-    /** One-character `str.isupper()`. */
-    fun isUpper(cp: Int): Boolean = Character.isUpperCase(cp)
+    /** One-character `str.isupper()`: Lu or Other_Uppercase. */
+    fun isUpper(cp: Int): Boolean = Character.getType(cp) == Character.UPPERCASE_LETTER.toInt() || inRanges(OTHER_UPPERCASE, cp)
 
-    /** One-character `str.islower()`. */
-    fun isLower(cp: Int): Boolean = Character.isLowerCase(cp)
+    /** One-character `str.islower()`: Ll or Other_Lowercase. */
+    fun isLower(cp: Int): Boolean = Character.getType(cp) == Character.LOWERCASE_LETTER.toInt() || inRanges(OTHER_LOWERCASE, cp)
 
     /** `str.isdigit()` of a whole string. */
     fun isDigitString(s: String): Boolean = s.isNotEmpty() && s.codePoints().allMatch { isDigit(it) }

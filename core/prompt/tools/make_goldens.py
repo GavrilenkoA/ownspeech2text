@@ -605,6 +605,12 @@ def main(argv: list[str]) -> int:
         missing = sorted(set(files) - set(on_disk))
         extra = sorted(set(on_disk) - set(files))
         changed = sorted(k for k in files if k in on_disk and on_disk[k].read_bytes() != files[k])
+        if "unicode.json" in changed:  # CPython's tables, not render.py/guard.py: another Unicode version is not drift
+            committed = json.loads(on_disk["unicode.json"].read_bytes())["unidata_version"]
+            if committed != unicodedata.unidata_version:
+                changed.remove("unicode.json")
+                print(f"unicode.json not compared: committed for Unicode {committed}, this Python has "
+                      f"{unicodedata.unidata_version} (regenerate with that version to change it)")
         for label, names in (("missing", missing), ("stale extra", extra), ("differs", changed)):
             for n in names[:20]:
                 print(f"{label}: {n}")
