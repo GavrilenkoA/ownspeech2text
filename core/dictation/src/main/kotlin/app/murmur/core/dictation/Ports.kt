@@ -217,7 +217,8 @@ interface StatusNotifier {
 interface EnginePreparer {
     /**
      * After an artifact is installed (WP-13 calls it while InstallState = Preparing): load it on every usable unit;
-     * ASR: decode a bundled 1 s clip; LLM: build and persist the prefix snapshot. Marks UnitHealth proven / failed.
+     * ASR: decode a bundled 1 s clip; LLM: build and persist the prefix snapshot. Marks UnitHealth proven / failed
+     * (never for OutOfMemory, ADR-066; see [PrepareReport]).
      * An NPU failure with no CPU artifact installed reports [PrepareReport.needsCpuArtifact] (WP-13 queues it).
      */
     suspend fun prepareArtifact(artifact: ArtifactId, onProgress: (Float) -> Unit): Outcome<PrepareReport>
@@ -228,11 +229,18 @@ interface EnginePreparer {
     fun invalidatePrefix()
 }
 
+/**
+ * [proven]: marked proven in UnitHealth. [failed]: marked failed (the unit cannot run the artifact; an NPU entry for
+ * an ASR artifact gives [needsCpuArtifact]). [untested]: tried, but the error says nothing about the unit (OutOfMemory,
+ * no process, a prefix error, a proof-decode timeout; ADR-066): UnitHealth is unchanged and the first real load decides.
+ * A unit skipped by the memory gate is in none of them.
+ */
 data class PrepareReport(
     val artifact: ArtifactId,
     val proven: Set<app.murmur.core.model.ComputeUnit>,
     val failed: Map<app.murmur.core.model.ComputeUnit, MurmurError>,
     val needsCpuArtifact: ArtifactId?,
+    val untested: Map<app.murmur.core.model.ComputeUnit, MurmurError> = emptyMap(),
 )
 
 /**

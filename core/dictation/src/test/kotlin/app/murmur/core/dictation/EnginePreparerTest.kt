@@ -72,6 +72,47 @@ class EnginePreparerTest {
         h.assertNoInternalErrors()
     }
 
+    /** ADR-066 in Preparing: an OutOfMemory says nothing about the unit (no mark, no CPU artifact queued). */
+    @Test fun anOutOfMemoryWhilePreparingNeitherMarksTheUnitNorQueuesTheCpuArtifact() = runTest {
+        val h = harness {
+            models.npuFirst = true; models.cpuFallback = false
+            engines.asr.loadErrors[ComputeUnit.NPU] = MurmurError.OutOfMemory(app.murmur.core.model.ModelKind.ASR)
+            engines.llm.loadErrors[ComputeUnit.NPU] = MurmurError.OutOfMemory(app.murmur.core.model.ModelKind.LLM)
+        }
+        val asr = h.o.prepareArtifact(h.w.models.asrNpu.artifactId) {} as Outcome.Ok
+        assertTrue(asr.value.proven.isEmpty() && asr.value.failed.isEmpty())
+        assertEquals(setOf(ComputeUnit.NPU), asr.value.untested.keys)
+        assertNull(asr.value.needsCpuArtifact)
+        val llm = h.o.prepareArtifact(h.w.models.llmCpu.artifactId) {} as Outcome.Ok
+        assertEquals(setOf(ComputeUnit.CPU), llm.value.proven)
+        assertTrue(llm.value.failed.isEmpty())
+        assertEquals(MurmurError.OutOfMemory(app.murmur.core.model.ModelKind.LLM), llm.value.untested[ComputeUnit.NPU])
+        assertTrue(h.w.unitHealth.failedUnits.isEmpty())
+        h.assertNoInternalErrors()
+    }
+
+    /** No process, a prefix error after a good load and a proof-decode timeout leave UnitHealth unchanged too. */
+    @Test fun noProcessAPrefixErrorOrADecodeTimeoutLeaveUnitHealthUnchanged() = runTest {
+        val h = harness()
+        h.w.engines.asrHost.crashOnConnect = 2
+        val unbound = h.o.prepareArtifact(h.w.models.asrCpu.artifactId) {} as Outcome.Ok
+        assertEquals(MurmurError.ProcessDied(app.murmur.core.model.InferProcess.ASR), unbound.value.untested[ComputeUnit.CPU])
+        h.w.engines.asr.finishDelayMs = 600_000
+        val slow = h.o.prepareArtifact(h.w.models.asrCpu.artifactId) {} as Outcome.Ok
+        assertEquals(MurmurError.Timeout(app.murmur.core.model.Stage.ASR_FINAL), slow.value.untested[ComputeUnit.CPU])
+        h.w.engines.llm.prefixError = MurmurError.Timeout(app.murmur.core.model.Stage.LLM_PREFIX)
+        val prefix = h.o.prepareArtifact(h.w.models.llmCpu.artifactId) {} as Outcome.Ok
+        assertEquals(setOf(ComputeUnit.CPU), prefix.value.untested.keys)
+        for (r in listOf(unbound, slow, prefix)) assertTrue(r.value.proven.isEmpty() && r.value.failed.isEmpty())
+        assertTrue(h.w.unitHealth.failedUnits.isEmpty() && h.w.unitHealth.provenUnits.isEmpty())
+        // A decode error that is not a timeout is the unit's (a runtime rejection the load did not catch).
+        h.w.engines.asr.finishDelayMs = 0
+        h.w.engines.asr.finishError = MurmurError.AsrFailed("qnn op")
+        val rejected = h.o.prepareArtifact(h.w.models.asrCpu.artifactId) {} as Outcome.Ok
+        assertEquals(setOf(ComputeUnit.CPU), rejected.value.failed.keys)
+        assertEquals(1, h.w.unitHealth.failedUnits.size)
+    }
+
     @Test fun vadIsProvenWithItsAsrTheOcrPairLoadsAndUnknownArtifactsAreRefused() = runTest {
         val h = harness()
         // The OCR detector alone has nothing to pair with yet; the VAD is proven with the ASR that uses it.

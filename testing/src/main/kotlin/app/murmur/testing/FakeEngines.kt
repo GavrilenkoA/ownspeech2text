@@ -218,6 +218,8 @@ class FakeLlmEngine(
     var contextLimit: Int = Int.MAX_VALUE,
     val host: FakeInferenceHost? = null,
 ) : LlmEngine {
+    /** setPrefix fails with this (the model stays loaded). */
+    var prefixError: MurmurError? = null
     var prefix: PrefixSpec? = null; private set
     var loadedUnit: ComputeUnit? = null; private set
     /** Every load call's unit, failed ones included (loadedUnits holds the successful ones). */
@@ -244,6 +246,7 @@ class FakeLlmEngine(
     override suspend fun setPrefix(prefix: PrefixSpec): Outcome<PrefixInfo> {
         prefixCalls += prefix
         if (prefixDelayMs > 0) delay(prefixDelayMs)
+        prefixError?.let { return Outcome.Err(it) }
         this.prefix = prefix
         return Outcome.Ok(PrefixInfo((prefix.text.length * 0.27).toInt(), 1, restoredFromDisk = false, bytes = 0))
     }

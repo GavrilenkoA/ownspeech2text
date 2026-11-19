@@ -212,6 +212,7 @@ class ArtifactInstaller(
                 log.event(
                     "prepare_done", "artifact" to a.id.value, "proven" to report.proven.joinToString(","),
                     "failed" to report.failed.entries.joinToString(",") { "${it.key}:${it.value.code}" },
+                    "untested" to report.untested.entries.joinToString(",") { "${it.key}:${it.value.code}" },
                     "needsCpu" to report.needsCpuArtifact?.value,
                 )
                 report.needsCpuArtifact?.let { cpu -> if (!storage.isInstalled(cpu)) queue(cpu) }

@@ -80,14 +80,61 @@ internal class EngineKeeper(private val engines: Engines, private val health: Un
         }
     }
 
-    /** One spec, no fallback and no UnitHealth mark (Preparing marks per unit itself). */
-    suspend fun loadAsrOnly(spec: LoadSpec, vad: LoadSpec?): Outcome<LoadInfo> {
+    /**
+     * One Preparing trial on one unit (ADR-066, ADR-067). [error] null = it ran. [unitFailed] = the error says the
+     * unit cannot run the artifact (the same rule as [mark]: a load error other than OutOfMemory); the caller marks
+     * UnitHealth. Any other error says nothing about the unit: the process could not be bound, OutOfMemory, a
+     * prefix error after a good load, a timeout of the proof decode.
+     */
+    data class Trial(val error: MurmurError?, val unitFailed: Boolean) {
+        companion object {
+            val OK = Trial(null, unitFailed = false)
+            fun load(error: MurmurError) = Trial(error, judgesUnit(error))
+            fun untested(error: MurmurError) = Trial(error, unitFailed = false)
+        }
+    }
+
+    /** One spec, no fallback and no UnitHealth mark (Preparing marks per unit itself from the [Trial]). */
+    suspend fun trialAsr(spec: LoadSpec, vad: LoadSpec?): Trial {
         asrLoading++
         try {
-            up(engines.asrHost) ?: return Outcome.Err(MurmurError.ProcessDied(InferProcess.ASR))
-            return loadAsrOn(spec, vad)
+            up(engines.asrHost) ?: return Trial.untested(MurmurError.ProcessDied(InferProcess.ASR))
+            return when (val r = loadAsrOn(spec, vad)) {
+                is Outcome.Ok -> Trial.OK
+                is Outcome.Err -> Trial.load(r.error)
+            }
         } finally {
             asrLoading--
+        }
+    }
+
+    /** Preparing: the OCR pair on the det/rec units, no UnitHealth mark. */
+    suspend fun trialOcr(det: LoadSpec, rec: LoadSpec): Trial {
+        asrLoading++
+        try {
+            val pid = up(engines.asrHost) ?: return Trial.untested(MurmurError.ProcessDied(InferProcess.ASR))
+            if (warmOcr == WarmOcr(pid, det, rec) && pid != UNKNOWN_PID) return Trial.OK
+            return when (val r = engines.ocr.loadOcr(det, rec)) {
+                is Outcome.Ok -> { warmOcr = WarmOcr(pid, det, rec); Trial.OK }
+                is Outcome.Err -> { warmOcr = null; Trial.load(r.error) }
+            }
+        } finally {
+            asrLoading--
+        }
+    }
+
+    /** Preparing: load [spec] and build the snapshot for [prefix], no fallback and no UnitHealth mark. */
+    suspend fun trialLlm(llm: ActiveLlm, spec: LoadSpec, prefix: String): Trial {
+        llmLoading++
+        try {
+            up(engines.llmHost) ?: return Trial.untested(MurmurError.ProcessDied(InferProcess.LLM))
+            return when (val r = loadLlmOn(llm, spec, prefix)) {
+                is Step.Loaded -> Trial.OK
+                is Step.PrefixFailed -> Trial.untested(r.error)
+                is Step.LoadFailed -> Trial.load(r.error)
+            }
+        } finally {
+            llmLoading--
         }
     }
 
@@ -97,7 +144,7 @@ internal class EngineKeeper(private val engines: Engines, private val health: Un
      * about the unit (other apps hold the memory now), so it is not marked: the next press tries it again.
      */
     private suspend fun mark(spec: LoadSpec, error: MurmurError) {
-        if (error !is MurmurError.OutOfMemory) health.markFailed(spec.artifactId, spec.unit, error.code)
+        if (judgesUnit(error)) health.markFailed(spec.artifactId, spec.unit, error.code)
     }
 
     /** The resolved LLM is already loaded in the running :llm (no extra memory needed for it). */
@@ -130,10 +177,10 @@ internal class EngineKeeper(private val engines: Engines, private val health: Un
 
     /**
      * Load [first] (n_ctx = [ActiveLlm.nCtx]) and restore or build the prefix snapshot for [prefix]; on a load error
-     * markFailed and, when [allowFallback], the same GGUF on [ActiveLlm.fallback]. A setPrefix error is returned as is
-     * (the model loaded: it is not a unit failure).
+     * markFailed and the same GGUF on [ActiveLlm.fallback]. A setPrefix error is returned as is (the model loaded:
+     * it is not a unit failure).
      */
-    suspend fun loadLlm(llm: ActiveLlm, first: LoadSpec, prefix: String, allowFallback: Boolean = true): Outcome<LlmLoaded> {
+    suspend fun loadLlm(llm: ActiveLlm, first: LoadSpec, prefix: String): Outcome<LlmLoaded> {
         llmLoading++
         try {
             up(engines.llmHost) ?: return Outcome.Err(MurmurError.ProcessDied(InferProcess.LLM))
@@ -142,7 +189,7 @@ internal class EngineKeeper(private val engines: Engines, private val health: Un
                 is Step.PrefixFailed -> return Outcome.Err(r.error)
                 is Step.LoadFailed -> {
                     mark(first, r.error)
-                    val fb = llm.fallback?.takeIf { allowFallback && it != first } ?: return Outcome.Err(r.error)
+                    val fb = llm.fallback?.takeIf { it != first } ?: return Outcome.Err(r.error)
                     up(engines.llmHost) ?: return Outcome.Err(MurmurError.ProcessDied(InferProcess.LLM))
                     return when (val r2 = loadLlmOn(llm, fb, prefix)) {
                         is Step.Loaded -> Outcome.Ok(r2.value.copy(fellBack = true))
@@ -198,6 +245,8 @@ internal class EngineKeeper(private val engines: Engines, private val health: Un
     }
 
     private companion object {
+        /** ADR-066: a load error says the unit cannot run the artifact unless the device ran out of memory. */
+        fun judgesUnit(error: MurmurError): Boolean = error !is MurmurError.OutOfMemory
         const val UNKNOWN_PID = -1
     }
 }

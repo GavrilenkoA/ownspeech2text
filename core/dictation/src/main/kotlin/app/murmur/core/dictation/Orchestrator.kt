@@ -1049,9 +1049,16 @@ class DictationOrchestrator(
         val targets = when (val t = deps.models.prepareTargets(artifact, settings)) { is Outcome.Err -> return t; is Outcome.Ok -> t.value }
         val proven = linkedSetOf<ComputeUnit>()
         val failed = linkedMapOf<ComputeUnit, MurmurError>()
-        suspend fun mark(unit: ComputeUnit, error: MurmurError?) {
-            if (error == null) { deps.unitHealth.markProven(artifact, unit); proven += unit }
-            else { deps.unitHealth.markFailed(artifact, unit, error.code); failed[unit] = error }
+        val untested = linkedMapOf<ComputeUnit, MurmurError>()
+        // ADR-066: only an error that says the unit cannot run the artifact marks it failed; OutOfMemory, a process
+        // that could not be bound, a prefix error and a proof-decode timeout leave UnitHealth unchanged.
+        suspend fun mark(unit: ComputeUnit, trial: EngineKeeper.Trial) {
+            val error = trial.error
+            when {
+                error == null -> { deps.unitHealth.markProven(artifact, unit); proven += unit }
+                trial.unitFailed -> { deps.unitHealth.markFailed(artifact, unit, error.code); failed[unit] = error }
+                else -> untested[unit] = error
+            }
         }
         onProgress(0f)
         when (targets.kind) {
@@ -1071,8 +1078,7 @@ class DictationOrchestrator(
                         modelSha256 = info.modelSha256, speed = null)
                     if (!roomForLlm(active, settings, cfg)) { onProgress((i + 1f) / targets.specs.size); return@forEachIndexed }
                     val prefix = cleaner.prefix(active, settings.preferences, cleaner.systemOverride(cleaner.profile(active), settings))
-                    val res = keeper.loadLlm(active, spec, prefix, allowFallback = false)
-                    mark(spec.unit, (res as? Outcome.Err)?.error)
+                    mark(spec.unit, keeper.trialLlm(active, spec, prefix))
                     onProgress((i + 1f) / targets.specs.size)
                 }
             }
@@ -1081,7 +1087,7 @@ class DictationOrchestrator(
                 val partner = targets.ocrPartner
                 if (self != null && partner != null) {
                     val (det, rec) = if (targets.kind == ModelKind.OCR_DET) self to partner else partner to self
-                    mark(self.unit, if (keeper.loadOcr(det, rec)) null else MurmurError.OcrFailed("load"))
+                    mark(self.unit, keeper.trialOcr(det, rec))
                 }
             }
             // A VAD is proven with the ASR artifact that uses it (load(asr, vad)).
@@ -1092,19 +1098,27 @@ class DictationOrchestrator(
         val needsCpu = targets.cpuArtifact.takeIf {
             targets.kind == ModelKind.ASR && ComputeUnit.NPU in failed && !targets.cpuArtifactInstalled
         }
-        return Outcome.Ok(PrepareReport(artifact, proven, failed, needsCpu))
+        return Outcome.Ok(PrepareReport(artifact, proven, failed, needsCpu, untested))
     }
 
-    /** Load + a 1 s decode of the bundled clip; null = proven. A NoSpeech verdict still proves the decode ran. */
-    private suspend fun proveAsr(spec: LoadSpec, vad: LoadSpec?, cfg: DictationConfig): MurmurError? {
-        when (val l = keeper.loadAsrOnly(spec, vad)) { is Outcome.Err -> return l.error; is Outcome.Ok -> Unit }
+    /**
+     * Load + a 1 s decode of the bundled clip. A NoSpeech verdict still proves the decode ran. A decode error is the
+     * unit's (a runtime/op rejection the load did not catch) unless it is OutOfMemory; a decode timeout is not (a busy
+     * device says nothing about the unit, and the dictation path does not mark decode timeouts either).
+     */
+    private suspend fun proveAsr(spec: LoadSpec, vad: LoadSpec?, cfg: DictationConfig): EngineKeeper.Trial {
+        keeper.trialAsr(spec, vad).let { if (it.error != null) return it }
         val session = deps.engines.asr.startSession(AsrSessionOptions())
         feed(session, PrepareClip.samples)
         val r = withTimeoutOrNull(cfg.asrFinalTimeoutMs(PcmFormat.samplesToMs(PrepareClip.samples.size.toLong()))) { session.finish() }
-            ?: return MurmurError.Timeout(Stage.ASR_FINAL).also { session.cancel() }
+            ?: return EngineKeeper.Trial.untested(MurmurError.Timeout(Stage.ASR_FINAL)).also { session.cancel() }
         return when (r) {
-            is Outcome.Ok -> null
-            is Outcome.Err -> r.error.takeIf { it != MurmurError.NoSpeech }
+            is Outcome.Ok -> EngineKeeper.Trial.OK
+            is Outcome.Err -> when (r.error) {
+                MurmurError.NoSpeech -> EngineKeeper.Trial.OK
+                is MurmurError.Timeout -> EngineKeeper.Trial.untested(r.error)
+                else -> EngineKeeper.Trial.load(r.error)
+            }
         }
     }
 
