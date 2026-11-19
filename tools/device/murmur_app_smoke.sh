@@ -24,8 +24,8 @@
 # = qnn, LLM deviceName = HTP0, no fallback in UnitHealth, no process death, the history audio stored as Opus, and
 # records timings from history, PSS of the three processes (/proc/<pid>/smaps_rollup, every 2 s) and MemAvailable.
 # After en10, with :asr and :llm warm, it probes (WP-09) three capture stop() calls with keepRecordings on (< 200 ms,
-# Opus) and (WP-06) en10's recording replayed into a new session of the loaded ASR: Transcript.unit = NPU and
-# finish() within 3 s of the end of audio.
+# Opus) and (WP-06) en10's recording replayed into a new session of the loaded ASR: finish() within 3 s of the end of
+# audio, Transcript.unit = the loaded unit, and NPU on the phone.
 # On an emulator (dry run: NONINTERACTIVE=1, CPU build, GigaAM + Qwen3.5 pushed from the shared model cache and then
 # prepared in the app, VAD + OCR downloaded in the app) the NPU asserts are SKIPPED and npu10 is skipped. The dry run's
 # audio is FLEURS dev speech (CC-BY-4.0): one ru and one en clip, and 60 s of distinct ru/en utterances for mixed60.
@@ -152,16 +152,19 @@ for c in cases:
         else:
             cs, a = (probe or {}).get("captureStop") or {}, (probe or {}).get("asrSession") or {}
             stops = cs.get("stopMs") or []
-            check(c, "capture stop() < 200 ms, keepRecordings on, :asr and :llm running (WP-09)", None if mode != "phone" else
+            check(c, "capture stop() < 200 ms, keepRecordings on, :asr and :llm running (WP-09)", None if mode == "skeleton" else
                   (bool(stops) and max(stops) < 200 and cs.get("asrRunning") is True and cs.get("llmRunning") is True and not cs.get("error")),
                   {k: cs.get(k) for k in ("stopMs", "asrRunning", "llmRunning", "error")})
             check(c, "capture probe files stored as Opus", None if mode == "skeleton" else cs.get("codecs") == ["opus"], cs.get("codecs"))
             check(c, "ASR session: Transcript.unit = the loaded unit", None if mode == "skeleton" else
                   (a.get("transcriptUnit") is not None and a.get("transcriptUnit") == a.get("loadedUnit")),
                   {k: a.get(k) for k in ("loadedUnit", "transcriptUnit", "asrArtifact", "error")})
-            check(c, "ASR on the NPU: Transcript.unit = NPU, finish() <= 3 s after EOF (WP-06)", None if mode != "phone" else
-                  (a.get("transcriptUnit") == "NPU" and (a.get("finishAfterEofMs") or 10**9) <= 3000),
-                  {k: a.get(k) for k in ("transcriptUnit", "finishAfterEofMs", "tailDecodeMs", "audioMs", "words", "historyWords")})
+            # ADR-076: the emulator's ASR timing counts only with the host CPU model, which the dry run uses.
+            check(c, "ASR session: finish() <= 3 s after the end of audio (WP-06)", None if mode == "skeleton" else
+                  (a.get("transcriptUnit") is not None and (a.get("finishAfterEofMs") or 10**9) <= 3000),
+                  {k: a.get(k) for k in ("finishAfterEofMs", "tailDecodeMs", "audioMs", "words", "historyWords")})
+            check(c, "ASR on the NPU: Transcript.unit = NPU (Parakeet through AsrService, WP-06)", (a.get("transcriptUnit") == "NPU") if npu else None,
+                  a.get("transcriptUnit"))
     if c == "npu10":
         check(c, "LLM on NPU and ASR on QNN at the same time", (asr.get("deviceName") == "qnn" and llm.get("deviceName") == "HTP0") if npu else None,
               [asr.get("deviceName"), llm.get("deviceName")])
