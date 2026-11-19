@@ -120,7 +120,8 @@ data class PrepareTargets(
     val cpuArtifactInstalled: Boolean = false,
 )
 
-data class LlmPrepare(val template: String, val profile: String, val nCtx: Int, val modelSha256: String)
+/** [memoryMb] = the same estimate as ActiveLlm.memoryMb: preparing obeys the memory gate of ARCHITECTURE 7 too. */
+data class LlmPrepare(val template: String, val profile: String, val nCtx: Int, val modelSha256: String, val memoryMb: Int)
 
 /**
  * Preflight's device checks (row 6): free storage and thermal state. :app implements it (StatFs on filesDir,

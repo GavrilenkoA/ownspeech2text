@@ -479,9 +479,21 @@ class DictationOrchestrator(
         return DictationEvent.PreflightPassed(s, plan)
     }
 
-    private fun memoryAllows(r: SessionRun, llm: ActiveLlm): Boolean =
-        r.settings.debugIgnoreMemoryGate || keeper.llmWarm(llm) ||
-            deps.memory.availableMb() - llm.memoryMb >= r.config.llmMemoryMarginMb
+    private fun memoryAllows(r: SessionRun, llm: ActiveLlm): Boolean = memoryAllows(llm, r.settings, r.config)
+
+    private fun memoryAllows(llm: ActiveLlm, settings: Settings, cfg: DictationConfig): Boolean =
+        settings.debugIgnoreMemoryGate || keeper.llmWarm(llm) || deps.memory.availableMb() - llm.memoryMb >= cfg.llmMemoryMarginMb
+
+    /**
+     * ARCHITECTURE 7 outside a dictation (Re-polish, Try it, Preparing): the LLM loads only with the margin; when a warm
+     * :asr is what stands in the way it is shut down first (nothing needs it until the next press).
+     */
+    private suspend fun roomForLlm(llm: ActiveLlm, settings: Settings, cfg: DictationConfig): Boolean {
+        if (memoryAllows(llm, settings, cfg)) return true
+        if (deps.engines.asrHost.state.value !is HostState.Up) return false
+        keeper.shutdown(InferProcess.ASR)
+        return memoryAllows(llm, settings, cfg)
+    }
 
     // ---------------------------------------------------------------- capture
 
@@ -931,6 +943,9 @@ class DictationOrchestrator(
         val profile = cleaner.profile(llm)
         val version = cleaner.promptVersion(profile, override)
         val prefix = cleaner.prefix(llm, preferences, override)
+        if (!roomForLlm(llm, settings, cfg)) {
+            return OfflineCleanup(transcript, false, "skipped:low_memory", null, null, version, MurmurError.OutOfMemory(ModelKind.LLM))
+        }
         val loaded = when (val l = keeper.loadLlm(llm, llm.spec, prefix)) {
             is Outcome.Err -> return OfflineCleanup(transcript, false, "skipped:${DictationMachine.skipReasonOf(l.error)}", null, null, version, l.error)
             is Outcome.Ok -> l.value
@@ -995,13 +1010,16 @@ class DictationOrchestrator(
         val models = deps.models.resolve(settings).getOrNull() ?: return
         val llm = models.llm ?: return
         val cfg = effectiveConfig(settings)
-        if (!settings.debugIgnoreMemoryGate && !keeper.llmWarm(llm) && deps.memory.availableMb() - llm.memoryMb < cfg.llmMemoryMarginMb) return
+        if (!memoryAllows(llm, settings, cfg)) return
         val prefix = cleaner.prefix(llm, settings.preferences, cleaner.systemOverride(cleaner.profile(llm), settings))
         keeper.loadLlm(llm, llm.spec, prefix)
         scheduleIdle(cfg.idleUnloadMs)
     }
 
-    /** ARCHITECTURE 8.5: prove [artifact] on every usable unit. */
+    /**
+     * ARCHITECTURE 8.5: prove [artifact] on every usable unit. An LLM unit that cannot get the memory margin now (even
+     * with :asr shut down) is neither proven nor failed: its first dictation decides.
+     */
     private suspend fun doPrepare(artifact: ArtifactId, onProgress: (Float) -> Unit): Outcome<PrepareReport> {
         val settings = deps.settings.settings.value
         val cfg = effectiveConfig(settings)
@@ -1026,8 +1044,9 @@ class DictationOrchestrator(
             ModelKind.LLM -> {
                 val info = targets.llm ?: return Outcome.Err(MurmurError.CatalogInvalid("llm traits"))
                 targets.specs.forEachIndexed { i, spec ->
-                    val active = ActiveLlm(spec, null, info.template, info.profile, memoryMb = 0, nCtx = info.nCtx, prefixTokens = null,
+                    val active = ActiveLlm(spec, null, info.template, info.profile, memoryMb = info.memoryMb, nCtx = info.nCtx, prefixTokens = null,
                         modelSha256 = info.modelSha256, speed = null)
+                    if (!roomForLlm(active, settings, cfg)) { onProgress((i + 1f) / targets.specs.size); return@forEachIndexed }
                     val prefix = cleaner.prefix(active, settings.preferences, cleaner.systemOverride(cleaner.profile(active), settings))
                     val res = keeper.loadLlm(active, spec, prefix, allowFallback = false)
                     mark(spec.unit, (res as? Outcome.Err)?.error)

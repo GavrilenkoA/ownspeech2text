@@ -1,8 +1,10 @@
 package app.murmur.core.dictation
 
+import app.murmur.core.engine.HostState
 import app.murmur.core.model.ComputeUnit
 import app.murmur.core.model.MurmurError
 import app.murmur.core.model.Outcome
+import app.murmur.core.store.CleanupChoice
 import app.murmur.core.store.EntryStatus
 import app.murmur.core.store.PromptOverride
 import kotlinx.coroutines.async
@@ -48,6 +50,25 @@ class EnginePreparerTest {
         assertEquals(setOf(ComputeUnit.NPU), r.value.failed.keys)
         assertEquals(1, h.w.engines.llm.prefixCalls.size)                    // snapshot built on the unit that loaded
         assertNull(r.value.needsCpuArtifact)
+        h.assertNoInternalErrors()
+    }
+
+    /** Review F6: preparing an LLM obeys the memory gate (the warm :asr goes first); without the room nothing is marked. */
+    @Test fun llmPreparationShutsAWarmAsrDownOrSkipsTheUnitWithoutTheMemory() = runTest {
+        val h = harness { settings.edit { it.copy(cleanup = CleanupChoice.None) } }
+        h.dictate()                                                          // :asr warm
+        h.w.memory.source = { if (h.w.engines.asrHost.state.value is HostState.Up) 1_000 else 6_000 }
+        val ok = h.o.prepareArtifact(h.w.models.llmCpu.artifactId) {} as Outcome.Ok
+        assertEquals(setOf(ComputeUnit.CPU), ok.value.proven)
+        assertEquals(1, h.w.engines.asrHost.shutdowns)
+        h.w.engines.llmHost.shutdown()
+        h.w.memory.source = null
+        h.w.memory.mb = 1_000
+        val attempts = h.w.engines.llm.loadAttempts.size
+        val short = h.o.prepareArtifact(h.w.models.llmCpu.artifactId) {} as Outcome.Ok
+        assertTrue(short.value.proven.isEmpty() && short.value.failed.isEmpty())
+        assertEquals(attempts, h.w.engines.llm.loadAttempts.size)
+        assertTrue(h.w.unitHealth.failedUnits.isEmpty())
         h.assertNoInternalErrors()
     }
 

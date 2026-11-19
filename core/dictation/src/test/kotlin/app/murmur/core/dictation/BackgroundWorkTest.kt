@@ -1,5 +1,6 @@
 package app.murmur.core.dictation
 
+import app.murmur.core.engine.HostState
 import app.murmur.core.model.ComputeUnit
 import app.murmur.core.model.ModelKind
 import app.murmur.core.model.MurmurError
@@ -26,6 +27,35 @@ class BackgroundWorkTest {
         assertEquals(2, e.revision)
         assertTrue(h.w.engines.llm.requests.last().suffix.contains(first.rawText!!))
         assertTrue(!h.w.engines.llm.requests.last().suffix.contains("Лёша"))   // no screen context: never stored
+        h.assertNoInternalErrors()
+    }
+
+    /** Review F6: outside a dictation the LLM obeys the memory gate too; a warm :asr is shut down to make room. */
+    @Test fun repolishShutsAWarmAsrDownWhenTheLlmDoesNotFitNextToIt() = runTest {
+        val h = harness()
+        h.dictate()
+        val first = h.only()
+        h.w.engines.llmHost.shutdown()                                       // the LLM went cold (idle unload)
+        h.w.memory.source = { if (h.w.engines.asrHost.state.value is HostState.Up) 1_000 else 6_000 }
+        val loads = h.w.engines.llm.loadAttempts.size
+        assertEquals(Outcome.Ok(first.id), h.o.repolish(first.id))
+        assertEquals(1, h.w.engines.asrHost.shutdowns)
+        assertEquals(loads + 1, h.w.engines.llm.loadAttempts.size)
+        assertEquals(2, h.only().revision)
+        h.assertNoInternalErrors()
+    }
+
+    @Test fun repolishAndTryItWithoutTheMemoryLoadNothing() = runTest {
+        val h = harness()
+        h.dictate()
+        val first = h.only()
+        h.w.engines.llmHost.shutdown()
+        h.w.memory.mb = 1_000
+        val loads = h.w.engines.llm.loadAttempts.size
+        assertEquals(Outcome.Err(MurmurError.OutOfMemory(ModelKind.LLM)), h.o.repolish(first.id))
+        assertEquals(Outcome.Err(MurmurError.OutOfMemory(ModelKind.LLM)), h.o.tryCleanup("привет мир", null, null))
+        assertEquals(loads, h.w.engines.llm.loadAttempts.size)
+        assertEquals(first, h.only())
         h.assertNoInternalErrors()
     }
 

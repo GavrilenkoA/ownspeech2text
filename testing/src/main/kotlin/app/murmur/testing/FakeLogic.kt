@@ -190,7 +190,7 @@ class FakeModelResolver(
             llmCpu.artifactId -> Outcome.Ok(PrepareTargets(
                 kind = ModelKind.LLM,
                 specs = (if (npuFirst) listOf(llmNpu, llmCpu) else listOf(llmCpu)).filter(::usable),
-                llm = LlmPrepare("qwen3.5", "default.v4", nCtx, "0".repeat(64)),
+                llm = LlmPrepare("qwen3.5", "default.v4", nCtx, "0".repeat(64), memoryMb = llmMemoryMb),
             ))
             vad.artifactId -> Outcome.Ok(PrepareTargets(ModelKind.VAD, listOf(vad)))
             ocrDet.artifactId -> Outcome.Ok(PrepareTargets(ModelKind.OCR_DET, listOf(ocrDet), ocrPartner = ocrRec))
