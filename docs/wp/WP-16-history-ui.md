@@ -104,3 +104,5 @@ Merged on `integration/wave1` in this pass: main 392d313 (stock prompt default.v
   `idleExitHistory`); `AsrService.probe` lists the OCR runtimes; `:app:assembleRelease` builds again and is part of the gate.
 - `cleanup.promptVersion` of new entries is "default.v1" / "default.v1+edited" (older rows keep "default.v4"); display
   it as stored.
+- `testing/.../contrib/Wp16HistoryFixture.kt:129` (`CleanupUse(LLM, "default.v4", ...)`): use "default.v1" for
+  entries that stand for new dictations, or mark the row as a deliberately old entry (pass-5 verification F4).

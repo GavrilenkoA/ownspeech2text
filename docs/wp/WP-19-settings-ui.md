@@ -130,3 +130,9 @@ Merged on `integration/wave1` in this pass: main 392d313 (stock prompt default.v
   few-shot turns) as the shipped text for every stock model. An edit stored with `baseProfile` "default.v4" (made under
   the old stock profile) is `MADE_FOR_OLDER_PROMPT` (notice + Reset), as `PromptAssetsTest.editStateForTheSettingsRow`
   pins.
+- Merge checklist (pass-5 verification): `FakeCatalogRepository()` defaults to `CatalogParser.bundled()`
+  (2026-11-20.2, default.v1), so every pin of "default.v4" as the *active* stock profile fails at test time although the
+  textual merge is clean: SettingsViewModelTest 245, 260, 266, 268, 269, 279; PromptEditorTest 31, 54, 96, 109, 160, 175;
+  SettingsInteractionTest 123, 161, 174; SettingsFixtures.kt 75 (line numbers at wp/wp-19 797de6f). Use
+  `GgufTemplates.STOCK_PROFILE`; keep `baseProfile` "default.v4" only where the case expects `MADE_FOR_OLDER_PROMPT` or an
+  edit made under v4 (for example SettingsViewModelTest 247).

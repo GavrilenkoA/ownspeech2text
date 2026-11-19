@@ -119,3 +119,8 @@ Merged on `integration/wave1` in this pass: main 392d313 (stock prompt default.v
   `idleExitHistory`); `AsrService.probe` lists the OCR runtimes; `:app:assembleRelease` builds again and is part of the gate.
 - `AsrService.probe` now lists `ort/ppocr-det` and `ort/ppocr-rec` (ADR-086); a QNN OCR handler (`OcrHandlers.create`)
   must keep them and add the NPU unit only when its session really loads.
+- Catalog version (pass-5 verification): wp/wp-21 114fb35 bumped `CATALOG_VERSION` to "2026-11-20.2" independently of
+  integration's 2fb59ae (same string, different contents; `catalogVersion` is written into installed-artifact records).
+  Before or at the merge: rebase the catalog change onto integration's catalog, rerun `build_catalog.py` with network
+  checks on the merged tree, bump to "2026-11-20.3", and check that only WP-21's artifact rows and the version lines
+  differ from integration's 2026-11-20.2. Never hand-merge catalog.json.
