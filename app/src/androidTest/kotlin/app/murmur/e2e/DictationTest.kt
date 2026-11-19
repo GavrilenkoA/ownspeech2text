@@ -19,8 +19,12 @@ abstract class DictationTest {
     protected lateinit var rec: DictationRecorder
     protected var historyBefore = 0
 
+    /** False for a test that never dictates (it then neither needs the service nor the orchestrator). */
+    protected open val dictates: Boolean get() = true
+
     @Before
     fun startDictationWorld() {
+        if (!dictates) return
         Accessibility.enable()
         rec = DictationRecorder()
         historyBefore = Pipeline.historyCount()
@@ -28,10 +32,9 @@ abstract class DictationTest {
 
     @After
     fun stopDictationWorld() {
-        if (::rec.isInitialized) {
-            E2e.note("states=${rec.stateKinds()} bubbles=${rec.bubbleKinds()}")
-            rec.close()
-        }
+        if (!::rec.isInitialized) return
+        E2e.note("states=${rec.stateKinds()} bubbles=${rec.bubbleKinds()}")
+        rec.close()
         DeviceEvents.restore()
         if (!Accessibility.connected) Accessibility.enable()
         // Let a result pill dismiss so that the next test starts from Idle.

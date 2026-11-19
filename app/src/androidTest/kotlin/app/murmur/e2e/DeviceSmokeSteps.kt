@@ -7,9 +7,11 @@ import app.murmur.BuildConfig
 import app.murmur.core.catalog.ArtifactSelector
 import app.murmur.core.dictation.AsrReadiness
 import app.murmur.core.dictation.DictationOutcome
+import app.murmur.core.dictation.DictationState
 import app.murmur.core.dictation.LlmReadiness
 import app.murmur.core.model.ArtifactId
 import app.murmur.core.model.ComputeUnit
+import app.murmur.core.model.ModelId
 import app.murmur.core.model.UnitPreference
 import app.murmur.core.store.CleanupChoice
 import app.murmur.core.store.InstallState
@@ -25,22 +27,30 @@ import java.io.File
 
 /**
  * The on-device half of tools/device/murmur_app_smoke.sh (DEVICE_CHECKLIST DC8). Not a test of its own: each run is
- * one step chosen by instrumentation arguments, and it writes `files/dc8/<name>.json`, which the script reads with
+ * one step chosen by instrumentation arguments; it writes `files/dc8/<name>.json`, which the script reads with
  * `run-as`. Without `dc8.step` it is skipped (it only runs from the script).
  *
- *   -e dc8.step facts                       device profile, probes of both processes, installed artifacts
- *   -e dc8.step prepare -e dc8.pack <id>    download a catalog pack (Wi-Fi rule off) and wait for Preparing → Installed
- *   -e dc8.step dictate -e dc8.case <name> -e dc8.seconds <n>
- *        [-e dc8.preIdleSec 70]   wait first and record whether :asr/:llm exited (cold case)
- *        [-e dc8.editPrompt 1]    change "My preferences" right before (prefix rebuild case)
- *        [-e dc8.pinLlm npu]      pin the cleanup model to a unit (forced LLM-on-NPU while :asr holds QNN)
- *        [-e dc8.wav <device path>] play this WAV instead of the microphone (NONINTERACTIVE dry run)
- *        [-e dc8.idleCheckSec 70] after Done, record when :asr/:llm exit
- * The JSON holds codes, numbers and the inserted text (the owner's own scripted phrases); nothing is logged.
+ *   -e dc8.step facts                                  device profile, probes of both processes, installed artifacts
+ *   -e dc8.step prepare -e dc8.pack <id>               download a catalog pack (Wi-Fi rule off), wait for Preparing →
+ *                       | -e dc8.artifacts <a,b>       Installed; or exactly these artifacts
+ *   -e dc8.step dictate -e dc8.cases <case,case,...>   the scripted dictations, all in ONE instrumentation run (its end
+ *                                                       kills every app process, which would fake the idle exit)
+ *        case = <name>:<seconds>[:idle<N>][:edit][:pin<unit>]
+ *          idle<N>   wait N s first and record whether :asr/:llm were still running (cold case, "first after 70 s idle")
+ *          edit      change "My preferences" right before (the prefix must be rebuilt: "right after a prompt edit")
+ *          pin<unit> pin the cleanup model to npu/gpu/cpu ("forced LLM-on-NPU while :asr holds QNN")
+ *        [-e dc8.wavDir <device dir>]  play <dir>/<name>.wav instead of the microphone (NONINTERACTIVE dry run)
+ *        [-e dc8.models <asr>,<llm>]   select these models first (the emulator dry run: GigaAM + Qwen3.5, ADR-063)
+ *        [-e dc8.emulator 1]           CPU emulator: LLM pinned to CPU, memory gate ignored, timeouts x4 (debug knobs)
+ *        [-e dc8.idleCheckSec 70]      after the last case, record when :asr/:llm exit and MemAvailable afterwards
+ * Logcat lines `E2E: dc8 speak case=<name> seconds=<n>` and `dc8 listening case=<name>` let the script show the text
+ * to read at the right moment. The JSON holds codes, numbers and the inserted text (the owner's own scripted
+ * phrases, kept in the local report only); nothing of it is logged.
  */
 @RunWith(AndroidJUnit4::class)
 class DeviceSmokeSteps : DictationTest() {
     private fun arg(name: String): String? = E2e.args.getString("dc8.$name")
+    override val dictates: Boolean get() = arg("step") == "dictate"
     private val outDir get() = File(E2e.context.filesDir, "dc8").apply { mkdirs() }
 
     private fun write(name: String, json: JSONObject) {
@@ -54,8 +64,8 @@ class DeviceSmokeSteps : DictationTest() {
         assumeTrue("DeviceSmokeSteps runs only from tools/device/murmur_app_smoke.sh (-e dc8.step ...)", step != null)
         when (step) {
             "facts" -> facts()
-            "prepare" -> prepare(arg("pack") ?: "recommended")
-            "dictate" -> dictateCase(checkNotNull(arg("case")) { "dc8.case" }, checkNotNull(arg("seconds")) { "dc8.seconds" }.toLong())
+            "prepare" -> prepare()
+            "dictate" -> dictateAll(checkNotNull(arg("cases")) { "dc8.cases" })
             else -> throw AssertionError("unknown dc8.step $step")
         }
     }
@@ -79,27 +89,36 @@ class DeviceSmokeSteps : DictationTest() {
                 put("nativeBuilds", JSONObject(profile.nativeBuilds))
                 put("totalRamMb", profile.totalRamMb)
             })
-            put("asrProbe", JSONObject().apply { put("units", JSONArray(asrProbe.units.map { it.name })); put("facts", JSONObject(asrProbe.facts)) })
-            put("llmProbe", JSONObject().apply { put("units", JSONArray(llmProbe.units.map { it.name })); put("facts", JSONObject(llmProbe.facts)) })
+            put("asrProbe", JSONObject().put("units", JSONArray(asrProbe.units.map { it.name })).put("facts", JSONObject(asrProbe.facts)))
+            put("llmProbe", JSONObject().put("units", JSONArray(llmProbe.units.map { it.name })).put("facts", JSONObject(llmProbe.facts)))
             put("installed", JSONArray(c.installed.states.value.filterValues { it is InstallState.Installed }.keys.map { it.value }.sorted()))
             put("memAvailableMb", memAvailableMb())
         })
     }
 
     /** One artifact per pack model (ArtifactSelector.choose on this device), downloaded and prepared like the hub does. */
-    private fun prepare(packId: String) = runBlocking {
+    private fun prepare() = runBlocking {
         val c = E2e.container
         val catalog = c.catalog.catalog.value
-        val pack = catalog.packs.firstOrNull { it.id == packId } ?: throw AssertionError("no pack $packId in the catalog")
         val profile = c.deviceProfile.ensure()
         val settings = c.settings.settings.value
+        val packId = arg("pack")
+        val wanted: List<Pair<String, ArtifactId>> = arg("artifacts")?.split(',')?.map { a ->
+            val (entry, _) = catalog.artifact(ArtifactId(a)) ?: throw AssertionError("unknown artifact $a")
+            entry.id.value to ArtifactId(a)
+        } ?: run {
+            val id = packId ?: "recommended"
+            val pack = catalog.packs.firstOrNull { it.id == id } ?: throw AssertionError("no pack $id in the catalog")
+            pack.items.map { modelId ->
+                val entry = catalog.model(modelId) ?: throw AssertionError("pack $id names unknown model ${modelId.value}")
+                val pref = settings.unitPreference[modelId.value] ?: UnitPreference.Auto
+                val chosen = ArtifactSelector.choose(entry, profile, pref, health = c.unitHealth)
+                    ?: throw AssertionError("nothing usable for ${modelId.value} on this device")
+                modelId.value to chosen.artifact.id
+            }
+        }
         val results = JSONArray()
-        for (modelId in pack.items) {
-            val entry = catalog.model(modelId) ?: throw AssertionError("pack $packId names unknown model ${modelId.value}")
-            val pref = settings.unitPreference[modelId.value] ?: UnitPreference.Auto
-            val chosen = ArtifactSelector.choose(entry, profile, pref, health = c.unitHealth)
-                ?: throw AssertionError("nothing usable for ${modelId.value} on this device")
-            val id = chosen.artifact.id
+        for ((model, id) in wanted) {
             val t0 = SystemClock.uptimeMillis()
             c.installed.download(id, wifiOnly = false)
             var preparingAt: Long? = null
@@ -111,7 +130,7 @@ class DeviceSmokeSteps : DictationTest() {
             }
             val end = SystemClock.uptimeMillis()
             results.put(JSONObject().apply {
-                put("model", modelId.value); put("artifact", id.value); put("unit", chosen.unit.name)
+                put("model", model); put("artifact", id.value)
                 put("state", final::class.simpleName)
                 if (final is InstallState.Failed) put("error", final.error.code)
                 put("downloadMs", (preparingAt ?: end) - t0)
@@ -119,7 +138,7 @@ class DeviceSmokeSteps : DictationTest() {
                 put("health", JSONObject(ComputeUnit.entries.associate { u -> u.name to healthOf(id, u) }))
             })
         }
-        write("prepare-$packId", JSONObject().put("pack", packId).put("artifacts", results).put("memAvailableMb", memAvailableMb()))
+        write("prepare", JSONObject().put("pack", packId ?: JSONObject.NULL).put("artifacts", results).put("memAvailableMb", memAvailableMb()))
     }
 
     private fun healthOf(id: ArtifactId, unit: ComputeUnit): String = when {
@@ -128,54 +147,116 @@ class DeviceSmokeSteps : DictationTest() {
         else -> "unknown"
     }
 
-    private fun dictateCase(case: String, seconds: Long) {
+    private data class Case(val name: String, val seconds: Long, val preIdleSec: Long?, val edit: Boolean, val pin: ComputeUnit?)
+
+    private fun parse(spec: String): Case {
+        val parts = spec.split(':')
+        require(parts.size >= 2) { "case $spec: <name>:<seconds>[:idle<N>][:edit][:pin<unit>]" }
+        val flags = parts.drop(2)
+        return Case(
+            name = parts[0], seconds = parts[1].toLong(),
+            preIdleSec = flags.firstOrNull { it.startsWith("idle") }?.removePrefix("idle")?.toLong(),
+            edit = "edit" in flags,
+            pin = flags.firstOrNull { it.startsWith("pin") }?.removePrefix("pin")?.let { ComputeUnit.valueOf(it.uppercase()) },
+        )
+    }
+
+    private fun dictateAll(spec: String) {
+        val cases = spec.split(',').map(::parse)
+        val models = arg("models")?.split(',')
+        val emulator = arg("emulator") == "1"
+        if (models != null || emulator) runBlocking {
+            E2e.container.settings.update { s ->
+                var n = s
+                if (models != null) {
+                    require(models.size == 2) { "dc8.models <asrModel>,<llmModel>" }
+                    n = n.copy(asrModel = ModelId(models[0]), cleanup = CleanupChoice.Model(ModelId(models[1])))
+                }
+                if (emulator) {
+                    val llm = (n.cleanup as? CleanupChoice.Model)?.id?.value
+                    n = n.copy(
+                        unitPreference = if (llm != null) n.unitPreference + (llm to UnitPreference.Pinned(ComputeUnit.CPU)) else n.unitPreference,
+                        debugIgnoreMemoryGate = true,
+                        debugTimeoutScale = 4f,
+                    )
+                }
+                n
+            }
+        }
+        var lastDoneAt = 0L
+        for (case in cases) {
+            lastDoneAt = dictateCase(case)
+            E2e.waitUntil("Idle after ${case.name}", 30_000, pollMs = 100) { E2e.container.orchestrator.state.value is DictationState.Idle }
+        }
+        arg("idleCheckSec")?.toLong()?.let { idle ->
+            var asrGone: Long? = null
+            var llmGone: Long? = null
+            while (SystemClock.uptimeMillis() < lastDoneAt + idle * 1_000) {
+                val t = SystemClock.uptimeMillis() - lastDoneAt
+                if (asrGone == null && Processes.pidOf(Processes.ASR) == null) asrGone = t
+                if (llmGone == null && Processes.pidOf(Processes.LLM) == null) llmGone = t
+                SystemClock.sleep(1_000)
+            }
+            write("idle", JSONObject().put("idleCheckSec", idle)
+                .put("asrExitAfterDoneMs", asrGone ?: JSONObject.NULL).put("llmExitAfterDoneMs", llmGone ?: JSONObject.NULL)
+                .put("asrRunning", Processes.pidOf(Processes.ASR) != null).put("llmRunning", Processes.pidOf(Processes.LLM) != null)
+                .put("memAvailableMb", memAvailableMb()))
+        }
+    }
+
+    /** One scripted dictation; returns the uptime of its Done. */
+    private fun dictateCase(case: Case): Long {
         val c = E2e.container
-        val wav = arg("wav")
-        if (wav != null) {
-            val bytes = E2e.uiAutomation.executeShellCommand("cat $wav").let { android.os.ParcelFileDescriptor.AutoCloseInputStream(it).use { s -> s.readBytes() } }
-            check(bytes.size > 44) { "dc8.wav $wav is missing" }
+        val wavDir = arg("wavDir")
+        if (wavDir != null) {
+            val path = "$wavDir/${case.name}.wav"
+            val bytes = E2e.uiAutomation.executeShellCommand("cat $path").let { android.os.ParcelFileDescriptor.AutoCloseInputStream(it).use { s -> s.readBytes() } }
+            check(bytes.size > 44) { "$path is missing" }
             Fixtures.captureFile.writeBytes(bytes)
         } else {
             Fixtures.captureFile.delete()   // the real microphone
         }
-        arg("pinLlm")?.let { unit ->
+        case.pin?.let { unit ->
             runBlocking {
                 c.settings.update { s ->
-                    val llm = (s.cleanup as? CleanupChoice.Model)?.id?.value ?: c.catalog.catalog.value.defaults.llm?.value
-                        ?: throw AssertionError("dc8.pinLlm: no cleanup model selected and no catalog default")
-                    s.copy(unitPreference = s.unitPreference + (llm to UnitPreference.Pinned(ComputeUnit.valueOf(unit.uppercase()))))
+                    val llm = (s.cleanup as? CleanupChoice.Model)?.id ?: c.catalog.catalog.value.defaults.llm
+                        ?: throw AssertionError("case ${case.name}: no cleanup model selected and no catalog default")
+                    s.copy(unitPreference = s.unitPreference + (llm.value to UnitPreference.Pinned(unit)))
                 }
             }
         }
-        val out = JSONObject().put("case", case).put("seconds", seconds)
-        arg("preIdleSec")?.toLong()?.let { idle ->
+        val out = JSONObject().put("case", case.name).put("seconds", case.seconds).put("pinnedLlmUnit", case.pin?.name ?: JSONObject.NULL)
+        case.preIdleSec?.let { idle ->
             SystemClock.sleep(idle * 1_000)
+            out.put("preIdleSec", idle)
             out.put("asrRunningBefore", Processes.pidOf(Processes.ASR) != null)
             out.put("llmRunningBefore", Processes.pidOf(Processes.LLM) != null)
         }
-        if (arg("editPrompt") == "1") {
-            runBlocking { c.settings.update { it.copy(preferences = (it.preferences.orEmpty() + " ").take(1_000)) } }
+        if (case.edit) {
+            runBlocking { c.settings.update { it.copy(preferences = ((it.preferences ?: "") + " ").take(1_000)) } }
         }
+        rec.states.clear()
+        historyBefore = Pipeline.historyCount()
         TargetApp.open(TargetApp.Target.PLAIN)
         val memBefore = memAvailableMb()
-        E2e.note("dc8 speak case=$case seconds=$seconds")
+        E2e.note("dc8 speak case=${case.name} seconds=${case.seconds}")
         val pressAt = SystemClock.uptimeMillis()
-        dictate(listenMs = seconds * 1_000, listeningTimeoutMs = 30_000) { E2e.note("dc8 listening case=$case") }
+        dictate(listenMs = case.seconds * 1_000, listeningTimeoutMs = 30_000) { E2e.note("dc8 listening case=${case.name}") }
         val stopAt = SystemClock.uptimeMillis()
         val done = rec.awaitDone(300_000)
         val doneAt = SystemClock.uptimeMillis()
-        E2e.note("dc8 done case=$case")
-        val asr = rec.states.firstNotNullOfOrNull { (rec.enginesOf(it.value)?.asr as? AsrReadiness.Ready) }
-        val llm = rec.states.firstNotNullOfOrNull { (rec.enginesOf(it.value)?.llm as? LlmReadiness.Ready) }
-        val crashes = rec.states.mapNotNull { rec.enginesOf(it.value) }.lastOrNull()
-        val row = runBlocking { c.history.entries().first() }.maxByOrNull { it.createdAt }
+        E2e.note("dc8 done case=${case.name}")
+        val asr = rec.states.firstNotNullOfOrNull { rec.enginesOf(it.value)?.asr as? AsrReadiness.Ready }
+        val llm = rec.states.firstNotNullOfOrNull { rec.enginesOf(it.value)?.llm as? LlmReadiness.Ready }
+        val engines = rec.states.mapNotNull { rec.enginesOf(it.value) }.lastOrNull()
+        val row = if (Pipeline.historyCount() > historyBefore) Pipeline.historyEntries().maxBy { it.createdAt } else null
         out.apply {
             put("outcome", done.outcome::class.simpleName)
             (done.outcome as? DictationOutcome.Failed)?.let { put("error", it.error.code) }
             (done.outcome as? DictationOutcome.Inserted)?.let { put("noCleanup", it.noCleanup); put("skipReason", it.skipReason ?: JSONObject.NULL) }
             put("asr", asr?.let { JSONObject().put("unit", it.info.unit.name).put("deviceName", it.info.deviceName).put("loadMs", it.info.loadMs).put("fellBack", it.fellBack) } ?: JSONObject.NULL)
             put("llm", llm?.let { JSONObject().put("unit", it.info.unit.name).put("deviceName", it.info.deviceName).put("loadMs", it.info.loadMs).put("prefixTokens", it.prefixTokens).put("nCtx", it.nCtx).put("fellBack", it.fellBack) } ?: JSONObject.NULL)
-            put("asrCrashes", crashes?.asrCrashes ?: 0); put("llmCrashes", crashes?.llmCrashes ?: 0)
+            put("asrCrashes", engines?.asrCrashes ?: 0); put("llmCrashes", engines?.llmCrashes ?: 0)
             put("pressToStopMs", stopAt - pressAt); put("stopToDoneMsTest", doneAt - stopAt)
             row?.let { r ->
                 put("cleanupOutcome", r.cleanup?.outcome ?: JSONObject.NULL)
@@ -192,18 +273,7 @@ class DeviceSmokeSteps : DictationTest() {
             for (id in c.installed.states.value.keys) for (u in ComputeUnit.entries) if (c.unitHealth.failed(id, u)) failedUnits.put("${id.value}:${u.name}")
             put("unitHealthFailed", failedUnits)
         }
-        arg("idleCheckSec")?.toLong()?.let { idle ->
-            var asrGone: Long? = null
-            var llmGone: Long? = null
-            while (SystemClock.uptimeMillis() < doneAt + idle * 1_000) {
-                val t = SystemClock.uptimeMillis() - doneAt
-                if (asrGone == null && Processes.pidOf(Processes.ASR) == null) asrGone = t
-                if (llmGone == null && Processes.pidOf(Processes.LLM) == null) llmGone = t
-                SystemClock.sleep(1_000)
-            }
-            out.put("asrExitAfterDoneMs", asrGone ?: JSONObject.NULL).put("llmExitAfterDoneMs", llmGone ?: JSONObject.NULL)
-            out.put("memAvailableAfterIdleMb", memAvailableMb())
-        }
-        write("dictate-$case", out)
+        write("dictate-${case.name}", out)
+        return doneAt
     }
 }

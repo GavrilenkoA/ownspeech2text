@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""The pinned FLEURS ru dev clip of the real end-to-end test (CC-BY-4.0, google/fleurs, public, no token).
+"""Pinned FLEURS dev clips (CC-BY-4.0, google/fleurs, public, no token) for the real end-to-end test and the DC8 dry run.
 
-  tools/e2e/fleurs_clip.py <out_dir>        -> <out_dir>/fleurs-ru.wav (PCM16 mono 16 kHz) + fleurs-ru.txt (reference)
+  tools/e2e/fleurs_clip.py <out_dir> [ru|en]   -> <out_dir>/fleurs-<lang>.wav (PCM16 mono 16 kHz) + fleurs-<lang>.txt
 
 The dev tarball (187 MB) and its TSV are downloaded once into <main checkout>/.cache/e2e/fleurs/ (shared by every
 worktree; MURMUR_FLEURS_DIR overrides), pinned to a dataset commit and checked against their sha256. The reference is
@@ -15,13 +15,15 @@ _gai = socket.getaddrinfo
 socket.getaddrinfo = lambda host, *a, **k: [r for r in _gai(host, *a, **k) if r[0] == socket.AF_INET] or _gai(host, *a, **k)
 
 REVISION = "70bb2e84b976b7e960aa89f1c648e09c59f894dd"
-BASE = f"https://huggingface.co/datasets/google/fleurs/resolve/{REVISION}/data/ru_ru"
+BASE = f"https://huggingface.co/datasets/google/fleurs/resolve/{REVISION}/data"
 FILES = {
-    "ru_dev.tar.gz": (f"{BASE}/audio/dev.tar.gz", 187377526, "4dc533cd0f312f749bd6d0fe968f3183288d938e07ed97dc141d9f10570457f9"),
-    "ru_dev.tsv": (f"{BASE}/dev.tsv", 316328, "25d9dc88a7533fc0f303354a8e6d3c8186c557229c9a0024487090a11226171e"),
+    "ru_dev.tar.gz": (f"{BASE}/ru_ru/audio/dev.tar.gz", 187377526, "4dc533cd0f312f749bd6d0fe968f3183288d938e07ed97dc141d9f10570457f9"),
+    "ru_dev.tsv": (f"{BASE}/ru_ru/dev.tsv", 316328, "25d9dc88a7533fc0f303354a8e6d3c8186c557229c9a0024487090a11226171e"),
+    "en_dev.tar.gz": (f"{BASE}/en_us/audio/dev.tar.gz", 171250900, "2658fda72f199e12676ecac9415094667a4e14e149b146e568ea00b2a2f0954c"),
+    "en_dev.tsv": (f"{BASE}/en_us/dev.tsv", 213065, "9d57ee7e91e9d4c92edb39f6bbea668ef8dc2a3ff96eb510d5580b2ad05d17ec"),
 }
-# 8.94 s, female speaker; plain vocabulary (no names or numerals that ASR may spell differently).
-CLIP = "8292209001184880742.wav"
+# ~9 s each, plain vocabulary (no names or numerals that ASR may spell differently).
+CLIPS = {"ru": "8292209001184880742.wav", "en": "2606692427476446963.wav"}
 
 
 def cache_dir() -> pathlib.Path:
@@ -89,26 +91,29 @@ def wav16(pcm: bytes) -> bytes:
 
 def main() -> None:
     out = pathlib.Path(sys.argv[1] if len(sys.argv) > 1 else ".")
+    lang = sys.argv[2] if len(sys.argv) > 2 else "ru"
+    if lang not in CLIPS:
+        sys.exit(f"language {lang}: one of {sorted(CLIPS)}")
+    clip = CLIPS[lang]
     out.mkdir(parents=True, exist_ok=True)
     d = cache_dir()
     d.mkdir(parents=True, exist_ok=True)
-    tsv = fetch("ru_dev.tsv", d)
+    tsv = fetch(f"{lang}_dev.tsv", d)
     ref = None
     for line in tsv.read_text(encoding="utf-8").splitlines():
         cols = line.split("\t")
-        if len(cols) > 3 and cols[1] == CLIP:
+        if len(cols) > 3 and cols[1] == clip:
             ref = cols[3].strip()
             break
     if not ref:
-        sys.exit(f"{CLIP} not in the TSV")
-    tar = fetch("ru_dev.tar.gz", d)
+        sys.exit(f"{clip} not in the TSV")
+    tar = fetch(f"{lang}_dev.tar.gz", d)
     with tarfile.open(tar) as t:
-        member = t.getmember(f"dev/{CLIP}")
-        wav = t.extractfile(member).read()
+        wav = t.extractfile(t.getmember(f"dev/{clip}")).read()
     pcm = to_pcm16(wav)
-    (out / "fleurs-ru.wav").write_bytes(wav16(pcm))
-    (out / "fleurs-ru.txt").write_text(ref + "\n", encoding="utf-8")
-    print(f"{out / 'fleurs-ru.wav'}: {len(pcm) // 32} ms; reference {len(ref.split())} words")
+    (out / f"fleurs-{lang}.wav").write_bytes(wav16(pcm))
+    (out / f"fleurs-{lang}.txt").write_text(ref + "\n", encoding="utf-8")
+    print(f"{out / f'fleurs-{lang}.wav'}: {len(pcm) // 32} ms; reference {len(ref.split())} words")
 
 
 if __name__ == "__main__":
