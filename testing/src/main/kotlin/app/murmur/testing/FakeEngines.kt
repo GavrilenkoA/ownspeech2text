@@ -75,15 +75,30 @@ class FakeInferenceHost(
     override suspend fun probe() = ProcessProbe(process, app.murmur.core.catalog.RuntimeKeys.known, units, facts)
     override suspend fun memory() = ProcessMemory(100_000, 90_000, 80_000, 4_000)
     override fun scheduleIdleExit(ms: Long) { idleExitMs = ms }
-    override suspend fun shutdown() { shutdowns++; _state.value = HostState.Down; listeners.forEach { it() } }
+    /** How long shutdown() takes (unbind + process kill), in coroutine time. */
+    var shutdownDelayMs: Long = 0
 
-    /** Simulate a native crash of the process. */
-    fun crash() {
+    override suspend fun shutdown() {
+        shutdowns++
+        if (shutdownDelayMs > 0) delay(shutdownDelayMs)
+        _state.value = HostState.Down
+        listeners.forEach { it() }
+    }
+
+    /**
+     * Simulate a native crash of the process. [publish] = false fails the in-flight calls (EPIPE / DeadObject) without
+     * the state notice yet; [publishCrash] delivers it later (binderDied / onServiceDisconnected arriving after the
+     * failing call, an order the binder does not fix).
+     */
+    fun crash(publish: Boolean = true) {
         crashes++
-        _state.value = HostState.Crashed(crashes)
+        if (publish) _state.value = HostState.Crashed(crashes)
         listeners.forEach { it() }
         _deaths.tryEmit(crashes)
     }
+
+    /** The late state notice of the last [crash] (publish = false). */
+    fun publishCrash() { _state.value = HostState.Crashed(crashes) }
 }
 
 /**
@@ -105,6 +120,8 @@ class FakeAsrEngine(
     val host: FakeInferenceHost? = null,
 ) : AsrEngine {
     var loads = 0; private set
+    /** Every load call's unit, failed ones included (loadedUnits holds the successful ones). */
+    val loadAttempts = mutableListOf<ComputeUnit>()
     val loadedUnits = mutableListOf<ComputeUnit>()
     var loaded: LoadSpec? = null; private set
     val sessions = mutableListOf<FakeAsrSession>()
@@ -113,6 +130,7 @@ class FakeAsrEngine(
 
     override suspend fun load(asr: LoadSpec, vad: LoadSpec?): Outcome<LoadInfo> {
         loads++
+        loadAttempts += asr.unit
         if (loadDelayMs > 0) delay(loadDelayMs)
         (loadErrors[asr.unit] ?: loadError)?.let { return Outcome.Err(it) }
         loaded = asr
@@ -202,7 +220,11 @@ class FakeLlmEngine(
 ) : LlmEngine {
     var prefix: PrefixSpec? = null; private set
     var loadedUnit: ComputeUnit? = null; private set
+    /** Every load call's unit, failed ones included (loadedUnits holds the successful ones). */
+    val loadAttempts = mutableListOf<ComputeUnit>()
     val loadedUnits = mutableListOf<ComputeUnit>()
+    /** Every setPrefix call (snapshot builds and restores). */
+    val prefixCalls = mutableListOf<PrefixSpec>()
     var requests = mutableListOf<LlmRequest>()
     var cancelled = 0; private set
     var benches = 0; private set
@@ -211,6 +233,7 @@ class FakeLlmEngine(
     init { host?.onDeath { loadedUnit = null; prefix = null; died.complete(Unit); died = CompletableDeferred() } }
 
     override suspend fun load(spec: LoadSpec): Outcome<LoadInfo> {
+        loadAttempts += spec.unit
         if (loadDelayMs > 0) delay(loadDelayMs)
         (loadErrors[spec.unit] ?: loadError)?.let { return Outcome.Err(it) }
         loadedUnit = spec.unit
@@ -219,6 +242,7 @@ class FakeLlmEngine(
     }
 
     override suspend fun setPrefix(prefix: PrefixSpec): Outcome<PrefixInfo> {
+        prefixCalls += prefix
         if (prefixDelayMs > 0) delay(prefixDelayMs)
         this.prefix = prefix
         return Outcome.Ok(PrefixInfo((prefix.text.length * 0.27).toInt(), 1, restoredFromDisk = false, bytes = 0))

@@ -14,17 +14,21 @@ import app.murmur.core.dictation.HapticKind
 import app.murmur.core.dictation.InsertResult
 import app.murmur.core.dictation.Inserter
 import app.murmur.core.dictation.MemoryGate
+import app.murmur.core.dictation.SystemConditions
 import app.murmur.core.dictation.TargetReader
 import app.murmur.core.model.MurmurError
 import app.murmur.core.model.Outcome
 import app.murmur.core.model.SessionId
 import app.murmur.core.ocr.ScreenImage
+import app.murmur.core.store.AudioStore
+import app.murmur.core.store.AudioWriter
 import app.murmur.core.store.InsertMethod
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.flow
 
 /** A tone burst of [speechMs] at amplitude 3000 surrounded by silence: enough for the fake ASR "speech" check. */
 fun syntheticSpeech(totalMs: Long = 3_000, speechMs: Long = 2_000): ShortArray {
@@ -35,50 +39,96 @@ fun syntheticSpeech(totalMs: Long = 3_000, speechMs: Long = 2_000): ShortArray {
 }
 
 /**
- * Plays [pcm] as 20 ms chunks. [startError] simulates a busy/blocked microphone; [signal] injects a mid-recording
- * CaptureSignal (call, mic lost) into the running handle (ExternalStop tests); [audioKeys] records the file names.
+ * Plays [pcm] as 20 ms chunks, paced in coroutine time when [realTime] (virtual time in runTest: a 3 s clip takes 3 s,
+ * so stops, calls and crashes land mid-recording), else all at once. [startError] simulates a busy/blocked
+ * microphone and [startDelayMs] a slow FGS + first buffer; [signal] injects a mid-recording CaptureSignal into the
+ * running handle; [audioKeys] / [keepFlags] record the start arguments. With [store] and keepRecording, the samples
+ * handed out are written to `store.newWriter(audioKey)` like the real encoder (stop() closes it, cancel() discards it).
+ * The chunk flow is meant for one collector (the orchestrator) and completes after stop() or at the end of [pcm].
  */
-class FakeAudioCapture(var pcm: ShortArray = syntheticSpeech(), var startError: MurmurError? = null) : AudioCapture {
+class FakeAudioCapture(
+    var pcm: ShortArray = syntheticSpeech(),
+    var startError: MurmurError? = null,
+    var store: AudioStore? = null,
+    var startDelayMs: Long = 0,
+    var realTime: Boolean = true,
+) : AudioCapture {
     var starts = 0; private set
     val audioKeys = mutableListOf<String>()
+    val keepFlags = mutableListOf<Boolean>()
     var current: Handle? = null; private set
 
     override suspend fun start(session: SessionId, keepRecording: Boolean, audioKey: String): Outcome<CaptureHandle> {
         starts++
         audioKeys += audioKey
+        keepFlags += keepRecording
+        if (startDelayMs > 0) delay(startDelayMs)
         startError?.let { return Outcome.Err(it) }
-        return Outcome.Ok(Handle(pcm).also { current = it })
+        val writer = if (keepRecording) store?.newWriter(audioKey) else null
+        return Outcome.Ok(Handle(pcm, writer, realTime).also { current = it })
     }
 
     fun signal(s: CaptureSignal) { current?.signalsFlow?.tryEmit(s) }
 
-    class Handle(private val pcm: ShortArray) : CaptureHandle {
-        override val chunks: Flow<PcmChunk> =
-            (pcm.indices step PcmFormat.FRAME_SAMPLES).map { i ->
-                PcmChunk(pcm.copyOfRange(i, minOf(i + PcmFormat.FRAME_SAMPLES, pcm.size)), i.toLong())
-            }.asFlow()
+    class Handle(private val pcm: ShortArray, private val writer: AudioWriter? = null, private val realTime: Boolean = true) : CaptureHandle {
+        var cancelled = false; private set
+        var stopped = false; private set
+        /** Samples handed to the collector so far ("the audio so far"). */
+        var emittedSamples = 0L; private set
+
+        override val chunks: Flow<PcmChunk> = flow {
+            var i = 0
+            while (i < pcm.size && !stopped && !cancelled) {
+                if (realTime) delay(PcmFormat.samplesToMs(PcmFormat.FRAME_SAMPLES.toLong()))
+                if (stopped || cancelled) break
+                val end = minOf(i + PcmFormat.FRAME_SAMPLES, pcm.size)
+                val chunk = PcmChunk(pcm.copyOfRange(i, end), i.toLong())
+                writer?.write(chunk.samples, chunk.samples.size)
+                emittedSamples = end.toLong()
+                emit(chunk)
+                i = end
+            }
+        }
         override val levels: StateFlow<FloatArray> = MutableStateFlow(FloatArray(7))
         internal val signalsFlow = MutableSharedFlow<CaptureSignal>(extraBufferCapacity = 8)
         override val signals: Flow<CaptureSignal> = signalsFlow
-        var cancelled = false; private set
-        var stopped = false; private set
+
         override suspend fun stop(): CaptureResult {
             stopped = true
-            return CaptureResult(PcmFormat.samplesToMs(pcm.size.toLong()), null, pcm.maxOfOrNull { kotlin.math.abs(it.toInt()) } ?: 0, false)
+            val n = if (realTime) emittedSamples.toInt() else pcm.size
+            val audio = writer?.close()
+            return CaptureResult(PcmFormat.samplesToMs(n.toLong()), audio, (0 until n).maxOfOrNull { kotlin.math.abs(pcm[it].toInt()) } ?: 0, false)
         }
-        override fun cancel() { cancelled = true }
+
+        override fun cancel() {
+            cancelled = true
+            writer?.discard()
+        }
     }
 }
 
+/**
+ * [shadeDelayMs] = how long the notification shade takes to collapse (snapshotAfterShade waits min(that, timeout);
+ * past the timeout it returns null like the real reader without an application window). [currentOverride] = the
+ * focus at delivery (password field, other app).
+ */
 class FakeTargetReader(
     var target: A11ySnapshot? = defaultTarget(),
     var screenshotError: MurmurError? = null,
     var currentOverride: A11ySnapshot? = null,
+    var shadeDelayMs: Long = 0,
 ) : TargetReader {
     var screenshots = 0; private set
     var shadeWaits = 0; private set
-    override suspend fun snapshot(): A11ySnapshot? = target
-    override suspend fun snapshotAfterShade(timeoutMs: Long): A11ySnapshot? { shadeWaits++; return target }
+    var snapshots = 0; private set
+    var lastShadeTimeoutMs: Long? = null; private set
+    override suspend fun snapshot(): A11ySnapshot? { snapshots++; return target }
+    override suspend fun snapshotAfterShade(timeoutMs: Long): A11ySnapshot? {
+        shadeWaits++
+        lastShadeTimeoutMs = timeoutMs
+        delay(minOf(shadeDelayMs, timeoutMs))
+        return if (shadeDelayMs > timeoutMs) null else target
+    }
     override suspend fun screenshot(target: A11ySnapshot): Outcome<ScreenImage> {
         screenshots++
         screenshotError?.let { return Outcome.Err(it) }
@@ -96,12 +146,21 @@ class FakeTargetReader(
     }
 }
 
-/** Records what would be inserted; [result] decides the outcome. */
-class RecordingInserter(var result: InsertResult = InsertResult.Inserted(InsertMethod.COMMIT_TEXT)) : Inserter {
+/**
+ * Records what would be inserted; [result] decides the outcome. [calls] keeps the order ("clipboard", "insert").
+ * [insertDelayMs] = how long the ladder takes (coroutine time; the DELIVERY timer test).
+ */
+class RecordingInserter(var result: InsertResult = InsertResult.Inserted(InsertMethod.COMMIT_TEXT), var insertDelayMs: Long = 0) : Inserter {
     val inserted = mutableListOf<String>()
     val clipboard = mutableListOf<String>()
-    override suspend fun insert(target: A11ySnapshot, text: String): InsertResult { inserted += text; return result }
-    override fun copyToClipboard(text: String): Boolean { clipboard += text; return true }
+    val calls = mutableListOf<String>()
+    override suspend fun insert(target: A11ySnapshot, text: String): InsertResult {
+        calls += "insert"
+        if (insertDelayMs > 0) delay(insertDelayMs)
+        inserted += text
+        return result
+    }
+    override fun copyToClipboard(text: String): Boolean { calls += "clipboard"; clipboard += text; return true }
 }
 
 class RecordingFeedback : Feedback {
@@ -117,4 +176,10 @@ class FakeInAppTarget(override val snapshot: A11ySnapshot = FakeTargetReader.def
     override fun insert(text: String) { inserted += text }
 }
 
-class FixedMemoryGate(var mb: Long = 6_000) : MemoryGate { override fun availableMb() = mb }
+/** [source] overrides [mb] (e.g. "more memory once :asr is down"). */
+class FixedMemoryGate(var mb: Long = 6_000, var source: (() -> Long)? = null) : MemoryGate { override fun availableMb() = source?.invoke() ?: mb }
+
+class FakeSystemConditions(var freeBytes: Long = 181_000_000_000, var thermalCritical: Boolean = false) : SystemConditions {
+    override fun freeStorageBytes() = freeBytes
+    override fun thermalCritical() = thermalCritical
+}

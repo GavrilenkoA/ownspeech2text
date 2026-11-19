@@ -27,7 +27,9 @@ import app.murmur.core.context.Screen
 import app.murmur.core.dictation.ActiveLlm
 import app.murmur.core.dictation.ActiveModels
 import app.murmur.core.dictation.AppNavigator
+import app.murmur.core.dictation.LlmPrepare
 import app.murmur.core.dictation.LlmSpeed
+import app.murmur.core.dictation.PrepareTargets
 import app.murmur.core.dictation.ModelResolver
 import app.murmur.core.dictation.OpenTarget
 import app.murmur.core.dictation.PermissionMonitor
@@ -118,6 +120,9 @@ class FakeCatalogRepository(initial: Catalog = CatalogParser.bundled()) : Catalo
  * Resolves to specs under /fake/models. [npuFirst] = the Fold7 shape: NPU primary + CPU fallback for ASR (two
  * artifacts) and LLM (same artifact, other unit); [cpuFallback] = false drops the fallbacks (no CPU artifact
  * installed). [noAsr] / [noVad] simulate the resolver errors; [cleanup] = false -> llm null with llmUnavailable.
+ * Like the real resolver it skips units that [health] marks failed (ArtifactSelector.ranked): after an NPU load
+ * failure the next dictation resolves straight to CPU. [delayMs] slows resolve() (stale-session tests).
+ * [prepareTargets] covers the same artifacts (plus the VAD and the OCR pair).
  */
 class FakeModelResolver(
     var noAsr: Boolean = false,
@@ -128,36 +133,70 @@ class FakeModelResolver(
     var llmSpeed: LlmSpeed? = LlmSpeed(prefillTps = 569.0, decodeTps = 83.8),
     var nCtx: Int = 9_216,
     var prefixTokens: Int? = 3_129,
+    var health: app.murmur.core.catalog.UnitHealth = app.murmur.core.catalog.UnitHealth.NONE,
+    var delayMs: Long = 0,
+    var llmMemoryMb: Int = 770,
 ) : ModelResolver {
     var calls = 0; private set
 
+    private fun spec(kind: ModelKind, id: String, rt: String, unit: ComputeUnit = ComputeUnit.CPU, opts: Map<String, String> = emptyMap()) =
+        LoadSpec(kind, ModelId(id.substringBefore('@')), ArtifactId(id), rt, unit, "/fake/models/$id", emptyMap(), options = opts)
+
+    val asrCpu = spec(ModelKind.ASR, "parakeet-tdt-0.6b-v3@onnx-int8", RuntimeKeys.SHERPA_OFFLINE_TRANSDUCER)
+    val asrNpu = spec(ModelKind.ASR, "parakeet-tdt-0.6b-v3@qnn-sm8750-20s", RuntimeKeys.SHERPA_OFFLINE_TRANSDUCER, ComputeUnit.NPU)
+    val vad = spec(ModelKind.VAD, "silero-vad-v5@onnx", "ort/silero-vad-v5")
+    val ocrDet = spec(ModelKind.OCR_DET, "pp-ocrv6-tiny-det@onnx", "ort/ppocr-det")
+    val ocrRec = spec(ModelKind.OCR_REC, "pp-ocrv5-cyrillic-mobile-rec@onnx", "ort/ppocr-rec")
+    private val llmOpts get() = mapOf(LoadOptions.N_CTX to nCtx.toString())
+    val llmCpu get() = spec(ModelKind.LLM, "qwen3.5-0.8b@q4_0", "llama/gguf", ComputeUnit.CPU, llmOpts + (LoadOptions.USE_MMAP to "0"))
+    val llmNpu get() = spec(ModelKind.LLM, "qwen3.5-0.8b@q4_0", "llama/gguf", ComputeUnit.NPU, llmOpts)
+
+    private fun usable(s: LoadSpec) = !health.failed(s.artifactId, s.unit)
+
     override suspend fun resolve(settings: Settings): Outcome<ActiveModels> {
         calls++
+        if (delayMs > 0) delay(delayMs)
         if (noAsr) return Outcome.Err(MurmurError.NoAsrModel)
         if (noVad) return Outcome.Err(MurmurError.NoVadModel)
-        fun spec(kind: ModelKind, id: String, rt: String, unit: ComputeUnit = ComputeUnit.CPU, opts: Map<String, String> = emptyMap()) =
-            LoadSpec(kind, ModelId(id.substringBefore('@')), ArtifactId(id), rt, unit, "/fake/models/$id", emptyMap(), options = opts)
-        val asrCpu = spec(ModelKind.ASR, "parakeet-tdt-0.6b-v3@onnx-int8", RuntimeKeys.SHERPA_OFFLINE_TRANSDUCER)
-        val asrNpu = spec(ModelKind.ASR, "parakeet-tdt-0.6b-v3@qnn-sm8750-20s", RuntimeKeys.SHERPA_OFFLINE_TRANSDUCER, ComputeUnit.NPU)
-        val llmOpts = mapOf(LoadOptions.N_CTX to nCtx.toString())
-        val llmCpu = spec(ModelKind.LLM, "qwen3.5-0.8b@q4_0", "llama/gguf", ComputeUnit.CPU, llmOpts + (LoadOptions.USE_MMAP to "0"))
-        val llmNpu = spec(ModelKind.LLM, "qwen3.5-0.8b@q4_0", "llama/gguf", ComputeUnit.NPU, llmOpts)
-        val llmOn = cleanup && settings.cleanup != CleanupChoice.None
+        val asrRanked = (if (npuFirst) listOfNotNull(asrNpu, asrCpu.takeIf { cpuFallback }) else listOf(asrCpu)).filter(::usable)
+        if (asrRanked.isEmpty()) return Outcome.Err(MurmurError.NoAsrModel)
+        val llmRanked = (if (npuFirst) listOfNotNull(llmNpu, llmCpu.takeIf { cpuFallback }) else listOf(llmCpu)).filter(::usable)
+        val llmOn = cleanup && settings.cleanup != CleanupChoice.None && llmRanked.isNotEmpty()
         return Outcome.Ok(ActiveModels(
-            asr = if (npuFirst) asrNpu else asrCpu,
-            asrFallback = if (npuFirst && cpuFallback) asrCpu else null,
+            asr = asrRanked[0],
+            asrFallback = asrRanked.getOrNull(1),
             asrTraits = app.murmur.core.catalog.AsrTraits(streaming = false, punctuation = true, casing = true),
-            vad = spec(ModelKind.VAD, "silero-vad-v5@onnx", "ort/silero-vad-v5"),
-            ocrDet = spec(ModelKind.OCR_DET, "pp-ocrv6-tiny-det@onnx", "ort/ppocr-det"),
-            ocrRec = spec(ModelKind.OCR_REC, "pp-ocrv5-cyrillic-mobile-rec@onnx", "ort/ppocr-rec"),
+            vad = vad,
+            ocrDet = ocrDet.takeIf { settings.useScreen },
+            ocrRec = ocrRec.takeIf { settings.useScreen },
             llm = if (!llmOn) null else ActiveLlm(
-                spec = if (npuFirst) llmNpu else llmCpu,
-                fallback = if (npuFirst && cpuFallback) llmCpu else null,
-                template = "qwen3.5", profile = "default.v4", memoryMb = 770, nCtx = nCtx, prefixTokens = prefixTokens,
+                spec = llmRanked[0],
+                fallback = llmRanked.getOrNull(1),
+                template = "qwen3.5", profile = "default.v4", memoryMb = llmMemoryMb, nCtx = nCtx, prefixTokens = prefixTokens,
                 modelSha256 = "0".repeat(64), speed = llmSpeed,
             ),
             llmUnavailable = if (llmOn) null else if (settings.cleanup == CleanupChoice.None) "none" else "no_model",
         ))
+    }
+
+    override suspend fun prepareTargets(artifact: ArtifactId, settings: Settings): Outcome<PrepareTargets> {
+        return when (artifact) {
+            asrNpu.artifactId, asrCpu.artifactId -> Outcome.Ok(PrepareTargets(
+                kind = ModelKind.ASR,
+                specs = listOf(if (artifact == asrNpu.artifactId) asrNpu else asrCpu).filter(::usable),
+                vad = vad, needsVad = true,
+                cpuArtifact = asrCpu.artifactId, cpuArtifactInstalled = cpuFallback,
+            ))
+            llmCpu.artifactId -> Outcome.Ok(PrepareTargets(
+                kind = ModelKind.LLM,
+                specs = (if (npuFirst) listOf(llmNpu, llmCpu) else listOf(llmCpu)).filter(::usable),
+                llm = LlmPrepare("qwen3.5", "default.v4", nCtx, "0".repeat(64), memoryMb = llmMemoryMb),
+            ))
+            vad.artifactId -> Outcome.Ok(PrepareTargets(ModelKind.VAD, listOf(vad)))
+            ocrDet.artifactId -> Outcome.Ok(PrepareTargets(ModelKind.OCR_DET, listOf(ocrDet), ocrPartner = ocrRec))
+            ocrRec.artifactId -> Outcome.Ok(PrepareTargets(ModelKind.OCR_REC, listOf(ocrRec), ocrPartner = ocrDet))
+            else -> Outcome.Err(MurmurError.CatalogInvalid("unknown artifact"))
+        }
     }
 }
 

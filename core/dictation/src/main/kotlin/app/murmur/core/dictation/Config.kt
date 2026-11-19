@@ -58,6 +58,30 @@ data class DictationConfig(
     /** Spare memory to keep when loading the LLM next to ASR (ARCHITECTURE.md 7). */
     val llmMemoryMarginMb: Int = 600,
     val timeoutScale: Double = 1.0,
+    /** Row 10: a stop tap or hold release closer than this to the press is ignored (double-tap protection). */
+    val doubleTapGuardMs: Long = 300,
+    /** Settings.holdToTalk: row 2 only applies when it is on. */
+    val holdToTalk: Boolean = true,
+    /**
+     * ASR_FINAL bound on the open tail: the segmenter closes a segment at least every maxWindowSec (NPU 20 s), so the
+     * tail after a stop is never longer than this, however long the recording.
+     */
+    val asrMaxTailMs: Long = 30_000,
+    /** Row 37 / ARCHITECTURE 4.4: after LlmEngine.cancel(), wait this long for the generation to end, then shutdown(:llm). */
+    val llmCancelGraceMs: Long = 1_000,
+    /** EnginePreparer.invalidatePrefix debounce (ARCHITECTURE 4.2). */
+    val prefixRebuildDebounceMs: Long = 5_000,
+    /** After CaptureHandle.stop(), how long the chunk stream may take to deliver its last samples. */
+    val captureDrainMs: Long = 500,
+    /**
+     * A retry's "mic start": reading and decoding the stored recording (AudioStore.readPcm, Ogg/Opus, up to 5 min)
+     * instead of MIC_START's 2 s; past it the retry fails with StorageFailed("audio_read"). [I] until DC-measured.
+     */
+    val storedAudioReadTimeoutMs: Long = 10_000,
+    /** Row 6: free storage needed to start (LowStorage below). */
+    val minFreeStorageBytes: Long = 50L * 1024 * 1024,
+    /** Murmur's own package: only StartMode.IN_APP dictates into it (ARCHITECTURE 9.2). */
+    val ownPackage: String = "app.murmur",
 ) {
     fun scaled(ms: Long): Long = (ms * timeoutScale).toLong()
 

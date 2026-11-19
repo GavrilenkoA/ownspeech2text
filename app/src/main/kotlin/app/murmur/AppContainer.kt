@@ -15,6 +15,7 @@ import app.murmur.core.dictation.OpenTarget
 import app.murmur.core.dictation.PermissionMonitor
 import app.murmur.core.dictation.HapticKind
 import app.murmur.core.dictation.MemoryGate
+import app.murmur.core.dictation.SystemConditions
 import app.murmur.core.engine.Engines
 import app.murmur.core.model.MurmurClock
 import app.murmur.core.model.SystemMurmurClock
@@ -99,6 +100,7 @@ class AppContainer(private val context: Context) {
                 context = DefaultContextAssembler(), renderer = renderer, guard = guard, prompts = prompts,
                 history = history, metrics = metrics, audioStore = audioStore, feedback = feedback, memory = memory,
                 unitHealth = unitHealth, navigator = navigator, permissions = permissions, deliveryMetrics = DefaultDeliveryMetrics(),
+                system = system,
             ),
             appScope,
         )
@@ -115,6 +117,14 @@ class AppContainer(private val context: Context) {
 
     /** WP-15: PermissionMonitor over PackageManager / NotificationManager / PowerManager / Settings.Secure + RestrictedSettingsProbe. */
     private val permissions: PermissionMonitor by lazy { TODO("WP-15") }
+
+    /** Preflight row 6: free storage (filesDir volume) and thermal status. */
+    private val system = object : SystemConditions {
+        override fun freeStorageBytes(): Long = android.os.StatFs(context.filesDir.path).availableBytes
+        override fun thermalCritical(): Boolean =
+            (context.getSystemService(Context.POWER_SERVICE) as android.os.PowerManager).currentThermalStatus >=
+                android.os.PowerManager.THERMAL_STATUS_CRITICAL
+    }
 
     private val memory = MemoryGate {
         val mi = ActivityManager.MemoryInfo()

@@ -1,0 +1,7 @@
+clip_1s.pcm: 1.00 s of read Russian speech, PCM16 little-endian, mono, 16 kHz (32,000 bytes), decoded while
+Preparing an ASR artifact (EnginePreparer, ARCHITECTURE 8.5).
+
+Source: FLEURS (Google; Conneau et al., 2022), CC BY 4.0.
+  https://huggingface.co/datasets/google/fleurs/resolve/70bb2e84b976b7e960aa89f1c648e09c59f894dd/data/ru_ru/audio/dev.tar.gz
+  member 16099376947018752160.wav
+Changes: resampled to 16 kHz mono PCM16 (ffmpeg), cut to the 1.00 s starting at 1.12 s.

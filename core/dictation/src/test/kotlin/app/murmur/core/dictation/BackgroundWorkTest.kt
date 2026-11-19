@@ -1,0 +1,72 @@
+package app.murmur.core.dictation
+
+import app.murmur.core.engine.HostState
+import app.murmur.core.model.ComputeUnit
+import app.murmur.core.model.ModelKind
+import app.murmur.core.model.MurmurError
+import app.murmur.core.model.Outcome
+import app.murmur.core.store.CleanupChoice
+import app.murmur.core.store.EntryStatus
+import kotlinx.coroutines.test.runTest
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+/** History "Re-polish" and Settings "Try it" (WP-11 Deliver 4); Retry is in RetryTest. */
+class BackgroundWorkTest {
+
+    @Test fun repolishRerunsCleanupOnTheRawTextAndBumpsTheRevision() = runTest {
+        val h = harness()
+        h.dictate()
+        val first = h.only()
+        h.w.engines.llm.output = { "Привет! Это тестовая диктовка." }
+        assertEquals(Outcome.Ok(first.id), h.o.repolish(first.id))
+        val e = h.only()
+        assertEquals("Привет! Это тестовая диктовка.", e.finalText)
+        assertEquals(first.rawText, e.rawText)
+        assertEquals(2, e.revision)
+        assertTrue(h.w.engines.llm.requests.last().suffix.contains(first.rawText!!))
+        assertTrue(!h.w.engines.llm.requests.last().suffix.contains("Лёша"))   // no screen context: never stored
+        h.assertNoInternalErrors()
+    }
+
+    /** Review F6: outside a dictation the LLM obeys the memory gate too; a warm :asr is shut down to make room. */
+    @Test fun repolishShutsAWarmAsrDownWhenTheLlmDoesNotFitNextToIt() = runTest {
+        val h = harness()
+        h.dictate()
+        val first = h.only()
+        h.w.engines.llmHost.shutdown()                                       // the LLM went cold (idle unload)
+        h.w.memory.source = { if (h.w.engines.asrHost.state.value is HostState.Up) 1_000 else 6_000 }
+        val loads = h.w.engines.llm.loadAttempts.size
+        assertEquals(Outcome.Ok(first.id), h.o.repolish(first.id))
+        assertEquals(1, h.w.engines.asrHost.shutdowns)
+        assertEquals(loads + 1, h.w.engines.llm.loadAttempts.size)
+        assertEquals(2, h.only().revision)
+        h.assertNoInternalErrors()
+    }
+
+    @Test fun repolishAndTryItWithoutTheMemoryLoadNothing() = runTest {
+        val h = harness()
+        h.dictate()
+        val first = h.only()
+        h.w.engines.llmHost.shutdown()
+        h.w.memory.mb = 1_000
+        val loads = h.w.engines.llm.loadAttempts.size
+        assertEquals(Outcome.Err(MurmurError.OutOfMemory(ModelKind.LLM)), h.o.repolish(first.id))
+        assertEquals(Outcome.Err(MurmurError.OutOfMemory(ModelKind.LLM)), h.o.tryCleanup("привет мир", null, null))
+        assertEquals(loads, h.w.engines.llm.loadAttempts.size)
+        assertEquals(first, h.only())
+        h.assertNoInternalErrors()
+    }
+
+    @Test fun tryCleanupReturnsTheTextAndStoresNothing() = runTest {
+        val h = harness()
+        assertEquals(Outcome.Ok("Привет мир."), h.o.tryCleanup("привет мир", "Пиши коротко.", "Без эмодзи"))
+        assertTrue(h.history().isEmpty())
+        assertTrue(h.w.metrics.snapshot().isEmpty())
+        assertTrue(h.w.engines.llm.prefixCalls.single().text.contains("Пиши коротко."))
+        h.w.settings.edit { it.copy(cleanup = CleanupChoice.None) }
+        assertEquals(Outcome.Err(MurmurError.LlmFailed("none")), h.o.tryCleanup("привет", null, null))
+        h.assertNoInternalErrors()
+    }
+}

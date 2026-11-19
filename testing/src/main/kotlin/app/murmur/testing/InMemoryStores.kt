@@ -23,7 +23,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import java.time.LocalDate
 
-class InMemoryHistoryRepository : HistoryRepository {
+/** [writeDelayMs] = how long insert / update take (coroutine time: a pill tapped before its entry is written). */
+class InMemoryHistoryRepository(var writeDelayMs: Long = 0) : HistoryRepository {
     private val rows = MutableStateFlow<List<HistoryEntry>>(emptyList())
     private val deleted = mutableSetOf<EntryId>()
     private var nextId = 1L
@@ -36,11 +37,15 @@ class InMemoryHistoryRepository : HistoryRepository {
             listOfNotNull(e.finalText, e.rawText).any { it.contains(query, ignoreCase = true) } }
     }
     override suspend fun insert(entry: HistoryEntry): EntryId {
+        if (writeDelayMs > 0) kotlinx.coroutines.delay(writeDelayMs)
         val id = EntryId(nextId++)
         rows.value = rows.value + entry.copy(id = id)
         return id
     }
-    override suspend fun update(entry: HistoryEntry) { rows.value = rows.value.map { if (it.id == entry.id) entry else it } }
+    override suspend fun update(entry: HistoryEntry) {
+        if (writeDelayMs > 0) kotlinx.coroutines.delay(writeDelayMs)
+        rows.value = rows.value.map { if (it.id == entry.id) entry else it }
+    }
     override suspend fun markDeleted(ids: Set<EntryId>) { deleted += ids; rows.value = rows.value.toList() }
     override suspend fun restore(ids: Set<EntryId>) { deleted -= ids; rows.value = rows.value.toList() }
     override suspend fun commitDeletes() { rows.value = rows.value.filter { it.id !in deleted }; deleted.clear() }
@@ -67,6 +72,8 @@ class InMemorySettingsRepository(initial: Settings = Settings()) : SettingsRepos
     private val _settings = MutableStateFlow(initial)
     override val settings: StateFlow<Settings> = _settings.asStateFlow()
     override suspend fun update(transform: (Settings) -> Settings) { _settings.value = transform(_settings.value) }
+    /** Non-suspending [update] for test setup. */
+    fun edit(transform: (Settings) -> Settings) { _settings.value = transform(_settings.value) }
 }
 
 /** Every artifact is "installed" under /fake/models/<id> unless listed in [missing]. */
@@ -90,7 +97,8 @@ class InMemoryBenchmarkRepository : BenchmarkRepository {
     override suspend fun save(record: BenchmarkRecord) { rows.value = rows.value + record }
 }
 
-class InMemoryAudioStore : AudioStore {
+/** [readDelayMs] = how long readPcm takes (coroutine time; the real store decodes Ogg/Opus). */
+class InMemoryAudioStore(var readDelayMs: Long = 0) : AudioStore {
     val files = mutableMapOf<String, ShortArray>()
     private val refs = mutableMapOf<String, AudioRef>()
     override fun newWriter(key: String): AudioWriter = object : AudioWriter {
@@ -106,6 +114,9 @@ class InMemoryAudioStore : AudioStore {
     }
     override suspend fun delete(ref: AudioRef) { files.remove(ref.path); refs.remove(ref.path) }
     override suspend fun listAll(): List<AudioRef> = refs.values.toList()
-    override suspend fun readPcm(ref: AudioRef): ShortArray? = files[ref.path]
+    override suspend fun readPcm(ref: AudioRef): ShortArray? {
+        if (readDelayMs > 0) kotlinx.coroutines.delay(readDelayMs)
+        return files[ref.path]
+    }
     override suspend fun exists(ref: AudioRef) = ref.path in files
 }
