@@ -119,7 +119,9 @@ class OcrConfigParityTest {
         assertEquals(2, entries.size)
         fun files(kind: String) = entries.single { it["kind"]!!.jsonPrimitive.content == kind }.let { e ->
             assertEquals(c.pipelineVersion, e.getValue("ocr").jsonObject.getValue("pipelineVersion").jsonPrimitive.content)
-            e.getValue("artifacts").jsonArray.single().jsonObject.getValue("files").jsonArray.map { f ->
+            // the CPU artifact (ort/ppocr-*) ships the reference files; the NPU artifact (ort-qnn/*, WP-21) holds their contexts
+            e.getValue("artifacts").jsonArray.map { it.jsonObject }.single { it.getValue("runtime").jsonPrimitive.content.startsWith("ort/") }
+                .getValue("files").jsonArray.map { f ->
                 val o = f.jsonObject
                 o.getValue("repo").jsonPrimitive.content.substringAfter('/') + "/" + o.getValue("path").jsonPrimitive.content
             }.toSet()
