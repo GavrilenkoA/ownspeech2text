@@ -70,4 +70,23 @@ class CaptureFrameTest {
         assertNull(CaptureFrame.ofWindow(null))
         assertNull(CaptureFrame.ofWindow(Rect(10, 10, 10, 50)))
     }
+
+    @Test
+    fun explicitWindowCaptureKeepsTheWindowOriginWhenTheSizeDiffers() {
+        // A window capture one pixel narrower than getBoundsInScreen (edge clipping): inference would take it for the
+        // display; the capturer's word keeps the window's origin.
+        val window = Rect(984, 0, 1968, 2184)
+        assertEquals(CaptureFrame(0, 0, 983, 2184), CaptureFrame.of(window, 983, 2184))
+        val f = CaptureFrame.of(window, 983, 2184, CaptureKind.WINDOW)
+        assertEquals(CaptureFrame(984, 0, 983, 2184), f)
+        assertEquals(listOf(16, 2000, 916, 2100), f.toCapture(Rect(1000, 2000, 1900, 2100)))
+        assertEquals(CaptureFrame(0, 0, 983, 2184), CaptureFrame.of(null, 983, 2184, CaptureKind.WINDOW))
+    }
+
+    @Test
+    fun explicitDisplayCaptureIgnoresAMatchingSize() {
+        val window = Rect(300, 450, 1300, 1850)
+        assertEquals(CaptureFrame(300, 450, 1000, 1400), CaptureFrame.of(window, 1000, 1400))
+        assertEquals(CaptureFrame(0, 0, 1000, 1400), CaptureFrame.of(window, 1000, 1400, CaptureKind.DISPLAY))
+    }
 }

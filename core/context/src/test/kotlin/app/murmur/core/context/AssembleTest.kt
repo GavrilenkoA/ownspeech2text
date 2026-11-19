@@ -12,6 +12,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -146,6 +147,7 @@ class AssembleTest {
     }
 
     @Test
+    @Suppress("DEPRECATION") // the deprecated four-argument contract is what this test pins
     fun screenshotErrorOrLateOcr() {
         val snap = snapshot(field = field(beforeCursor = "Да"))
         val viaOutcome = run(snap, on, ScreenOutcome.Failed)
@@ -202,6 +204,20 @@ class AssembleTest {
         // No screenshot: the frame of the window capture that would have been taken.
         val noShot = run(snap, ContextSettings(useScreen = false), ScreenOutcome.NotTaken)
         assertEquals("[26,2050,946,2140]", noShot.getValue("field").jsonObject.getValue("box").toString())
+    }
+
+    @Test
+    fun fieldBoxFollowsTheCaptureKindTheCapturerReports() {
+        // Right pane, the window capture comes back one pixel narrower than the window bounds.
+        val snap = snapshot(window = Rect(984, 0, 1968, 2184), field = field(bounds = Rect(1010, 2050, 1930, 2140)))
+        val shot = screen(983, 2184, "Анна", "Привет")
+        val told = run(snap, on, ScreenOutcome.Text(shot, CaptureKind.WINDOW))
+        assertEquals("[26,2050,946,2140]", told.getValue("field").jsonObject.getValue("box").toString())
+        // Inferred from the size, the same capture passes for the display one and the field falls outside it.
+        val inferred = run(snap, on, ScreenOutcome.Text(shot))
+        assertFalse("box" in inferred.getValue("field").jsonObject)
+        val display = run(snap, on, ScreenOutcome.Text(screen(1968, 2184, "Анна", "Привет"), CaptureKind.DISPLAY))
+        assertEquals("[1010,2050,1930,2140]", display.getValue("field").jsonObject.getValue("box").toString())
     }
 
     @Test
@@ -270,5 +286,24 @@ class AssembleTest {
         assertEquals(1000, lines[0].text.codePointCount(0, lines[0].text.length))
         assertTrue(lines[0].text.startsWith("строка 0 ы"))
         assertEquals(many[1], lines[1])
+    }
+
+    @Test
+    fun ocrLineWithAMalformedBoxIsDropped() {
+        // OcrLine checks its box when it is built, from code and from JSON alike.
+        assertThrows(IllegalArgumentException::class.java) { OcrLine("x", 0.9, listOf(1, 2, 3)) }
+        assertThrows(IllegalArgumentException::class.java) {
+            Json.decodeFromString(OcrLine.serializer(), """{"text":"x","conf":0.9,"box":[1,2,3]}""")
+        }
+        // A mutable box changed after construction still never reaches the ctx, and the ctx keeps its own copy.
+        val box = mutableListOf(52, 100, 600, 150)
+        val bad = OcrLine("сломано", 0.9, box)
+        val goodBox = mutableListOf(52, 160, 600, 210)
+        val good = OcrLine("целое", 0.9, goodBox)
+        box.removeAt(3)
+        val ctx = a.assemble(snapshot(), a.decide(snapshot(), on), ScreenOutcome.Text(ScreenText(listOf(1080, 2520), listOf(bad, good))), "ru")
+        goodBox[0] = -1
+        assertEquals(json("""{"size":[1080,2520],"lines":[{"text":"целое","conf":0.9,"box":[52,160,600,210]}]}"""),
+            assertValid(ctx)["screen"])
     }
 }

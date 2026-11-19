@@ -81,15 +81,17 @@ class SchemaValidationTest {
             val snap = A11ySnapshot(pkgs[rnd.nextInt(pkgs.size)], if (rnd.nextBoolean()) text(150) else null, null, 1, 0, field, emptyList(), 0, window)
             val settings = ContextSettings(useScreen = rnd.nextInt(4) != 0, excludedPackages = if (rnd.nextBoolean()) setOf("com.example") else emptySet(),
                 inAppPractice = rnd.nextBoolean())
-            val w = window?.width ?: 1080
+            // Window-sized captures, sometimes a pixel off (edge clipping), with or without the capturer's kind.
+            val w = (window?.width ?: 1080) - rnd.nextInt(0, 2)
             val h = window?.height ?: 2520
+            val kind = listOf(null, CaptureKind.WINDOW, CaptureKind.DISPLAY)[rnd.nextInt(3)]
             val outcome = when (rnd.nextInt(5)) {
                 0 -> ScreenOutcome.NotTaken
                 1 -> ScreenOutcome.SecureWindow
                 2 -> ScreenOutcome.Failed
                 else -> ScreenOutcome.Text(ScreenText(listOf(w, h), List(rnd.nextInt(0, 30)) {
                     OcrLine(text(60).ifEmpty { "ok" }, rnd.nextDouble(), listOf(0, it * 50, 400, it * 50 + 40))
-                }))
+                }), kind)
             }
             val lang = listOf("ru", "en", null, "", "mixed", "verylongcode")[rnd.nextInt(6)]
             val ctx = assembler.assemble(snap, assembler.decide(snap, settings), outcome, lang)
@@ -100,6 +102,11 @@ class SchemaValidationTest {
                 assertTrue("case $i", ctx.screen == null && ctx.field?.beforeCursor == null)
             }
             if (field != null && FieldKinds.isPassword(field)) assertEquals("case $i", PrivacyLevel.NONE, level)
+            val box = ctx.field?.box
+            val size = ctx.screen?.size
+            if (box != null && size != null) {
+                assertTrue("case $i: $box outside $size", box[0] >= 0 && box[1] >= 0 && box[2] <= size[0] && box[3] <= size[1])
+            }
             val json = CtxV2.json.encodeToString(CtxV2.serializer(), ctx)
             assertEquals("case $i", ctx, CtxV2.json.decodeFromString(CtxV2.serializer(), json))
             assertEquals("case $i", Fixtures.encode(ctx), Json.parseToJsonElement(json).jsonObject)

@@ -38,8 +38,11 @@ data class PrivacyDecision(
  * `privacy.reason` (and through prompts/render.py NO_SCREEN_LEVEL the level) when there is no screen.
  */
 sealed interface ScreenOutcome {
-    /** OCR result; no lines = `ocr_empty`. */
-    data class Text(val text: ScreenText) : ScreenOutcome
+    /**
+     * OCR result; no lines = `ocr_empty`. [capture]: which capture the pixels come from, as the caller knows it
+     * (window capture or the display-capture fallback). null = inferred from the size (see [CaptureFrame.of]).
+     */
+    data class Text(val text: ScreenText, val capture: CaptureKind? = null) : ScreenOutcome
     /** The decision took no screenshot (privacy rule): the decision's reason stands. */
     data object NotTaken : ScreenOutcome
     /** Error 6 or a black frame (FLAG_SECURE). */
@@ -55,12 +58,19 @@ interface ContextAssembler {
     /**
      * [screen] null when no screenshot was taken or it failed (secure window -> error 6, black frame, timeout,
      * nothing recognised). [asrLanguage] from the transcript (per-dictation language id). Without the cause of a
-     * missing screen this reports `screenshot_error`; callers that know it use the [ScreenOutcome] overload.
+     * missing screen this reports `screenshot_error` (level full, text before the cursor kept), also for a secure
+     * window, where render.py NO_SCREEN_LEVEL asks for app_only: callers use the [ScreenOutcome] overload.
      */
+    @Deprecated(
+        "A missing screen loses its cause (a secure window would be sent as screenshot_error with the text before " +
+            "the cursor). Pass a ScreenOutcome.",
+        ReplaceWith("assemble(snapshot, decision, screen?.let { ScreenOutcome.Text(it) } ?: ScreenOutcome.Failed, asrLanguage)"),
+    )
     fun assemble(snapshot: A11ySnapshot, decision: PrivacyDecision, screen: ScreenText?, asrLanguage: String?): CtxV2
 
     /** As above with the cause of a missing screen (secure window vs error vs nothing recognised). */
     fun assemble(snapshot: A11ySnapshot, decision: PrivacyDecision, screen: ScreenOutcome, asrLanguage: String?): CtxV2 =
+        @Suppress("DEPRECATION")
         assemble(snapshot, decision, (screen as? ScreenOutcome.Text)?.text, asrLanguage)
 }
 
@@ -202,6 +212,11 @@ class DefaultContextAssembler(
         }
     }
 
+    @Deprecated(
+        "A missing screen loses its cause (a secure window would be sent as screenshot_error with the text before " +
+            "the cursor). Pass a ScreenOutcome.",
+        ReplaceWith("assemble(snapshot, decision, screen?.let { ScreenOutcome.Text(it) } ?: ScreenOutcome.Failed, asrLanguage)"),
+    )
     override fun assemble(snapshot: A11ySnapshot, decision: PrivacyDecision, screen: ScreenText?, asrLanguage: String?): CtxV2 {
         val outcome = when {
             screen != null -> ScreenOutcome.Text(screen)
@@ -214,8 +229,10 @@ class DefaultContextAssembler(
     override fun assemble(snapshot: A11ySnapshot, decision: PrivacyDecision, screen: ScreenOutcome, asrLanguage: String?): CtxV2 {
         val fieldSnap = snapshot.field
         val password = fieldSnap != null && FieldKinds.isPassword(fieldSnap)
-        val text = (screen as? ScreenOutcome.Text)?.text?.takeIf { it.size.size == 2 && it.size.all { v -> v > 0 } }
-        val lines = text?.lines.orEmpty().filter { it.conf.isFinite() }.take(MAX_LINES)
+        val shot = screen as? ScreenOutcome.Text
+        val text = shot?.text?.takeIf { it.size.size == 2 && it.size.all { v -> v > 0 } }
+        // OcrLine checks box.size == 4 at construction, but its List may be a mutable one changed since: re-check.
+        val lines = text?.lines.orEmpty().filter { it.conf.isFinite() && it.box.size == 4 }.take(MAX_LINES)
 
         // Privacy: a password focus always wins (focus may have moved since decide()); a rule that withheld the
         // screen keeps its level and reason; otherwise the cause of a missing screen picks reason and level.
@@ -244,8 +261,11 @@ class DefaultContextAssembler(
 
         // field.box in screenshot pixels: the capture's frame when there is a screen, else the frame the window capture
         // would have had; with no window bounds either, screen pixels as they are.
-        val frame = if (withScreen) CaptureFrame.of(snapshot.windowBoundsInScreen, text!!.size[0], text.size[1])
-        else CaptureFrame.ofWindow(snapshot.windowBoundsInScreen)
+        val frame = if (withScreen) {
+            CaptureFrame.of(snapshot.windowBoundsInScreen, text!!.size[0], text.size[1], shot.capture)
+        } else {
+            CaptureFrame.ofWindow(snapshot.windowBoundsInScreen)
+        }
         fun boxOf(b: Rect): List<Int>? = if (frame != null) frame.toCapture(b) else listOf(b.x0, b.y0, b.x1, b.y1)
         val field = fieldSnap?.let { f ->
             FieldInfo(
@@ -284,7 +304,7 @@ class DefaultContextAssembler(
         private fun OcrLine.forSchema(): OcrLine {
             val t = text.clipStart(MAX_LINE_TEXT)
             val c = conf.coerceIn(0.0, 1.0)
-            return if (t == text && c == conf) this else OcrLine(t, c, box)
+            return OcrLine(t, c, box.toList())
         }
     }
 }

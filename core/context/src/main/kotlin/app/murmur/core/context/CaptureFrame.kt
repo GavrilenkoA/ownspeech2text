@@ -2,6 +2,14 @@ package app.murmur.core.context
 
 import app.murmur.core.ocr.Rect
 
+/** Which screenshot path produced the pixels (ARCHITECTURE 9.1), when the caller knows it. */
+enum class CaptureKind {
+    /** takeScreenshotOfWindow of the target window: pixel (0, 0) is the window's top-left. */
+    WINDOW,
+    /** takeScreenshot of the display (fallback after error 5): pixel (0, 0) is the display's top-left. */
+    DISPLAY,
+}
+
 /**
  * The pixel frame of a screenshot, expressed in screen coordinates: pixel (0, 0) of the capture is screen point
  * ([originX], [originY]) and the capture is [width] x [height] pixels (ARCHITECTURE 9.1).
@@ -32,16 +40,24 @@ data class CaptureFrame(val originX: Int, val originY: Int, val width: Int, val 
     companion object {
         /**
          * Frame of a capture of [captureWidth] x [captureHeight] pixels taken for a target window with
-         * [windowBounds] (screen pixels). A capture of exactly the window's size is a window capture (origin = the
-         * window's top-left); any other size is the display-capture fallback (origin (0, 0)). The two cannot be
-         * confused: a window as large as its display starts at (0, 0) as well.
+         * [windowBounds] (screen pixels).
+         *
+         * [kind] as the capturer reports it wins: [CaptureKind.WINDOW] puts the origin at the window's top-left even
+         * when the bitmap's size differs from the bounds (edge clipping, insets), [CaptureKind.DISPLAY] at (0, 0).
+         * Without it the kind is inferred: a capture of exactly the window's size is a window capture, any other size
+         * the display fallback. The inference cannot confuse a full-screen window (it starts at (0, 0) as well), but
+         * a window capture that is off by a pixel would be taken for the display, so capturers pass [kind].
          */
-        fun of(windowBounds: Rect?, captureWidth: Int, captureHeight: Int): CaptureFrame =
-            if (windowBounds != null && windowBounds.width == captureWidth && windowBounds.height == captureHeight) {
-                CaptureFrame(windowBounds.x0, windowBounds.y0, captureWidth, captureHeight)
-            } else {
-                CaptureFrame(0, 0, captureWidth, captureHeight)
+        fun of(windowBounds: Rect?, captureWidth: Int, captureHeight: Int, kind: CaptureKind? = null): CaptureFrame {
+            val window = windowBounds?.takeIf {
+                when (kind) {
+                    CaptureKind.WINDOW -> true
+                    CaptureKind.DISPLAY -> false
+                    null -> it.width == captureWidth && it.height == captureHeight
+                }
             }
+            return CaptureFrame(window?.x0 ?: 0, window?.y0 ?: 0, captureWidth, captureHeight)
+        }
 
         /**
          * Frame of the window capture that would have been taken when there is no screenshot (privacy, secure window,

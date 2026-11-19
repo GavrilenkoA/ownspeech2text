@@ -73,6 +73,7 @@ class RoundTripTest {
     }
 
     @Test
+    @Suppress("DEPRECATION") // the deprecated four-argument contract is what this test pins
     fun theFourArgumentContractGivesTheSameObject() {
         for (f in Fixtures.examples) {
             val snap = snapshotFor(f)
