@@ -169,6 +169,9 @@ internal fun SettingsRoot(
             SettingsEvent.POSITION_RESET -> stringResource(R.string.settings_position_reset)
             SettingsEvent.HISTORY_DELETED -> stringResource(R.string.settings_history_deleted)
             SettingsEvent.NOTHING_TO_DELETE -> stringResource(R.string.settings_nothing_to_delete)
+            SettingsEvent.NOT_SAVED -> stringResource(R.string.settings_not_saved)
+            SettingsEvent.DELETE_FAILED -> stringResource(R.string.settings_delete_failed)
+            SettingsEvent.DELETION_DEFERRED -> stringResource(R.string.settings_deletion_deferred)
         }
     }
     LaunchedEffect(event) {

@@ -40,6 +40,8 @@ enum class TryFailure {
     REJECTED,
     /** Anything else (load error, timeout, process death). */
     FAILED,
+    /** The unsaved text fails validation (empty, too long, chat markup): nothing is sent to the model. */
+    INVALID,
     ;
 
     companion object {
@@ -175,10 +177,17 @@ class PromptEditor(
     /**
      * "Test again": the sample through the active cleanup model with the unsaved texts. The system text is passed only
      * when it differs from the shipped one (and never for a fine-tune); empty preferences are passed as null.
+     * Text that fails validation is never sent: the card says to fix it instead (the same rules that block Save keep
+     * chat markup, an empty system prompt and oversized text out of a model request).
      */
     fun runTry(sample: String) {
         tryJob?.cancel()
         val u = _ui.value
+        if (u.problems.any) {
+            tryJob = null
+            _ui.update { it.copy(tryState = TryState.Failed(TryFailure.INVALID)) }
+            return
+        }
         val override = if (editable && !same(u.text, shipped)) u.text else null
         val prefs = normalizePreferences(u.preferences)
         _ui.update { it.copy(tryState = TryState.Polishing) }

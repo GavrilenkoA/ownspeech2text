@@ -225,6 +225,37 @@ class PromptEditorTest {
     }
 
     @Test
+    fun tryItNeverSendsTextThatFailsValidation() = runTest {
+        val (w, e) = open()
+        val invalid = listOf(
+            "",
+            " \n ",
+            SettingsFixtures.PROTOTYPE_PROMPT_MARKUP,
+            "Rules <think>",
+            "a".repeat(PromptEditRules.MAX_SYSTEM_CHARS + 1),
+        )
+        for (text in invalid) {
+            e.setText(text)
+            e.runTry(PromptEditor.SAMPLE)
+            assertEquals("'${text.take(20)}' is not sent", emptyList<Any>(), w.tryCalls)
+            assertEquals(TryState.Failed(TryFailure.INVALID), e.ui.value.tryState)
+        }
+        e.setText("Fine rules")
+        e.setPreferences("p".repeat(PromptEditRules.MAX_PREFERENCES_CHARS + 1))
+        e.runTry(PromptEditor.SAMPLE)
+        assertEquals("oversized preferences are not sent", emptyList<Any>(), w.tryCalls)
+        assertEquals(TryState.Failed(TryFailure.INVALID), e.ui.value.tryState)
+        // Fixing the text makes Test run again.
+        e.setPreferences("Write ё.")
+        e.runTry(PromptEditor.SAMPLE)
+        assertEquals(listOf(Triple(PromptEditor.SAMPLE, "Fine rules", "Write ё.")), w.tryCalls)
+        assertTrue(e.ui.value.tryState is TryState.Done)
+        // Editing into an error keeps the last valid result on the card until Test is pressed.
+        e.setText("")
+        assertTrue(e.ui.value.tryState is TryState.Done)
+    }
+
+    @Test
     fun aFineTuneNeverGetsTheEditorTextInTryIt() = runTest {
         val (w, e) = open(Settings(cleanup = fineTune))
         e.runTry(PromptEditor.SAMPLE)

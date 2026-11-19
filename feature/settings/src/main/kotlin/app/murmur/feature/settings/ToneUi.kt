@@ -127,7 +127,7 @@ private fun ToneAppRow(row: ToneRow, vm: SettingsViewModel) {
     ToneRowLayout(
         title = label,
         subtitle = null,
-        leading = { AppTile(label, vm.appIcon(row.pkg), size = AppTileSize.Large, packageName = row.pkg) },
+        leading = { AppTile(label, rememberAppIcon(vm, row.pkg), size = AppTileSize.Large, packageName = row.pkg) },
         preview = row.preview,
         tone = row.tone,
         removable = row.removable,

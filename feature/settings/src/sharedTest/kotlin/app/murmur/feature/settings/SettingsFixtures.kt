@@ -16,6 +16,7 @@ import app.murmur.testing.FakeCatalogRepository
 import app.murmur.testing.FakePermissionMonitor
 import app.murmur.testing.InMemoryHistoryRepository
 import app.murmur.testing.InMemorySettingsRepository
+import app.murmur.ui.design.AppInfoProvider
 import app.murmur.ui.design.StaticAppInfoProvider
 import kotlinx.coroutines.flow.MutableStateFlow
 import java.time.LocalDate
@@ -120,6 +121,7 @@ object SettingsFixtures {
         val connected: MutableStateFlow<Boolean> = MutableStateFlow(true),
         var tryResult: Outcome<String> = Outcome.Ok("Скинь мне отчёт до пятницы, и созвонимся в понедельник в 10:00."),
         val today: LocalDate = TODAY,
+        val appInfo: AppInfoProvider = apps,
     ) {
         val tryCalls = mutableListOf<Triple<String, String?, String?>>()
         val retentionCalls = mutableListOf<Int>()
@@ -135,7 +137,7 @@ object SettingsFixtures {
             serviceConnected = connected,
             tryCleanup = { sample, override, prefs -> tryCalls += Triple(sample, override, prefs); tryResult },
             retention = { days -> retentionCalls += days; history.deleteBefore(RetentionPolicy.firstKeptDay(today, days)) },
-            apps = apps,
+            apps = appInfo,
             permissions = permissions,
         )
     }
@@ -145,10 +147,12 @@ object SettingsFixtures {
         history: InMemoryHistoryRepository? = null,
         permissions: PermissionState = framePermissions,
         connected: Boolean = true,
+        apps: AppInfoProvider = this.apps,
     ): World = World(
         InMemorySettingsRepository(settings),
         history ?: history(),
         FakePermissionMonitor(permissions),
         connected = MutableStateFlow(connected),
+        appInfo = apps,
     )
 }

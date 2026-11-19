@@ -1,10 +1,12 @@
 package app.murmur.feature.settings
 
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.murmur.core.catalog.Catalog
 import app.murmur.core.context.AppCategories
 import app.murmur.core.dictation.PermissionState
+import app.murmur.core.model.MurmurError
 import app.murmur.core.prompt.PromptEditRules
 import app.murmur.core.prompt.PromptEditState
 import app.murmur.core.prompt.PromptProfile
@@ -15,6 +17,7 @@ import app.murmur.core.store.Feedback
 import app.murmur.core.store.RetentionPolicy
 import app.murmur.core.store.Settings
 import app.murmur.core.store.Tone
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -23,6 +26,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -36,6 +40,20 @@ data class RetentionConfirm(val days: Int, val count: Int)
 /** The cleanup prompt as the Settings row and the inner preview show it. */
 data class PromptSummary(val profile: PromptProfile, val state: PromptEditState, val editable: Boolean, val previewText: String)
 
+/**
+ * Launcher apps and the labels of every package Settings shows (launcher apps, Tone per app, Hidden in), read on the
+ * io dispatcher: PackageManager lookups are binder calls and stay off the main thread. A package in [labels] has been
+ * looked up (null = not visible or uninstalled). [loaded] is false until the first read returned.
+ */
+data class InstalledApps(
+    val launcher: List<String> = emptyList(),
+    val labels: Map<String, String?> = emptyMap(),
+    val loaded: Boolean = false,
+) {
+    /** Launcher label, else the package name (DESIGN: screens show the package when the app is not visible). */
+    fun label(pkg: String): String = labels[pkg] ?: pkg
+}
+
 /** Everything the Settings list renders. */
 data class SettingsUi(
     val settings: Settings,
@@ -47,12 +65,14 @@ data class SettingsUi(
     val defaultTonePreview: Boolean,
     val permissions: PermissionState,
     val serviceConnected: Boolean,
+    val apps: InstalledApps,
 )
 
 /**
  * Settings (DESIGN 6.5) over [SettingsDeps]. Every setting is written only through `SettingsRepository.update`
  * (WP-19 brief: the orchestrator observes prompt, preferences, unit and model changes and rebuilds the prefix
  * itself). [today] is the local calendar day for the retention count; [io] runs PackageManager and repository reads.
+ * A failing write, count or deletion never escapes: [log] gets the error code (D9: codes only) and [events] a message.
  */
 class SettingsViewModel(
     private val deps: SettingsDeps,
@@ -61,10 +81,13 @@ class SettingsViewModel(
     private val io: CoroutineDispatcher = Dispatchers.IO,
     /** Package -> style category (`prompts/tones/app_categories.v1.json`, bundled with :core:context). */
     private val categories: Map<String, String> = AppCategories.bundled(),
+    private val log: (code: String, where: String) -> Unit = SettingsLog::code,
 ) : ViewModel() {
     private val scope: CoroutineScope = scope ?: viewModelScope
 
-    private val launcherApps = MutableStateFlow<List<String>>(emptyList())
+    private val installed = MutableStateFlow(InstalledApps())
+    /** Icons already looked up (main-thread map; the lookup itself runs on [io]). */
+    private val icons = HashMap<String, Painter?>()
     private val tonesWithText: Set<Tone> = runCatching { ToneRules.tonesWithText(deps.prompts.text("tones/tones.v1.json")) }.getOrDefault(emptySet())
 
     private val _retentionConfirm = MutableStateFlow<RetentionConfirm?>(null)
@@ -84,25 +107,49 @@ class SettingsViewModel(
         .stateIn(this.scope, SharingStarted.Eagerly, activeProfileName(deps.settings.settings.value, deps.catalog.catalog.value)?.let { runCatching { deps.prompts.profile(it) }.getOrNull() })
 
     val ui: StateFlow<SettingsUi> = combine(
-        deps.settings.settings, profile, launcherApps, deps.permissions.state, deps.serviceConnected,
+        deps.settings.settings, profile, installed, deps.permissions.state, deps.serviceConnected,
     ) { s, p, apps, perms, connected -> build(s, p, apps, perms, connected) }
         .stateIn(
             this.scope, SharingStarted.Eagerly,
-            build(deps.settings.settings.value, profile.value, emptyList(), deps.permissions.state.value, deps.serviceConnected.value),
+            build(deps.settings.settings.value, profile.value, installed.value, deps.permissions.state.value, deps.serviceConnected.value),
         )
 
     init {
-        this.scope.launch { launcherApps.value = withContext(io) { deps.apps.launcherApps() } }
+        // Launcher apps once, then the label of every package that Tone per app or Hidden in stores and that has not
+        // been looked up yet (stored packages may be apps without a launcher entry).
+        this.scope.launch {
+            deps.settings.settings.map { it.tonePerApp.keys + it.hiddenInPackages }.distinctUntilChanged().collect { stored ->
+                val cur = installed.value
+                val launcher = if (cur.loaded) {
+                    cur.launcher
+                } else {
+                    withContext(io) {
+                        try {
+                            deps.apps.launcherApps()
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            log(MurmurError.Internal(null).code, "launcher_apps")
+                            emptyList()
+                        }
+                    }
+                }
+                val missing = (launcher + stored).distinct().filter { it !in cur.labels }
+                if (cur.loaded && missing.isEmpty()) return@collect
+                val found = withContext(io) { missing.associateWith { pkg -> runCatching { deps.apps.label(pkg) }.getOrNull() } }
+                installed.value = InstalledApps(launcher, installed.value.labels + found, loaded = true)
+            }
+        }
     }
 
-    private fun build(s: Settings, p: PromptProfile?, apps: List<String>, perms: PermissionState, connected: Boolean): SettingsUi {
+    private fun build(s: Settings, p: PromptProfile?, apps: InstalledApps, perms: PermissionState, connected: Boolean): SettingsUi {
         val prompt = p?.let { prof ->
             val editable = PromptEditRules.editable(prof)
             val state = PromptEditRules.editState(prof, s.promptOverride?.baseProfile)
             val text = if (state == PromptEditState.EDITED) s.promptOverride!!.systemText else runCatching { PromptEditor.shippedText(deps.prompts, prof) }.getOrDefault("")
             PromptSummary(prof, state, editable, text)
         }
-        val rows = ToneRules.rows(apps, categories, s.tonePerApp, tonesWithText) { deps.apps.label(it) }
+        val rows = ToneRules.rows(apps.launcher, categories, s.tonePerApp, tonesWithText) { apps.labels[it] }
         val defaultTone = s.defaultTone ?: Tone.NEUTRAL
         return SettingsUi(
             settings = s,
@@ -112,11 +159,27 @@ class SettingsViewModel(
             defaultTonePreview = s.defaultTone != null && ToneRules.isPreview(defaultTone, Tone.NEUTRAL, tonesWithText),
             permissions = perms,
             serviceConnected = connected,
+            apps = apps,
         )
     }
 
+    /**
+     * Runs [block]; an exception (DataStore or Room I/O, disk full) is logged as a code and shown as [onError] instead
+     * of escaping the scope (it would end the process). Cancellation passes through.
+     */
+    private suspend fun guarded(where: String, onError: SettingsEvent, block: suspend () -> Unit) {
+        try {
+            block()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            log(MurmurError.StorageFailed(null).code, where)
+            _events.value = onError
+        }
+    }
+
     private fun write(transform: (Settings) -> Settings) {
-        scope.launch { deps.settings.update(transform) }
+        scope.launch { guarded("settings_write", SettingsEvent.NOT_SAVED) { deps.settings.update(transform) } }
     }
 
     // ------------------------------------------------------------ Dictation
@@ -148,18 +211,27 @@ class SettingsViewModel(
     /** "Reset position": the stored per-display positions are dropped (the bubble goes back to the right edge). */
     fun resetPosition() {
         scope.launch {
-            deps.settings.update { it.copy(bubblePositions = emptyMap()) }
-            _events.value = SettingsEvent.POSITION_RESET
+            guarded("position_reset", SettingsEvent.NOT_SAVED) {
+                deps.settings.update { it.copy(bubblePositions = emptyMap()) }
+                _events.value = SettingsEvent.POSITION_RESET
+            }
         }
     }
 
-    /** Launcher label, else the package name (DESIGN: screens show the package when the app is not visible). */
-    fun appLabel(pkg: String): String = deps.apps.label(pkg) ?: pkg
+    /** An icon looked up before (null also while it was never looked up); the composition starts from it. */
+    fun cachedIcon(pkg: String): Painter? = icons[pkg]
 
-    fun appIcon(pkg: String) = deps.apps.icon(pkg)
+    /** The launcher icon of [pkg], looked up on [io] once (null = letter tile). Call from the main thread. */
+    suspend fun appIcon(pkg: String): Painter? {
+        if (pkg in icons) return icons[pkg]
+        val icon = withContext(io) { runCatching { deps.apps.icon(pkg) }.getOrNull() }
+        icons[pkg] = icon
+        return icon
+    }
 
     /** Launcher apps for the "Hidden in" picker, without [ownPackage]. */
-    fun hiddenInCandidates(ownPackage: String?): List<String> = launcherApps.value.filter { it != ownPackage }
+    fun hiddenInCandidates(ownPackage: String?, ui: SettingsUi = this.ui.value): List<String> =
+        ui.apps.launcher.filter { it != ownPackage }
 
     // ------------------------------------------------------------ Cleanup
 
@@ -184,9 +256,9 @@ class SettingsViewModel(
     fun setDefaultTone(tone: Tone) = write { it.copy(defaultTone = tone.takeIf { t -> t != Tone.NEUTRAL }) }
 
     /** Apps that "Add an app" offers: launcher apps not in the list yet, without [ownPackage]. */
-    fun toneCandidates(ownPackage: String?): List<String> {
-        val listed = ui.value.tones.map { it.pkg }.toSet()
-        return launcherApps.value.filter { it !in listed && it != ownPackage }
+    fun toneCandidates(ownPackage: String?, ui: SettingsUi = this.ui.value): List<String> {
+        val listed = ui.tones.map { it.pkg }.toSet()
+        return ui.apps.launcher.filter { it !in listed && it != ownPackage }
     }
 
     // ------------------------------------------------------------ Navigation inside Settings
@@ -245,19 +317,25 @@ class SettingsViewModel(
      */
     fun chooseRetention(days: Int) {
         scope.launch {
-            val current = deps.settings.current().retentionDays
-            if (days == current) return@launch
-            if (!shortens(current, days)) {
-                deps.settings.update { it.copy(retentionDays = days) }
-                return@launch
+            guarded("retention_choose", SettingsEvent.NOT_SAVED) {
+                val current = deps.settings.current().retentionDays
+                if (days == current) return@guarded
+                if (!shortens(current, days)) {
+                    deps.settings.update { it.copy(retentionDays = days) }
+                    return@guarded
+                }
+                val firstKept = RetentionPolicy.firstKeptDay(today(), days)
+                val count = withContext(io) { deps.history.entries().first().count { it.localDay.isBefore(firstKept) } }
+                if (count == 0) applyRetention(days) else _retentionConfirm.value = RetentionConfirm(days, count)
             }
-            val firstKept = RetentionPolicy.firstKeptDay(today(), days)
-            val count = withContext(io) { deps.history.entries().first().count { it.localDay.isBefore(firstKept) } }
-            if (count == 0) applyRetention(days) else _retentionConfirm.value = RetentionConfirm(days, count)
         }
     }
 
-    /** The confirm dialog's Delete: the period is stored, then WP-12's immediate retention run deletes the entries. */
+    /**
+     * The confirm dialog's Delete: the period is stored, then WP-12's immediate retention run deletes the entries.
+     * The user confirmed the period, so it stays stored when the run fails; WP-12's start-up and midnight runs delete
+     * by the stored period, and the snackbar says so ([SettingsEvent.DELETION_DEFERRED]).
+     */
     fun confirmRetention() {
         val c = _retentionConfirm.value ?: return
         _retentionConfirm.value = null
@@ -269,15 +347,19 @@ class SettingsViewModel(
     }
 
     private suspend fun applyRetention(days: Int) {
-        deps.settings.update { it.copy(retentionDays = days) }
-        withContext(io) { deps.retention(days) }
+        guarded("retention_store", SettingsEvent.NOT_SAVED) {
+            deps.settings.update { it.copy(retentionDays = days) }
+            guarded("retention_run", SettingsEvent.DELETION_DEFERRED) { withContext(io) { deps.retention(days) } }
+        }
     }
 
     /** "Delete all history": counts first; nothing to delete -> a snackbar, else the confirm dialog. */
     fun askDeleteAll() {
         scope.launch {
-            val n = withContext(io) { deps.history.entries().first().size }
-            if (n == 0) _events.value = SettingsEvent.NOTHING_TO_DELETE else _deleteAllCount.value = n
+            guarded("history_count", SettingsEvent.DELETE_FAILED) {
+                val n = withContext(io) { deps.history.entries().first().size }
+                if (n == 0) _events.value = SettingsEvent.NOTHING_TO_DELETE else _deleteAllCount.value = n
+            }
         }
     }
 
@@ -285,8 +367,10 @@ class SettingsViewModel(
         if (_deleteAllCount.value == null) return
         _deleteAllCount.value = null
         scope.launch {
-            withContext(io) { deps.history.deleteAll() }
-            _events.value = SettingsEvent.HISTORY_DELETED
+            guarded("history_delete_all", SettingsEvent.DELETE_FAILED) {
+                withContext(io) { deps.history.deleteAll() }
+                _events.value = SettingsEvent.HISTORY_DELETED
+            }
         }
     }
 
@@ -333,7 +417,26 @@ class SettingsViewModel(
 }
 
 /** Snackbar messages of the Settings screen. */
-enum class SettingsEvent { POSITION_RESET, HISTORY_DELETED, NOTHING_TO_DELETE }
+enum class SettingsEvent {
+    POSITION_RESET,
+    HISTORY_DELETED,
+    NOTHING_TO_DELETE,
+    /** A settings write failed (storage); the setting keeps its old value. */
+    NOT_SAVED,
+    /** "Delete all history" (or its count) failed; nothing was deleted. */
+    DELETE_FAILED,
+    /** A shorter period is stored but the immediate deletion failed; the start-up and midnight runs delete by it. */
+    DELETION_DEFERRED,
+}
+
+/** D9: codes and the place only, never text, packages or settings values. */
+internal object SettingsLog {
+    private const val TAG = "feature.settings"
+
+    fun code(code: String, where: String) {
+        android.util.Log.w(TAG, "$code at=$where")
+    }
+}
 
 /** DESIGN 6.5 inner display: the 260 dp category list. [DEBUG] exists in debug builds only. */
 enum class SettingsCategory { DICTATION, BUBBLE, CLEANUP, PRIVACY, PERMISSIONS, DEBUG }

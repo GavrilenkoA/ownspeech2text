@@ -107,6 +107,9 @@
     </plurals>
     <string name="settings_history_deleted">History deleted</string>
     <string name="settings_nothing_to_delete">History is already empty</string>
+    <string name="settings_not_saved">Couldn\'t save the setting. Try again.</string>
+    <string name="settings_delete_failed">Couldn\'t delete history. Try again.</string>
+    <string name="settings_deletion_deferred">Couldn\'t delete older dictations now. They\'ll be deleted overnight.</string>
     <string name="settings_cancel">Cancel</string>
     <string name="settings_delete">Delete</string>
 
@@ -202,6 +205,7 @@
     <string name="prompt_try_memory">Not enough free memory to load the cleanup model right now</string>
     <string name="prompt_try_rejected">The model\'s answer was rejected, so your words would be inserted as spoken</string>
     <string name="prompt_try_failed">Couldn\'t run the cleanup model. Try again.</string>
+    <string name="prompt_try_invalid">Fix the prompt to test it</string>
     <string name="prompt_test">Test</string>
     <string name="prompt_test_again">Test again</string>
     <string name="prompt_reset_title">Reset to the default prompt?</string>

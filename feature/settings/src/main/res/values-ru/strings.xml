@@ -104,6 +104,9 @@
     </plurals>
     <string name="settings_history_deleted">История удалена</string>
     <string name="settings_nothing_to_delete">История уже пуста</string>
+    <string name="settings_not_saved">Не удалось сохранить настройку. Попробуйте ещё раз.</string>
+    <string name="settings_delete_failed">Не удалось удалить историю. Попробуйте ещё раз.</string>
+    <string name="settings_deletion_deferred">Сейчас не удалось удалить старые диктовки. Они удалятся ночью.</string>
     <string name="settings_cancel">Отмена</string>
     <string name="settings_delete">Удалить</string>
 
@@ -193,6 +196,7 @@
     <string name="prompt_try_memory">Сейчас не хватает памяти, чтобы загрузить модель правки</string>
     <string name="prompt_try_rejected">Ответ модели отклонён, поэтому текст вставился бы как сказан</string>
     <string name="prompt_try_failed">Не удалось запустить модель правки. Попробуйте ещё раз.</string>
+    <string name="prompt_try_invalid">Исправьте инструкции, чтобы проверить их</string>
     <string name="prompt_test">Проверить</string>
     <string name="prompt_test_again">Проверить снова</string>
     <string name="prompt_reset_title">Вернуть инструкцию по умолчанию?</string>

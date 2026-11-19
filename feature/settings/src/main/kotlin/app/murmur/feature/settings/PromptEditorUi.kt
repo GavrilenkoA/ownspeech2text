@@ -346,6 +346,7 @@ private fun tryFailureText(f: TryFailure): String = stringResource(
         TryFailure.LOW_MEMORY -> R.string.prompt_try_memory
         TryFailure.REJECTED -> R.string.prompt_try_rejected
         TryFailure.FAILED -> R.string.prompt_try_failed
+        TryFailure.INVALID -> R.string.prompt_try_invalid
     },
 )
 

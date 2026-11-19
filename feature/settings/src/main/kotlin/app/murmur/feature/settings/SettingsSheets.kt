@@ -23,6 +23,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -31,6 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -114,7 +116,7 @@ internal fun SettingsSheets(kind: SheetKind, ui: SettingsUi, vm: SettingsViewMod
                 }
                 SheetFootnote(stringResource(R.string.retention_footnote))
             }
-            SheetKind.TONE_ADD -> ToneAddSheet(vm, onDismiss)
+            SheetKind.TONE_ADD -> ToneAddSheet(ui, vm, onDismiss)
             SheetKind.TIMEOUT_SCALE -> {
                 SheetHeader(stringResource(R.string.settings_debug_timeout), stringResource(R.string.settings_debug_timeout_sub))
                 Options {
@@ -232,17 +234,17 @@ private fun TypingSheet(current: Int, onPick: (Int) -> Unit) {
 @Composable
 private fun ColumnScope.HiddenInSheet(ui: SettingsUi, vm: SettingsViewModel) {
     val own = LocalContext.current.packageName
-    val apps = remember(ui.tones, own) { vm.hiddenInCandidates(own) }
+    val apps = remember(ui.apps, own) { vm.hiddenInCandidates(own, ui) }
     val hidden = ui.settings.hiddenInPackages
     // Apps already hidden but no longer launchable stay listed so that they can be un-hidden.
     val rows = apps + hidden.filter { it !in apps }.sorted()
     SheetHeader(stringResource(R.string.settings_hidden_title), stringResource(R.string.settings_hidden_body))
     LazyColumn(Modifier.weight(1f, fill = false).padding(start = SheetOptionsPadding, end = SheetOptionsPadding, top = 8.dp)) {
         items(rows, key = { it }) { pkg ->
-            val label = vm.appLabel(pkg)
+            val label = ui.apps.label(pkg)
             CheckRow(
                 label, null, pkg in hidden, onCheckedChange = { vm.setHiddenIn(pkg, it) },
-                leading = { AppTile(label, vm.appIcon(pkg), size = AppTileSize.Small, packageName = pkg) },
+                leading = { AppTile(label, rememberAppIcon(vm, pkg), size = AppTileSize.Small, packageName = pkg) },
                 modifier = Modifier.testTag(SettingsTags.sheetOption("hidden-$pkg")),
             )
         }
@@ -250,22 +252,27 @@ private fun ColumnScope.HiddenInSheet(ui: SettingsUi, vm: SettingsViewModel) {
 }
 
 @Composable
-private fun ColumnScope.ToneAddSheet(vm: SettingsViewModel, onDismiss: () -> Unit) {
+private fun ColumnScope.ToneAddSheet(ui: SettingsUi, vm: SettingsViewModel, onDismiss: () -> Unit) {
     val own = LocalContext.current.packageName
-    val apps = remember(own) { vm.toneCandidates(own) }
+    val apps = remember(ui.apps, ui.tones, own) { vm.toneCandidates(own, ui) }
     SheetHeader(stringResource(R.string.tone_add), stringResource(R.string.tone_add_body))
     LazyColumn(Modifier.weight(1f, fill = false).padding(start = SheetOptionsPadding, end = SheetOptionsPadding, top = 8.dp)) {
         items(apps, key = { it }) { pkg ->
-            val label = vm.appLabel(pkg)
+            val label = ui.apps.label(pkg)
             ListRow(
                 label,
-                leading = { AppTile(label, vm.appIcon(pkg), size = AppTileSize.Large, packageName = pkg) },
+                leading = { AppTile(label, rememberAppIcon(vm, pkg), size = AppTileSize.Large, packageName = pkg) },
                 onClick = { vm.addToneApp(pkg); onDismiss() },
                 modifier = Modifier.testTag(SettingsTags.sheetOption("tone-add-$pkg")),
             )
         }
     }
 }
+
+/** The launcher icon of [pkg], looked up off the main thread; the letter tile shows until it arrives. */
+@Composable
+internal fun rememberAppIcon(vm: SettingsViewModel, pkg: String): Painter? =
+    produceState(vm.cachedIcon(pkg), vm, pkg) { value = vm.appIcon(pkg) }.value
 
 /**
  * Checkbox (no WP-01 component; drawn like the radio): 22 dp, xs radius, 2 dp line2 border; checked = accent fill

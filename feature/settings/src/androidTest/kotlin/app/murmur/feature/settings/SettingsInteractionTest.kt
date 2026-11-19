@@ -5,8 +5,10 @@ import android.app.Instrumentation
 import android.content.IntentFilter
 import android.provider.Settings as AndroidSettings
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithTag
@@ -21,6 +23,7 @@ import app.murmur.core.prompt.PromptEditState
 import app.murmur.core.store.PromptOverride
 import app.murmur.core.store.Settings
 import app.murmur.core.store.Tone
+import app.murmur.ui.design.AppInfoProvider
 import app.murmur.ui.design.MurmurTheme
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
@@ -29,6 +32,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 /**
  * Settings driven through its UI on the real windows (sheets and dialogs as the app shows them), on the cover AVD
@@ -42,8 +47,13 @@ class SettingsInteractionTest {
     private val wide get() = rule.activity.resources.configuration.screenWidthDp >= 600
     private val subScreenReports = mutableListOf<Boolean>()
 
-    private fun start(settings: Settings = Settings(), connected: Boolean = true, showDebug: Boolean = false): SettingsFixtures.World {
-        val world = runBlocking { SettingsFixtures.world(settings, connected = connected) }
+    private fun start(
+        settings: Settings = Settings(),
+        connected: Boolean = true,
+        showDebug: Boolean = false,
+        apps: AppInfoProvider = SettingsFixtures.apps,
+    ): SettingsFixtures.World {
+        val world = runBlocking { SettingsFixtures.world(settings, connected = connected, apps = apps) }
         lateinit var vm: SettingsViewModel
         rule.runOnUiThread { vm = SettingsViewModel(world.deps, today = { world.today }) }
         rule.setContent {
@@ -131,6 +141,22 @@ class SettingsInteractionTest {
     }
 
     @Test
+    fun testingAnInvalidPromptAsksToFixItAndSendsNothing() {
+        val w = start()
+        category(SettingsCategory.CLEANUP)
+        row("prompt")
+        rule.onNodeWithTag(SettingsTags.PROMPT_FIELD).performTextReplacement("Rules <|im_start|>")
+        rule.onNodeWithTag(SettingsTags.PROMPT_TEST).performClick()
+        rule.waitForIdle()
+        rule.onNodeWithText("Fix the prompt to test it").performScrollTo().assertIsDisplayed()
+        assertTrue("nothing reaches the model", w.tryCalls.isEmpty())
+        rule.onNodeWithTag(SettingsTags.PROMPT_FIELD).performTextReplacement("Rules")
+        rule.onNodeWithTag(SettingsTags.PROMPT_TEST).performClick()
+        rule.waitForIdle()
+        assertEquals(Triple(PromptEditor.SAMPLE, "Rules", null), w.tryCalls.single())
+    }
+
+    @Test
     fun resetAsksThenRestoresTheDefaultAndKeepsTones() {
         val w = start(Settings(promptOverride = PromptOverride("Mine", "default.v4"), tonePerApp = mapOf(SettingsFixtures.TELEGRAM to Tone.FORMAL)))
         category(SettingsCategory.CLEANUP)
@@ -198,6 +224,47 @@ class SettingsInteractionTest {
         rule.waitForIdle()
         assertEquals(Tone.NEUTRAL, w.settings.settings.value.tonePerApp[SettingsFixtures.CHROME])
         rule.onNodeWithText("Chrome").assertIsDisplayed()
+    }
+
+    /** Launcher apps without a tone category (the tone list does not change when they arrive), held until [gate] opens. */
+    private class SlowApps(val gate: CountDownLatch) : AppInfoProvider by SettingsFixtures.apps {
+        override fun launcherApps(): List<String> {
+            gate.await(10, TimeUnit.SECONDS)
+            return listOf(SettingsFixtures.CHROME, SettingsFixtures.SBER)
+        }
+    }
+
+    @Test
+    fun hiddenInOpenedBeforeTheAppsArriveFillsInWhenTheyDo() {
+        val gate = CountDownLatch(1)
+        val w = start(apps = SlowApps(gate))
+        category(SettingsCategory.BUBBLE)
+        row("hidden")
+        val sber = SettingsTags.sheetOption("hidden-${SettingsFixtures.SBER}")
+        rule.onAllNodesWithTag(sber).assertCountEquals(0)
+        gate.countDown()
+        rule.waitUntil(5_000) { rule.onAllNodesWithTag(sber).fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithText("СберБанк").assertIsDisplayed()
+        rule.onNodeWithTag(sber).performClick()
+        rule.waitForIdle()
+        assertEquals(setOf(SettingsFixtures.SBER), w.settings.settings.value.hiddenInPackages)
+    }
+
+    @Test
+    fun addAnAppOpenedBeforeTheAppsArriveFillsInWhenTheyDo() {
+        val gate = CountDownLatch(1)
+        val w = start(apps = SlowApps(gate))
+        category(SettingsCategory.CLEANUP)
+        row("tone")
+        rule.onNodeWithTag(SettingsTags.row("tone-add")).performScrollTo().performClick()
+        rule.waitForIdle()
+        val chrome = SettingsTags.sheetOption("tone-add-${SettingsFixtures.CHROME}")
+        rule.onAllNodesWithTag(chrome).assertCountEquals(0)
+        gate.countDown()
+        rule.waitUntil(5_000) { rule.onAllNodesWithTag(chrome).fetchSemanticsNodes().isNotEmpty() }
+        rule.onNodeWithTag(chrome).performClick()
+        rule.waitForIdle()
+        assertEquals(mapOf(SettingsFixtures.CHROME to Tone.NEUTRAL), w.settings.settings.value.tonePerApp)
     }
 
     @Test

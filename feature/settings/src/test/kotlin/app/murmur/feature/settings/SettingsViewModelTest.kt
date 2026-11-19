@@ -19,14 +19,32 @@ import app.murmur.feature.settings.SettingsFixtures.SLACK
 import app.murmur.feature.settings.SettingsFixtures.TELEGRAM
 import app.murmur.feature.settings.SettingsFixtures.TERMUX
 import app.murmur.feature.settings.SettingsFixtures.TODAY
+import androidx.compose.ui.graphics.painter.Painter
+import app.murmur.core.store.HistoryEntry
+import app.murmur.core.store.HistoryRepository
+import app.murmur.core.store.SettingsRepository
+import app.murmur.testing.InMemoryHistoryRepository
+import app.murmur.ui.design.AppInfoProvider
+import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
+import java.io.IOException
+import java.util.concurrent.Executors
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -336,5 +354,158 @@ class SettingsViewModelTest {
         assertEquals(1, w.permissions.refreshes)
         w.connected.value = false
         assertFalse(vm.ui.value.serviceConnected)
+    }
+
+    // ---------------------------------------------------------------- failures do not escape
+
+    /** A scope like viewModelScope whose uncaught exceptions are collected instead of ending the process. */
+    private class Guarded(test: TestScope) {
+        val uncaught = mutableListOf<Throwable>()
+        val logged = mutableListOf<Pair<String, String>>()
+        val d = UnconfinedTestDispatcher(test.testScheduler)
+        val scope = CoroutineScope(d + SupervisorJob() + CoroutineExceptionHandler { _, e -> uncaught += e })
+
+        init {
+            test.backgroundScope.coroutineContext[Job]!!.invokeOnCompletion { scope.cancel() }
+        }
+
+        fun vm(w: SettingsFixtures.World, deps: SettingsDeps = w.deps) =
+            SettingsViewModel(deps, scope, today = { w.today }, io = d, log = { code, where -> logged += code to where })
+    }
+
+    private fun SettingsDeps.copy(
+        settings: SettingsRepository = this.settings,
+        history: HistoryRepository = this.history,
+        retention: suspend (Int) -> Int = this.retention,
+        apps: AppInfoProvider = this.apps,
+    ) = SettingsDeps(settings, prompts, renderer, catalog, history, serviceConnected, tryCleanup, retention, apps, permissions)
+
+    private class FailingHistory(val inner: InMemoryHistoryRepository, var failEntries: Boolean = false) : HistoryRepository by inner {
+        override fun entries(): Flow<List<HistoryEntry>> = if (failEntries) flow { throw IOException("read") } else inner.entries()
+        override suspend fun deleteAll() = throw IOException("disk full")
+    }
+
+    @Test
+    fun aFailedRetentionRunKeepsTheConfirmedPeriodAndSaysWhenItIsDeleted() = runTest {
+        val w = SettingsFixtures.world()
+        val g = Guarded(this)
+        val vm = g.vm(w, w.deps.copy(retention = { throw IOException("disk full") }))
+        vm.chooseRetention(3)
+        assertEquals(RetentionConfirm(3, 12), vm.retentionConfirm.value)
+        vm.confirmRetention()
+        assertEquals(emptyList<Throwable>(), g.uncaught)
+        assertEquals("the user confirmed the period; WP-12's start-up and midnight runs delete by it", 3, w.settings.settings.value.retentionDays)
+        assertEquals(SettingsEvent.DELETION_DEFERRED, vm.events.value)
+        assertEquals(listOf("data.io" to "retention_run"), g.logged)
+        assertEquals(19, w.history.entries().first().size)
+    }
+
+    @Test
+    fun aFailedCountOrDeleteAllShowsAMessageInsteadOfCrashing() = runTest {
+        val w = SettingsFixtures.world()
+        val history = FailingHistory(w.history)
+        val g = Guarded(this)
+        val vm = g.vm(w, w.deps.copy(history = history))
+        vm.askDeleteAll()
+        assertEquals(19, vm.deleteAllCount.value)
+        vm.confirmDeleteAll()
+        assertEquals(SettingsEvent.DELETE_FAILED, vm.events.value)
+        assertNull(vm.deleteAllCount.value)
+        vm.eventShown()
+        history.failEntries = true
+        vm.askDeleteAll()
+        assertEquals(SettingsEvent.DELETE_FAILED, vm.events.value)
+        assertNull(vm.deleteAllCount.value)
+        vm.eventShown()
+        // The shortening count fails: nothing is stored, nothing is asked.
+        vm.chooseRetention(3)
+        assertEquals(SettingsEvent.NOT_SAVED, vm.events.value)
+        assertNull(vm.retentionConfirm.value)
+        assertEquals(RetentionPolicy.DEFAULT_DAYS, w.settings.settings.value.retentionDays)
+        assertEquals(emptyList<Throwable>(), g.uncaught)
+        assertEquals(listOf("history_delete_all", "history_count", "retention_choose"), g.logged.map { it.second })
+    }
+
+    @Test
+    fun aFailedSettingsWriteShowsAMessageInsteadOfCrashing() = runTest {
+        val w = SettingsFixtures.world()
+        val broken = object : SettingsRepository by w.settings {
+            override suspend fun update(transform: (Settings) -> Settings) = throw IOException("disk full")
+        }
+        val g = Guarded(this)
+        val vm = g.vm(w, w.deps.copy(settings = broken))
+        vm.setHoldToTalk(false)
+        assertEquals(SettingsEvent.NOT_SAVED, vm.events.value)
+        vm.eventShown()
+        vm.resetPosition()
+        assertEquals("no 'position reset' when nothing was written", SettingsEvent.NOT_SAVED, vm.events.value)
+        vm.eventShown()
+        vm.chooseRetention(0)
+        vm.confirmRetention()
+        assertEquals(SettingsEvent.NOT_SAVED, vm.events.value)
+        assertEquals("the period was not stored, so nothing is deleted", emptyList<Int>(), w.retentionCalls)
+        assertEquals(emptyList<Throwable>(), g.uncaught)
+        assertEquals(Settings(), w.settings.settings.value)
+    }
+
+    // ---------------------------------------------------------------- installed apps
+
+    @Test
+    fun theAppListsFollowTheAsynchronousLauncherLoad() = runTest {
+        val w = SettingsFixtures.world()
+        val main = UnconfinedTestDispatcher(testScheduler)
+        val io = StandardTestDispatcher(testScheduler)
+        val scope = CoroutineScope(main + Job())
+        backgroundScope.coroutineContext[Job]!!.invokeOnCompletion { scope.cancel() }
+        val vm = SettingsViewModel(w.deps, scope, today = { w.today }, io = io)
+        // A sheet opened before PackageManager answered: nothing yet.
+        val before = vm.ui.value
+        assertFalse(before.apps.loaded)
+        assertEquals(emptyList<String>(), vm.hiddenInCandidates(null, before))
+        advanceUntilIdle()
+        // The same sheet recomposes with the new ui and its candidates (SettingsSheets keys them on ui.apps).
+        val after = vm.ui.value
+        assertTrue(after.apps.loaded)
+        assertTrue(after.apps != before.apps)
+        assertEquals(SettingsFixtures.apps.launcherApps(), vm.hiddenInCandidates(null, after))
+        assertTrue(CHROME in vm.toneCandidates(null, after))
+        assertEquals("Telegram", after.apps.label(TELEGRAM))
+        assertEquals("an unknown package shows its name", "com.example.gone", after.apps.label("com.example.gone"))
+    }
+
+    @Test
+    fun packageManagerLookupsRunOnTheIoDispatcher() = runTest {
+        val threads = java.util.Collections.synchronizedList(mutableListOf<String>())
+        val recording = object : AppInfoProvider {
+            override fun label(pkg: String): String? { threads += Thread.currentThread().name.substringBefore(" @"); return SettingsFixtures.apps.label(pkg) }
+            override fun icon(pkg: String): Painter? { threads += Thread.currentThread().name.substringBefore(" @"); return null }
+            override fun launcherApps(): List<String> { threads += Thread.currentThread().name.substringBefore(" @"); return SettingsFixtures.apps.launcherApps() }
+        }
+        val pool = Executors.newSingleThreadExecutor { Thread(it, "settings-io") }
+        val io = pool.asCoroutineDispatcher()
+        try {
+            val w = SettingsFixtures.world(Settings(tonePerApp = mapOf("com.example.gone" to Tone.FORMAL)))
+            val main = UnconfinedTestDispatcher(testScheduler)
+            val scope = CoroutineScope(main + Job())
+            backgroundScope.coroutineContext[Job]!!.invokeOnCompletion { scope.cancel() }
+            val vm = SettingsViewModel(w.deps.copy(apps = recording), scope, today = { w.today }, io = io)
+            withContext(Dispatchers.Default) { withTimeout(5_000) { vm.ui.first { it.apps.loaded } } }
+            // Settings changes rebuild the list without new lookups; a newly stored package is looked up on io.
+            vm.setTone(TELEGRAM, Tone.FORMAL)
+            vm.setHiddenIn("com.example.other", true)
+            withContext(Dispatchers.Default) { withTimeout(5_000) { vm.ui.first { "com.example.other" in it.apps.labels } } }
+            vm.appIcon(TELEGRAM)
+            vm.appIcon(TELEGRAM)
+            val ui = vm.ui.value
+            assertEquals("Telegram", ui.tones.first { it.pkg == TELEGRAM }.label)
+            assertEquals(null, ui.tones.first { it.pkg == "com.example.gone" }.label)
+            assertTrue(threads.isNotEmpty())
+            assertEquals("every PackageManager call ran on io", setOf("settings-io"), threads.toSet())
+            // Launcher list once, each package's label once, the icon once.
+            val expected = 1 + (SettingsFixtures.apps.launcherApps() + "com.example.gone" + "com.example.other").size + 1
+            assertEquals(expected, threads.size)
+        } finally {
+            pool.shutdown()
+        }
     }
 }
