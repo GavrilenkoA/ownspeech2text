@@ -17,7 +17,9 @@ import app.murmur.core.catalog.UnitHealth
 import app.murmur.core.dictation.ActiveLlm
 import app.murmur.core.dictation.ActiveModels
 import app.murmur.core.dictation.LlmSpeed
+import app.murmur.core.dictation.LlmPrepare
 import app.murmur.core.dictation.ModelResolver
+import app.murmur.core.dictation.PrepareTargets
 import app.murmur.core.engine.LoadOptions
 import app.murmur.core.engine.LoadSpec
 import app.murmur.core.model.ArtifactId
@@ -50,6 +52,11 @@ class DefaultModelResolver(
     private val device: DeviceProfileRepository,
     private val health: UnitHealth,
     private val benchmarks: BenchmarkRepository,
+    /**
+     * Folder of an artifact that is being installed (InstallState.Preparing carries no dir): the storage layout's
+     * `models/<artifactId>/`. Used only by [prepareTargets]; null = only Installed artifacts can be prepared.
+     */
+    private val artifactDir: ((ArtifactId) -> String)? = null,
 ) : ModelResolver {
 
     override suspend fun resolve(settings: Settings): Outcome<ActiveModels> = try {
@@ -95,6 +102,67 @@ class DefaultModelResolver(
                 llm = llm,
                 llmUnavailable = llmUnavailable,
             ),
+        )
+    }
+
+    override suspend fun prepareTargets(artifact: ArtifactId, settings: Settings): Outcome<PrepareTargets> = try {
+        prepareOrErr(artifact, settings)
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        Outcome.Err(MurmurError.Internal("resolver: ${e.javaClass.simpleName}"))
+    }
+
+    /**
+     * EnginePreparer input (ModelResolver.prepareTargets): [id] on every usable unit (ranked, UnitHealth applied),
+     * specs built by the same [loadSpec] as [resolve]; the VAD / OCR partner / CPU artifact as resolve would pick them.
+     */
+    private suspend fun prepareOrErr(id: ArtifactId, settings: Settings): Outcome<PrepareTargets> {
+        val c = withTimeoutOrNull(CATALOG_WAIT_MS) { catalog.loaded() } ?: catalog.catalog.value
+        val entry = c.models.firstOrNull { m -> m.artifacts.any { it.id == id } }
+            ?: return Outcome.Err(MurmurError.CatalogInvalid("unknown artifact"))
+        val art = entry.artifacts.first { it.id == id }
+        val dir = when (val st = installed.state(id).first()) {
+            is InstallState.Installed -> st.dir
+            is InstallState.Preparing -> artifactDir?.invoke(id)
+            else -> null
+        } ?: return Outcome.Err(MurmurError.CatalogInvalid("not installed"))
+        val dev = device.ensure()
+        val bench = BenchScores(benchmarks.latest(id).first())
+        val ranked = ArtifactSelector.ranked(entry, dev, UnitPreference.Auto, bench, setOf(id), health)
+            .filter { it.artifact.id == id }
+        val specs = ranked.map { loadSpec(entry, art, it.unit, dir) }
+        return Outcome.Ok(
+            when (entry.kind) {
+                ModelKind.ASR -> {
+                    val cpu = entry.artifacts.firstOrNull { it.id != id && it.units == listOf(ComputeUnit.CPU) }
+                        ?: entry.artifacts.firstOrNull { it.id != id && ComputeUnit.CPU in it.units }
+                    PrepareTargets(
+                        kind = ModelKind.ASR,
+                        specs = specs,
+                        vad = c.model(c.defaults.vad)?.let { first(it, dev, settings) },
+                        needsVad = RuntimeKeys.isBatchAsr(art.runtime),
+                        cpuArtifact = cpu?.id,
+                        cpuArtifactInstalled = cpu != null && installed.state(cpu.id).first() is InstallState.Installed,
+                    )
+                }
+                ModelKind.LLM -> {
+                    val traits = entry.llm ?: return Outcome.Err(MurmurError.CatalogInvalid("llm traits"))
+                    val gguf = ggufFile(art) ?: return Outcome.Err(MurmurError.CatalogInvalid("no gguf"))
+                    // The gate uses the largest per-unit estimate of the units being proven.
+                    val mem = ranked.maxOfOrNull { MemoryEstimate.mb(entry, art, it.unit) } ?: MemoryEstimate.mb(entry, art, ComputeUnit.CPU)
+                    PrepareTargets(
+                        kind = ModelKind.LLM,
+                        specs = specs,
+                        llm = LlmPrepare(traits.template, traits.promptProfile, traits.nCtx, gguf.sha256, mem),
+                    )
+                }
+                ModelKind.OCR_DET, ModelKind.OCR_REC -> {
+                    val partnerId = if (entry.kind == ModelKind.OCR_DET) c.defaults.ocrRec else c.defaults.ocrDet
+                    PrepareTargets(entry.kind, specs, ocrPartner = c.model(partnerId)?.let { first(it, dev, settings) })
+                }
+                ModelKind.VAD -> PrepareTargets(ModelKind.VAD, specs)
+            },
         )
     }
 

@@ -87,7 +87,7 @@ class AppContainer(private val context: Context) {
     /** The only owner of the probe (WP-13, ARCHITECTURE 8.4); never throws (CPU-only profile on failure). */
     val deviceProfile: DeviceProfileRepository by lazy { DefaultDeviceProfileRepository(context, engines.asrHost, engines.llmHost) }
     val unitHealth: UnitHealthRepository by lazy { FileUnitHealthRepository(ModelsModule.storage(context), BuildConfig.VERSION_NAME) }
-    private val resolver by lazy { DefaultModelResolver(catalog, installed, deviceProfile, unitHealth, benchmarks) }
+    private val resolver by lazy { DefaultModelResolver(catalog, installed, deviceProfile, unitHealth, benchmarks) { ModelsModule.storage(context).dir(it).path } }
     val benchmarkRunner: BenchmarkRunner by lazy { TODO("WP-14: BenchmarkRunner over engines + hosts") }
 
     // --- prompt
