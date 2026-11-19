@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="dash_title">Сводка</string>
+
+    <string name="dash_range_week">Последние 7 дней</string>
+    <string name="dash_range_today">Сегодня</string>
+    <string name="dash_range_cd">Период: %1$s</string>
+    <string name="dash_range_action">Показать: %1$s</string>
+
+    <string name="dash_today">Сегодня</string>
+    <plurals name="dash_words_unit">
+        <item quantity="one">слово</item>
+        <item quantity="few">слова</item>
+        <item quantity="many">слов</item>
+        <item quantity="other">слова</item>
+    </plurals>
+    <string name="dash_speaking">%1$s мин речи.</string>
+    <string name="dash_speaking_short">Меньше минуты речи.</string>
+    <string name="dash_nothing_today">Сегодня диктовок ещё не было.</string>
+    <string name="dash_time_saved">Набор этого текста со скоростью %1$s слов/мин занял бы около %2$s мин — экономия примерно %3$s.</string>
+    <string name="dash_min_saved">%1$s мин</string>
+    <string name="dash_card_action">Изменить скорость набора</string>
+
+    <string name="dash_week_title">Последние 7 дней</string>
+    <plurals name="dash_words_count">
+        <item quantity="one">%1$s слово</item>
+        <item quantity="few">%1$s слова</item>
+        <item quantity="many">%1$s слов</item>
+        <item quantity="other">%1$s слова</item>
+    </plurals>
+    <string name="dash_chart_cd">Слов по дням, всего %1$s: %2$s.</string>
+    <string name="dash_chart_today">сегодня</string>
+    <string-array name="dash_days_short">
+        <item>Пн</item>
+        <item>Вт</item>
+        <item>Ср</item>
+        <item>Чт</item>
+        <item>Пт</item>
+        <item>Сб</item>
+        <item>Вс</item>
+    </string-array>
+    <string-array name="dash_days_full">
+        <item>понедельник</item>
+        <item>вторник</item>
+        <item>среда</item>
+        <item>четверг</item>
+        <item>пятница</item>
+        <item>суббота</item>
+        <item>воскресенье</item>
+    </string-array>
+
+    <string name="dash_metrics_title">Как идут дела</string>
+    <string name="dash_pace">Темп речи</string>
+    <string name="dash_pace_unit">слов/мин</string>
+    <string name="dash_pace_sub_week">Медиана за 7 дней, без пауз</string>
+    <string name="dash_pace_sub_today">Медиана за сегодня, без пауз</string>
+    <string name="dash_ready">Готово после остановки</string>
+    <string name="dash_ready_unit">с</string>
+    <string name="dash_ready_sub">Медиана. 9 из 10 быстрее %1$s с</string>
+    <string name="dash_typed">Вставлено в приложение</string>
+    <string name="dash_percent_unit" formatted="false">%</string>
+    <plurals name="dash_copied_only">
+        <item quantity="one">%1$s диктовка только скопирована</item>
+        <item quantity="few">%1$s диктовки только скопированы</item>
+        <item quantity="many">%1$s диктовок только скопировано</item>
+        <item quantity="other">%1$s диктовки только скопированы</item>
+    </plurals>
+    <string name="dash_copied_all_in">%1$s, все в %2$s</string>
+    <string name="dash_copied_one_in">%1$s, в %2$s</string>
+    <string name="dash_copied_most_in">%1$s, в основном в %2$s</string>
+    <string name="dash_copied_some_in">%1$s, %2$s — в %3$s</string>
+    <string name="dash_copied_none">Все диктовки вставлены сразу</string>
+    <string name="dash_cleanup">Изменено правкой</string>
+    <string name="dash_cleanup_unit" formatted="false">% слов</string>
+    <plurals name="dash_fillers">
+        <item quantity="one">Убрано %1$s слово-паразит</item>
+        <item quantity="few">Убрано %1$s слова-паразита</item>
+        <item quantity="many">Убрано %1$s слов-паразитов</item>
+        <item quantity="other">Убрано %1$s слова-паразита</item>
+    </plurals>
+    <plurals name="dash_fixes">
+        <item quantity="one">%1$s исправление</item>
+        <item quantity="few">%1$s исправления</item>
+        <item quantity="many">%1$s исправлений</item>
+        <item quantity="other">%1$s исправления</item>
+    </plurals>
+    <string name="dash_cleanup_sub">%1$s, %2$s</string>
+    <string name="dash_cleanup_none">Правок пока не было</string>
+    <string name="dash_no_value">—</string>
+    <string name="dash_no_value_cd">Пока нет данных</string>
+
+    <string name="dash_languages">Языки</string>
+    <string name="dash_lang_mixed">Смешанный</string>
+    <string name="dash_lang_other">Другие</string>
+    <string name="dash_lang_item">%1$s %2$s\u00A0%%</string>
+
+    <string name="dash_apps">Где вы диктуете</string>
+    <string name="dash_apps_caption_week">слов за 7 дней</string>
+    <string name="dash_apps_caption_today">слов за сегодня</string>
+    <plurals name="dash_other_apps">
+        <item quantity="one">Ещё %1$s приложение</item>
+        <item quantity="few">Ещё %1$s приложения</item>
+        <item quantity="many">Ещё %1$s приложений</item>
+        <item quantity="other">Ещё %1$s приложения</item>
+    </plurals>
+    <string name="dash_other_apps_line">%1$s · %2$s</string>
+
+    <string name="dash_empty_body">Цифры появятся после первой диктовки. Они считаются на этом телефоне и никуда не отправляются.</string>
+    <string name="dash_try">Попробовать диктовку</string>
+    <string name="dash_empty_metrics">Что здесь будет</string>
+    <string name="dash_empty_pace">Сколько слов в минуту вы говорите</string>
+    <string name="dash_empty_ready">Сколько ждать текста</string>
+    <string name="dash_empty_typed">Вставлено сразу или только скопировано</string>
+
+    <string name="dash_error_title">Не удалось прочитать статистику.</string>
+    <string name="dash_error_body">История не пострадала.</string>
+    <string name="dash_retry">Повторить</string>
+
+    <string name="dash_off_title">Кнопка выключена.</string>
+    <string name="dash_off_body">Android отключил службу специальных возможностей %1$s — обычно после обновления или сбоя. Включите её снова, чтобы диктовать.</string>
+    <string name="dash_off_action">Открыть настройки</string>
+
+    <string name="dash_wpm_title">Ваша скорость набора</string>
+    <string name="dash_wpm_body">Сэкономленное время — это разница между диктовкой и набором тех же слов с этой скоростью.</string>
+    <string name="dash_wpm_option">%1$s слов/мин</string>
+    <string name="dash_wpm_default">По умолчанию</string>
+    <string name="dash_wpm_custom">Своя</string>
+    <string name="dash_wpm_custom_label">Слов в минуту</string>
+    <string name="dash_wpm_custom_range">От %1$s до %2$s</string>
+    <string name="dash_wpm_save">Сохранить</string>
+</resources>

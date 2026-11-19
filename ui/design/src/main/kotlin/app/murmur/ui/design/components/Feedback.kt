@@ -34,6 +34,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
@@ -180,8 +181,19 @@ fun Banner(
                 color = c.ink,
             )
             if (actionLabel != null && onAction != null) {
-                // Prototype: the text button hangs 12 dp left so its label lines up with the text.
-                Box(Modifier.offset(x = (-12).dp).padding(top = 2.dp)) {
+                // Prototype .banner .acts {margin: 6px 0 -6px -12px}: the 40 dp text button starts 6 dp under the
+                // text, hangs 12 dp left so its label lines up with the text, and takes 40 dp of the banner's height
+                // (6 − 6 margins); its 48 dp touch target overhangs by 4 dp above and below.
+                Box(
+                    Modifier.offset(x = (-12).dp).layout { m, cst ->
+                        val p = m.measure(cst)
+                        // The button's touch padding (48 dp target around the 40 dp visual); with large text the
+                        // visual grows and the padding stays.
+                        val hit = ((MinTouch - Sizes.buttonSm) / 2).roundToPx()
+                        val margin = 6.dp.roundToPx()
+                        layout(p.width, p.height - 2 * hit) { p.place(0, margin - hit) }
+                    },
+                ) {
                     MurmurButton(actionLabel, onAction, style = ButtonStyle.Text, size = ButtonSize.Small)
                 }
             }

@@ -40,6 +40,7 @@ import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -72,6 +73,7 @@ import kotlin.coroutines.resume
 import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -316,19 +318,48 @@ fun SheetSurface(side: Boolean, modifier: Modifier = Modifier, content: @Composa
 }
 
 /**
+ * Closes a [MurmurSheet] from inside its content the way a scrim tap does: the exit animation plays, then the sheet's
+ * `onDismiss` runs (ADR-075: remove the sheet there). Before the sheet is composed, [dismiss] does nothing.
+ */
+@Stable
+class MurmurSheetController internal constructor() {
+    internal var request: (() -> Unit)? = null
+
+    fun dismiss() {
+        request?.invoke()
+    }
+}
+
+@Composable
+fun rememberMurmurSheetController(): MurmurSheetController = remember { MurmurSheetController() }
+
+/**
  * Modal sheet (DESIGN 4, 3.5): a bottom sheet on compact width (slides up, drag to dismiss, handle); a 420 dp right
  * side sheet on medium+ (slides in from the right, 360 ms decelerate, out in 240 ms accelerate; a 150 ms fade under
- * reduced motion). Scrim tap and back play the exit and then call [onDismiss]; removing the sheet from composition
- * without that removes it at once. Content starts at the sheet's padding; give it 24 dp horizontal padding (prototype).
+ * reduced motion). Scrim tap and back play the exit and then call [onDismiss]; so does [MurmurSheetController.dismiss]
+ * from inside the content (an option that applies and closes the sheet). Removing the sheet from composition without
+ * that removes it at once. Content starts at the sheet's padding; give it 24 dp horizontal padding (prototype).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MurmurSheet(onDismiss: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
+fun MurmurSheet(
+    onDismiss: () -> Unit,
+    controller: MurmurSheetController = rememberMurmurSheetController(),
+    content: @Composable ColumnScope.() -> Unit,
+) {
     val c = MurmurTheme.colors
     if (!rememberIsWide()) {
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        val scope = rememberCoroutineScope()
+        val dismissNow by rememberUpdatedState(onDismiss)
+        SideEffect {
+            controller.request = {
+                scope.launch { sheetState.hide() }.invokeOnCompletion { if (!sheetState.isVisible) dismissNow() }
+            }
+        }
         ModalBottomSheet(
             onDismissRequest = onDismiss,
-            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            sheetState = sheetState,
             shape = MurmurShapes.sheetBottom,
             containerColor = c.surface,
             contentColor = c.ink,
@@ -352,6 +383,7 @@ fun MurmurSheet(onDismiss: () -> Unit, content: @Composable ColumnScope.() -> Un
         if (!reported) { reported = true; dismiss() }
     }
     val requestDismiss = { state.targetState = false }
+    SideEffect { controller.request = requestDismiss }
     val enterMs = if (reduced) REDUCED_MOTION_FADE_MS else Motion.longMs
     val exitMs = if (reduced) REDUCED_MOTION_FADE_MS else Motion.mediumMs
     // One transition drives scrim and sheet, so the state is idle only when both are done.
