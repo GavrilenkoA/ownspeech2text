@@ -111,7 +111,7 @@ class DefaultModelResolverTest {
         assertEquals("lfm3", llm.template)
         assertEquals("default.v4", llm.profile)
         assertEquals(9_216, llm.nCtx)
-        assertEquals(3_240, llm.prefixTokens)
+        assertEquals(3_226, llm.prefixTokens)
         val gguf = catalog.catalog.value.artifact(lfm)!!.second.files.single()
         assertEquals(gguf.sha256, llm.modelSha256)
         assertEquals(catalog.catalog.value.artifact(lfm)!!.second.memoryMb[NPU], llm.memoryMb)
@@ -226,7 +226,7 @@ class DefaultModelResolverTest {
         val q = ok(all.resolve(Settings(cleanup = CleanupChoice.Model(ModelId("qwen3.5-0.8b"))))).llm!!
         assertEquals(qwen to CPU, q.spec.artifactId to q.spec.unit)   // Qwen3.5 prefers CPU (llm spike D4)
         assertEquals("qwen3.5", q.template)
-        assertEquals(3_129, q.prefixTokens)
+        assertEquals(3_116, q.prefixTokens)
     }
 
     @Test
