@@ -81,20 +81,33 @@ class ScreenshotTest {
         assertEquals(listOf(ShotError.SECURE_WINDOW), rec.errors)
     }
 
-    /** The display capture of a FLAG_SECURE window is black (FrameCheck, the display path's rule); a normal one is not. */
+    /**
+     * The display capture of a FLAG_SECURE window is black in the app's part of the display (outside the exclusion
+     * rectangles the display path attaches), which FrameCheck turns into SecureWindow; a normal window's is not.
+     */
     @Test
     fun displayCaptureOfASecureWindowIsBlack() = runBlocking {
         launch(SecureTargetActivity::class.java)
         val secure = snapshotOf("Secure target")
         delay(400)
-        val secureFrame = displayFrame(secure.displayId)
+        val secureFrame = displayFrameWithExclusions(secure)
         launch(PlainTargetActivity::class.java) { putExtra("prefill", "Frame") }
         val plain = snapshotOf("Plain target")
         delay(400)
-        val plainFrame = displayFrame(plain.displayId)
-        note("display_capture secure=${secureFrame.width}x${secureFrame.height} black=${FrameCheck.isBlack(secureFrame)} plain_black=${FrameCheck.isBlack(plainFrame)}")
+        val plainFrame = displayFrameWithExclusions(plain)
+        note("display_capture secure=${secureFrame.width}x${secureFrame.height} exclude=${secureFrame.exclude} " +
+            "app_black=${FrameCheck.isBlack(secureFrame)} whole_frame_black=${FrameCheck.isBlack(secureFrame, ignore = emptyList())} " +
+            "secure_background_px=${count(secureFrame, Tgt.BACKGROUND)} plain_app_black=${FrameCheck.isBlack(plainFrame)} " +
+            "plain_background_px=${count(plainFrame, Tgt.BACKGROUND)}")
         assertTrue(FrameCheck.isBlack(secureFrame))
         assertFalse(FrameCheck.isBlack(plainFrame))
+    }
+
+    private fun count(img: ScreenImage, color: Int) = img.argb.count { close(it, color) }
+
+    private suspend fun displayFrameWithExclusions(snap: app.murmur.core.context.A11ySnapshot): ScreenImage {
+        val f = displayFrame(snap.displayId)
+        return ScreenImage(f.width, f.height, f.argb, ExclusionRects.of(windows(), service().packageName, snap.displayId, f.width, f.height, snap.pkg))
     }
 
     /** F1: after a switch to another app, the snapshot's app is captured or nothing is; never the app in front. */

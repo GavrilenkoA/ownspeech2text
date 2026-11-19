@@ -48,7 +48,7 @@ class ScreenshotChainTest {
     private fun TestScope.chain(s: FakeShooter, limiter: RateLimiter = RateLimiter { testScheduler.currentTime }) =
         ScreenshotChain(s, limiter) { testScheduler.currentTime }
 
-    private fun TestScope.shooter() = FakeShooter({ testScheduler.currentTime })
+    private fun TestScope.shooter(rects: List<Rect> = listOf(Rect(0, 2, 8, 4))) = FakeShooter({ testScheduler.currentTime }, rects = rects)
 
     @Test
     fun windowCaptureNeedsNoExclusionRects() = runTest {
@@ -162,6 +162,11 @@ class ScreenshotChainTest {
 
         val s2 = shooter().apply { resolved = null; displayResults += ShotResult.Frame(frame(color = 0xFF050505.toInt())) }
         assertEquals(Outcome.Err(MurmurError.SecureWindow), chain(s2).capture(PKG, -1, 0).first)
+
+        // As on the emulator: the secure app's area is black, the status bar (an exclusion rectangle) is drawn.
+        val shot = frame(8, 4, 0xFF000000.toInt()).also { for (x in 0 until 8) it.argb[x] = 0xFFE0E0E0.toInt() }
+        val s3 = shooter(rects = listOf(Rect(0, 0, 8, 1))).apply { resolved = null; displayResults += ShotResult.Frame(shot) }
+        assertEquals(Outcome.Err(MurmurError.SecureWindow), chain(s3).capture(PKG, -1, 0).first)
     }
 
     @Test
@@ -204,5 +209,8 @@ class ScreenshotChainTest {
         val sparse = frame(960, 960, 0xFF000000.toInt())
         sparse.argb[403 * 960 + 517] = 0xFFE0E0E0.toInt()
         assertFalse(FrameCheck.isBlack(sparse))
+        // Pixels inside the exclusion rectangles (bars, keyboard, other apps) do not count; the rest does.
+        assertTrue(FrameCheck.isBlack(sparse, ignore = listOf(Rect(500, 400, 520, 410))))
+        assertFalse(FrameCheck.isBlack(sparse, ignore = listOf(Rect(500, 400, 517, 410), Rect(518, 0, 960, 960))))
     }
 }

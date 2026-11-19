@@ -99,9 +99,9 @@ class ScreenshotChain(
         val d = displayShot(displayId)
         return when (d) {
             is ShotResult.Frame -> {
-                val img = d.image
+                val img = d.image.let { ScreenImage(it.width, it.height, it.argb, shooter.exclusionRects(displayId, it.width, it.height)) }
                 if (FrameCheck.isBlack(img)) done(Outcome.Err(MurmurError.SecureWindow), ShotPath.DISPLAY)
-                else done(Outcome.Ok(ScreenImage(img.width, img.height, img.argb, shooter.exclusionRects(displayId, img.width, img.height))), ShotPath.DISPLAY)
+                else done(Outcome.Ok(img), ShotPath.DISPLAY)
             }
             is ShotResult.Failed -> {
                 errors += d.code
@@ -156,17 +156,28 @@ class RateLimiter(private val now: () -> Long) {
 }
 
 /**
- * A FLAG_SECURE window shot through the display capture comes back black (platform spike c: centre luma 5). Applied to
- * display captures only. Every pixel is checked (the scan stops at the first non-black one, so a normal frame costs a
- * few reads): a true-black dark theme with a single line of light text is not black.
+ * A FLAG_SECURE window shot through the display capture comes back black where the window is (platform spike c: centre
+ * luma 5), while the status and navigation bars are still drawn. So the check covers the pixels outside the frame's
+ * exclusion rectangles (IME, bars, own overlay, other apps), i.e. the target app's part of the display, and applies to
+ * display captures only. Every such pixel is checked (the scan stops at the first non-black one, so a normal frame costs
+ * a few reads): a true-black dark theme with a single line of light text is not black.
  */
 object FrameCheck {
     private const val MAX_CHANNEL = 16
 
-    fun isBlack(img: ScreenImage): Boolean {
+    fun isBlack(img: ScreenImage, ignore: List<Rect> = img.exclude): Boolean {
         if (img.width == 0 || img.height == 0) return true
-        for (p in img.argb) {
-            if ((p shr 16 and 0xff) > MAX_CHANNEL || (p shr 8 and 0xff) > MAX_CHANNEL || (p and 0xff) > MAX_CHANNEL) return false
+        val w = img.width
+        for (y in 0 until img.height) {
+            val spans = ignore.filter { y >= it.y0 && y < it.y1 }
+            var x = 0
+            while (x < w) {
+                val skip = spans.firstOrNull { x >= it.x0 && x < it.x1 }
+                if (skip != null) { x = skip.x1; continue }
+                val p = img.argb[y * w + x]
+                if ((p shr 16 and 0xff) > MAX_CHANNEL || (p shr 8 and 0xff) > MAX_CHANNEL || (p and 0xff) > MAX_CHANNEL) return false
+                x++
+            }
         }
         return true
     }
