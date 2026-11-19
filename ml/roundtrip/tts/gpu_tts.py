@@ -51,6 +51,21 @@ CHATTERBOX_FILES = ["ve.pt", "t3_mtl23ls_v2.safetensors", "s3gen.pt", "grapheme_
 QWEN_LANG = {"ru": "Russian", "mixed": "Russian", "en": "English"}
 
 
+def choose_attn(requested: str) -> str:
+    """Attention implementation for Qwen3-TTS: ``MURMUR_QWEN_ATTN`` if set, else the requested one, except that
+    ``flash_attention_2`` falls back to ``sdpa`` when the flash_attn package is not installed (it is optional
+    and not in the pod venv; transformers would raise ImportError at load)."""
+    env = os.environ.get("MURMUR_QWEN_ATTN")
+    if env:
+        return env
+    if requested == "flash_attention_2":
+        import importlib.util
+
+        if importlib.util.find_spec("flash_attn") is None:
+            return "sdpa"
+    return requested
+
+
 def _ref_dir(explicit: Optional[str]) -> Optional[Path]:
     d = explicit or os.environ.get("MURMUR_REFVOICE_DIR")
     return Path(d) if d else None
@@ -134,7 +149,7 @@ class Qwen3TtsDriver(_CloningDriver):
 
         local = snapshot_download(QWEN3_TTS_MODEL, revision=QWEN3_TTS_REVISION)
         self._model = Qwen3TTSModel.from_pretrained(
-            local, device_map=self.device, dtype=torch.bfloat16, attn_implementation=self.attn_implementation)
+            local, device_map=self.device, dtype=torch.bfloat16, attn_implementation=choose_attn(self.attn_implementation))
 
     def unload(self) -> None:
         self._prompts.clear()
