@@ -31,13 +31,14 @@ class FakeWorld(
     val guard: PassThroughGuard = PassThroughGuard(),
     val system: FakeSystemConditions = FakeSystemConditions(),
     val context: SimpleContextAssembler = SimpleContextAssembler(),
+    val exits: FakeProcessExits = FakeProcessExits(),
 ) {
     fun deps() = DictationDeps(
         clock = clock, settings = settings, models = models, engines = engines, audio = audio, target = target,
         inserter = inserter, context = context, renderer = FakePromptRenderer(), guard = guard,
         prompts = ClasspathPromptAssets(), history = history, metrics = metrics, audioStore = audioStore,
         feedback = feedback, memory = memory, unitHealth = unitHealth, navigator = navigator, permissions = permissions,
-        deliveryMetrics = SimpleDeliveryMetrics(), system = system,
+        deliveryMetrics = SimpleDeliveryMetrics(), system = system, exits = exits,
     )
 
     /** The orchestrator over this world; [errors] collects unexpected internal exceptions (tests assert it stays empty). */

@@ -17,6 +17,7 @@ import app.murmur.core.engine.Engines
 import app.murmur.core.engine.HostState
 import app.murmur.core.engine.InferenceHost
 import app.murmur.core.engine.LoadSpec
+import app.murmur.core.engine.ProcessExits
 import app.murmur.core.model.ArtifactId
 import app.murmur.core.model.AudioKey
 import app.murmur.core.model.ComputeUnit
@@ -96,6 +97,8 @@ data class DictationDeps(
     val permissions: PermissionMonitor,
     val deliveryMetrics: DeliveryMetrics,
     val system: SystemConditions,
+    /** ADR-083: exit records of the inference processes (a death during a load for memory is OutOfMemory). */
+    val exits: ProcessExits = ProcessExits.NONE,
 )
 
 /**
@@ -118,7 +121,7 @@ class DictationOrchestrator(
     private val work = CoroutineScope(scope.coroutineContext + SupervisorJob(scope.coroutineContext[Job]) + serial)
     private val inbox = Channel<() -> Unit>(Channel.UNLIMITED)
 
-    private val keeper = EngineKeeper(deps.engines, deps.unitHealth)
+    private val keeper = EngineKeeper(deps.engines, deps.unitHealth, deps.exits)
     private val cleaner = Cleaner(deps.engines.llm, deps.renderer, deps.guard, deps.prompts, deps.clock)
     private val recorder = Recorder(deps.history, deps.metrics, deps.audioStore, deps.deliveryMetrics, deps.guard, deps.clock)
 

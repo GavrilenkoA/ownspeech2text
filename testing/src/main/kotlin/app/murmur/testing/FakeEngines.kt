@@ -310,3 +310,12 @@ class FakeEngines(
     override val llm: FakeLlmEngine = FakeLlmEngine(host = llmHost),
     override val ocr: FakeOcrService = FakeOcrService(),
 ) : Engines
+
+/**
+ * Exit records of the fake processes (ADR-083): [lowMemory] = every death the code asks about was an lmkd kill.
+ * [asked] lists the pids it was asked about.
+ */
+class FakeProcessExits(var lowMemory: Boolean = false) : app.murmur.core.engine.ProcessExits {
+    val asked = mutableListOf<Int>()
+    override suspend fun killedForMemory(pid: Int): Boolean { asked += pid; return lowMemory }
+}

@@ -17,6 +17,7 @@ import app.murmur.core.dictation.PermissionMonitor
 import app.murmur.core.dictation.MemoryGate
 import app.murmur.core.dictation.SystemConditions
 import app.murmur.core.engine.Engines
+import app.murmur.core.engine.ProcessExits
 import app.murmur.core.model.MurmurClock
 import app.murmur.core.model.SystemMurmurClock
 import app.murmur.core.prompt.ClasspathPromptAssets
@@ -94,8 +95,12 @@ class AppContainer(private val context: Context) {
         DefaultBenchmarkRunner(
             engines = engines, specs = resolver.benchSpecs, records = benchmarks, health = unitHealth, clock = clock,
             environment = AndroidBenchEnvironment(context), renderer = renderer, guard = guard, assets = prompts,
+            exits = exits,
         )
     }
+
+    /** ADR-083: exit records of :asr / :llm (a low-memory kill during a load is OutOfMemory, not a unit failure). */
+    private val exits: ProcessExits by lazy { AndroidProcessExits(context) }
 
     // --- prompt
     val prompts by lazy { ClasspathPromptAssets() }
@@ -111,7 +116,7 @@ class AppContainer(private val context: Context) {
                 context = DefaultContextAssembler(), renderer = renderer, guard = guard, prompts = prompts,
                 history = history, metrics = metrics, audioStore = audioStore, feedback = feedback, memory = memory,
                 unitHealth = unitHealth, navigator = navigator, permissions = permissions, deliveryMetrics = DefaultDeliveryMetrics(),
-                system = system,
+                system = system, exits = exits,
             ),
             appScope,
             onInternalError = { android.util.Log.e("MurmurDictation", internalErrorLine(it)) },

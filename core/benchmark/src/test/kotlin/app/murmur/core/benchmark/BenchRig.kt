@@ -33,6 +33,7 @@ internal class BenchRig(
     val repo: InMemoryBenchmarkRepository = InMemoryBenchmarkRepository(),
     val environment: TestEnvironment = TestEnvironment(),
     config: BenchConfig = BenchConfig(),
+    val exits: app.murmur.testing.FakeProcessExits = app.murmur.testing.FakeProcessExits(),
 ) {
     val clock = VirtualClock { scope.testScheduler.currentTime }
     val specRequests = mutableListOf<Pair<ModelId, LoadSpec>>()
@@ -60,6 +61,7 @@ internal class BenchRig(
         assets = ClasspathPromptAssets(),
         inputs = { INPUTS },
         config = config,
+        exits = exits,
     )
 
     val fake: FakeEngines get() = engines as FakeEngines

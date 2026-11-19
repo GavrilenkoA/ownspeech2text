@@ -91,6 +91,21 @@ class EnginePreparerTest {
         h.assertNoInternalErrors()
     }
 
+    /** ADR-083 in Preparing: a low-memory kill during the load is OutOfMemory (untested, no mark, no CPU artifact queued). */
+    @Test fun aLowMemoryKillWhilePreparingIsOutOfMemory() = runTest {
+        val h = harness {
+            models.npuFirst = true; models.cpuFallback = false
+            engines.asr.loadErrors[ComputeUnit.NPU] = MurmurError.ProcessDied(app.murmur.core.model.InferProcess.ASR)
+            exits.lowMemory = true
+        }
+        val asr = h.o.prepareArtifact(h.w.models.asrNpu.artifactId) {} as Outcome.Ok
+        assertEquals(MurmurError.OutOfMemory(app.murmur.core.model.ModelKind.ASR), asr.value.untested[ComputeUnit.NPU])
+        assertTrue(asr.value.failed.isEmpty())
+        assertNull(asr.value.needsCpuArtifact)
+        assertTrue(h.w.unitHealth.failedUnits.isEmpty())
+        h.assertNoInternalErrors()
+    }
+
     /** No process, a prefix error after a good load and a proof-decode timeout leave UnitHealth unchanged too. */
     @Test fun noProcessAPrefixErrorOrADecodeTimeoutLeaveUnitHealthUnchanged() = runTest {
         val h = harness()

@@ -4,11 +4,13 @@ import app.murmur.core.catalog.UnitHealthRepository
 import app.murmur.core.engine.Engines
 import app.murmur.core.engine.HostState
 import app.murmur.core.engine.InferenceHost
+import app.murmur.core.engine.LoadFailures
 import app.murmur.core.engine.LoadInfo
 import app.murmur.core.engine.LoadOptions
 import app.murmur.core.engine.LoadSpec
 import app.murmur.core.engine.PrefixCacheKey
 import app.murmur.core.engine.PrefixSpec
+import app.murmur.core.engine.ProcessExits
 import app.murmur.core.engine.ProcessProbe
 import app.murmur.core.model.ComputeUnit
 import app.murmur.core.model.InferProcess
@@ -19,9 +21,14 @@ import app.murmur.core.model.Outcome
  * What is loaded in which inference process, and the load-with-fallback procedure of ARCHITECTURE 4.4 / ADR-050.
  * A load is skipped when the same spec is already loaded in the same process instance (warm path, D5); a death or a
  * shutdown forgets it. [asrLoading] / [llmLoading] tell the death watcher that a load is in flight: a death during
- * a load is that load's error (it falls back), not a ProcessDied event. Used only on the serial dispatcher.
+ * a load is that load's error (it falls back), not a ProcessDied event; one the system made for memory ([exits],
+ * ADR-083) is OutOfMemory. Used only on the serial dispatcher.
  */
-internal class EngineKeeper(private val engines: Engines, private val health: UnitHealthRepository) {
+internal class EngineKeeper(
+    private val engines: Engines,
+    private val health: UnitHealthRepository,
+    private val exits: ProcessExits = ProcessExits.NONE,
+) {
     var asrLoading = 0; private set
     var llmLoading = 0; private set
 
@@ -116,7 +123,7 @@ internal class EngineKeeper(private val engines: Engines, private val health: Un
             if (warmOcr == WarmOcr(pid, det, rec) && pid != UNKNOWN_PID) return Trial.OK
             return when (val r = engines.ocr.loadOcr(det, rec)) {
                 is Outcome.Ok -> { warmOcr = WarmOcr(pid, det, rec); Trial.OK }
-                is Outcome.Err -> { warmOcr = null; Trial.load(r.error) }
+                is Outcome.Err -> { warmOcr = null; Trial.load(LoadFailures.classify(r.error, det.kind, pid, exits)) }
             }
         } finally {
             asrLoading--
@@ -158,7 +165,10 @@ internal class EngineKeeper(private val engines: Engines, private val health: Un
         val pid = (engines.asrHost.state.value as? HostState.Up)?.pid ?: UNKNOWN_PID
         warmAsr?.let { if (it.pid == pid && pid != UNKNOWN_PID && it.spec == spec && it.vad == vad) return Outcome.Ok(it.info.copy(loadMs = 0)) }
         warmAsr = null
-        return engines.asr.load(spec, vad).also { if (it is Outcome.Ok) warmAsr = WarmAsr(pid, spec, vad, it.value) }
+        return when (val r = engines.asr.load(spec, vad)) {
+            is Outcome.Ok -> r.also { warmAsr = WarmAsr(pid, spec, vad, it.value) }
+            is Outcome.Err -> Outcome.Err(LoadFailures.classify(r.error, spec.kind, pid, exits))
+        }
     }
 
     /** OCR shares :asr; loaded right after the ASR (ARCHITECTURE 4.2). */
@@ -217,7 +227,7 @@ internal class EngineKeeper(private val engines: Engines, private val health: Un
         if (warm == null) {
             warmLlm = null
             when (val r = engines.llm.load(spec)) {
-                is Outcome.Err -> return Step.LoadFailed(r.error)
+                is Outcome.Err -> return Step.LoadFailed(LoadFailures.classify(r.error, spec.kind, pid, exits))
                 is Outcome.Ok -> warm = WarmLlm(pid, spec, r.value).also { warmLlm = it }
             }
         }
@@ -246,7 +256,7 @@ internal class EngineKeeper(private val engines: Engines, private val health: Un
 
     private companion object {
         /** ADR-066: a load error says the unit cannot run the artifact unless the device ran out of memory. */
-        fun judgesUnit(error: MurmurError): Boolean = error !is MurmurError.OutOfMemory
+        fun judgesUnit(error: MurmurError): Boolean = LoadFailures.judgesUnit(error)
         const val UNKNOWN_PID = -1
     }
 }

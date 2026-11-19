@@ -9,13 +9,16 @@ import app.murmur.core.catalog.UnitHealthRepository
 import app.murmur.core.engine.AsrEvent
 import app.murmur.core.engine.AsrSessionOptions
 import app.murmur.core.engine.Engines
+import app.murmur.core.engine.HostState
 import app.murmur.core.engine.InferenceHost
 import app.murmur.core.engine.LlmEvent
 import app.murmur.core.engine.LlmRequest
+import app.murmur.core.engine.LoadFailures
 import app.murmur.core.engine.LoadInfo
 import app.murmur.core.engine.LoadOptions
 import app.murmur.core.engine.PrefixCacheKey
 import app.murmur.core.engine.PrefixSpec
+import app.murmur.core.engine.ProcessExits
 import app.murmur.core.engine.ProcessMemory
 import app.murmur.core.engine.ProcessProbe
 import app.murmur.core.model.ComputeUnit
@@ -75,6 +78,8 @@ class DefaultBenchmarkRunner(
     private val assets: PromptAssets,
     private val inputs: () -> BenchInputs = BenchInputs::bundled,
     private val config: BenchConfig = BenchConfig(),
+    /** ADR-083: a death during a load that the system made for memory is OutOfMemory (no UnitHealth mark). */
+    private val exits: ProcessExits = ProcessExits.NONE,
 ) : BenchmarkRunner {
     private val mutex = Mutex()
     /** Every run() gets the next id; stop() stops every run with an id up to [stoppedThrough]. */
@@ -223,11 +228,12 @@ class DefaultBenchmarkRunner(
         lateinit var cold: ColdLoad
         var warmMs = 0L
         step(unit, BenchStep.LOAD) {
-            cold = coldStart(host) { asr.load(spec.main, spec.vad) }
+            cold = coldStart(host, spec.main.kind) { asr.load(spec.main, spec.vad) }
             // Warm load: same process, page cache warm (npu-runtime 8); the clips then run on this load.
             guarded { asr.unload() }
+            val pid = (host.state.value as? HostState.Up)?.pid
             val t = clock.elapsedMs()
-            guarded { asr.load(spec.main, spec.vad) }.orFail(markFailed = true)
+            guarded { asr.load(spec.main, spec.vad) }.let { if (it is Outcome.Err) throw loadFailure(it.error, spec.main.kind, pid) }
             warmMs = clock.elapsedMs() - t
         }
         val measured = clips.map { clip ->
@@ -354,7 +360,7 @@ class DefaultBenchmarkRunner(
         }
         lateinit var cold: ColdLoad
         step(unit, BenchStep.LOAD) {
-            cold = coldStart(host) { llm.load(spec.main) }
+            cold = coldStart(host, spec.main.kind) { llm.load(spec.main) }
             val nativeBuild = guarded { host.probe() }.facts[ProcessProbe.FACT_NATIVE_BUILD] ?: "unknown"
             val key = PrefixCacheKey.of(
                 modelSha, rendered.prefixKey, unit, nativeBuild, traits.nCtx,
@@ -448,7 +454,7 @@ class DefaultBenchmarkRunner(
         val partner = spec.ocrPartner ?: throw UnitFailure(MurmurError.Internal("bench.ocr_pair"))
         val (det, rec) = if (entry.kind == ModelKind.OCR_DET) spec.main to partner else partner to spec.main
         lateinit var cold: ColdLoad
-        step(unit, BenchStep.LOAD) { cold = coldStart(host) { ocr.loadOcr(det, rec) } }
+        step(unit, BenchStep.LOAD) { cold = coldStart(host, det.kind) { ocr.loadOcr(det, rec) } }
         val compared = mutableListOf<Pair<ScreenText, ScreenText>>()
         val times = pages.map { page ->
             step(unit, BenchStep.OCR_PAGE, page.id) {
@@ -488,17 +494,18 @@ class DefaultBenchmarkRunner(
      * Kill the process, start it again and load: the cold path a dictation after the idle exit takes. The time covers
      * process start (bind) and load; the baseline memory reading in between is not counted.
      */
-    private suspend fun coldStart(host: InferenceHost, load: suspend () -> Outcome<LoadInfo>): ColdLoad {
+    private suspend fun coldStart(host: InferenceHost, kind: ModelKind, load: suspend () -> Outcome<LoadInfo>): ColdLoad {
         guarded { host.shutdown() }
         val t0 = clock.elapsedMs()
         if (!guarded { host.connect() }) throw UnitFailure(MurmurError.ProcessDied(host.process))
         val connectMs = clock.elapsedMs() - t0
         val baseline = guarded { host.memory() }
+        val pid = (host.state.value as? HostState.Up)?.pid
         val t1 = clock.elapsedMs()
         val info = guarded { load() }.let {
             when (it) {
                 is Outcome.Ok -> it.value
-                is Outcome.Err -> throw UnitFailure(it.error, markFailed = true)
+                is Outcome.Err -> throw loadFailure(it.error, kind, pid)
             }
         }
         return ColdLoad(info, connectMs + clock.elapsedMs() - t1, baseline)
@@ -562,6 +569,12 @@ class DefaultBenchmarkRunner(
     private fun <T> Outcome<T>.orFail(markFailed: Boolean): T = when (this) {
         is Outcome.Ok -> value
         is Outcome.Err -> throw UnitFailure(error, markFailed)
+    }
+
+    /** ADR-066 / ADR-083: a load error marks the unit failed unless the device ran out of memory. */
+    private suspend fun loadFailure(error: MurmurError, kind: ModelKind, pid: Int?): UnitFailure {
+        val e = LoadFailures.classify(error, kind, pid, exits)
+        return UnitFailure(e, markFailed = LoadFailures.judgesUnit(e))
     }
 
     private class UnitFailure(val error: MurmurError, val markFailed: Boolean = false) : Exception(error.code)

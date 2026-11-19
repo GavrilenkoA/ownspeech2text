@@ -293,6 +293,31 @@ class AsrBenchmarkTest {
         assertEquals(HostState.Down, fake.asrHost.state.value)
     }
 
+    /** ADR-066 / ADR-083: running out of memory says nothing about the unit, in the benchmark as in a dictation. */
+    @Test
+    fun anOutOfMemoryOrALowMemoryKillDuringTheLoadIsNotMarked() = runTest {
+        val entry = BenchRig.PARAKEET
+        val oom = engines(BenchRig.perfectScripts(entry))
+        oom.asr.loadErrors[ComputeUnit.NPU] = MurmurError.OutOfMemory(app.murmur.core.model.ModelKind.ASR)
+        val rigOom = BenchRig(this, oom)
+        val failedOom = rigOom.runner.run(entry, rigOom.candidates(entry, FakeDeviceProfileRepository.FOLD7)).toList()
+            .filterIsInstance<BenchProgress.UnitFailed>().single()
+        assertEquals("engine.oom.asr", failedOom.error.code)
+        assertFalse(rigOom.health.failed(failedOom.artifact, ComputeUnit.NPU))
+
+        // A death during the load: lmkd (exit reason low memory) -> OutOfMemory, no mark; any other death -> marked.
+        for (lowMemory in listOf(true, false)) {
+            val died = engines(BenchRig.perfectScripts(entry))
+            died.asr.loadErrors[ComputeUnit.NPU] = MurmurError.ProcessDied(InferProcess.ASR)
+            val rig = BenchRig(this, died, exits = app.murmur.testing.FakeProcessExits(lowMemory))
+            val failed = rig.runner.run(entry, rig.candidates(entry, FakeDeviceProfileRepository.FOLD7)).toList()
+                .filterIsInstance<BenchProgress.UnitFailed>().single()
+            assertEquals(if (lowMemory) "engine.oom.asr" else "engine.process_died.asr", failed.error.code)
+            assertEquals(!lowMemory, rig.health.failed(failed.artifact, ComputeUnit.NPU))
+            assertTrue(rig.exits.asked.isNotEmpty() && rig.exits.asked.all { it > 0 })
+        }
+    }
+
     @Test
     fun nothingToMeasureIsAFailureNotAnEmptyResult() = runTest {
         val rig = BenchRig(this)

@@ -75,6 +75,35 @@ class OrchestratorEnginesTest {
         h.assertNoInternalErrors()
     }
 
+    /** ADR-083: a death during the NPU load that the system made for memory is OutOfMemory: CPU used, NPU not marked. */
+    @Test fun llmLowMemoryKillDuringTheLoadFallsBackWithoutMarkingTheUnit() = runTest {
+        val h = harness {
+            models.npuFirst = true
+            engines.llm.loadErrors[ComputeUnit.NPU] = MurmurError.ProcessDied(InferProcess.LLM)
+            exits.lowMemory = true
+        }
+        h.dictate(stopAt = 2_800)
+        assertEquals(listOf(ComputeUnit.NPU, ComputeUnit.CPU), h.w.engines.llm.loadAttempts)
+        assertTrue(h.w.unitHealth.failedUnits.isEmpty())
+        assertTrue(h.w.exits.asked.single() > 0)
+        assertEquals("accept", h.only().cleanup?.outcome)
+        assertEquals(ComputeUnit.CPU, h.only().cleanup?.model?.unit)
+        h.assertNoInternalErrors()
+    }
+
+    /** ADR-083: any other death during the load still judges the unit (ADR-066). */
+    @Test fun asrDeathDuringTheLoadThatWasNotForMemoryMarksTheUnit() = runTest {
+        val h = harness {
+            models.npuFirst = true
+            engines.asr.loadErrors[ComputeUnit.NPU] = MurmurError.ProcessDied(InferProcess.ASR)
+        }
+        h.dictate(stopAt = 2_800)
+        assertEquals(listOf(ComputeUnit.NPU, ComputeUnit.CPU), h.w.engines.asr.loadAttempts)
+        assertEquals("engine.process_died.asr", h.w.unitHealth.failedUnits[h.w.models.asrNpu.artifactId to ComputeUnit.NPU])
+        assertEquals(1, h.w.exits.asked.size)
+        h.assertInserted("accept")
+    }
+
     @Test fun asrCrashWhileListeningRebindsReplaysAndInserts() = runTest {
         val h = harness()
         h.at(0); h.tap(); h.at(1_000)
