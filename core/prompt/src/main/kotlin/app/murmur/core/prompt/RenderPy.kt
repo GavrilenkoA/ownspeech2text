@@ -152,10 +152,8 @@ internal object RenderPy {
         }
     }
 
-    private class Block(var text: String, var box: IntArray, var last: IntArray) {
-        var i = 0
-        var right = false
-    }
+    /** A block while lines are merged; [last] = box of its last line. */
+    private class Block(var text: String, var box: IntArray, var last: IntArray)
 
     /** Python `not field` for a decoded field object: every member absent. */
     private fun FieldInfo.isEmptyObject() =
@@ -246,6 +244,7 @@ internal object RenderPy {
         }
     }
 
+    /** A finished block: reading-order index, clipped text, merged box, right-aligned flag (render._ocr_blocks). */
     class Block2(val i: Int, val text: String, val box: IntArray, val right: Boolean)
 
     private fun fieldAnchorY(ctx: CtxV2): Int {
