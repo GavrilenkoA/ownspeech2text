@@ -28,6 +28,7 @@ class MurmurAccessibilityService : AccessibilityService() {
     override fun onServiceConnected() {
         super.onServiceConnected()
         A11yBridge.service.value = this
+        A11yStatus.get(this).onServiceConnected()
         (application as? A11yServiceHost)?.onServiceState(true)
         // WP-02: attach OverlayHost for the default display; register DisplayListener.
     }
