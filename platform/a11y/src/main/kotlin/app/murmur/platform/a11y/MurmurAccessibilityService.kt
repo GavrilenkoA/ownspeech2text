@@ -205,10 +205,6 @@ class MurmurAccessibilityService : AccessibilityService() {
             // e.g. a display that went away between the event and the attach (WindowManager.BadTokenException).
             Log.w(TAG, "bubble_attach_failed display=$displayId ${e.javaClass.simpleName}")
             return
-        } catch (e: NotImplementedError) {
-            // A host without a bubble implementation: the service still reads, captures and inserts.
-            Log.w(TAG, "bubble_attach_failed display=$displayId ${e.javaClass.simpleName}")
-            return
         }
         surfaces[displayId] = surface
         lastVisibility?.let { (focusDisplay, input) -> surface.updateVisibility(VisibilityRules.forDisplay(input, focusDisplay, displayId)) }
