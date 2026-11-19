@@ -49,6 +49,34 @@ object PromptEditRules {
     fun overrideApplies(profile: PromptProfile, overrideBaseProfile: String?): Boolean =
         overrideBaseProfile != null && !profile.system.startsWith("finetuned") && profile.name == overrideBaseProfile
 
+    /**
+     * Whether the Settings editor may change the system prompt of [profile]: not for fine-tunes (`finetuned.*`), which
+     * keep the prompt they were trained on (the editor is read-only there).
+     */
+    fun editable(profile: PromptProfile): Boolean = !profile.system.startsWith("finetuned")
+
+    /**
+     * What Settings -> Cleanup prompt shows for the active [profile] and the stored override's `baseProfile`
+     * ([overrideBaseProfile], null = no override): [PromptEditState.DEFAULT] (no edit), [PromptEditState.EDITED] (the
+     * edit applies), [PromptEditState.MADE_FOR_OLDER_PROMPT] (an edit exists and its baseProfile is not the active
+     * profile, so it is not applied: "Your edit was made for an older prompt" with Reset; this includes an active
+     * fine-tune, whose editor stays read-only, see [editable]), [PromptEditState.NOT_EDITABLE] (a fine-tune and no
+     * stored edit).
+     */
+    fun editState(profile: PromptProfile, overrideBaseProfile: String?): PromptEditState = when {
+        overrideBaseProfile == null -> if (editable(profile)) PromptEditState.DEFAULT else PromptEditState.NOT_EDITABLE
+        overrideApplies(profile, overrideBaseProfile) -> PromptEditState.EDITED
+        else -> PromptEditState.MADE_FOR_OLDER_PROMPT
+    }
+
+    /** "Edited" value of the Cleanup prompt row: the stored edit applies to the active profile. */
+    fun isEdited(profile: PromptProfile, overrideBaseProfile: String?): Boolean =
+        editState(profile, overrideBaseProfile) == PromptEditState.EDITED
+
+    /** "Your edit was made for an older prompt": an override exists and its baseProfile != the active profile name. */
+    fun madeForOlderPrompt(profile: PromptProfile, overrideBaseProfile: String?): Boolean =
+        editState(profile, overrideBaseProfile) == PromptEditState.MADE_FOR_OLDER_PROMPT
+
     /** Returns problems (empty = valid). Keys map to strings.xml messages in :feature:settings. */
     fun validateSystem(text: String): List<String> = buildList {
         if (text.isBlank()) add("empty")
@@ -56,3 +84,5 @@ object PromptEditRules {
         if (forbidden.any { text.contains(it) }) add("markup")
     }
 }
+
+enum class PromptEditState { DEFAULT, EDITED, MADE_FOR_OLDER_PROMPT, NOT_EDITABLE }
