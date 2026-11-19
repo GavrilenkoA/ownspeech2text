@@ -41,8 +41,22 @@ data class HistoryUiState(
 
 data class DayGroup(val day: LocalDate, val deletesTonight: Boolean, val entries: List<HistoryEntry>)
 
-/** Entry point used by the app shell's navigation. WP-16 builds the real screen + ViewModel. */
+/**
+ * Entry point used by the app shell's navigation. WP-16 builds the real screen + ViewModel. [selected] = the entry shown
+ * in the detail pane next to the list on the inner display (DESIGN 6.3: the selected row is filled accentSoft); null on
+ * the cover display and when nothing is selected.
+ */
 @Composable
-fun HistoryScreen(deps: HistoryDeps, onOpenEntry: (EntryId) -> Unit, modifier: Modifier = Modifier) {
+fun HistoryScreen(deps: HistoryDeps, onOpenEntry: (EntryId) -> Unit, modifier: Modifier = Modifier, selected: EntryId? = null) {
     Box(modifier.fillMaxSize().testTag("screen-history")) { Text("History") }
+}
+
+/**
+ * Entry detail (DESIGN 6.3 hist-detail), hosted by the app shell: a pushed screen on the cover display ([onBack] = the
+ * top bar's back arrow), the right pane of the list-detail scene on the inner display ([onBack] = null, no back arrow).
+ * WP-16 builds it.
+ */
+@Composable
+fun HistoryEntryDetail(deps: HistoryDeps, id: EntryId, onBack: (() -> Unit)?, modifier: Modifier = Modifier) {
+    Box(modifier.fillMaxSize().testTag("screen-history-entry")) { Text("History entry") }
 }

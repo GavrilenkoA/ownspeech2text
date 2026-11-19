@@ -33,8 +33,17 @@ class ModelsDeps(
     val health: UnitHealth,
 )
 
-/** WP-18. */
+/** WP-18. [selected] = the model shown in the detail pane on the inner display (its row is highlighted), else null. */
 @Composable
-fun ModelsScreen(deps: ModelsDeps, onOpenModel: (ModelId) -> Unit, modifier: Modifier = Modifier) {
+fun ModelsScreen(deps: ModelsDeps, onOpenModel: (ModelId) -> Unit, modifier: Modifier = Modifier, selected: ModelId? = null) {
     Box(modifier.fillMaxSize().testTag("screen-models")) { Text("Models") }
+}
+
+/**
+ * Model detail (DESIGN 6.4 model-detail), hosted by the app shell: pushed on the cover display ([onBack] = back arrow),
+ * the right pane next to the 316 dp list on the inner display ([onBack] = null). WP-18 builds it.
+ */
+@Composable
+fun ModelDetail(deps: ModelsDeps, id: ModelId, onBack: (() -> Unit)?, modifier: Modifier = Modifier) {
+    Box(modifier.fillMaxSize().testTag("screen-model-detail")) { Text("Model") }
 }
