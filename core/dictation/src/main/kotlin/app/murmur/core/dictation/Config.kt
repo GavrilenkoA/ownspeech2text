@@ -73,6 +73,11 @@ data class DictationConfig(
     val prefixRebuildDebounceMs: Long = 5_000,
     /** After CaptureHandle.stop(), how long the chunk stream may take to deliver its last samples. */
     val captureDrainMs: Long = 500,
+    /**
+     * A retry's "mic start": reading and decoding the stored recording (AudioStore.readPcm, Ogg/Opus, up to 5 min)
+     * instead of MIC_START's 2 s; past it the retry fails with StorageFailed("audio_read"). [I] until DC-measured.
+     */
+    val storedAudioReadTimeoutMs: Long = 10_000,
     /** Row 6: free storage needed to start (LowStorage below). */
     val minFreeStorageBytes: Long = 50L * 1024 * 1024,
     /** Murmur's own package: only StartMode.IN_APP dictates into it (ARCHITECTURE 9.2). */

@@ -83,7 +83,7 @@ object DictationMachine {
      */
     private fun startRetry(entry: EntryId, atMs: Long, s: SessionId, c: DictationConfig) = Transition(
         DictationState.Arming(s, StartMode.TAP, atMs, stopRequested = true, retryOf = entry),
-        listOf(Effect.Preflight(s, StartMode.TAP), Effect.StartCapture(s), Effect.StartTimer(s, Timer.MIC_START, c.scaled(c.micStartTimeoutMs))),
+        listOf(Effect.Preflight(s, StartMode.TAP), Effect.StartCapture(s), Effect.StartTimer(s, Timer.MIC_START, c.scaled(c.storedAudioReadTimeoutMs))),
     )
 
     // ---------------------------------------------------------------- Arming (rows 5-13, 21-24)
@@ -119,7 +119,8 @@ object DictationMachine {
             is DictationEvent.MicFailed -> failed(s, e.error, null, c,
                 Effect.CancelTimer(Timer.MIC_START), Effect.CancelEngines(s), Effect.DiscardCapture(s), Effect.ScheduleIdleUnload(c.idleUnloadMs))
             is DictationEvent.TimerFired -> when (e.timer) {
-                Timer.MIC_START -> failed(s, MurmurError.MicStartFailed("timeout"), null, c,
+                // A retry's capture is the stored file: its timeout is a read failure, not a busy microphone.
+                Timer.MIC_START -> failed(s, if (st.retryOf != null) MurmurError.StorageFailed("audio_read") else MurmurError.MicStartFailed("timeout"), null, c,
                     Effect.CancelEngines(s), Effect.DiscardCapture(s), Effect.ScheduleIdleUnload(c.idleUnloadMs))
                 else -> Transition(st)
             }

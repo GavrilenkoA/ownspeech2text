@@ -80,7 +80,7 @@ class RetryTest {
         h.dictate()                                                          // :asr warm with the model loaded
         val first = h.only()
         h.w.history.update(first.copy(status = EntryStatus.FAILED, finalText = null, failureCode = loadError.code))
-        h.w.audioStore.readDelayMs = 800
+        h.w.audioStore.readDelayMs = 3_000                                    // beyond MIC_START's 2 s: a 5 min file on a slow day
         assertEquals(Outcome.Ok(first.id), h.o.retry(first.id))
         assertEquals(2_800L * 16, h.w.engines.asr.sessions.last().samples)
         assertEquals(EntryStatus.INSERTED, h.only().status)
@@ -186,6 +186,17 @@ class RetryTest {
         assertEquals(Outcome.Err(MurmurError.StorageFailed("audio")), h.o.retry(failed.id))
         assertEquals(EntryStatus.FAILED, h.only().status)
         assertEquals(1, h.w.audio.starts)
+        h.assertNoInternalErrors()
+    }
+
+    @Test fun aStoredRecordingThatCannotBeReadInTimeFailsTheRetry() = runTest {
+        val h = harness()
+        h.failToLoad()
+        val failed = h.only()
+        h.w.audioStore.readDelayMs = 10_001
+        assertEquals(Outcome.Err(MurmurError.StorageFailed("audio_read")), h.o.retry(failed.id))
+        assertEquals(failed, h.only())                                       // the entry and its audio untouched
+        assertTrue(h.w.engines.asr.sessions.all { it.samples == 0L })     // the late read feeds nothing
         h.assertNoInternalErrors()
     }
 

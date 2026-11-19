@@ -473,7 +473,7 @@ class DictationMachineTest {
         val loadError = MurmurError.EngineLoadFailed(ModelKind.ASR, null)
         val load = reduce(DictationState.Done(s, DictationOutcome.Failed(loadError, entry, audioKept = true)), action)
         assertEquals(DictationState.Arming(SessionId(2), StartMode.TAP, 9_000, stopRequested = true, retryOf = entry), load.state)
-        assertEquals(listOf(Effect.Preflight(SessionId(2), StartMode.TAP), Effect.StartCapture(SessionId(2)), Effect.StartTimer(SessionId(2), Timer.MIC_START, 2_000)), load.effects)
+        assertEquals(listOf(Effect.Preflight(SessionId(2), StartMode.TAP), Effect.StartCapture(SessionId(2)), Effect.StartTimer(SessionId(2), Timer.MIC_START, 10_000)), load.effects)
         // Tapped before RecordFailure returned: remembered, then run with the entry.
         val pending = reduce(DictationState.Done(s, DictationOutcome.Failed(loadError, null), recording = true), action)
         assertEquals(Transition(DictationState.Done(s, DictationOutcome.Failed(loadError, null), recording = true, retryAtMs = 9_000)), pending)
@@ -555,6 +555,9 @@ class DictationMachineTest {
         assertEquals(DictationBubble.Transcribing, BubbleMapping.of(fin))
         assertTrue(Effect.FinishAsr(s) in f.effects)
         assertTrue(Effect.StartTimer(s, Timer.ASR_FINAL, c.asrFinalTimeoutMs(300_000)) in f.effects)
+        // Reading the stored file has its own bound; past it the retry is a read failure, not "Microphone is busy".
+        val timedOut = reduce(armed, DictationEvent.TimerFired(s, Timer.MIC_START))
+        assertEquals(DictationState.Done(s, DictationOutcome.Failed(MurmurError.StorageFailed("audio_read"), null)), timedOut.state)
         // A History retry replaces a result pill like a press (row 46).
         val fromDone = reduce(DictationState.Done(s, DictationOutcome.Inserted(entry, false)), DictationEvent.RetryRequested(entry, 2_000))
         assertEquals(DictationState.Arming(SessionId(2), StartMode.TAP, 2_000, stopRequested = true, retryOf = entry), fromDone.state)
