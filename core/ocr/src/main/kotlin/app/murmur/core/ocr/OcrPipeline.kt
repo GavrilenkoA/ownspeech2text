@@ -1,5 +1,6 @@
 package app.murmur.core.ocr
 
+import app.murmur.core.model.ModelKind
 import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.max
@@ -30,6 +31,27 @@ class OcrRun(
     val result: ScreenText,
 )
 
+/**
+ * What the caller of one [OcrPipeline.run] can observe and stop (the :asr handler: error attribution and dropping a
+ * frame that a newer one superseded). Both are consulted before the detector stage (pre-processing + detector call,
+ * [ModelKind.OCR_DET]) and before each recogniser batch (crops + recogniser call, [ModelKind.OCR_REC]); the final
+ * post-processing belongs to the last recogniser stage.
+ */
+interface OcrRunControl {
+    /** The run is about to enter [stage]. */
+    fun entering(stage: ModelKind) {}
+
+    /** True stops the run at the next stage boundary with [OcrCancelledException]. */
+    val cancelled: Boolean get() = false
+
+    companion object {
+        val NONE: OcrRunControl = object : OcrRunControl {}
+    }
+}
+
+/** [OcrPipeline.run] stopped because [OcrRunControl.cancelled] became true. */
+class OcrCancelledException(val stage: ModelKind) : RuntimeException("ocr run cancelled before ${stage.name}")
+
 class OcrPipeline(private val config: OcrConfig = OcrConfig(), private val models: OcrModels) {
     /** CTC classes: 0 = blank, 1..N = dictionary, N+1 = space (PaddleOCR use_space_char=True). */
     private val chars: List<String> = buildList {
@@ -43,19 +65,20 @@ class OcrPipeline(private val config: OcrConfig = OcrConfig(), private val model
     }
 
     /** Full pipeline: image -> ScreenText (det -> DB post -> exclusion -> rec -> CTC -> post-processing). */
-    fun run(image: ScreenImage): ScreenText = runDetailed(image).result
+    fun run(image: ScreenImage, control: OcrRunControl = OcrRunControl.NONE): ScreenText = runDetailed(image, control).result
 
-    fun runDetailed(image: ScreenImage): OcrRun {
+    fun runDetailed(image: ScreenImage, control: OcrRunControl = OcrRunControl.NONE): OcrRun {
         val t0 = System.nanoTime()
         val w = image.width
         val h = image.height
+        enter(control, ModelKind.OCR_DET)
         val (tw, th) = detTargetSize(w, h)
         val x = detInput(image, tw, th)
         val prob = probMap(x, tw, th)
         val dets = DbPostProcess.boxes(prob, tw, th, w, h, config)
         val t1 = System.nanoTime()
         val boxes = dets.map { it.rect }.filter { !OcrPostProcess.excluded(it, image.exclude, config.excludeMinOverlap) }
-        val (recs, calls) = recognise(image, boxes)
+        val (recs, calls) = recognise(image, boxes, control)
         val t2 = System.nanoTime()
         val lines = OcrPostProcess.process(recs, w, h, config)
         val t3 = System.nanoTime()
@@ -145,7 +168,7 @@ class OcrPipeline(private val config: OcrConfig = OcrConfig(), private val model
     }
 
     /** Batches of the same bucket width, in box order inside each bucket. Returns the lines and the number of calls. */
-    internal fun recognise(image: ScreenImage, boxes: List<Rect>): Pair<List<RecLine>, Int> {
+    internal fun recognise(image: ScreenImage, boxes: List<Rect>, control: OcrRunControl = OcrRunControl.NONE): Pair<List<RecLine>, Int> {
         val widths = boxes.map { recWidth(it.width, it.height) }
         val res = arrayOfNulls<RecLine>(boxes.size)
         val byWidth = boxes.indices.groupBy { widths[it].second }.toSortedMap()
@@ -153,6 +176,7 @@ class OcrPipeline(private val config: OcrConfig = OcrConfig(), private val model
         var calls = 0
         for ((bw, ids) in byWidth) {
             for (chunk in ids.chunked(config.recBatch)) {
+                enter(control, ModelKind.OCR_REC)
                 val per = 3 * hh * bw
                 val input = FloatArray(chunk.size * per)
                 chunk.forEachIndexed { j, i -> recInput(image, boxes[i], widths[i].first, bw, input, j * per) }
@@ -168,6 +192,11 @@ class OcrPipeline(private val config: OcrConfig = OcrConfig(), private val model
             }
         }
         return res.map { it!! } to calls
+    }
+
+    private fun enter(control: OcrRunControl, stage: ModelKind) {
+        control.entering(stage)
+        if (control.cancelled) throw OcrCancelledException(stage)
     }
 
     private fun ms(nanos: Long): Double = nanos / 1_000_000.0

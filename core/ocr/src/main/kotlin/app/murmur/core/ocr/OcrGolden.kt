@@ -68,8 +68,10 @@ class OcrGolden(
 
 /**
  * The ml/ocr README tolerances ("Parity with Android") for a port that is not bit-exact: same number of lines, boxes
- * within 2 px, texts identical for >= 98 % of lines and CER <= 0.5 %, conf within 0.02. Lines are paired by position
- * (both sides are in reading order). Used by the parity tests and by the benchmark's OCR validity gate (WP-14).
+ * within 2 px, texts identical for >= 98 % of lines and CER <= 0.5 % on the rest (the non-identical lines, pooled:
+ * edits / reference code points of those lines), conf within 0.02. Lines are paired by position (both sides are in
+ * reading order). The CER over all lines ([Suite.cer]) is reported, not gated. Used by the parity tests and by the
+ * benchmark's OCR validity gate (WP-14).
  */
 object OcrTolerance {
     const val BOX_PX = 2
@@ -106,7 +108,7 @@ object OcrTolerance {
         val failures: List<String> = buildList {
             pages.filter { !it.withinLineTolerance }.forEach { add("${it.name}: line count / box / conf outside tolerance") }
             if (identical < MIN_IDENTICAL * lines) add("identical texts $identical/$lines below 98 %")
-            if (cer > MAX_CER) add("CER ${"%.3f".format(Locale.ROOT, 100 * cer)} % above 0.5 %")
+            if (restCer > MAX_CER) add("CER on the non-identical lines ${"%.3f".format(Locale.ROOT, 100 * restCer)} % above 0.5 %")
         }
         val ok get() = failures.isEmpty()
 

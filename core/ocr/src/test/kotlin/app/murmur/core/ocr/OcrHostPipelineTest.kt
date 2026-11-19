@@ -1,7 +1,9 @@
 package app.murmur.core.ocr
 
+import app.murmur.core.model.ModelKind
 import org.junit.AfterClass
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.BeforeClass
 import org.junit.Test
@@ -47,6 +49,9 @@ class OcrHostPipelineTest {
             }
         }
         println("det boxes: $exact of $total identical to the golden (box and 4-digit score)")
+        // The pre-processing is bit-exact (BilinearTest) and the detector is ml/ocr's ORT build, so on this x86_64
+        // host every box and score is the golden's. A difference means the port drifted (or another CPU's kernels).
+        assertEquals("det boxes identical to the golden", total, exact)
     }
 
     @Test
@@ -65,6 +70,8 @@ class OcrHostPipelineTest {
         val pages = runs.map { (g, r) -> OcrTolerance.compare(g.name, g.ocr.lines, r.result.lines) }
         println("ocr (final output):\n" + Golden.assertWithin(OcrTolerance.Suite(pages)))
         for ((g, r) in runs) assertEquals(g.name, g.ocr.size, r.result.size)
+        // Beyond the tolerance gate: same ORT build as ml/ocr on this host, so the output is the golden byte for byte.
+        assertEquals("pages identical to the golden", pages.map { it.name }, pages.filter { it.exact }.map { it.name })
     }
 
     @Test
@@ -86,16 +93,60 @@ class OcrHostPipelineTest {
         println("host timings (4 threads, shared host):\n$ms")
     }
 
-    /** README section 5.4: the output must not depend on the batch size (each line is padded to its own bucket). */
+    /**
+     * README section 5.4: the output must not depend on the batch size (each line is padded to its own bucket).
+     * Batch 8 against batch 1 on every golden: the final lines are identical, and so is every raw recogniser line
+     * (text, box and the unrounded conf, bit for bit).
+     */
     @Test
     fun batchSizeDoesNotChangeTheOutput() {
         val batched = OcrPipeline(OcrConfig(recBatch = 8), models)
-        for ((g, r) in runs.entries.take(4)) {
+        var lines = 0
+        var calls1 = 0
+        var calls8 = 0
+        for ((g, r) in runs) {
             val b = batched.runDetailed(Golden.image(g))
-            assertEquals(g.name, r.rec.map { it.text to it.rect }, b.rec.map { it.text to it.rect })
-            for ((x, y) in r.rec.zip(b.rec)) assertEquals("${g.name} ${x.rect}", x.conf, y.conf, 1e-4)
-            assertTrue(b.result.stats!!.recCalls < r.result.stats!!.recCalls)
+            assertEquals(g.name, r.result.lines, b.result.lines)
+            assertEquals(g.name, r.rec, b.rec)
+            lines += b.rec.size
+            calls1 += r.result.stats!!.recCalls
+            calls8 += b.result.stats!!.recCalls
         }
+        assertTrue(calls8 < calls1)
+        println("batch 8 vs 1: ${runs.size} pages, $lines rec lines identical (conf bit-exact), calls $calls8 vs $calls1")
+    }
+
+    /** [OcrRunControl]: every model stage is announced in order, and a cancel stops the run before the next model call. */
+    @Test
+    fun runControlSeesEveryStageAndStopsTheRun() {
+        val (g, ref) = runs.entries.first { it.key.name == "001" }
+        val counting = object : OcrModels by models {
+            var det = 0
+            var rec = 0
+            override fun detect(input: FloatArray, h: Int, w: Int) = models.detect(input, h, w).also { det++ }
+            override fun recognize(input: FloatArray, n: Int, bucketWidth: Int) = models.recognize(input, n, bucketWidth).also { rec++ }
+        }
+        val pipeline = OcrPipeline(OcrConfig(), counting)
+        class Recorder(val stopAt: ModelKind?) : OcrRunControl {
+            val seen = ArrayList<ModelKind>()
+            override fun entering(stage: ModelKind) { seen += stage }
+            override val cancelled get() = seen.lastOrNull() == stopAt
+        }
+
+        val all = Recorder(stopAt = null)
+        val out = pipeline.run(Golden.image(g), all)
+        assertEquals(ref.result.lines, out.lines)
+        assertEquals(listOf(ModelKind.OCR_DET) + List(out.stats!!.recCalls) { ModelKind.OCR_REC }, all.seen)
+        assertEquals(1 to out.stats!!.recCalls, counting.det to counting.rec)
+
+        counting.det = 0; counting.rec = 0
+        val e = assertThrows(OcrCancelledException::class.java) { pipeline.run(Golden.image(g), Recorder(ModelKind.OCR_REC)) }
+        assertEquals(ModelKind.OCR_REC, e.stage)
+        assertEquals(1 to 0, counting.det to counting.rec) // the detector ran, no recogniser call
+
+        val first = assertThrows(OcrCancelledException::class.java) { pipeline.run(Golden.image(g), Recorder(ModelKind.OCR_DET)) }
+        assertEquals(ModelKind.OCR_DET, first.stage)
+        assertEquals(1 to 0, counting.det to counting.rec) // nothing ran
     }
 
     private fun Rect.list() = listOf(x0, y0, x1, y1)
