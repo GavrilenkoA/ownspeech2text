@@ -2,6 +2,7 @@ package app.murmur.infer.asr.qnnep
 
 import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
+import ai.onnxruntime.OrtException
 import ai.onnxruntime.OrtSession
 import ai.onnxruntime.TensorInfo
 import app.murmur.core.engine.LoadSpec
@@ -62,6 +63,9 @@ object CtcGreedy {
     private val SPACES = Regex(" {2,}")
 }
 
+/** A model call on the QNN EP failed (an HTP execute error); the decode of that segment fails, not the process. */
+class QnnRunException(cause: Throwable) : RuntimeException(cause)
+
 /**
  * GigaAM v3 e2e CTC on the HTP (runtime `ort-qnn/gigaam-ctc`): one EPContext graph with a fixed 20 s window
  * (features [1, 64, 2000] + feature_lengths [1] -> log_probs [1, 500, 257]). A batch model like sherpa's offline
@@ -113,18 +117,22 @@ class GigaAmCtcModel private constructor(
         return parts.joinToString(" ")
     }
 
+    /** One call of the graph; an ORT error is unchecked, so the session fails with AsrFailed("decode:QnnRunException"). */
     private fun window(features: FloatArray, n: Int): String {
-        val env = OrtEnvironment.getEnvironment()
-        OnnxTensor.createTensor(env, FloatBuffer.wrap(features), longArrayOf(1, GigaAmFrontEnd.N_MELS.toLong(), frames.toLong())).use { f ->
-            OnnxTensor.createTensor(env, LongBuffer.wrap(longArrayOf(n.toLong())), longArrayOf(1)).use { l ->
-                session.run(mapOf(featuresName to f, lengthsName to l)).use { r ->
-                    val out = (r.get(0) as OnnxTensor).floatBuffer
-                    val logp = FloatArray(out.remaining()).also { out.get(it) }
-                    val steps = minOf(validSteps(n), logp.size / classes)
-                    return CtcGreedy.decode(logp, steps, classes, vocab)
+        val logp = try {
+            val env = OrtEnvironment.getEnvironment()
+            OnnxTensor.createTensor(env, FloatBuffer.wrap(features), longArrayOf(1, GigaAmFrontEnd.N_MELS.toLong(), frames.toLong())).use { f ->
+                OnnxTensor.createTensor(env, LongBuffer.wrap(longArrayOf(n.toLong())), longArrayOf(1)).use { l ->
+                    session.run(mapOf(featuresName to f, lengthsName to l)).use { r ->
+                        val out = (r.get(0) as OnnxTensor).floatBuffer
+                        FloatArray(out.remaining()).also { out.get(it) }
+                    }
                 }
             }
+        } catch (e: OrtException) {
+            throw QnnRunException(e)
         }
+        return CtcGreedy.decode(logp, minOf(validSteps(n), logp.size / classes), classes, vocab)
     }
 
     override fun close() = session.close()
