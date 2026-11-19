@@ -104,6 +104,29 @@ class OrchestratorEnginesTest {
         h.assertInserted("accept")
     }
 
+    /**
+     * Verification F3 (ADR-083): a low-memory kill during the NPU load without a CPU artifact stays OutOfMemory(ASR):
+     * no "Download the CPU version" (the unit is fine), Try again instead, no unit mark, audio kept.
+     */
+    @Test fun asrLowMemoryKillWithoutFallbackIsOutOfMemoryNotUnitUnavailable() = runTest {
+        val h = harness {
+            models.npuFirst = true; models.cpuFallback = false
+            engines.asr.loadErrors[ComputeUnit.NPU] = MurmurError.ProcessDied(InferProcess.ASR)
+            exits.lowMemory = true
+        }
+        h.at(0); h.tap(); h.at(1_000)
+        assertTrue(h.state is DictationState.Listening)                     // keeps recording
+        assertEquals(AsrReadiness.Failed(MurmurError.OutOfMemory(ModelKind.ASR)), (h.state as DictationState.Listening).engines.asr)
+        h.at(2_800); h.tap(); h.at(3_000)
+        assertEquals(DictationBubble.Error(BubbleError.LOAD_FAILED, BubbleAction.RETRY), h.o.bubble.value)
+        val e = h.only()
+        assertEquals(EntryStatus.FAILED, e.status)
+        assertEquals("engine.oom.asr", e.failureCode)
+        assertNotNull(e.audio)
+        assertTrue(h.w.unitHealth.failedUnits.isEmpty())
+        h.assertNoInternalErrors()
+    }
+
     @Test fun asrCrashWhileListeningRebindsReplaysAndInserts() = runTest {
         val h = harness()
         h.at(0); h.tap(); h.at(1_000)

@@ -224,7 +224,7 @@ sealed interface DictationEvent {
     data class MicFailed(val session: SessionId, val error: MurmurError) : DictationEvent
     /** ASR (+VAD) loaded, possibly after the executor's unit fallback. */
     data class AsrReady(val session: SessionId, val info: LoadInfo, val fellBack: Boolean) : DictationEvent
-    /** Final: the primary and every installed fallback failed (UnitUnavailable(NPU) when no CPU artifact is installed). */
+    /** Final: the primary and every installed fallback failed (UnitUnavailable(NPU) when no CPU artifact is installed, unless it ran out of memory: OutOfMemory(ASR), ADR-083). */
     data class AsrLoadFailed(val session: SessionId, val error: MurmurError) : DictationEvent
     /** LLM loaded and its prefix snapshot restored or built (PrefixInfo.tokens = [prefixTokens]). */
     data class LlmReady(val session: SessionId, val info: LoadInfo, val prefixTokens: Int, val nCtx: Int, val speed: LlmSpeed?, val fellBack: Boolean) : DictationEvent

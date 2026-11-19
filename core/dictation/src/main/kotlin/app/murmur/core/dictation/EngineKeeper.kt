@@ -75,7 +75,9 @@ internal class EngineKeeper(
             val error = (first as Outcome.Err).error
             mark(primary, error)
             if (fallback == null || fallback == primary) {
-                return Outcome.Err(if (primary.unit == ComputeUnit.NPU) MurmurError.UnitUnavailable(ComputeUnit.NPU) else error)
+                // ARCHITECTURE 4.4: an NPU unit error without a CPU artifact is UnitUnavailable ("Download the CPU
+                // version"); running out of memory is not about the unit and stays OutOfMemory (ADR-083).
+                return Outcome.Err(if (primary.unit == ComputeUnit.NPU && judgesUnit(error)) MurmurError.UnitUnavailable(ComputeUnit.NPU) else error)
             }
             up(engines.asrHost) ?: return Outcome.Err(MurmurError.ProcessDied(InferProcess.ASR))
             return when (val second = loadAsrOn(fallback, vad)) {

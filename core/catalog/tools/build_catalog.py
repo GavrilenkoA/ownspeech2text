@@ -29,7 +29,7 @@ CACHE = REPO / ".cache/spikes/architect/catalog-files"
 ASR = json.loads((REPO / "docs/research/asr-catalog.json").read_text(encoding="utf-8"))
 LLM = json.loads((REPO / "docs/research/llm-catalog.json").read_text(encoding="utf-8"))
 OFFLINE = "--offline" in sys.argv
-CATALOG_VERSION = "2026-11-19.1"
+CATALOG_VERSION = "2026-11-20.1"
 
 UA = {"User-Agent": "murmur-catalog-builder/1"}
 
@@ -340,6 +340,10 @@ LLM_TEMPLATE = {"lfm3-chatml": "lfm3", "lfm2-chatml": "lfm2.5", "lfm2-chatml-alw
 PREFERRED = {"lfm3": "npu", "lfm2.5": "npu", "qwen3.5": "cpu", "qwen3": "npu"}
 # Host no-mmap peak RSS where measured (llm-npu.md 5.4), else the research estimate.
 CPU_MB = {"lfm3-1.7b": 1250, "qwen3.5-0.8b": 710}
+# x86 emulator peak RSS at n_ctx 9,216 with the prefix built (WP-10 LlmServiceTest, 1,474 / 873 MB), rounded up:
+# a lower bound on the CPU memoryMb until DC2 measures the phone (verification F4: a gate that trusted 1,310 / 770
+# could start a load that lmkd then kills).
+CPU_PEAK_MB = {"lfm3-1.7b": 1480, "qwen3.5-0.8b": 880}
 # ADR-045: tokens of render.cache_prefix(profile, template) with the host llama-tokenize (b12503, --no-bos) on the
 # real GGUFs. Re-measured 2026-11-19 by native/llama/tools/tokenizer_check.py (WP-10) after the default.v4 shots were
 # regenerated (the first measurement, 3,129 / 3,240 / 3,269 / 3,161, used the older shots). LFM2.5-2.6B has its own
@@ -418,7 +422,8 @@ def llm_models() -> list[dict]:
                    "files": [hf_file(f["repo"], f.get("repo_sha", "main"), f["path"], bytes_=f["bytes"], sha256=f.get("sha256"), name="model.gguf")],
                    "layout": {"model": "model.gguf"},
                    # estimates were made at n_ctx 4096: add the KV growth to nCtx (ADR-045)
-                   "memoryMb": {u: extra_kv + (CPU_MB.get(m["id"], m.get("ram_estimate_mb", 1200)) if u == "cpu" else m.get("ram_estimate_mb", 1200)) for u in units}}
+                   "memoryMb": {u: max(extra_kv + CPU_MB.get(m["id"], m.get("ram_estimate_mb", 1200)), CPU_PEAK_MB.get(m["id"], 0))
+                                if u == "cpu" else extra_kv + m.get("ram_estimate_mb", 1200) for u in units}}
             pu = PREFERRED.get(tmpl if fam != "qwen3" else "qwen3")
             if pu in claimed:
                 art["preferredUnit"] = pu
@@ -447,7 +452,7 @@ def main() -> int:
     cat = {
         "schema": 1,
         "catalogVersion": CATALOG_VERSION,
-        "generated": "2026-11-19 by core/catalog/tools/build_catalog.py" + (" (--offline)" if OFFLINE else " (network-verified)"),
+        "generated": "2026-11-20 by core/catalog/tools/build_catalog.py" + (" (--offline)" if OFFLINE else " (network-verified)"),
         "defaults": {
             "asr": {"ru+en": "parakeet-tdt-0.6b-v3", "en": "parakeet-tdt-0.6b-v3", "ru": "gigaam-v3-e2e-rnnt"},
             "llm": LLM.get("default_model_id", "lfm3-1.7b"),

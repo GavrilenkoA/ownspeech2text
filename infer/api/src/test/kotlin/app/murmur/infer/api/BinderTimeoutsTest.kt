@@ -12,7 +12,7 @@ class BinderTimeoutsTest {
 
     @Test
     fun prefixScalesWithTokensAtTheFloorSpeed() {
-        // ADR-049: 3,240 tokens at the 40 tok/s floor -> 2 x 81 s = 162 s.
+        // ADR-049: 3,240 tokens (synthetic: LFM3's first measurement; the catalog says 3,226) at the 40 tok/s floor -> 2 x 81 s = 162 s.
         assertEquals(162_000, t.prefixMs(3_240))
         // The acceptance case of the instrumented test: 3,000 tokens -> 150 s.
         assertEquals(150_000, t.prefixMs(3_000))
@@ -24,7 +24,7 @@ class BinderTimeoutsTest {
 
     @Test
     fun prefixUsesTheBenchmarkedSpeedWhenKnown() {
-        // AI Hub S25 CPU LFM3: 3,240 tokens at 368 tok/s -> 2 x 8.8 s = 17.6 s, floored to 30 s.
+        // AI Hub S25 CPU LFM3: 3,240 tokens (synthetic, as above) at 368 tok/s -> 2 x 8.8 s = 17.6 s, floored to 30 s.
         assertEquals(30_000, t.prefixMs(3_240, 368.0))
         // Emulator LFM3 ~15 tok/s: 1,123 tokens -> 2 x 74.9 s.
         assertEquals(149_733, t.prefixMs(1_123, 15.0)) // 149,733.3 ms

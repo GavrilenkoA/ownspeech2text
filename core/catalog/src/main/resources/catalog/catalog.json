@@ -1,7 +1,7 @@
 {
  "schema": 1,
- "catalogVersion": "2026-11-19.1",
- "generated": "2026-11-19 by core/catalog/tools/build_catalog.py (network-verified)",
+ "catalogVersion": "2026-11-20.1",
+ "generated": "2026-11-20 by core/catalog/tools/build_catalog.py (network-verified)",
  "defaults": {
   "asr": {
    "ru+en": "parakeet-tdt-0.6b-v3",
@@ -1981,7 +1981,7 @@
      "memoryMb": {
       "npu": 1160,
       "gpu": 1160,
-      "cpu": 1310
+      "cpu": 1480
      },
      "preferredUnit": "npu"
     },
@@ -2013,7 +2013,7 @@
      "memoryMb": {
       "npu": 1160,
       "gpu": 1160,
-      "cpu": 1310
+      "cpu": 1480
      }
     }
    ],
@@ -2377,7 +2377,7 @@
      "memoryMb": {
       "npu": 1060,
       "gpu": 1060,
-      "cpu": 770
+      "cpu": 880
      },
      "preferredUnit": "cpu"
     },
@@ -2409,7 +2409,7 @@
      "memoryMb": {
       "npu": 1060,
       "gpu": 1060,
-      "cpu": 770
+      "cpu": 880
      },
      "preferredUnit": "cpu"
     },
@@ -2441,7 +2441,7 @@
      "memoryMb": {
       "npu": 1060,
       "gpu": 1060,
-      "cpu": 770
+      "cpu": 880
      },
      "preferredUnit": "cpu"
     }
