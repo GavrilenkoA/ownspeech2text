@@ -135,4 +135,22 @@ class FakesTest {
         val d = FakeWorld().deps()
         assertTrue(d.prompts.systemPrompt("default.v4").isNotBlank())
     }
+
+    @Test
+    fun benchmarkFakeReturnsNewestPerUnitAndValidIgnoresNewerInvalidRuns() = runTest {
+        val repo = InMemoryBenchmarkRepository()
+        val id = app.murmur.core.model.ArtifactId("a")
+        fun rec(unit: ComputeUnit, at: Long, valid: Boolean) = app.murmur.core.store.BenchmarkRecord(
+            id, unit, "1", "fp", at,
+            app.murmur.core.store.BenchmarkResultData.Asr(1.0, 1, 1, null, 1, unit.name, emptyList(), valid = valid),
+        )
+        val cpuOld = rec(ComputeUnit.CPU, 1, valid = true)
+        val npuValid = rec(ComputeUnit.NPU, 2, valid = true)
+        val cpuNew = rec(ComputeUnit.CPU, 3, valid = true)
+        val npuInvalid = rec(ComputeUnit.NPU, 4, valid = false)
+        listOf(cpuOld, npuValid, cpuNew, npuInvalid).forEach { repo.save(it) }
+        assertEquals(listOf(npuInvalid, cpuNew), repo.latest(id).first())
+        assertEquals(npuValid, repo.latestValid(id, ComputeUnit.NPU))
+        assertEquals(cpuNew, repo.latestValid(id, ComputeUnit.CPU))
+    }
 }

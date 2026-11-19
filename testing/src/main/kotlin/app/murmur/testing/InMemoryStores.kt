@@ -1,6 +1,7 @@
 package app.murmur.testing
 
 import app.murmur.core.model.ArtifactId
+import app.murmur.core.model.ComputeUnit
 import app.murmur.core.model.EntryId
 import app.murmur.core.store.AudioRef
 import app.murmur.core.store.AudioStore
@@ -93,7 +94,12 @@ class FakeInstalledModelsRepository(private val missing: MutableSet<ArtifactId> 
 
 class InMemoryBenchmarkRepository : BenchmarkRepository {
     private val rows = MutableStateFlow<List<BenchmarkRecord>>(emptyList())
-    override fun latest(id: ArtifactId): Flow<List<BenchmarkRecord>> = rows.map { l -> l.filter { it.artifactId == id } }
+    /** Newest record per unit, newest first (the BenchmarkRepository contract, as the Room store does). */
+    override fun latest(id: ArtifactId): Flow<List<BenchmarkRecord>> =
+        rows.map { l -> l.filter { it.artifactId == id }.sortedByDescending { it.atEpochMs }.distinctBy { it.unit } }
+    /** Searches every saved record, so an invalid newer run never hides an older valid one. */
+    override suspend fun latestValid(id: ArtifactId, unit: ComputeUnit): BenchmarkRecord? =
+        rows.value.filter { it.artifactId == id && it.unit == unit && it.result.valid }.maxByOrNull { it.atEpochMs }
     override suspend fun save(record: BenchmarkRecord) { rows.value = rows.value + record }
 }
 

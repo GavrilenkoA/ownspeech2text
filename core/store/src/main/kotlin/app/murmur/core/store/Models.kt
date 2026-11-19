@@ -107,8 +107,8 @@ interface BenchmarkRepository {
     /**
      * The newest record of ([id], [unit]) whose [BenchmarkResultData.valid] is true, or null (ARCHITECTURE 10: the input
      * of ArtifactSelector's BenchLookup, CleanupBudget's LLM speed and the adaptive timeouts). An invalid run never
-     * hides an older valid one. The default filters [latest], which is exact only for stores whose [latest] returns
-     * every record (the :testing fake); the Room store overrides it with a query.
+     * hides an older valid one. The default filters [latest] (newest per unit), so an implementation that keeps older
+     * records must override it (the Room store with a query, the :testing fake over all rows).
      */
     suspend fun latestValid(id: ArtifactId, unit: ComputeUnit): BenchmarkRecord? =
         latest(id).first().filter { it.unit == unit && it.result.valid }.maxByOrNull { it.atEpochMs }
