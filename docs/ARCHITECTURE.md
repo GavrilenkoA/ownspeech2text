@@ -358,7 +358,7 @@ Finishing, Polishing): `AsrReady`, `AsrLoadFailed`, `LlmReady`, `LlmLoadFailed`,
 | TRANSCRIBING_LABEL | 300 ms | DESIGN 5.3 |
 | ASR_FINAL | 4 s + 0.5 s × tail seconds | [I]; NPU = one 20 s window call |
 | LLM_READY | 10 s after the transcript, while the LLM loads / prefills | covers a cold NPU load [I] and a CPU prefix prefill (LFM3 8.8 s) |
-| LLM | started with RunCleanup: `min(64 s, 4 s + 1.5 × expected)`, expected = suffix tokens / prefill tok/s + 1.1 × transcript tokens / decode tok/s from the latest valid benchmark (else `defaultSpeed[unit]`); `expected > 40 s` → not attempted (`skipped:too_long`) | ADR-015 revised by ADR-045 (replaces DESIGN's fixed 6 s) |
+| LLM | started with RunCleanup: `min(64 s, 4 s + 1.5 × expected)`, expected = suffix tokens / prefill tok/s + 1.1 × transcript tokens / decode tok/s from the newest benchmark record of (artifact, unit); an invalid one gives no speed (ADR-071; else `defaultSpeed[unit]`); `expected > 40 s` → not attempted (`skipped:too_long`) | ADR-015 revised by ADR-045 (replaces DESIGN's fixed 6 s) |
 | DELIVERY | 2 s | [I] |
 | RESULT_DISMISS | Inserted 1.2 s, Copied 4 s, Error 6 s | DESIGN 5.3 |
 | idle unload | 60 s (`Settings.idleUnloadSec`) | D5; revisit after DC2/DC8 |
@@ -571,7 +571,8 @@ onboarding's pack sizes call `ensure()`. On the emulator: soc null, units {CPU}.
 4. Extract archives with path-traversal checks (commons-compress, ADR-017); verify `layout` paths exist.
 5. Write `installed.json`; state → `Preparing`: `EnginePreparer.prepareArtifact` (the orchestrator) gets the specs from
    `ModelResolver.prepareTargets` (ADR-067) and loads the artifact on every usable unit (ASR: + 1 s decode of a bundled clip; LLM: + build and save the prefix snapshot), marking
-   `UnitHealth` proven or failed; → `Installed`. If an NPU ASR artifact fails and the model's CPU artifact is not
+   `UnitHealth` proven or failed (only errors that judge the unit, ADR-066: never OutOfMemory, no process, a prefix
+   error or a proof-decode timeout; those are `PrepareReport.untested`); → `Installed`. If an NPU ASR artifact fails and the model's CPU artifact is not
    installed, the report's `needsCpuArtifact` makes WP-13 queue it (onboarding shows the extra size).
 
 **What a download queues** (pack semantics, ADR-050): a pack lists model ids; each model resolves to

@@ -1,0 +1,7 @@
+en_pauses.wav, ru_pauses.wav: about 60 s each of read English / Russian speech with pauses, used by the instrumented
+ASR timing tests (infer/asr androidTest). The reference texts and lengths are in clips.json.
+
+Source: FLEURS (Google; Conneau et al., 2022), dev split, CC BY 4.0.
+  https://huggingface.co/datasets/google/fleurs
+Changes: several utterances per language concatenated with pauses by the asr-ocr spike (scripts/make_eval.py,
+long_en_pauses / long_ru_pauses).

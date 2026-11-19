@@ -218,3 +218,8 @@ Peak usage during image experiments was about 19 GB. The 37.0 and 37.2 images we
 - No emulators are running. No Gradle or Kotlin daemons are running (checked with `pgrep`).
 - `cmdline-tools` is still 12.0. It works, so I didn't upgrade it. `sdkmanager --install "cmdline-tools;latest"` would install 23.0.
 - Pre-existing packages were left alone: `platforms;android-35` and `build-tools;34.0.0` (no longer used by this project).
+
+## 11. Bisecting the wave-1 integration
+
+Merge commit `fa76f50` (wp/wp-13 into integration/wave1) does not compile on its own: `DefaultModelResolver` gets
+`ModelResolver.prepareTargets` only in the next commit, `56f24e5`. When bisecting, run `git bisect skip fa76f50`.

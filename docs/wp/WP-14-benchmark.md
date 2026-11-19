@@ -45,7 +45,7 @@ constructor parameters.
 3. `stop()` cancels between steps and leaves no process loaded. A valid record → `UnitHealth.clear(artifact, unit)`.
 4. Score function for `ArtifactSelector` (`BenchLookup`, put it here as `BenchScores.lookup(records)`): ASR =
    processing ms per audio second; LLM = e2e ms; **null for invalid records**. `LlmSpeed` for `ActiveLlm.speed` =
-   (prefill tok/s, decode tok/s) of the latest valid record.
+   (prefill tok/s, decode tok/s) of the newest record of (artifact, unit); an invalid one gives no speed or score (ADR-071).
 
 ## Acceptance (checkable here)
 
@@ -67,3 +67,16 @@ The bench sheet UI (WP-18), device numbers (DEVICE_CHECKLIST DC9).
 ## Build/test
 
 `tools/gw :core:benchmark:test`.
+
+## Integration notes (wave-1 integration pass 1; ADR-064..077 in DECISIONS)
+
+Merged on `integration/wave1`: WP-01, 05, 06, 07, 08, 09, 11, 12, 13. This package is still in work; check these when it merges.
+- ADR-071: selection, `CleanupBudget` speed and the adaptive timeouts use the **newest** record of (artifact, unit);
+  an invalid newest record gives no score and no speed. `BenchmarkRepository.latestValid` is for display only.
+  `data/models` already has a `BenchScores` (DefaultModelResolver.kt) with this rule: keep one implementation (yours in
+  `core:benchmark` or that one) and point the other at it when this package merges.
+- The `:testing` `InMemoryBenchmarkRepository.latest` now returns the newest record per unit, newest first (as Room
+  does), not every record in insertion order; tests written against the old fake may change.
+- `OcrTolerance.Suite.ok` gates the CER on the non-identical lines (ADR-077). Cold loads use `BinderHost.shutdown()`
+  (ADR-069). An OutOfMemory never marks `UnitHealth` (ADR-066, Preparing included); a valid record still clears it.
+- Handle `MurmurError.DownloadPaused` and `MicLost` in any exhaustive `when` over `MurmurError`.

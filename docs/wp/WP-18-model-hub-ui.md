@@ -76,6 +76,9 @@ Downloads and resolution (WP-13), running benchmarks (WP-14).
 ## Integration notes (wave-1 integration pass 1; ADR-064..077 in DECISIONS)
 
 Merged on `integration/wave1`: WP-01, 05, 06, 07, 08, 09, 11, 12, 13. Still in work: WP-02, 03, 04, 10, 14, 20 (early paths).
+- `PrepareReport` (ADR-066, verification of pass 1): `failed` = marked failed in `UnitHealth` (the unit-failure label of the hub),
+  `untested` = tried but the error says nothing about the unit (OutOfMemory, no process, prefix error, decode timeout):
+  show no unit label for those; the first real load or a benchmark decides.
 - WP-01 (ADR-075): components grow with large text, so never put fixed heights around chips, buttons, segmented
   controls, search fields or list rows; `MurmurNavigationRail` is ≥ 88 dp and widens (lay it out wrap-content);
   `MurmurSheet` on medium+ calls `onDismiss` after its exit animation (remove the sheet there); `AppTileSize.letterDp`

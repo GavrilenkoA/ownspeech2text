@@ -110,7 +110,10 @@ class RoomMetricsRepository(
     override suspend fun deleteBefore(day: LocalDate): Int = withContext(io) { dao.deleteBefore(day.toString()) }
 }
 
-/** Every run is kept (valid or not, ARCHITECTURE 10); [latest] shows the newest per unit, [latestValid] feeds selection. */
+/**
+ * Every run is kept (valid or not, ARCHITECTURE 10). [latest] = the newest record per unit, which is the selection
+ * input: an invalid newest record gives no speed or score (ADR-071). [latestValid] = the last good run, for display only.
+ */
 class RoomBenchmarkRepository(
     db: MurmurDatabase,
     private val io: CoroutineDispatcher = Dispatchers.IO,
