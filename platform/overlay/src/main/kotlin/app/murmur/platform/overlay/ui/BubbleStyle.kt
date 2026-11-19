@@ -16,17 +16,17 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.unit.sp
+import app.murmur.ui.design.MurmurFonts
 import app.murmur.ui.design.TokenType
 import app.murmur.ui.design.TypeSpec
 
 /**
- * Bubble text styles from tokens.json (DESIGN 3.2: bubble 14/18 600, monoTimer 14/18 500 tnum). The typefaces are
- * the platform sans / monospace until :ui:design bundles Onest and JetBrains Mono (WP-01); [sans] and [mono] are the
- * only two places to switch.
+ * Bubble text styles from tokens.json (DESIGN 3.2: bubble 14/18 600, monoTimer 14/18 500 tnum) in the fonts that
+ * :ui:design bundles (Onest, JetBrains Mono).
  */
 internal object BubbleType {
-    val sans: FontFamily = FontFamily.SansSerif
-    val mono: FontFamily = FontFamily.Monospace
+    val sans: FontFamily = MurmurFonts.sans
+    val mono: FontFamily = MurmurFonts.mono
 
     fun style(spec: TypeSpec, scale: Float = 1f): TextStyle = TextStyle(
         fontFamily = if (spec.mono) mono else sans,

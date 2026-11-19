@@ -20,6 +20,10 @@ data class FocusState(
     val isPassword: Boolean,
     /** Identity of the focused field (node + window); a new key restarts the tuck-in idle timer. */
     val fieldKey: Long?,
+    /** Top of the focused field's getBoundsInScreen on [displayId] (px), for the bubble placement (DESIGN 5.4). */
+    val fieldTop: Int? = null,
+    /** Top of the TYPE_INPUT_METHOD window on [displayId] (px); null = no keyboard shown. */
+    val imeTop: Int? = null,
 ) {
     companion object {
         val NONE = FocusState(pkg = null, displayId = 0, editableFocused = false, inputType = 0, isPassword = false, fieldKey = null)
@@ -58,6 +62,8 @@ object VisibilityRules {
             idleSinceMs = idleSinceMs,
             tuckIn = settings.tuckIn,
             talkBackOn = talkBackOn,
+            fieldTop = focus.fieldTop.takeIf { focus.editableFocused },
+            imeTop = focus.imeTop,
         )
 
     /** Built-in denylist ∪ the user's "Hidden in" ∪ Murmur's own UI (the practice field uses an in-app bubble). */
@@ -68,9 +74,13 @@ object VisibilityRules {
     fun delayFor(previous: FocusState?, next: FocusState): Long =
         if (previous?.editableFocused == true && !next.editableFocused) BLUR_DEBOUNCE_MS else 0L
 
-    /** Bubbles on other displays than the focused one see "no field" (they can still show a Rest tab with "Always"). */
+    /**
+     * Bubbles on other displays than the focused one see "no field" (they can still show a Rest tab with "Always"), and
+     * no field or keyboard geometry: those pixels belong to the focused display.
+     */
     fun forDisplay(input: VisibilityInput, focusDisplayId: Int, displayId: Int): VisibilityInput =
-        if (displayId == focusDisplayId) input else input.copy(editableFocused = false, bubbleAllowedForField = true)
+        if (displayId == focusDisplayId) input
+        else input.copy(editableFocused = false, bubbleAllowedForField = true, fieldTop = null, imeTop = null)
 
     /** The next instant at which the merged visual can change without any new event (tuck-in, end of "hide 1 h"). */
     fun nextDeadline(input: VisibilityInput): Long? {

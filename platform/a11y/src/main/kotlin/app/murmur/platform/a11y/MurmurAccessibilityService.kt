@@ -55,20 +55,24 @@ interface A11yServiceHost {
 
     /** The bubble on [displayId] (one per display). Default: WP-03's Compose bubble in an accessibility overlay. */
     fun bubbleFor(service: AccessibilityService, displayId: Int): BubbleSurface =
-        OverlayBubbleSurface(OverlayHost(service, displayId, dictation.bubble, dictation.levels, ::onUserInput))
+        OverlayBubbleSurface(OverlayHost(service, displayId, dictation.bubble, dictation.levels, ::onUserInput, settings))
 }
 
 /** What the service needs from a per-display bubble window. */
 interface BubbleSurface {
     fun attach()
     fun updateVisibility(input: VisibilityInput)
+    /** Removes the windows; the surface may be attached again (a temporary loss of the window token). */
     fun detach()
+    /** Final: the display was removed or the service ends. The service never reuses the surface afterwards. */
+    fun destroy() = detach()
 }
 
 private class OverlayBubbleSurface(private val host: OverlayHost) : BubbleSurface {
     override fun attach() = host.attach()
     override fun updateVisibility(input: VisibilityInput) = host.updateVisibility(input)
     override fun detach() = host.detach()
+    override fun destroy() = host.destroy()
 }
 
 /**
@@ -210,8 +214,9 @@ class MurmurAccessibilityService : AccessibilityService() {
         lastVisibility?.let { (focusDisplay, input) -> surface.updateVisibility(VisibilityRules.forDisplay(input, focusDisplay, displayId)) }
     }
 
-    private fun detachBubble(displayId: Int) {
-        surfaces.remove(displayId)?.detach()
+    /** Display removed or service ending: the surface is final ([BubbleSurface.destroy]); a re-added display gets a new one. */
+    private fun destroyBubble(displayId: Int) {
+        surfaces.remove(displayId)?.destroy()
     }
 
     private fun Display.isPublic() = (flags and Display.FLAG_PRIVATE) == 0
@@ -224,7 +229,7 @@ class MurmurAccessibilityService : AccessibilityService() {
         }
 
         override fun onDisplayRemoved(displayId: Int) {
-            detachBubble(displayId)
+            destroyBubble(displayId)
             Log.i(TAG, "display_removed id=$displayId bubbles=${surfaces.size}")
         }
 
@@ -243,7 +248,7 @@ class MurmurAccessibilityService : AccessibilityService() {
         A11yBridge.service.compareAndSet(this, null)
         runCatching { getSystemService(DisplayManager::class.java).unregisterDisplayListener(displayListener) }
         runCatching { getSystemService(AccessibilityManager::class.java).removeTouchExplorationStateChangeListener(talkBackListener) }
-        surfaces.keys.toList().forEach(::detachBubble)
+        surfaces.keys.toList().forEach(::destroyBubble)
         scope?.cancel()
         scope = null
         tracker = null

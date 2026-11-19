@@ -81,13 +81,25 @@ class OverlayHost(
     private val onInput: (UserInput) -> Unit,
     private val settings: SettingsRepository,
     private val clock: () -> Long = System::currentTimeMillis,
-) : LifecycleOwner, SavedStateRegistryOwner, ViewModelStoreOwner {
+) {
 
-    private val lifecycleRegistry = LifecycleRegistry(this)
-    private val savedState = SavedStateRegistryController.create(this)
-    override val lifecycle: Lifecycle get() = lifecycleRegistry
-    override val savedStateRegistry: SavedStateRegistry get() = savedState.savedStateRegistry
-    override val viewModelStore = ViewModelStore()
+    /**
+     * The view-tree owners of the bubble windows. Kept off OverlayHost's own type so that its users (the accessibility
+     * service in :platform:a11y) need no lifecycle classes on their compile classpath. Internal for the window tests.
+     */
+    internal val owners = Owners()
+
+    internal class Owners : LifecycleOwner, SavedStateRegistryOwner, ViewModelStoreOwner {
+        val registry = LifecycleRegistry(this)
+        val savedState = SavedStateRegistryController.create(this)
+        override val lifecycle: Lifecycle get() = registry
+        override val savedStateRegistry: SavedStateRegistry get() = savedState.savedStateRegistry
+        override val viewModelStore = ViewModelStore()
+    }
+
+    private val lifecycleRegistry get() = owners.registry
+    private val savedState get() = owners.savedState
+    private val viewModelStore get() = owners.viewModelStore
 
     private val main = Handler(Looper.getMainLooper())
     private val display: Display = requireNotNull(context.getSystemService(DisplayManager::class.java).getDisplay(displayId)) {
@@ -142,9 +154,9 @@ class OverlayHost(
     private val fadedOut = Runnable { if (lastVisual == BubbleVisual.Hidden) root.alpha = 0f }
 
     init {
-        root.setViewTreeLifecycleOwner(this)
-        root.setViewTreeSavedStateRegistryOwner(this)
-        root.setViewTreeViewModelStoreOwner(this)
+        root.setViewTreeLifecycleOwner(owners)
+        root.setViewTreeSavedStateRegistryOwner(owners)
+        root.setViewTreeViewModelStoreOwner(owners)
         root.addView(composeView {
             val lv = levels.collectAsState()
             BubbleWindowContent(ui, dark, lv, clock, Actions())
@@ -567,9 +579,9 @@ class OverlayHost(
     }
 
     private fun composeView(content: @androidx.compose.runtime.Composable () -> Unit) = ComposeView(ctx).apply {
-        setViewTreeLifecycleOwner(this@OverlayHost)
-        setViewTreeSavedStateRegistryOwner(this@OverlayHost)
-        setViewTreeViewModelStoreOwner(this@OverlayHost)
+        setViewTreeLifecycleOwner(owners)
+        setViewTreeSavedStateRegistryOwner(owners)
+        setViewTreeViewModelStoreOwner(owners)
         setContent(content)
     }
 

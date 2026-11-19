@@ -69,6 +69,17 @@ class VisibilityTest {
     }
 
     @Test
+    fun fieldAndKeyboardGeometryReachTheFocusedDisplayOnly() {
+        val f = focus().copy(fieldTop = 640, imeTop = 1343)
+        val v = VisibilityRules.build(f, VisibilitySettings(), own, 0, null, false)
+        assertEquals(640, v.fieldTop); assertEquals(1343, v.imeTop)
+        val blurred = VisibilityRules.build(focus(editable = false).copy(fieldTop = 640, imeTop = null), VisibilitySettings(), own, 0, null, false)
+        assertEquals(null, blurred.fieldTop) // no field focused: the bubble keeps its proportional y
+        val other = VisibilityRules.forDisplay(v, focusDisplayId = 0, displayId = 1)
+        assertEquals(null, other.fieldTop); assertEquals(null, other.imeTop)
+    }
+
+    @Test
     fun deadlinesForTuckInAndUnhide() {
         val v = VisibilityRules.build(focus(), VisibilitySettings(hiddenUntilEpochMs = 10_000), own, nowMs = 1_000, idleSinceMs = 1_000, talkBackOn = false)
         assertEquals(1_000 + BubblePolicy.TUCK_AFTER_MS, VisibilityRules.nextDeadline(v))

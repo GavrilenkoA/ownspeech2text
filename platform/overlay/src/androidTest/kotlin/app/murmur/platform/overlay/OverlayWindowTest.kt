@@ -457,14 +457,14 @@ class OverlayWindowTest {
     fun destroyEndsTheLifecycle_clearsViewModels_andRemovesTheWindows() {
         onMain { host.updateVisibility(focusedInput()) }
         waitUntil("Ready") { snap().visual == BubbleVisual.Ready }
-        val probe = onMain { androidx.lifecycle.ViewModelProvider(host)[Probe::class.java] }
+        val probe = onMain { androidx.lifecycle.ViewModelProvider(host.owners)[Probe::class.java] }
         onMain { host.detach() }
-        assertEquals(androidx.lifecycle.Lifecycle.State.CREATED, onMain { host.lifecycle.currentState })
+        assertEquals(androidx.lifecycle.Lifecycle.State.CREATED, onMain { host.owners.lifecycle.currentState })
         assertFalse("detach keeps the view models", probe.cleared)
         onMain { host.attach() } // detach is reversible
         waitUntil("Ready again") { snap().visual == BubbleVisual.Ready }
         onMain { host.destroy() }
-        assertEquals(androidx.lifecycle.Lifecycle.State.DESTROYED, onMain { host.lifecycle.currentState })
+        assertEquals(androidx.lifecycle.Lifecycle.State.DESTROYED, onMain { host.owners.lifecycle.currentState })
         assertTrue("view models cleared", probe.cleared)
         waitUntil("bubble window removed") { !sh("dumpsys window windows").contains("MurmurBubble}") }
         val again = onMain { runCatching { host.attach() }.exceptionOrNull() }

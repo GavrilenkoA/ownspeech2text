@@ -84,7 +84,9 @@ internal class NodeReader(private val service: MurmurAccessibilityService) {
         val node = focusedEditable(target.id)
         val ei = service.ime?.editorFor(pkg)
         val inputType = FieldFacts.inputType(ei?.inputType, node?.inputType ?: 0)
-        val imeShown = ws.any { it.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD && it.displayId == target.displayId }
+        val imeWindow = ws.firstOrNull { it.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD && it.displayId == target.displayId }
+        val imeShown = imeWindow != null
+        val fieldTop = node?.let { n -> android.graphics.Rect().also { n.getBoundsInScreen(it) }.top }
         return FocusState(
             pkg = pkg,
             displayId = target.displayId,
@@ -92,6 +94,8 @@ internal class NodeReader(private val service: MurmurAccessibilityService) {
             inputType = inputType,
             isPassword = FieldFacts.isPassword(node?.isPassword == true, inputType, ei?.inputType),
             fieldKey = node?.let { (it.hashCode().toLong() shl 32) or (target.id.toLong() and 0xffffffffL) },
+            fieldTop = fieldTop,
+            imeTop = imeWindow?.bounds?.y0,
         )
     }
 
