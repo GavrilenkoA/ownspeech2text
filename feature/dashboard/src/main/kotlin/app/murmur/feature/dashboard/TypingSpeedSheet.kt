@@ -41,6 +41,7 @@ import app.murmur.ui.design.components.ButtonStyle
 import app.murmur.ui.design.components.MurmurButton
 import app.murmur.ui.design.components.MurmurRadio
 import app.murmur.ui.design.components.MurmurSheet
+import app.murmur.ui.design.components.rememberMurmurSheetController
 import java.text.NumberFormat
 
 /** Test tags of the typing speed sheet. */
@@ -55,10 +56,14 @@ object TypingSpeedTags {
 /**
  * Typing speed for "time saved" (DESIGN 6.2: 30/40/50/60/custom), in the layout of the retention sheet (title,
  * explanation, 60 dp radio rows). A preset applies at once and closes the sheet; Custom shows a number field
- * (10-200 wpm) with Save. No frame exists for this sheet: composed from WP-01 parts.
+ * (10-200 wpm) with Save. Closing after a pick goes through the sheet's own exit (bottom sheet slides down, side sheet
+ * slides out), and [onDismiss] runs when it is gone, as for a scrim tap. No frame exists for this sheet: composed
+ * from WP-01 parts.
  */
 @Composable
 fun TypingSpeedSheet(current: Int, onPick: (Int) -> Unit, onDismiss: () -> Unit) {
+    val controller = rememberMurmurSheetController()
+    val pick = { wpm: Int -> onPick(wpm); controller.dismiss() }
     val c = MurmurTheme.colors
     val t = MurmurTheme.type
     val presets = DashboardViewModel.PRESETS
@@ -66,7 +71,7 @@ fun TypingSpeedSheet(current: Int, onPick: (Int) -> Unit, onDismiss: () -> Unit)
     var text by rememberSaveable { mutableStateOf(if (current in presets) "" else current.toString()) }
     val locale = LocalConfiguration.current.locales[0]
     val format = remember(locale) { NumberFormat.getIntegerInstance(locale) }
-    MurmurSheet(onDismiss = onDismiss) {
+    MurmurSheet(onDismiss = onDismiss, controller = controller) {
         Column(Modifier.testTag(TypingSpeedTags.SHEET)) {
             Column(Modifier.padding(start = 24.dp, end = 24.dp, bottom = 4.dp)) {
                 Text(stringResource(R.string.dash_wpm_title), style = t.title, color = c.ink)
@@ -81,7 +86,7 @@ fun TypingSpeedSheet(current: Int, onPick: (Int) -> Unit, onDismiss: () -> Unit)
                         title = stringResource(R.string.dash_wpm_option, format.format(wpm)),
                         subtitle = if (wpm == DEFAULT_WPM) stringResource(R.string.dash_wpm_default) else null,
                         selected = !custom && current == wpm,
-                        onClick = { onPick(wpm) },
+                        onClick = { pick(wpm) },
                         modifier = Modifier.testTag(TypingSpeedTags.option(wpm)),
                     )
                 }
@@ -106,34 +111,32 @@ fun TypingSpeedSheet(current: Int, onPick: (Int) -> Unit, onDismiss: () -> Unit)
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Box(
-                        Modifier
+                    // The whole 48 dp pill is the field (DESIGN 4: 48 dp touch targets), not just its text line.
+                    BasicTextField(
+                        value = text,
+                        onValueChange = { v -> text = v.filter { it.isDigit() }.take(3) },
+                        singleLine = true,
+                        textStyle = t.bodyLg.copy(color = c.ink),
+                        cursorBrush = SolidColor(c.accent),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+                        keyboardActions = KeyboardActions(onDone = { if (valid) pick(value!!) }),
+                        modifier = Modifier
                             .weight(1f)
                             .heightIn(min = 48.dp)
                             .clip(MurmurShapes.full)
                             .background(c.surface)
                             .border(2.dp, c.ink, MurmurShapes.full)
-                            .padding(horizontal = 16.dp),
-                        contentAlignment = Alignment.CenterStart,
-                    ) {
-                        BasicTextField(
-                            value = text,
-                            onValueChange = { v -> text = v.filter { it.isDigit() }.take(3) },
-                            singleLine = true,
-                            textStyle = t.bodyLg.copy(color = c.ink),
-                            cursorBrush = SolidColor(c.accent),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
-                            keyboardActions = KeyboardActions(onDone = { if (valid) onPick(value!!) }),
-                            modifier = Modifier.fillMaxWidth().testTag(TypingSpeedTags.CUSTOM_FIELD)
-                                .semantics { contentDescription = label },
-                            decorationBox = { inner ->
+                            .testTag(TypingSpeedTags.CUSTOM_FIELD)
+                            .semantics { contentDescription = label },
+                        decorationBox = { inner ->
+                            Box(Modifier.padding(horizontal = 16.dp), contentAlignment = Alignment.CenterStart) {
                                 if (text.isEmpty()) Text(label, style = t.bodyLg, color = c.ink3)
                                 inner()
-                            },
-                        )
-                    }
+                            }
+                        },
+                    )
                     MurmurButton(
-                        stringResource(R.string.dash_wpm_save), { if (valid) onPick(value!!) },
+                        stringResource(R.string.dash_wpm_save), { if (valid) pick(value!!) },
                         style = ButtonStyle.Primary, size = ButtonSize.Small, enabled = valid,
                         modifier = Modifier.testTag(TypingSpeedTags.SAVE),
                     )

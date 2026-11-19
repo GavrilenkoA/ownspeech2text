@@ -1,5 +1,6 @@
 package app.murmur.feature.dashboard
 
+import android.os.ParcelFileDescriptor
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.SemanticsActions
@@ -8,6 +9,9 @@ import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
@@ -25,6 +29,7 @@ import app.murmur.core.store.MetricsRepository
 import app.murmur.core.store.Settings
 import app.murmur.testing.InMemorySettingsRepository
 import app.murmur.testing.contrib.Wp12MetricsFixture
+import app.murmur.ui.design.Motion
 import app.murmur.ui.design.MurmurTheme
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -86,6 +91,45 @@ class DashboardInteractionTest {
         assertEquals(0, rule.onAllNodesWithText("Your typing speed").fetchSemanticsNodes().size)
         // 184 / 50 = 3.7 -> 4 min of typing, 1 min of speaking.
         rule.onNodeWithText("Typing this at 50 wpm would take about 4 min, so roughly 3 min saved.", substring = true).assertIsDisplayed()
+    }
+
+    /**
+     * A picked preset closes the sheet through its own exit (ADR-075): the sheet is still on screen halfway through
+     * the exit animation and gone after it, and the value is saved at once. Runs with animations on.
+     */
+    @Test
+    fun presetPickClosesTheSheetWithItsExitAnimation() = withAnimatorScale("1") {
+        val settings = InMemorySettingsRepository()
+        show(FrameData.deps(metrics = FrameData.store(Wp12MetricsFixture.week), calculator = DefaultStatsCalculator(), settings = settings))
+        rule.onNodeWithTag(DashboardTags.TODAY_CARD).performClick()
+        rule.waitForIdle()
+        rule.onNodeWithTag(TypingSpeedTags.SHEET).assertIsDisplayed()
+        rule.mainClock.autoAdvance = false
+        rule.onNodeWithTag(TypingSpeedTags.option(60)).performClick()
+        rule.mainClock.advanceTimeBy(Motion.mediumMs / 2L)
+        rule.onNodeWithTag(TypingSpeedTags.SHEET).assertExists()
+        rule.mainClock.autoAdvance = true
+        rule.waitUntil(5_000) { rule.onAllNodes(hasTestTag(TypingSpeedTags.SHEET)).fetchSemanticsNodes().isEmpty() }
+        rule.waitForIdle()
+        assertEquals(60, settings.settings.value.typingWpm)
+        rule.onNodeWithText("Typing this at 60 wpm", substring = true).assertIsDisplayed()
+    }
+
+    /** The open sheet's radio rows, number field and Save button are 48 dp touch targets too (DESIGN 4). */
+    @Test
+    fun typingSpeedSheetTouchTargets() {
+        show(FrameData.deps(metrics = FrameData.store(Wp12MetricsFixture.week), calculator = DefaultStatsCalculator()))
+        rule.onNodeWithTag(DashboardTags.TODAY_CARD).performClick()
+        rule.onNodeWithTag(TypingSpeedTags.CUSTOM).performClick()
+        rule.waitForIdle()
+        rule.onNodeWithTag(TypingSpeedTags.SAVE).assertExists()
+        val density = InstrumentationRegistry.getInstrumentation().targetContext.resources.displayMetrics.density
+        // The sheet's own content (the drag handle above it belongs to the WP-01 sheet).
+        val content = hasClickAction() and hasAnyAncestor(hasTestTag(TypingSpeedTags.SHEET))
+        val inSheet = rule.onAllNodes(content, useUnmergedTree = true).fetchSemanticsNodes()
+        // 4 presets + Custom + the field + Save.
+        assertTrue("sheet clickables: ${inSheet.map { describe(it, density) }}", inSheet.size >= 7)
+        rule.assertTouchTargets("typing speed sheet", density, content)
     }
 
     @Test
@@ -186,4 +230,19 @@ class DashboardInteractionTest {
         val nameBottom = name.positionInRoot.y + name.size.height
         assertTrue("value below the name (${value.positionInRoot} vs bottom $nameBottom)", value.positionInRoot.y >= nameBottom)
     }
+
+    /** Runs [block] with the system animator duration scale at [scale] (the AVDs run with 0), then restores it. */
+    private fun withAnimatorScale(scale: String, block: () -> Unit) {
+        val before = shell("settings get global animator_duration_scale").trim()
+        shell("settings put global animator_duration_scale $scale")
+        try {
+            block()
+        } finally {
+            shell("settings put global animator_duration_scale ${if (before == "null" || before.isEmpty()) "1" else before}")
+        }
+    }
+
+    private fun shell(cmd: String): String =
+        ParcelFileDescriptor.AutoCloseInputStream(InstrumentationRegistry.getInstrumentation().uiAutomation.executeShellCommand(cmd))
+            .use { it.readBytes().decodeToString() }
 }

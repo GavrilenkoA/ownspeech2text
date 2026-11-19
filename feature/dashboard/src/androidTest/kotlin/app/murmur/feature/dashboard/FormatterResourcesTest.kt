@@ -37,6 +37,8 @@ class FormatterResourcesTest {
         assertEquals("Убрано 21 слово-паразит", ru.plural(R.plurals.dash_fillers, 21, "21"))
         assertEquals("Ещё 5 приложений", ru.plural(R.plurals.dash_other_apps, 5, "5"))
         assertEquals("4 диктовки только скопированы", ru.plural(R.plurals.dash_copied_only, 4, "4"))
+        assertEquals("5 диктовок только скопировано", ru.plural(R.plurals.dash_copied_only, 5, "5"))
+        assertEquals("21 диктовка только скопирована", ru.plural(R.plurals.dash_copied_only, 21, "21"))
         assertEquals("1 284", DashboardFormatter(ru) { it }.int(1284))
     }
 

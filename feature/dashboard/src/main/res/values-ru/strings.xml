@@ -62,7 +62,7 @@
     <plurals name="dash_copied_only">
         <item quantity="one">%1$s диктовка только скопирована</item>
         <item quantity="few">%1$s диктовки только скопированы</item>
-        <item quantity="many">%1$s диктовок только скопированы</item>
+        <item quantity="many">%1$s диктовок только скопировано</item>
         <item quantity="other">%1$s диктовки только скопированы</item>
     </plurals>
     <string name="dash_copied_all_in">%1$s, все в %2$s</string>

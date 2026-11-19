@@ -1,19 +1,25 @@
 package app.murmur.feature.dashboard
 
 import android.content.ActivityNotFoundException
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.provider.Settings
 import android.util.Log
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.murmur.core.model.MurmurClock
 import app.murmur.core.store.MetricsRepository
@@ -40,7 +46,8 @@ class DashboardDeps(
  */
 @Composable
 fun DashboardScreen(deps: DashboardDeps, onTryDictation: () -> Unit, modifier: Modifier = Modifier) {
-    val vm: DashboardViewModel = viewModel(key = VM_KEY) { DashboardViewModel(deps) }
+    val vm: DashboardViewModel = viewModel(key = VM_KEY) { DashboardViewModel(deps, createSavedStateHandle()) }
+    ClockChanges(vm::onClockChanged)
     val state by vm.state.collectAsStateWithLifecycle()
     val connected by deps.serviceConnected.collectAsStateWithLifecycle()
     val wpm by vm.typingWpm.collectAsStateWithLifecycle()
@@ -80,10 +87,33 @@ fun DashboardScreen(deps: DashboardDeps, onTryDictation: () -> Unit, modifier: M
     if (sheet) {
         TypingSpeedSheet(
             current = wpm,
-            onPick = { vm.setTypingWpm(it); sheet = false },
+            onPick = vm::setTypingWpm,
             onDismiss = { sheet = false },
         )
     }
 }
 
 private const val VM_KEY = "dashboard"
+
+/**
+ * Forwards the system's time zone, clock and date broadcasts while the Dashboard is shown, so "today" follows a
+ * flight or a manual clock change at once instead of at the old midnight.
+ */
+@Composable
+private fun ClockChanges(onChange: () -> Unit) {
+    val context = LocalContext.current
+    val latest by rememberUpdatedState(onChange)
+    DisposableEffect(context) {
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(c: Context, intent: Intent) = latest()
+        }
+        val filter = IntentFilter().apply {
+            addAction(Intent.ACTION_TIMEZONE_CHANGED)
+            addAction(Intent.ACTION_TIME_CHANGED)
+            addAction(Intent.ACTION_DATE_CHANGED)
+        }
+        // System broadcasts only: nothing outside the system can reach the receiver.
+        context.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        onDispose { context.unregisterReceiver(receiver) }
+    }
+}

@@ -69,9 +69,9 @@ class DashboardTextsTest {
         assertEquals("1 copied only, in Termux", line(f, 1, 1))
         assertEquals("1 диктовка только скопирована, в Termux", line(r, 1, 1))
         assertEquals("5 copied only, most in Termux", line(f, 5, 3))
-        assertEquals("5 диктовок только скопированы, в основном в Termux", line(r, 5, 3))
+        assertEquals("5 диктовок только скопировано, в основном в Termux", line(r, 5, 3))
         assertEquals("6 copied only, 2 in Termux", line(f, 6, 2))
-        assertEquals("6 диктовок только скопированы, 2 — в Termux", line(r, 6, 2))
+        assertEquals("6 диктовок только скопировано, 2 — в Termux", line(r, 6, 2))
         assertEquals("21 диктовка только скопирована, все в Termux", line(r, 21, 21))
         assertEquals("Every dictation went straight in", f.metrics(stats(copied = 0, top = null), DashboardRange.Week, 0)[2].subtitle)
         assertEquals("Все диктовки вставлены сразу", r.metrics(stats(copied = 0, top = null), DashboardRange.Week, 0)[2].subtitle)
@@ -177,8 +177,10 @@ class DashboardTextsTest {
         val l = FixtureTexts.formatter(en).languages(linkedMapOf(DefaultStatsCalculator.MIXED to 5, "ru" to 1, "en" to 1, "de" to 1, "uk" to 1))
         assertEquals(100, l.sumOf { it.percent })
         assertEquals(LangTone.Mixed, l.last().tone)
-        // Three named languages at most, then "Other".
-        assertEquals(listOf("German", "English", "Russian", "Other", "Mixed"), l.map { it.label })
+        // Two named languages at most, then "Other", each in its own tone (no two neighbours alike).
+        assertEquals(listOf("German", "English", "Other", "Mixed"), l.map { it.label })
+        assertEquals(listOf(LangTone.Primary, LangTone.Secondary, LangTone.Other, LangTone.Mixed), l.map { it.tone })
+        assertEquals(l.size, l.map { it.tone }.toSet().size)
         assertEquals(listOf(34, 33, 33), DashboardFormatter.largestRemainder(listOf(1, 1, 1), 100))
         assertTrue(FixtureTexts.formatter(en).languages(emptyMap()).isEmpty())
     }

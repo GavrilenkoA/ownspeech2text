@@ -60,7 +60,7 @@ data class WeekTexts(
 data class MetricTexts(val title: String, val value: String?, val unit: String?, val subtitle: String)
 
 /** Colour role of a language segment: the largest language ink, the next ink4, then ink2; Mixed is the accent. */
-enum class LangTone { Primary, Secondary, Tertiary, Mixed }
+enum class LangTone { Primary, Secondary, Other, Mixed }
 
 /** One language: legend [text] ("Russian 62%"), the bar [share] (0..1) and its tone. */
 data class LangTexts(val label: String, val percent: Int, val share: Float, val tone: LangTone, val text: String)
@@ -232,12 +232,13 @@ class DashboardFormatter(private val s: DashboardStrings, private val appLabel: 
         val mixed = counts[DefaultStatsCalculator.MIXED] ?: 0
         val plain = counts.filterKeys { it != DefaultStatsCalculator.MIXED }.entries
             .sortedWith(compareByDescending<Map.Entry<String, Int>> { it.value }.thenBy { it.key })
-        // At most three named languages; the rest are one "Other" segment (the bar stays readable).
+        // At most two named languages (ink, ink4); the rest are one "Other" segment in its own neutral (ink2), so
+        // every segment and legend swatch differs from its neighbours (DESIGN 6.2: ink / ink4 / accent).
         val named = plain.take(MAX_NAMED_LANGUAGES).map { languageName(it.key) to it.value }
         val rest = plain.drop(MAX_NAMED_LANGUAGES).sumOf { it.value }
         val segments = buildList {
-            named.forEachIndexed { i, (name, n) -> add(Triple(name, n, if (i == 0) LangTone.Primary else if (i == 1) LangTone.Secondary else LangTone.Tertiary)) }
-            if (rest > 0) add(Triple(s.get(R.string.dash_lang_other), rest, LangTone.Tertiary))
+            named.forEachIndexed { i, (name, n) -> add(Triple(name, n, if (i == 0) LangTone.Primary else LangTone.Secondary)) }
+            if (rest > 0) add(Triple(s.get(R.string.dash_lang_other), rest, LangTone.Other))
             if (mixed > 0) add(Triple(s.get(R.string.dash_lang_mixed), mixed, LangTone.Mixed))
         }
         val percents = largestRemainder(segments.map { it.second }, 100)
@@ -271,7 +272,7 @@ class DashboardFormatter(private val s: DashboardStrings, private val appLabel: 
     }
 
     companion object {
-        const val MAX_NAMED_LANGUAGES = 3
+        const val MAX_NAMED_LANGUAGES = 2
 
         /**
          * The chart's full scale: the maximum rounded up to two significant digits (2,950 → 3,000; 1,284 → 1,300),

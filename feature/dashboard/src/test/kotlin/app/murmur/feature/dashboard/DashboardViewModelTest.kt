@@ -1,5 +1,6 @@
 package app.murmur.feature.dashboard
 
+import androidx.lifecycle.SavedStateHandle
 import app.murmur.core.store.DefaultStatsCalculator
 import app.murmur.core.store.DictationMetrics
 import app.murmur.core.store.EntryStatus
@@ -30,6 +31,7 @@ import org.junit.Test
 import java.io.IOException
 import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 
 /**
  * View model with the WP-12 fixture: metrics.since(today − 6) → StatsCalculator → state, and the texts of every
@@ -51,8 +53,8 @@ class DashboardViewModelTest {
         InMemoryMetricsRepository().apply { rows.forEach { add(it) } }
 
     /** Starts the view model with a subscriber (the screen) in [TestScope.backgroundScope]. */
-    private fun TestScope.start(d: DashboardDeps): DashboardViewModel {
-        val vm = DashboardViewModel(d, backgroundScope)
+    private fun TestScope.start(d: DashboardDeps, saved: SavedStateHandle = SavedStateHandle()): DashboardViewModel {
+        val vm = DashboardViewModel(d, saved, backgroundScope)
         backgroundScope.launch { vm.state.collect { } }
         return vm
     }
@@ -192,5 +194,43 @@ class DashboardViewModelTest {
         // On the 19th the fixture's "tomorrow" row (999 words) is today, and 12 November left the window.
         assertEquals(999, next.week.todayWords)
         assertEquals(LocalDate.of(2026, 11, 13), next.week.last7Days.first().first)
+    }
+
+    @Test
+    fun rangeSurvivesProcessDeath() = runTest {
+        val store = seeded()
+        val saved = SavedStateHandle()
+        val vm = start(deps(store), saved)
+        runCurrent()
+        vm.setRange(DashboardRange.Today)
+        runCurrent()
+        assertEquals(DashboardRange.Today, (vm.state.value as DashboardState.Ready).range)
+        // A new process restores the handle's saved values into a new view model.
+        val restored = SavedStateHandle(saved.keys().associateWith { saved.get<Any>(it) })
+        val again = start(deps(store), restored)
+        assertEquals(DashboardRange.Today, again.range.value)
+        runCurrent()
+        assertEquals(DashboardRange.Today, (again.state.value as DashboardState.Ready).range)
+    }
+
+    @Test
+    fun timeZoneChangeMovesTodayAtOnce() = runTest {
+        // 15:00 on 18 November in Moscow; the user lands in Kiritimati (UTC+14), where it is already 02:00 on the 19th.
+        val clock = FakeClock(instant = Instant.parse("2026-11-18T12:00:00Z"), zoneId = ZoneId.of("Europe/Moscow"))
+        val vm = start(deps(seeded(), clock = clock))
+        runCurrent()
+        assertEquals(TODAY, (vm.state.value as DashboardState.Ready).today)
+        clock.zoneId = ZoneId.of("Pacific/Kiritimati")
+        advanceTimeBy(60_000)
+        runCurrent()
+        assertEquals("no broadcast yet: the old midnight timer still runs", TODAY, (vm.state.value as DashboardState.Ready).today)
+        vm.onClockChanged()
+        runCurrent()
+        assertEquals(TODAY.plusDays(1), (vm.state.value as DashboardState.Ready).today)
+        // A clock change that keeps the day reloads nothing visible.
+        clock.zoneId = ZoneId.of("Pacific/Kiritimati")
+        vm.onClockChanged()
+        runCurrent()
+        assertEquals(TODAY.plusDays(1), (vm.state.value as DashboardState.Ready).today)
     }
 }

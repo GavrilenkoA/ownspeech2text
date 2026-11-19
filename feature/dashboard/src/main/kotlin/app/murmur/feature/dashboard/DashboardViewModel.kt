@@ -1,6 +1,7 @@
 package app.murmur.feature.dashboard
 
 import android.util.Log
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.murmur.core.model.MurmurClock
@@ -15,7 +16,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -57,26 +57,32 @@ sealed interface DashboardState {
 
 /**
  * Dashboard view model (WP-17): `metrics.since(today − 6)` → `StatsCalculator.compute` → [DashboardState]. "Today"
- * follows [MurmurClock]: the view model moves to the next day at local midnight while it is observed. A failing read
- * shows [DashboardState.Error]; [retry] subscribes again. Numbers only: nothing here sees user text (D9).
+ * follows [MurmurClock]: the view model moves to the next day at local midnight while it is observed, and at once
+ * when [onClockChanged] reports a new time zone or a set clock (the screen forwards the system broadcasts). The
+ * chosen range lives in [savedState], so it survives process death. A failing read shows [DashboardState.Error];
+ * [retry] subscribes again. Numbers only: nothing here sees user text (D9).
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class DashboardViewModel(
     private val deps: DashboardDeps,
+    private val savedState: SavedStateHandle = SavedStateHandle(),
     /** Tests pass their own scope; production uses [viewModelScope]. */
     scope: CoroutineScope? = null,
 ) : ViewModel() {
     private val scope: CoroutineScope = scope ?: viewModelScope
-    private val rangeFlow = MutableStateFlow(DashboardRange.Week)
+    private val rangeFlow: StateFlow<DashboardRange> = savedState.getStateFlow(KEY_RANGE, DashboardRange.Week.name)
+        .map { name -> DashboardRange.entries.firstOrNull { it.name == name } ?: DashboardRange.Week }
+        .stateIn(this.scope, SharingStarted.Eagerly, rangeOf(savedState))
     private val attempt = MutableStateFlow(0)
+    private val clockChanges = MutableStateFlow(0)
 
-    val range: StateFlow<DashboardRange> = rangeFlow.asStateFlow()
+    val range: StateFlow<DashboardRange> = rangeFlow
 
     val typingWpm: StateFlow<Int> = deps.settings.settings.map { it.typingWpm }
         .stateIn(this.scope, SharingStarted.Eagerly, deps.settings.settings.value.typingWpm)
 
     val state: StateFlow<DashboardState> = attempt.flatMapLatest {
-        localDays(deps.clock).flatMapLatest { today ->
+        clockChanges.flatMapLatest { localDays(deps.clock) }.distinctUntilChanged().flatMapLatest { today ->
             combine(
                 deps.metrics.since(today.minusDays((DefaultStatsCalculator.WINDOW_DAYS - 1).toLong())),
                 typingWpm,
@@ -92,7 +98,12 @@ class DashboardViewModel(
     }.stateIn(this.scope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), DashboardState.Loading)
 
     fun setRange(range: DashboardRange) {
-        rangeFlow.value = range
+        savedState[KEY_RANGE] = range.name
+    }
+
+    /** The time zone changed or the clock was set: work out "today" again now, not at the old midnight. */
+    fun onClockChanged() {
+        clockChanges.value++
     }
 
     fun retry() {
@@ -118,6 +129,10 @@ class DashboardViewModel(
 
     companion object {
         private const val TAG = "Dashboard"
+        internal const val KEY_RANGE = "dashboard.range"
+
+        private fun rangeOf(saved: SavedStateHandle): DashboardRange =
+            DashboardRange.entries.firstOrNull { it.name == saved.get<String>(KEY_RANGE) } ?: DashboardRange.Week
         const val STOP_TIMEOUT_MS = 5_000L
         /** Typing speed presets of the sheet (DESIGN 6.2) and the custom bounds. */
         val PRESETS = listOf(30, 40, 50, 60)

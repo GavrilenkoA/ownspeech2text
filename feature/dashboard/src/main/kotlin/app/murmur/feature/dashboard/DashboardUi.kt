@@ -33,7 +33,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.AlignmentLine
 import androidx.compose.ui.layout.FirstBaseline
+import androidx.compose.ui.layout.LastBaseline
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.testTag
@@ -74,6 +76,7 @@ import app.murmur.ui.design.components.ScreenHeader
 import app.murmur.ui.design.components.Skeleton
 import app.murmur.ui.design.elevation
 import app.murmur.ui.design.rememberIsWide
+import kotlin.math.floor
 import kotlin.math.roundToInt
 
 /** Test tags of the dashboard (screenshot and UI tests). */
@@ -267,29 +270,41 @@ private fun LoadingContent() {
 }
 
 /**
- * CSS line box for one line of Onest: the browser that rendered the frames makes the box exactly the line height and
- * centres the font's ascent + descent in it (half-leading, negative when the font is taller than the line: Onest is
- * 1.275 em, so a 44 sp display in a 48 sp line, 20 sp values in 24 sp). Compose keeps the font's full ascent for
- * such lines and rounds the half-leading differently, which moved the metric rows by 1 px each. This places the text
- * so that its baseline sits where CSS puts it and reports the line height; baselines move with the text.
+ * CSS line boxes for Onest text, as the browser that rendered the frames builds them: every line is exactly the line
+ * height; the font's ascent and descent are rounded to whole CSS px (dp) first and the half-leading is floored, so
+ * the first baseline sits at `round(0.97 em) + floor((lineHeight − round(0.97 em) − round(0.305 em)) / 2)`. Compose
+ * rounds in device pixels instead and keeps the font's full ascent when the font is taller than its line (Onest is
+ * 1.275 em: a 44 sp display in 48, 20 sp values in 24), which put each metric row 1 px lower and taller than in the
+ * frames. Measured against the frames: rowTitle 15/20 → 15 dp, rowSub 13/18 → 13, value 20/24 → 18, body 14/20 → 15,
+ * display 44/48 → 39. The text keeps its own lines (wrapping, large font scales); only its first baseline moves and
+ * the reported height becomes lines × line height.
  */
-private fun Modifier.cssLineBox(style: TextStyle): Modifier = layout { m, c ->
+internal fun Modifier.cssLineBox(style: TextStyle): Modifier = layout { m, c ->
     val p = m.measure(c)
-    val target = style.lineHeight.roundToPx()
-    val size = style.fontSize.toPx()
-    val baseline = p[FirstBaseline]
-    // Wrapped text (large font scales) keeps Compose's layout; the line box applies to one line.
-    if (p.height >= target * 3 / 2 || baseline == androidx.compose.ui.layout.AlignmentLine.Unspecified) {
-        layout(p.width, p.height) { p.place(0, 0) }
-    } else {
-        val cssBaseline = (target - (ONEST_ASCENT + ONEST_DESCENT) * size) / 2f + ONEST_ASCENT * size
-        layout(p.width, target) { p.place(0, cssBaseline.roundToInt() - baseline) }
+    val first = p[FirstBaseline]
+    val last = p[LastBaseline]
+    if (first == AlignmentLine.Unspecified || last == AlignmentLine.Unspecified || !style.lineHeight.isSp) {
+        return@layout layout(p.width, p.height) { p.place(0, 0) }
     }
+    val line = style.lineHeight.toPx()
+    val lines = ((last - first) / line).roundToInt() + 1
+    val y = (CssLineBox.baselineDp(style.fontSize.toDp().value, style.lineHeight.toDp().value) * density).roundToInt() - first
+    layout(p.width, (lines * line).roundToInt()) { p.place(0, y) }
 }
 
-/** Onest's hhea / typo ascender and descender (970 / 305 per 1000 units, `ui/design/src/main/res/font`). */
-private const val ONEST_ASCENT = 0.970f
-private const val ONEST_DESCENT = 0.305f
+/** The browser's line-box arithmetic for Onest (see [cssLineBox]); pure, so the JVM tests pin it. */
+internal object CssLineBox {
+    /** Onest's hhea / typo ascender and descender (970 / 305 per 1000 units, `ui/design/src/main/res/font`). */
+    const val ASCENT = 0.970f
+    const val DESCENT = 0.305f
+
+    /** First baseline below the top of the line box, in dp, for a [fontDp] font in a [lineDp] line. */
+    fun baselineDp(fontDp: Float, lineDp: Float): Float {
+        val ascent = (ASCENT * fontDp).roundToInt()
+        val descent = (DESCENT * fontDp).roundToInt()
+        return ascent + floor((lineDp - ascent - descent) / 2f)
+    }
+}
 
 // -------------------------------------------------------------------------------------------- header
 
@@ -390,7 +405,10 @@ private fun TodayCard(t: TodayTexts, onEdit: () -> Unit) {
     ) {
         Overline(stringResource(R.string.dash_today))
         BigNumber(t.number, t.unit, color = if (t.isZero) c.ink3 else c.ink, unitColor = if (t.isZero) c.ink3 else c.ink2)
-        Text(sentence, style = MurmurTheme.type.body, color = c.ink2, modifier = Modifier.padding(top = 6.dp))
+        Text(
+            sentence, style = MurmurTheme.type.body, color = c.ink2,
+            modifier = Modifier.padding(top = 6.dp).cssLineBox(MurmurTheme.type.body),
+        )
     }
 }
 
@@ -445,8 +463,8 @@ private fun MetricRow(m: MetricTexts) {
     val dash = stringResource(R.string.dash_no_value)
     Layout(
         contents = listOf(
-            { Text(m.title, style = t.rowTitle, color = c.ink) },
-            { Text(m.subtitle, style = t.rowSub, color = c.ink3) },
+            { Text(m.title, style = t.rowTitle, color = c.ink, modifier = Modifier.cssLineBox(t.rowTitle)) },
+            { Text(m.subtitle, style = t.rowSub, color = c.ink3, modifier = Modifier.cssLineBox(t.rowSub)) },
             {
                 Row {
                     if (m.value == null) {
@@ -525,7 +543,7 @@ private fun LanguagesSection(langs: List<LangTexts>) {
     fun color(tone: LangTone) = when (tone) {
         LangTone.Primary -> c.ink
         LangTone.Secondary -> c.ink4
-        LangTone.Tertiary -> c.ink2
+        LangTone.Other -> c.ink2
         LangTone.Mixed -> c.accent
     }
     Column(Modifier.testTag(DashboardTags.LANGUAGES)) {
