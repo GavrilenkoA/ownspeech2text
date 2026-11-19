@@ -13,15 +13,19 @@
 # the accessibility service through adb; records device and probe facts; downloads the recommended pack in the app
 # (Preparing proves every NPU load); then the scripted dictations, all in one run so that the idle exit is real:
 #   ru10 (≈10 s Russian), en10 (≈10 s English), mixed60 (≈60 s mixed), cold3 (first dictation after 70 s idle, 3 s),
-#   edit10 (right after a prompt edit), npu10 (LLM pinned to NPU while :asr holds its QNN context),
+#   edit10 (right after a prompt edit: a sentence added to "My preferences", restored afterwards; the report asserts the
+#   cache prefix's sha256 changed), npu10 (LLM pinned to NPU while :asr holds its QNN context),
 #   tmo10 (timeouts forced short, debugTimeoutScale 0.1: the dictation must still end, and the client's
 #   "process still alive ... killing" lines are counted),
 # then checks that :asr and :llm exit within 70 s and MemAvailable comes back, then presses once more and cancels while
 # :asr is still being bound or loaded (:asr must be gone idleUnloadSec + 2 s later). It also runs WP-04's prompt/guard
 # goldens on ART (core/prompt/tools/run_on_art.sh, when this tree has it) and records mic start times, the history codec
 # probe and the client kill lines from logcat. Per dictation it asserts ASR deviceName
-# = qnn, LLM deviceName = HTP0, no fallback in UnitHealth, no process death, and records timings from history,
-# PSS of the three processes (/proc/<pid>/smaps_rollup, every 2 s) and MemAvailable.
+# = qnn, LLM deviceName = HTP0, no fallback in UnitHealth, no process death, the history audio stored as Opus, and
+# records timings from history, PSS of the three processes (/proc/<pid>/smaps_rollup, every 2 s) and MemAvailable.
+# After en10, with :asr and :llm warm, it probes (WP-09) three capture stop() calls with keepRecordings on (< 200 ms,
+# Opus) and (WP-06) en10's recording replayed into a new session of the loaded ASR: Transcript.unit = NPU and
+# finish() within 3 s of the end of audio.
 # On an emulator (dry run: NONINTERACTIVE=1, CPU build, GigaAM + Qwen3.5 pushed from the shared model cache and then
 # prepared in the app, VAD + OCR downloaded in the app) the NPU asserts are SKIPPED and npu10 is skipped. The dry run's
 # audio is FLEURS dev speech (CC-BY-4.0): one ru and one en clip, and 60 s of distinct ru/en utterances for mixed60.
@@ -49,8 +53,8 @@ RUNNER="$PKG.test/androidx.test.runner.AndroidJUnitRunner"
 STEPS=app.murmur.e2e.DeviceSmokeSteps
 DEVICE_DIR=/data/local/tmp/murmur-e2e
 NPU_LIBS=(lib/arm64-v8a/libQnnHtp.so lib/arm64-v8a/libggml-htp-v79.so)
-CASES_PHONE="ru10:10,en10:10,mixed60:60,cold3:3:idle70,edit10:10:edit,npu10:10:pinnpu,tmo10:10:scale0.1"
-CASES_EMULATOR="ru10:10,en10:10,mixed60:60,cold3:3:idle70,edit10:10:edit,tmo10:10:scale0.1"
+CASES_PHONE="ru10:10,en10:10:probe,mixed60:60,cold3:3:idle70,edit10:10:edit,npu10:10:pinnpu,tmo10:10:scale0.1"
+CASES_EMULATOR="ru10:10,en10:10:probe,mixed60:60,cold3:3:idle70,edit10:10:edit,tmo10:10:scale0.1"
 EMU_PUSHED=(gigaam-v3-e2e-rnnt@onnx-int8 qwen3.5-0.8b@q4_0)
 EMU_DOWNLOADED=silero-vad-v5@onnx,pp-ocrv6-tiny-det@onnx,pp-ocrv5-cyrillic-mobile-rec@onnx
 
@@ -107,6 +111,7 @@ else:
               {k: a.get(k) for k in ("state", "error", "downloadMs", "preparingMs", "health")})
 for c in cases:
     d = load(f"dictate-{c}.json")
+    probe = load(f"probe-{c}.json")
     skipped_case = mode == "emulator" and c == "npu10"
     if d is None and mode != "skeleton":
         check(c, "dictation ran", None if skipped_case else False, "no result")
@@ -134,6 +139,29 @@ for c in cases:
     if c == "cold3":
         check(c, "cold: :asr and :llm had exited after 70 s idle", None if mode == "skeleton" else
               (d.get("asrRunningBefore") is False and d.get("llmRunningBefore") is False), [d.get("asrRunningBefore"), d.get("llmRunningBefore")])
+    check(c, "history audio stored as Opus (WP-09 detected_codec=OPUS)", None if mode == "skeleton" else d.get("audioCodec") == "opus",
+          d.get("audioCodec"))
+    if c == "edit10":
+        e = d.get("edit") or {}
+        check(c, "the prompt edit changed the cache prefix (sha256 before != after)", None if mode == "skeleton" else e.get("prefixChanged") is True,
+              {"before": e.get("prefixShaBefore"), "after": e.get("prefixShaAfter"),
+               "llmReadyAfterPressMs": d.get("llmReadyAfterPressMs"), "previousWarmLlmReadyAfterPressMs": e.get("previousWarmLlmReadyAfterPressMs")})
+    if c == "en10":
+        if probe is None and mode != "skeleton":
+            check(c, "probe ran (capture stop, ASR session)", False, "no probe-en10.json (see step-dictate.txt)")
+        else:
+            cs, a = (probe or {}).get("captureStop") or {}, (probe or {}).get("asrSession") or {}
+            stops = cs.get("stopMs") or []
+            check(c, "capture stop() < 200 ms, keepRecordings on, :asr and :llm running (WP-09)", None if mode != "phone" else
+                  (bool(stops) and max(stops) < 200 and cs.get("asrRunning") is True and cs.get("llmRunning") is True and not cs.get("error")),
+                  {k: cs.get(k) for k in ("stopMs", "asrRunning", "llmRunning", "error")})
+            check(c, "capture probe files stored as Opus", None if mode == "skeleton" else cs.get("codecs") == ["opus"], cs.get("codecs"))
+            check(c, "ASR session: Transcript.unit = the loaded unit", None if mode == "skeleton" else
+                  (a.get("transcriptUnit") is not None and a.get("transcriptUnit") == a.get("loadedUnit")),
+                  {k: a.get(k) for k in ("loadedUnit", "transcriptUnit", "asrArtifact", "error")})
+            check(c, "ASR on the NPU: Transcript.unit = NPU, finish() <= 3 s after EOF (WP-06)", None if mode != "phone" else
+                  (a.get("transcriptUnit") == "NPU" and (a.get("finishAfterEofMs") or 10**9) <= 3000),
+                  {k: a.get(k) for k in ("transcriptUnit", "finishAfterEofMs", "tailDecodeMs", "audioMs", "words", "historyWords")})
     if c == "npu10":
         check(c, "LLM on NPU and ASR on QNN at the same time", (asr.get("deviceName") == "qnn" and llm.get("deviceName") == "HTP0") if npu else None,
               [asr.get("deviceName"), llm.get("deviceName")])
@@ -142,6 +170,7 @@ for c in cases:
     rows.append({"case": c, "check": "measured", "status": "info", "value": {
         "stopToDoneMs": t.get("stopToDoneMs"), "asrTailMs": t.get("asrTailMs"), "llmMs": t.get("llmMs"), "ocrMs": t.get("ocrMs"),
         "asrLoadMs": asr.get("loadMs"), "llmLoadMs": llm.get("loadMs"), "prefixTokens": llm.get("prefixTokens"),
+        "llmWarmAtPress": d.get("llmWarmAtPress"), "llmReadyAfterPressMs": d.get("llmReadyAfterPressMs"),
         "pssPeakKb": {k: p.get(k) for k in ("main", "asr", "llm")}, "memAvailableMinKb": p.get("memAvailMin"),
         "memAvailableBeforeMb": d.get("memAvailableBeforeMb"), "inserted": d.get("insertedText")}})
 if idle is None and mode != "skeleton":
@@ -217,7 +246,7 @@ if [ "${#missing[@]}" -gt 0 ]; then
   if [ "$emulator" = 0 ]; then
     cat >&2 <<EOF
 This APK has no Qualcomm NPU libraries (${missing[*]}): DC8 needs the local, non-redistributed NPU build (ADR-048):
-  tools/heavy native/llama/build_android.sh npu jnilibs
+  HEXAGON_SDK_DIR=.cache/spikes/llm-npu/work/hexagon-sdk tools/heavy native/llama/build_android.sh npu jnilibs
   tools/heavy native/sherpa/build-android.sh all .cache/native/jniLibs/sherpa
   tools/gw --max-workers=6 :app:assembleDebug :app:assembleDebugAndroidTest :testapps:target:assembleDebug \\
       -Pmurmur.qnn=true -Pmurmur.htp=true -Pmurmur.nativeLibsDir=\$PWD/.cache/native/jniLibs
