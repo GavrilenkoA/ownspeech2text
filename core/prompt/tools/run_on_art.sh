@@ -36,7 +36,7 @@ for e in "${entries[@]}"; do
 done
 "$BT/d8" --release --min-api 34 --lib "$PLATFORM/android.jar" --output "$work/art.jar" "${jars[@]}" 2> >(grep -vi '^warning' >&2)
 (cd "$work/res" && zip -qr ../art.jar .)
-(cd "$root" && tar cf "$work/prompts.tar" prompts/examples prompts/system prompts/profiles prompts/shots prompts/tones)
+(cd "$root" && tar cf "$work/prompts.tar" prompts/examples prompts/system prompts/profiles prompts/shots prompts/tones prompts/render.py)
 
 dev=/data/local/tmp/murmur-core-prompt
 "${ADB[@]}" shell "rm -rf $dev && mkdir -p $dev"

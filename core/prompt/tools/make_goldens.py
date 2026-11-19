@@ -271,6 +271,9 @@ def synthetic() -> list[dict]:
     add("merge.height", C(pairs([(0, 5, 44), (0, 5, 45), (0, 5, 36), (0, 5, 35)])), "проверь склейку")
     add("merge.offset_gap", C(pairs([(21, 5, 40), (22, 5, 40), (-21, 5, 40), (0, 19, 40), (0, 20, 40), (0, 0, 40), (0, -1, 40)])),
         "проверь склейку")
+    # the left-edge rule exactly at w/50 needs a width divisible by 50 (1080/50 is not an integer)
+    add("merge.offset_w1000", C(pairs([(20, 5, 40), (21, 5, 40), (-20, 5, 40)]), size=(1000, 2400),
+                                field={"kind": "message", "box": [20, 2200, 980, 2300]}), "проверь склейку")
     # a block is "right" (incoming/outgoing side) when x0 >= 15 % of w and the right margin is under 10 % of w
     add("side.threshold", C([L("Справа точно на границе", 162, 300, x1=973), L("Левее границы на пиксель", 161, 520, x1=973),
                              L("Правый край не дотянут", 300, 740, x1=972)]), "кто где")

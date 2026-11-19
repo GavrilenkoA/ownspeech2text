@@ -70,13 +70,19 @@ class PromptAssetsTest {
         assertEquals(PromptEditState.MADE_FOR_OLDER_PROMPT, PromptEditRules.editState(v4s, "default.v4"))
         assertTrue(PromptEditRules.madeForOlderPrompt(v4s, "default.v4"))
         assertTrue(!PromptEditRules.isEdited(v4s, "default.v4"))
-        // fine-tunes keep their trained prompt; an edit stored for the stock model is neither applied nor "older"
-        assertEquals(PromptEditState.NOT_EDITABLE, PromptEditRules.editState(ft, "default.v4"))
+        // fine-tunes keep their trained prompt (read-only editor); a stored edit is never applied to them and, as for
+        // any other profile it was not written for, is "made for an older prompt" (brief: override exists, baseProfile
+        // != active profile name). An edit naming the fine-tune itself, which the read-only editor cannot produce, is
+        // not applied either and gets the same notice (and its Reset).
+        assertTrue(PromptEditRules.editable(v4) && PromptEditRules.editable(v4s) && !PromptEditRules.editable(ft))
         assertEquals(PromptEditState.NOT_EDITABLE, PromptEditRules.editState(ft, null))
-        assertTrue(!PromptEditRules.madeForOlderPrompt(ft, "default.v4"))
-        // the three helpers agree with overrideApplies
+        assertEquals(PromptEditState.MADE_FOR_OLDER_PROMPT, PromptEditRules.editState(ft, "default.v4"))
+        assertEquals(PromptEditState.MADE_FOR_OLDER_PROMPT, PromptEditRules.editState(ft, "finetuned.v1"))
+        assertTrue(PromptEditRules.madeForOlderPrompt(ft, "default.v4") && !PromptEditRules.isEdited(ft, "default.v4"))
+        // the helpers agree with overrideApplies and with the brief's definitions
         for (p in listOf(v4, v4s, ft)) for (b in listOf(null, "default.v4", "default.v4s", "finetuned.v1")) {
             assertEquals(PromptEditRules.overrideApplies(p, b), PromptEditRules.isEdited(p, b))
+            assertEquals(b != null && !PromptEditRules.overrideApplies(p, b), PromptEditRules.madeForOlderPrompt(p, b))
         }
     }
 
@@ -96,6 +102,19 @@ class PromptAssetsTest {
         val edited = r.render(RenderInput(v4, "qwen3.5", null, "x", systemOverride = "Mine."))
         assertTrue(plain.prefixKey != edited.prefixKey && plain.suffix == edited.suffix)
         assertTrue(edited.prefix.startsWith("<|im_start|>system\nMine.<|im_end|>\n"))
+    }
+
+    @Test
+    fun toneFilesAreTheOnesThePortReads() {
+        // ADR-020: named tones get a text only from prompts/tones/. The port reads tones/tones.v1.json (as render.py
+        // load_tones does) and named.<tone>.text in it; a new tones file or a new section must be wired in (and its
+        // schema confirmed with the prompt owner), never ignored silently.
+        assertEquals("prompts/tones changed: wire the new file into RenderPyPort.tones / Tones.namedText",
+            listOf("app_categories.v1.json", "tones.v1.json"), File(root, "prompts/tones").list()!!.sorted())
+        val tones = kotlinx.serialization.json.Json.parseToJsonElement(assets.text("tones/tones.v1.json")) as kotlinx.serialization.json.JsonObject
+        assertEquals("tones.v1.json sections changed: check the schema Tones.namedText reads (named.<tone>.text)",
+            setOf("_comment", "version", "categories", "field_overrides"), tones.keys)
+        assertTrue(File(root, "prompts/render.py").readText().contains("(HERE / \"tones\" / \"tones.v1.json\")"))
     }
 
     @Test

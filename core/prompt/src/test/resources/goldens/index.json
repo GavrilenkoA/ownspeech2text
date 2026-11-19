@@ -30,8 +30,8 @@
   "override_crlf_prefs"
  ],
  "counts": {
-  "cases": 312,
-  "goldens": 3732,
+  "cases": 313,
+  "goldens": 3744,
   "prefix_files": 96
  },
  "prefix_chars": {
