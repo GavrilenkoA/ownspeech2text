@@ -1,5 +1,6 @@
 package app.murmur.infer.asr.ocr
 
+import android.app.ActivityManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -79,11 +80,13 @@ class OcrRecognizeScreenTest {
 
     private class Reply {
         val latch = CountDownLatch(1)
-        var result: String? = null
-        var error: String? = null
+        @Volatile var result: String? = null
+        @Volatile var error: String? = null
+        /** elapsedRealtime of the answer. */
+        @Volatile var at = 0L
         val cb = object : IResultCallback.Stub() {
-            override fun onResult(json: String?) { result = json; latch.countDown() }
-            override fun onError(errorJson: String?) { error = errorJson; latch.countDown() }
+            override fun onResult(json: String?) { result = json; at = SystemClock.elapsedRealtime(); latch.countDown() }
+            override fun onError(errorJson: String?) { error = errorJson; at = SystemClock.elapsedRealtime(); latch.countDown() }
         }
 
         fun await(seconds: Long): Reply {
@@ -230,11 +233,74 @@ class OcrRecognizeScreenTest {
             shm.close()
         }
         assertEquals(MurmurError.OcrFailed("frame_size"), InferApi.decodeError(r.error!!))
+        val badExclude = Reply()
+        val shm2 = frame(IntArray(16))
+        try {
+            service.recognizeScreen(shm2, 4, 4, "[{\"x0\":1}", badExclude.cb)
+            badExclude.await(30)
+        } finally {
+            shm2.close()
+        }
+        assertEquals(MurmurError.OcrFailed("exclude_json"), InferApi.decodeError(badExclude.error!!))
         val wrongRuntime = Reply()
         service.loadOcr(InferApi.encode(LoadSpec.serializer(), det.copy(runtime = RuntimeKeys.ORT_PPOCR_REC)),
             InferApi.encode(LoadSpec.serializer(), rec), wrongRuntime.cb)
         assertEquals(MurmurError.EngineRuntimeMissing(RuntimeKeys.ORT_PPOCR_REC), InferApi.decodeError(wrongRuntime.await(30).error!!))
         assertEquals(InferApi.API_VERSION, service.apiVersion()) // the process survived every error
+    }
+
+    /** Open file descriptors of the :asr process (same uid as this test). */
+    private fun asrFds(): Int {
+        val am = context.getSystemService(ActivityManager::class.java)
+        val pid = am.runningAppProcesses.single { it.processName == context.packageName + ":asr" }.pid
+        return File("/proc/$pid/fd").list()!!.size
+    }
+
+    /**
+     * Newest frame wins: three frames of the slowest bundled page. The second and third are sent back to back while the
+     * first is running (a quarter into its page): the first stops at its next model call, the second is still queued
+     * and is answered at once, both `OcrFailed("superseded")`; the third gives the page's normal result and waits
+     * behind the first for at most one model call, not for the rest of its page.
+     * No SharedMemory or descriptor stays open in :asr.
+     */
+    @Test
+    fun aNewerFrameSupersedesTheOlderOnes() {
+        load()
+        val page = pages().maxBy { it.golden.rec.size }
+        val g = page.golden
+        val (w, h, argb) = decode(page.png())
+        val (alone, _) = recognize(w, h, argb, g.exclude)
+        val full = InferApi.decode(ScreenText.serializer(), alone.result!!)
+        val fdsBefore = asrFds()
+
+        val exclude = InferApi.encode(ListSerializer(Rect.serializer()), g.exclude)
+        val frames = List(3) { frame(argb) }
+        val replies = List(3) { Reply() }
+        var sentLast = 0L
+        try {
+            frames.forEachIndexed { i, shm ->
+                if (i == 1) SystemClock.sleep((full.stats!!.totalMs / 4).toLong())
+                sentLast = SystemClock.elapsedRealtime()
+                service.recognizeScreen(shm, w, h, exclude, replies[i].cb)
+            }
+            assertEquals("the first frame was still running", 1L, replies[0].latch.count)
+            replies.forEach { it.await(120) }
+        } finally {
+            frames.forEach { it.close() }
+        }
+        val superseded = MurmurError.OcrFailed(OrtOcrHandler.SUPERSEDED)
+        assertEquals(superseded, InferApi.decodeError(replies[0].error!!))
+        assertEquals(superseded, InferApi.decodeError(replies[1].error!!))
+        assertEquals("third: ${replies[2].error}", null, replies[2].error)
+        val last = InferApi.decode(ScreenText.serializer(), replies[2].result!!)
+        assertEquals(full.lines, last.lines)
+        val waited = replies[2].at - sentLast - last.stats!!.totalMs
+        Log.i(TAG, String.format(Locale.ROOT, "superseded page %s: queued answer after %d ms, running one after %d ms; " +
+            "newest waited %.0f ms behind it (page alone %.0f ms, det %.0f ms)", g.name, replies[1].at - sentLast,
+            replies[0].at - sentLast, waited, full.stats!!.totalMs, full.stats!!.detMs))
+        assertTrue("the queued frame is answered before the newest one", replies[1].at <= replies[2].at)
+        assertTrue("newest waited $waited ms (page alone ${full.stats!!.totalMs} ms)", waited < full.stats!!.totalMs / 2)
+        assertEquals("fds in :asr", fdsBefore, asrFds())
     }
 
     companion object {
