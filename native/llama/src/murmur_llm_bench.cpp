@@ -3,7 +3,7 @@
 //
 //   murmur-llm-bench -m model.gguf --prefix-file sys.txt --suffix-file user.txt
 //                    [--device cpu|npu|gpu] [-t 4] [--modes ram,device,seqcp,none] [--reps 3]
-//                    [--max-tokens 128] [--ctx 4096] [--batch 512] [--pp 512 --tg 64]
+//                    [--max-tokens 128] [--ctx 9216 (catalog nCtx)] [--batch 512] [--pp 512 --tg 64]
 //                    [--backend-dir DIR] [--htp-dir DIR] [--power burst] [-v|-vv] [--print-output]
 //                    [--no-mmap]             (CPU: read weights instead of mmap; NPU never mmaps)
 //                    [--prefix-cache FILE]   (load prefix snapshot from FILE if it exists, else prefill and save it)
@@ -63,7 +63,7 @@ static double median(std::vector<double> v) {
 int main(int argc, char ** argv) {
     std::string model, prefix_file, suffix_file, backend_dir, htp_dir, power, prefix_cache, modes = "ram,seqcp,none";
     std::string device = "cpu";
-    int threads = 4, reps = 3, max_tokens = 128, n_ctx = 4096, n_batch = 512, pp = 0, tg = 0, verbose = 0;
+    int threads = 4, reps = 3, max_tokens = 128, n_ctx = 9216, n_batch = 512, pp = 0, tg = 0, verbose = 0;
     bool print_output = false;
     int use_mmap = 1;
     for (int i = 1; i < argc; ++i) {
@@ -138,7 +138,7 @@ int main(int argc, char ** argv) {
                 FILE * pc = prefix_cache.empty() ? nullptr : fopen(prefix_cache.c_str(), "rb");
                 if (pc) {
                     fclose(pc);
-                    rc = mllm_prefix_load(e, prefix_cache.c_str(), &pi);
+                    rc = mllm_prefix_load(e, prefix_cache.c_str(), prefix.c_str(), &pi);
                     printf("{\"event\":\"prefix_load\",\"mode\":\"%s\",\"rc\":%d,\"n_tokens\":%d,\"load_ms\":%.1f}\n", mode_name.c_str(), rc, pi.n_tokens, pi.prefill_ms);
                 } else {
                     rc = mllm_prefix_set(e, prefix.c_str(), &pi);

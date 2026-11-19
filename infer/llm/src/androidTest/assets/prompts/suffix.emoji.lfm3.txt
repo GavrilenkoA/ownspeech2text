@@ -1,0 +1,20 @@
+Style: Casual chat message. Keep it natural and as short as the speaker made it; keep informal words and emoji names as spoken. A single short sentence may end without a period.
+<context>
+App: Telegram — message field
+Field hint: «Сообщение»
+Dictation language: Russian
+Screen text (OCR, nearest to the field first):
+Сделаю. Сумма к оплате 48 500 ₽, срок до пятницы
+Не забудь про акт сверки и про оплату счёта № 17/2026
+Хорошо. Встреча с Екатериной Сергеевной перенесена на четверг, 15:30
+Да, и к договору с ООО «Ромашка» тоже. Проверку поручил Тимуру Галиеву
+Да, сейчас. Ещё нужен доступ к общей папке бухгалтерии?
+Привет! Скинь, пожалуйста, ссылку на отчёт по продажам за октябрь
+был(а) недавно
+Лёша Козлов
+</context>
+<transcript>
+да тимур уже проверил договор 👍 акт сверки скину до пятницы 🙏
+</transcript><|im_end|>
+<|im_start|>assistant
+<think></think>

@@ -3,6 +3,8 @@
 // One engine = one model + one llama_context, owned by exactly one worker thread in the `:llm`
 // process. All calls except mllm_cancel() must come from that thread. mllm_cancel() may be called
 // from any thread (it only flips an atomic that llama.cpp's abort callback and the decode loop poll).
+// The flag stays set until mllm_cancel_clear(): the owner clears it on the engine thread before each
+// request, so a cancel that arrives while the request is still queued is never lost.
 //
 // Lifecycle used by the app (see docs/research/verify/llm-npu.md section "JNI surface"):
 //   mllm_global_init()            once per process, before anything else (sets GGML_HEXAGON_* env,
@@ -29,7 +31,10 @@ extern "C" {
 #define MLLM_E_DECODE       -5   // llama_process failed
 #define MLLM_E_CANCELLED    -6   // mllm_cancel() was observed
 #define MLLM_E_STATE        -7   // prefix snapshot missing or could not be restored
-#define MLLM_E_OVERFLOW     -8   // prompt + max_tokens exceeds n_ctx
+#define MLLM_E_OVERFLOW     -8   // prompt + max_tokens exceeds n_ctx (last-line guard: the app checks the room
+                                 // with mllm_tokenize_count first and clamps max_tokens, so it never sees this)
+#define MLLM_E_NOMEM        -9   // mllm_load: host memory refused (a CPU buffer allocation or std::bad_alloc during the
+                                 // model or context load). Device memory (rpcmem, VTCM, OpenCL) stays E_LOAD / E_CTX.
 
 typedef enum {
     MLLM_DEV_CPU = 0,            // ggml-cpu only
@@ -51,15 +56,21 @@ typedef struct {
     int          verbose;        // 0 quiet, 1 info, 2 + GGML_HEXAGON_VERBOSE op placement dump
 } mllm_init_params;
 
+typedef enum {
+    MLLM_KV_F16  = 0,            // default (HTP flash attention accepts F16 and Q8_0 K/V)
+    MLLM_KV_Q8_0 = 1,
+} mllm_kv_type;
+
 typedef struct {
     const char * model_path;     // GGUF on local storage
     mllm_device  device;
-    int32_t      n_ctx;          // 0 -> 4096
+    int32_t      n_ctx;          // required (catalog LlmTraits.nCtx, e.g. 9216); <= 0 -> MLLM_E_ARG
     int32_t      n_batch;        // prefill chunk; 0 -> 512
     int32_t      n_threads;      // CPU threads for decode; 0 -> 4
     int32_t      n_threads_batch;// CPU threads for prefill; 0 -> n_threads
     int32_t      use_mmap;       // CPU only (Hexagon backend reports mmap_support = false)
     mllm_prefix_mode prefix_mode;
+    mllm_kv_type kv_type;        // K and V cache type
 } mllm_load_params;
 
 typedef struct {
@@ -105,6 +116,11 @@ typedef struct {
 typedef int (*mllm_token_cb)(void * user, const char * piece, int32_t len);
 
 int          mllm_global_init(const mllm_init_params * p);
+// "llama.cpp <tag> <commit12> ggml-hexagon <variant>" (compile-time; ProcessProbe fact native.build, ADR-060).
+const char * mllm_build_info(void);
+// What the backend loader picked, as "cpu_backend=<file>;htp_arch=<vNN>;" (only keys that are known).
+// Captured from ggml's log during mllm_global_init. Returns length.
+int32_t      mllm_runtime_info(char * buf, int32_t buf_len);
 // Lists registered devices as "name|description|type;..." for the hub UI / probe. Returns length.
 int32_t      mllm_devices(char * buf, int32_t buf_len);
 
@@ -114,19 +130,29 @@ int          mllm_load(const mllm_load_params * p, mllm_engine ** out, mllm_load
 // Prefill `prefix` (raw text, special tokens parsed, no BOS added: the rendered prompt carries it)
 // and snapshot the state. Replaces any previous prefix.
 int          mllm_prefix_set(mllm_engine * e, const char * prefix, mllm_prefix_info * info);
-// Optional persistence across process restarts (llama_state_seq_save_file / _load_file).
+// Persistence across process restarts. RAM mode: the snapshot itself plus the prefix text ("MLLMST02" file; loading
+// maps it read-only, keeps the mapping as the snapshot and restores from it; info->prefill_ms = map + check + restore).
+// A loaded state file must only be replaced by rename or deleted, never truncated in place. Other modes:
+// llama_state_seq_save_file / _load_file. mllm_prefix_load restores only the exact `prefix` (the text given to
+// mllm_prefix_set): a missing, truncated, foreign or mismatching file, or one that holds another prefix, is
+// MLLM_E_STATE and leaves no prefix set.
 int          mllm_prefix_save(mllm_engine * e, const char * path);
-int          mllm_prefix_load(mllm_engine * e, const char * path, mllm_prefix_info * info);
+int          mllm_prefix_load(mllm_engine * e, const char * path, const char * prefix, mllm_prefix_info * info);
 // Generate a continuation of prefix + suffix. If no prefix is set, `suffix` is the whole prompt.
+// Cancelled (also during restore/prefill): returns MLLM_E_CANCELLED with *st filled and st->stop_reason = 3.
 int          mllm_generate(mllm_engine * e, const char * suffix, const mllm_gen_params * gp,
                            mllm_token_cb cb, void * user, mllm_gen_stats * st);
 void         mllm_cancel(mllm_engine * e);      // any thread
+void         mllm_cancel_clear(mllm_engine * e); // engine thread, before a request
 int32_t      mllm_tokenize_count(mllm_engine * e, const char * text);
 const char * mllm_last_error(const mllm_engine * e);
+// ggml device the engine runs on ("CPU", "HTP0", "GPUOpenCL"); same as mllm_load_info.device_name.
+const char * mllm_device_name(const mllm_engine * e);
 void         mllm_unload(mllm_engine * e);
 
 // Synthetic benchmark for the hub's Benchmark button: pp = prefill of n_prompt random tokens,
-// tg = n_gen single-token decodes, median of `reps` (after one warm-up).
+// tg = n_gen single-token decodes, median of `reps` (after one warm-up). mllm_cancel() stops it in either phase
+// (MLLM_E_CANCELLED). Clears the context memory; the prefix snapshot stays valid (the next generate restores it).
 typedef struct {
     double pp_tps, tg_tps;       // tokens per second (median)
     double pp_ms, tg_ms;         // median wall time of one rep

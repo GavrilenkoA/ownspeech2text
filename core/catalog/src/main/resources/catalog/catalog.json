@@ -1,7 +1,7 @@
 {
  "schema": 1,
- "catalogVersion": "2026-11-18.1",
- "generated": "2026-11-18 by core/catalog/tools/build_catalog.py (network-verified)",
+ "catalogVersion": "2026-11-19.1",
+ "generated": "2026-11-18 by core/catalog/tools/build_catalog.py (network-verified); prefixTokens hand-edited 2026-11-19 to the generator's PREFIX_TOKENS (not re-verified, regenerate with network access)",
  "defaults": {
   "asr": {
    "ru+en": "parakeet-tdt-0.6b-v3",
@@ -1948,7 +1948,7 @@
     "template": "lfm3",
     "promptProfile": "default.v4",
     "nCtx": 9216,
-    "prefixTokens": 3240,
+    "prefixTokens": 3226,
     "kvBytesPerToken": 12288,
     "note": "vendor: disabling 'can be inconsistent'"
    },
@@ -2055,7 +2055,7 @@
     "template": "lfm2.5",
     "promptProfile": "default.v4",
     "nCtx": 9216,
-    "prefixTokens": 3269,
+    "prefixTokens": 3256,
     "kvBytesPerToken": 12288
    },
    "artifacts": [
@@ -2194,7 +2194,7 @@
     "template": "lfm2.5",
     "promptProfile": "default.v4",
     "nCtx": 9216,
-    "prefixTokens": 3269
+    "prefixTokens": 3256
    },
    "artifacts": [
     {
@@ -2276,7 +2276,7 @@
     "template": "lfm2.5",
     "promptProfile": "default.v4",
     "nCtx": 9216,
-    "prefixTokens": 3269
+    "prefixTokens": 3196
    },
    "artifacts": [
     {
@@ -2345,7 +2345,7 @@
     "template": "qwen3.5",
     "promptProfile": "default.v4",
     "nCtx": 9216,
-    "prefixTokens": 3129,
+    "prefixTokens": 3116,
     "kvBytesPerToken": 12288
    },
    "artifacts": [
@@ -2478,7 +2478,7 @@
     "template": "qwen3.5",
     "promptProfile": "default.v4",
     "nCtx": 9216,
-    "prefixTokens": 3129,
+    "prefixTokens": 3116,
     "kvBytesPerToken": 12288
    },
    "artifacts": [
@@ -2579,7 +2579,7 @@
     "template": "qwen3",
     "promptProfile": "default.v4",
     "nCtx": 9216,
-    "prefixTokens": 3161,
+    "prefixTokens": 3146,
     "kvBytesPerToken": 114688
    },
    "artifacts": [
@@ -2648,7 +2648,7 @@
     "template": "qwen3",
     "promptProfile": "default.v4",
     "nCtx": 9216,
-    "prefixTokens": 3161,
+    "prefixTokens": 3146,
     "kvBytesPerToken": 114688
    },
    "artifacts": [

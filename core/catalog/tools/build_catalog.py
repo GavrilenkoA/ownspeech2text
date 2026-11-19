@@ -29,7 +29,7 @@ CACHE = REPO / ".cache/spikes/architect/catalog-files"
 ASR = json.loads((REPO / "docs/research/asr-catalog.json").read_text(encoding="utf-8"))
 LLM = json.loads((REPO / "docs/research/llm-catalog.json").read_text(encoding="utf-8"))
 OFFLINE = "--offline" in sys.argv
-CATALOG_VERSION = "2026-11-18.1"
+CATALOG_VERSION = "2026-11-19.1"
 
 UA = {"User-Agent": "murmur-catalog-builder/1"}
 
@@ -340,13 +340,15 @@ LLM_TEMPLATE = {"lfm3-chatml": "lfm3", "lfm2-chatml": "lfm2.5", "lfm2-chatml-alw
 PREFERRED = {"lfm3": "npu", "lfm2.5": "npu", "qwen3.5": "cpu", "qwen3": "npu"}
 # Host no-mmap peak RSS where measured (llm-npu.md 5.4), else the research estimate.
 CPU_MB = {"lfm3-1.7b": 1250, "qwen3.5-0.8b": 710}
-# ADR-045: tokens of render.cache_prefix(profile, template), VERIFIED by the architect on 2026-11-19 with
-# `.cache/ml/llm/bin/llama-b12503/llama-tokenize -m <gguf> -f <prefix file> --show-count --no-bos` on the real GGUFs
-# (Qwen3.5-0.8B and -2B, LFM3-1.7B, LFM2.5-1.2B and -350M, Qwen3-0.6B; same tokenizer within a family).
-# Regenerate the prefix files with render.cache_prefix; the WP-10 tokenizer test pins these numbers.
-PREFIX_TOKENS = {("default.v4", "qwen3.5"): 3129, ("default.v4", "lfm3"): 3240, ("default.v4", "lfm2.5"): 3269,
-                 ("default.v4", "qwen3"): 3161, ("finetuned.v1", "qwen3.5"): 97, ("finetuned.v1", "lfm3"): 102,
+# ADR-045: tokens of render.cache_prefix(profile, template) with the host llama-tokenize (b12503, --no-bos) on the
+# real GGUFs. Re-measured 2026-11-19 by native/llama/tools/tokenizer_check.py (WP-10) after the default.v4 shots were
+# regenerated (the first measurement, 3,129 / 3,240 / 3,269 / 3,161, used the older shots). LFM2.5-2.6B has its own
+# vocabulary (different tokenizer fingerprint from 1.2B/350M), hence the per-model override.
+# tokenizer_check.py fails when a prompt, profile or template change moves any of these numbers.
+PREFIX_TOKENS = {("default.v4", "qwen3.5"): 3116, ("default.v4", "lfm3"): 3226, ("default.v4", "lfm2.5"): 3256,
+                 ("default.v4", "qwen3"): 3146, ("finetuned.v1", "qwen3.5"): 97, ("finetuned.v1", "lfm3"): 102,
                  ("finetuned.v1", "lfm2.5"): 102, ("finetuned.v1", "qwen3"): 97}
+PREFIX_TOKENS_MODEL = {("default.v4", "lfm2.5-2.6b"): 3196}
 CONTEXT_RESERVE_TOKENS = 5200  # = LlmTraits.CONTEXT_RESERVE_TOKENS (5-minute dictation, ADR-045)
 KV_DEFAULT = 12288
 
@@ -395,7 +397,8 @@ def llm_models() -> list[dict]:
              "tier": {"default": "recommended", "option": "optional", "experimental": "experimental"}.get(m.get("role"), "planned"),
              "status": "in_training" if planned else "available",
              "llm": {"template": tmpl, "promptProfile": (profile := "finetuned.v1" if planned else "default.v4"),
-                     "nCtx": n_ctx_for(PREFIX_TOKENS[(profile, tmpl)]), "prefixTokens": PREFIX_TOKENS[(profile, tmpl)],
+                     "nCtx": n_ctx_for(ptok := PREFIX_TOKENS_MODEL.get((profile, m["id"]), PREFIX_TOKENS[(profile, tmpl)])),
+                     "prefixTokens": ptok,
                      **({"kvBytesPerToken": m["kv_cache_bytes_per_token_f16"]} if m.get("kv_cache_bytes_per_token_f16") else {}),
                      **({"note": m["thinking"].get("caveat")} if isinstance(m.get("thinking"), dict) and m["thinking"].get("caveat") else {})},
              "artifacts": [], "evidence": "docs/research/verify/llm-npu.md"}
@@ -444,7 +447,7 @@ def main() -> int:
     cat = {
         "schema": 1,
         "catalogVersion": CATALOG_VERSION,
-        "generated": "2026-11-18 by core/catalog/tools/build_catalog.py" + (" (--offline)" if OFFLINE else " (network-verified)"),
+        "generated": "2026-11-19 by core/catalog/tools/build_catalog.py" + (" (--offline)" if OFFLINE else " (network-verified)"),
         "defaults": {
             "asr": {"ru+en": "parakeet-tdt-0.6b-v3", "en": "parakeet-tdt-0.6b-v3", "ru": "gigaam-v3-e2e-rnnt"},
             "llm": LLM.get("default_model_id", "lfm3-1.7b"),

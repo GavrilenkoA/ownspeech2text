@@ -7,7 +7,8 @@
 #   1. device facts (model, SoC, Android, build fingerprint) + vendor FastRPC/OpenCL libraries visible to apps
 #   2. pushes the arm64 build (native/llama/build_android.sh npu) and the GGUF(s) to /data/local/tmp/murmur-llm
 #   3. llama-bench pp512/tg64 on CPU (per thread count), NPU (HTP0) and GPU (OpenCL)
-#   4. murmur-llm-bench: the app's real flow (system-prefix snapshot -> TTFT for one dictation), CPU and NPU
+#   4. murmur-llm-bench: the app's real flow (default.v4 system-prefix snapshot, n_ctx 9216 as the catalog sets it,
+#      -> TTFT for one ctx v2 dictation), CPU and NPU
 #   5. NPU op placement: which graph ops the Hexagon backend accepted/rejected (GGML_HEXAGON_VERBOSE)
 #   6. thermal status before/after
 #   7. (--geniex) Qualcomm's own prebuilt geniex-bench v0.11.0 (same llama.cpp-Hexagon path, downloaded from GitHub,
@@ -17,6 +18,7 @@
 #
 # Requirements: adb with exactly one device (or ANDROID_SERIAL set), USB debugging on, ~3 GB free on /data.
 # Build first:   native/llama/build_android.sh npu          (default output: .cache/native-llama/out/npu)
+# Models (default): tools/models/fetch lfm3-1.7b@q4_0-qad qwen3.5-0.8b@q4_0  (or GGUFs in .cache/ml/llm)
 set -uo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -24,6 +26,8 @@ BUILD="${MURMUR_LLAMA_OUT:-$repo/.cache/native-llama/out}/npu"
 # fall back to the spike build if the default output does not exist yet
 [[ -d "$BUILD" || -n "${MURMUR_LLAMA_OUT:-}" ]] || { [[ -d "$repo/.cache/spikes/llm-npu/work/out/npu" ]] && BUILD="$repo/.cache/spikes/llm-npu/work/out/npu"; }
 MODELS=()
+NCTX=9216            # catalog LlmTraits.nCtx of the stock models (ADR-045)
+PROFILE=default.v4   # catalog llm.promptProfile of the stock models
 THREADS="4,6"
 QUICK=0
 EXTENDED=0
@@ -40,11 +44,19 @@ while [[ $# -gt 0 ]]; do
         *) echo "unknown argument: $1 (see --help)"; exit 2 ;;
     esac
 done
+# shared caches live in the main checkout (also when this script runs from a git worktree)
+main="$(dirname "$(git -C "$repo" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || echo "$repo/.git")")"
 if [[ ${#MODELS[@]} -eq 0 ]]; then
-    for m in "$repo/.cache/ml/llm/LFM3-1.7B-QAD-Q4_0.gguf" "$repo/.cache/ml/llm/Qwen3.5-0.8B-Q4_0.gguf"; do
-        [[ -f "$m" ]] && MODELS+=("$m")
+    for pair in "lfm3-1.7b@q4_0-qad LFM3-1.7B-QAD-Q4_0.gguf" "qwen3.5-0.8b@q4_0 Qwen3.5-0.8B-Q4_0.gguf"; do
+        read -r art file <<< "$pair"
+        for m in "$main/.cache/models/$art/model.gguf" "$main/.cache/ml/llm/$file"; do
+            [[ -f "$m" ]] && { MODELS+=("$m"); break; }
+        done
     done
 fi
+# device-side file name: fetched artifacts are all called model.gguf, so name them after their artifact dir
+mname() { local b; b="$(basename "$1")"; [[ "$b" == model.gguf ]] && b="$(basename "$(dirname "$1")").gguf"; echo "$b"; }
+mtpl()  { case "$(mname "$1")" in LFM3*|lfm3*) echo lfm3 ;; Qwen3.5*|qwen3.5*|Qwen3_5*) echo qwen3.5 ;; *) echo "" ;; esac; }
 
 TS="$(date +%Y%m%d-%H%M%S)"
 R="${SMOKE_REPORT_DIR:-$repo/.cache/device-reports/llm_npu_smoke-$TS}"
@@ -73,7 +85,7 @@ fi
 [[ -x "$BUILD/bin/murmur-llm-bench" ]] || {
     echo "build not found in $BUILD"; echo "run: native/llama/build_android.sh npu   (or pass --build-dir)"; exit 1; }
 [[ -f "$BUILD/lib/libggml-hexagon.so" ]] || echo "[smoke] note: $BUILD has no Hexagon backend (CPU-only build?) - NPU steps will report as failed" >&2
-[[ ${#MODELS[@]} -gt 0 ]] || { echo "no GGUF given and none found in .cache/ml/llm (use --model)"; exit 1; }
+[[ ${#MODELS[@]} -gt 0 ]] || { echo "no GGUF given and none found (tools/models/fetch lfm3-1.7b@q4_0-qad qwen3.5-0.8b@q4_0, or --model)"; exit 1; }
 
 # ------------------------------------------------------------------ 1. device facts
 say "device facts"
@@ -104,11 +116,11 @@ timeout 600 "${ADB[@]}" push --sync "$BUILD/lib/." "$D/lib/" > "$R/push.log" 2>&
 timeout 600 "${ADB[@]}" push --sync "$BUILD/bin/." "$D/bin/" >> "$R/push.log" 2>&1 || fail "push bins"
 T=30 sh_dev "chmod 755 $D/bin/*"
 for m in "${MODELS[@]}"; do
-    say "push $(basename "$m") ($(du -h "$m" | cut -f1))"
-    timeout 1800 "${ADB[@]}" push --sync "$m" "$D/models/" >> "$R/push.log" 2>&1 || fail "push $(basename "$m")"
+    say "push $(mname "$m") ($(du -h "$m" | cut -f1))"
+    timeout 1800 "${ADB[@]}" push --sync "$m" "$D/models/$(mname "$m")" >> "$R/push.log" 2>&1 || fail "push $(mname "$m")"
 done
 for t in lfm3 qwen3.5; do
-    python3 -I "$repo/native/llama/tools/make_prompt.py" --template "$t" \
+    python3 -I "$repo/native/llama/tools/make_prompt.py" --template "$t" --profile "$PROFILE" \
         --out-prefix "$R/$t.prefix.txt" --out-suffix "$R/$t.suffix.txt" > /dev/null || fail "render prompt $t"
     "${ADB[@]}" push "$R/$t.prefix.txt" "$R/$t.suffix.txt" "$D/prompts/" >> "$R/push.log" 2>&1
 done
@@ -129,17 +141,17 @@ GPU_DEV=$(dev_list GPUOpenCL)
 
 : > "$R/llama-bench.jsonl"
 for m in "${MODELS[@]}"; do
-    mb="$D/models/$(basename "$m")"
+    mb="$D/models/$(mname "$m")"
     IFS=, read -r -a TLIST <<< "$THREADS"
     for t in "${TLIST[@]}"; do
-        say "llama-bench CPU t=$t  $(basename "$m")"
+        say "llama-bench CPU t=$t  $(mname "$m")"
         T=900 sh_dev "$LB -m $mb -dev none -ngl 0 -t $t -p $PP -n $TG -r $REPS -o jsonl" \
-            >> "$R/llama-bench.jsonl" 2>> "$R/llama-bench.stderr.log" || fail "llama-bench CPU t=$t $(basename "$m")"
+            >> "$R/llama-bench.jsonl" 2>> "$R/llama-bench.stderr.log" || fail "llama-bench CPU t=$t $(mname "$m")"
     done
     if [[ -n "$HTP_DEV" ]]; then
-        say "llama-bench NPU ($HTP_DEV)  $(basename "$m")"
+        say "llama-bench NPU ($HTP_DEV)  $(mname "$m")"
         T=900 sh_dev "$LB -m $mb -dev $HTP_DEV -ngl 99 -t ${TLIST[0]} -p $PP -n $TG -r $REPS -o jsonl" \
-            >> "$R/llama-bench.jsonl" 2>> "$R/llama-bench.stderr.log" || fail "llama-bench NPU $(basename "$m")"
+            >> "$R/llama-bench.jsonl" 2>> "$R/llama-bench.stderr.log" || fail "llama-bench NPU $(mname "$m")"
         if [[ $EXTENDED == 1 ]]; then
             for pm in sustained_high_performance balanced; do
                 say "llama-bench NPU power=$pm"
@@ -149,45 +161,45 @@ for m in "${MODELS[@]}"; do
         fi
     fi
     if [[ -n "$GPU_DEV" ]]; then
-        say "llama-bench GPU ($GPU_DEV)  $(basename "$m")"
+        say "llama-bench GPU ($GPU_DEV)  $(mname "$m")"
         T=900 sh_dev "$LB -m $mb -dev $GPU_DEV -ngl 99 -t ${TLIST[0]} -p $PP -n $TG -r $REPS -o jsonl" \
-            >> "$R/llama-bench.jsonl" 2>> "$R/llama-bench.stderr.log" || fail "llama-bench GPU $(basename "$m")"
+            >> "$R/llama-bench.jsonl" 2>> "$R/llama-bench.stderr.log" || fail "llama-bench GPU $(mname "$m")"
     fi
 done
 
 # ------------------------------------------------------------------ 4. app flow: prefix snapshot + TTFT
 : > "$R/murmur-bench.jsonl"
 for m in "${MODELS[@]}"; do
-    mb="$D/models/$(basename "$m")"
-    case "$(basename "$m")" in LFM3*|lfm3*) tpl=lfm3 ;; Qwen3.5*|qwen3.5*|Qwen3_5*) tpl=qwen3.5 ;; *) tpl="" ;; esac
-    [[ -z "$tpl" ]] && { say "skip app-flow bench for $(basename "$m") (unknown template)"; continue; }
+    mb="$D/models/$(mname "$m")"
+    tpl="$(mtpl "$m")"
+    [[ -z "$tpl" ]] && { say "skip app-flow bench for $(mname "$m") (unknown template)"; continue; }
     for dev in cpu npu; do
         [[ $dev == npu && -z "$HTP_DEV" ]] && continue
-        say "murmur-llm-bench $dev $(basename "$m")"
-        T=1200 sh_dev "$ENV_DEV && ./bin/murmur-llm-bench -m $mb --device $dev -t ${THREADS%%,*} --backend-dir $D/lib \
+        say "murmur-llm-bench $dev $(mname "$m")"
+        T=1200 sh_dev "$ENV_DEV && ./bin/murmur-llm-bench -m $mb --device $dev -t ${THREADS%%,*} --ctx $NCTX --backend-dir $D/lib \
             --prefix-file prompts/$tpl.prefix.txt --suffix-file prompts/$tpl.suffix.txt --modes ram,seqcp,none \
             --reps $REPS --max-tokens $MAXTOK --pp $PP --tg $TG --print-output" \
-            2> "$R/murmur-bench.$dev.$(basename "$m").stderr.log" \
-            | sed "s/^{/{\"model\":\"$(basename "$m")\",/" >> "$R/murmur-bench.jsonl" || fail "murmur-llm-bench $dev $(basename "$m")"
+            2> "$R/murmur-bench.$dev.$(mname "$m").stderr.log" \
+            | sed "s/^{/{\"model\":\"$(mname "$m")\",/" >> "$R/murmur-bench.jsonl" || fail "murmur-llm-bench $dev $(mname "$m")"
     done
     # CPU footprint without mmap: on the host the CPU weight repack duplicated the mmapped weights (LFM3 RSS 1.9 GB
     # with mmap vs 1.15 GB without); this row shows the phone's numbers. Reported as model "<name> no-mmap".
-    say "murmur-llm-bench cpu --no-mmap $(basename "$m")"
-    T=900 sh_dev "$ENV_DEV && ./bin/murmur-llm-bench -m $mb --device cpu -t ${THREADS%%,*} --backend-dir $D/lib --no-mmap \
+    say "murmur-llm-bench cpu --no-mmap $(mname "$m")"
+    T=900 sh_dev "$ENV_DEV && ./bin/murmur-llm-bench -m $mb --device cpu -t ${THREADS%%,*} --ctx $NCTX --backend-dir $D/lib --no-mmap \
         --prefix-file prompts/$tpl.prefix.txt --suffix-file prompts/$tpl.suffix.txt --modes ram --reps 1 --max-tokens $MAXTOK" \
-        2> "$R/murmur-bench.cpu-nommap.$(basename "$m").stderr.log" \
-        | sed "s/^{/{\"model\":\"$(basename "$m") no-mmap\",/" >> "$R/murmur-bench.jsonl" || fail "murmur-llm-bench cpu --no-mmap $(basename "$m")"
+        2> "$R/murmur-bench.cpu-nommap.$(mname "$m").stderr.log" \
+        | sed "s/^{/{\"model\":\"$(mname "$m") no-mmap\",/" >> "$R/murmur-bench.jsonl" || fail "murmur-llm-bench cpu --no-mmap $(mname "$m")"
 done
 
 # ------------------------------------------------------------------ 5. NPU op placement
 if [[ -n "$HTP_DEV" ]]; then
     for m in "${MODELS[@]}"; do
-        mb="$D/models/$(basename "$m")"
-        case "$(basename "$m")" in LFM3*) tpl=lfm3 ;; *) tpl=qwen3.5 ;; esac
-        say "NPU op placement $(basename "$m")"
-        T=900 sh_dev "$ENV_DEV && GGML_HEXAGON_VERBOSE=1 GGML_SCHED_DEBUG=1 ./bin/murmur-llm-bench -m $mb --device npu -t ${THREADS%%,*} \
+        mb="$D/models/$(mname "$m")"
+        tpl="$(mtpl "$m")"; [[ -z "$tpl" ]] && continue
+        say "NPU op placement $(mname "$m")"
+        T=900 sh_dev "$ENV_DEV && GGML_HEXAGON_VERBOSE=1 GGML_SCHED_DEBUG=1 ./bin/murmur-llm-bench -m $mb --device npu -t ${THREADS%%,*} --ctx $NCTX \
             --backend-dir $D/lib --prefix-file prompts/$tpl.prefix.txt --suffix-file prompts/$tpl.suffix.txt --modes none --reps 1 --max-tokens 4 -vv" \
-            > "$R/npu-verbose.$(basename "$m").log" 2>&1 || fail "NPU verbose run $(basename "$m")"
+            > "$R/npu-verbose.$(mname "$m").log" 2>&1 || fail "NPU verbose run $(mname "$m")"
     done
 fi
 echo "after: $(thermal)" >> "$R/thermal.txt"
@@ -210,11 +222,11 @@ if [[ $GENIEX == 1 ]]; then
         T=30 sh_dev "chmod 755 $G/bin/geniex-bench"
         GX_ENV="cd $G && export LD_LIBRARY_PATH=$G/lib:$G/lib/llama_cpp ADSP_LIBRARY_PATH='$G/lib/llama_cpp;/vendor/lib64/rfs/dsp/snap;/vendor/dsp/cdsp;/vendor/dsp'"
         for m in "${MODELS[@]}"; do
-            mb="$D/models/$(basename "$m")"
+            mb="$D/models/$(mname "$m")"
             for dev in cpu npu; do
-                say "geniex-bench llama_cpp $dev $(basename "$m")"
+                say "geniex-bench llama_cpp $dev $(mname "$m")"
                 T=900 sh_dev "$GX_ENV && ./bin/geniex-bench --plugin llama_cpp --device $dev -m $mb -p $PP -n $TG -r $REPS --log info --output-json $G/out-$dev.json; echo exit=\$?; cat $G/out-$dev.json" \
-                    > "$R/geniex.$dev.$(basename "$m").log" 2>&1 || fail "geniex-bench $dev $(basename "$m")"
+                    > "$R/geniex.$dev.$(mname "$m").log" 2>&1 || fail "geniex-bench $dev $(mname "$m")"
             done
         done
     else
@@ -250,7 +262,7 @@ for r in jl(f"{R}/llama-bench.jsonl"):
     if be in ("none", "", "?"): be = "CPU (" + str(r.get("backends", "?")) + ")"
     md.append(f"| {os.path.basename(r.get('model_filename','?'))} | {be} | {r.get('n_threads')} | {r.get('power_mode','default')} | {test} | {r.get('avg_ts',0):.1f} ± {r.get('stddev_ts',0):.1f} |")
     summary["llama_bench"].append({k: r.get(k) for k in ("model_filename","devices","backends","n_threads","n_prompt","n_gen","avg_ts","stddev_ts","power_mode")})
-md += ["", "## App flow (fixed ~1.1k-token system prefix snapshot, then one dictation)", "",
+md += ["", "## App flow (default.v4 system prefix snapshot, n_ctx 9216, then one ctx v2 dictation)", "",
        "| model | device | prefix mode | prefix tok | prefix prefill ms | suffix tok | TTFT ms | decode tok/s | output = first mode | load ms | peak RSS MB |", "|---|---|---|---|---|---|---|---|---|---|---|"]
 rows = jl(f"{R}/murmur-bench.jsonl")
 # events per (model, device, mode): load -> mem_after_load -> prefix -> generate* -> summary -> [bench] -> mem_end
