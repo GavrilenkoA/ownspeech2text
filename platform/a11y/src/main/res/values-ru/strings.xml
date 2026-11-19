@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Product name is never written in resources (D10): the service label is ${productName} from gradle.properties. -->
+    <string name="a11y_summary">Показывает кнопку диктовки, вводит текст в поле и читает экран, пока вы диктуете.</string>
+    <string name="a11y_description">Нужно, чтобы показывать кнопку диктовки поверх других приложений, вводить распознанный текст в активное поле и читать экран, пока вы диктуете, чтобы имена и термины были написаны правильно. Текст с экрана и нажатия клавиш никуда не отправляются и нигде не сохраняются.</string>
+</resources>

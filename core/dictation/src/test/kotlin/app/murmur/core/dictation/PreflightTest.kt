@@ -54,6 +54,22 @@ class PreflightTest {
         assertEquals(HapticKind.REJECT, h.w.feedback.haptics.last())
     }
 
+    /** A microphone grant made in system Settings after the last refresh is seen by the next start (re-read on refusal). */
+    @Test fun aLaterMicGrantIsSeenOnTheNextStart() = runTest {
+        val h = harness {
+            permissions.set { it.copy(micGranted = false) }
+            permissions.onRefresh = { it.copy(micGranted = true) }
+        }
+        h.passes()
+        assertEquals(1, h.w.permissions.refreshes)
+    }
+
+    @Test fun thePassingPathDoesNotReRead() = runTest {
+        val h = harness { }
+        h.passes()
+        assertEquals(0, h.w.permissions.refreshes)
+    }
+
     /** The assembler refuses number fields (PrivacyDecision.dictationAllowed = false, WP-08) -> no field to dictate into. */
     @Test fun numberFieldIsRefusedByTheAssembler() = runTest {
         harness { target.target = telegram.copy(field = telegram.field?.copy(inputType = 0x00000002)) }.refused(MurmurError.NoEditableField)

@@ -357,8 +357,10 @@ class FakePermissionMonitor(
     private val _state = MutableStateFlow(initial)
     override val state: StateFlow<PermissionState> = _state.asStateFlow()
     var refreshes = 0; private set
+    /** What a re-read finds (a grant made outside the app); identity by default, so [refresh] only counts. */
+    var onRefresh: (PermissionState) -> PermissionState = { it }
     fun set(transform: (PermissionState) -> PermissionState) { _state.value = transform(_state.value) }
-    override fun refresh() { refreshes++ }
+    override fun refresh() { refreshes++; _state.value = onRefresh(_state.value) }
 }
 
 class RecordingStatusNotifier : StatusNotifier {

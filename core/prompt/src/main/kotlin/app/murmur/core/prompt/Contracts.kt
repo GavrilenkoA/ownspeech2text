@@ -59,9 +59,11 @@ object PromptEditRules {
      * What Settings -> Cleanup prompt shows for the active [profile] and the stored override's `baseProfile`
      * ([overrideBaseProfile], null = no override): [PromptEditState.DEFAULT] (no edit), [PromptEditState.EDITED] (the
      * edit applies), [PromptEditState.MADE_FOR_OLDER_PROMPT] (an edit exists and its baseProfile is not the active
-     * profile, so it is not applied: "Your edit was made for an older prompt" with Reset; this includes an active
-     * fine-tune, whose editor stays read-only, see [editable]), [PromptEditState.NOT_EDITABLE] (a fine-tune and no
-     * stored edit).
+     * profile, so it is not applied), [PromptEditState.NOT_EDITABLE] (a fine-tune and no stored edit).
+     * MADE_FOR_OLDER_PROMPT also covers an active fine-tune with a stored edit; the UI tells the two apart with
+     * [editable]: on a stock profile it shows "Your edit was made for an older prompt" with Reset; on a fine-tune
+     * (editable == false) it shows the read-only shipped prompt and "Your edit is kept for the standard prompt" with no
+     * Reset (ADR-078, WP-19 brief; pending OWNER_QUESTIONS 5).
      */
     fun editState(profile: PromptProfile, overrideBaseProfile: String?): PromptEditState = when {
         overrideBaseProfile == null -> if (editable(profile)) PromptEditState.DEFAULT else PromptEditState.NOT_EDITABLE

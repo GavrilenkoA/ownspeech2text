@@ -432,7 +432,11 @@ class DictationOrchestrator(
         // A retry records nothing (its audio is stored) and may come from History with the service off; it is delivered
         // into the focused field only when that is a usable one, else copied (NotDelivered without the service).
         val retry = r.retryOf != null
-        val perms = deps.permissions.state.value
+        fun refused(p: PermissionState) = (mode != StartMode.IN_APP && !retry && !p.a11yConnected) || (!retry && !p.micGranted)
+        // The monitor's state can be stale after a grant made outside the app's screens (system Settings): re-read
+        // before refusing, so a later grant is seen on the next start. The passing path costs nothing.
+        var perms = deps.permissions.state.value
+        if (refused(perms)) { deps.permissions.refresh(); perms = deps.permissions.state.value }
         if (mode != StartMode.IN_APP && !retry && !perms.a11yConnected) return fail(MurmurError.AccessibilityOff)
         if (!retry && !perms.micGranted) return fail(MurmurError.MicPermissionMissing)
         val snap = when (mode) {

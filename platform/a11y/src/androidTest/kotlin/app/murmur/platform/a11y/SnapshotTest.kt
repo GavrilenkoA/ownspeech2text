@@ -52,6 +52,13 @@ class SnapshotTest {
         assertTrue(f.isMultiline)
         assertEquals("Notes", f.hint)
         assertTrue(f.boundsInScreen!!.width > 0)
+        // windowBoundsInScreen maps a window capture into screen pixels for ctx v2 (ADR-079): the target window's
+        // bounds, non-empty, and the focused field lies inside them.
+        val w = s.windowBoundsInScreen!!
+        val b = f.boundsInScreen!!
+        note("snapshot window_bounds=$w field_bounds=$b")
+        assertTrue("window bounds $w", w.width > 0 && w.height > 0)
+        assertTrue("field $b inside window $w", b.x0 >= w.x0 && b.y0 >= w.y0 && b.x1 <= w.x1 && b.y1 <= w.y1)
     }
 
     @Test

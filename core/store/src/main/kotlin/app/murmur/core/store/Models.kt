@@ -114,7 +114,7 @@ interface BenchmarkRepository {
      * The newest record of ([id], [unit]) whose [BenchmarkResultData.valid] is true, or null: the last good run, for
      * display ("last good result"). Not a selection input (ADR-071): unit ranking, CleanupBudget's LLM speed and the
      * adaptive timeouts use the newest record of ([id], [unit]) from [latest], and an invalid newest record means no
-     * score and no speed (data:models BenchScores). An invalid run never hides an older valid one here. The default filters [latest] (newest per unit), so an implementation that keeps older
+     * score and no speed (core:benchmark BenchScores, ADR-080). An invalid run never hides an older valid one here. The default filters [latest] (newest per unit), so an implementation that keeps older
      * records must override it (the Room store with a query, the :testing fake over all rows).
      */
     suspend fun latestValid(id: ArtifactId, unit: ComputeUnit): BenchmarkRecord? =
