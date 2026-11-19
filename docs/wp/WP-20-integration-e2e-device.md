@@ -169,4 +169,5 @@ Still in work: WP-10, 15, 16, 17, 20 (early paths).
 - `platform/overlay/tools/run_emulator_tests.sh` needs the **inner** AVD (`murmur_fold7_inner`): on the cover AVD
   `survivesPostureChanges` and `survivesSizeAndRotationChangesWithTheSameEdgeAndProportionalY` fail by design (no
   hinge posture, `wm size reset` is 1080). The orchestrator's internal errors are logged as `MurmurDictation
-  internal_error`; an e2e run should fail on any such line.
+  internal_error <class> <- <cause>… at <frame>` (ADR-082, no message text); an e2e run should fail on any such line.
+  A bubble that could not attach logs `bubble_retry_later display=N` and is retried on the display's next change.

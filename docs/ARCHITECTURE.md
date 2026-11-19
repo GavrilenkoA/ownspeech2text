@@ -1,6 +1,6 @@
 # Murmur architecture
 
-Version 2.1 · 2026-11-19 (wave-1 integration passes 1-3: ADR-064..081) · Owner: architect. Binding for all work packages (`docs/wp/`). Owner decisions D1-D12 are
+Version 2.1 · 2026-11-19 (wave-1 integration passes 1-3: ADR-064..082) · Owner: architect. Binding for all work packages (`docs/wp/`). Owner decisions D1-D12 are
 quoted verbatim at the top of `docs/DECISIONS.md`; conflicts and their evidence are ADR-nnn there; review findings and
 their resolution are under "Review responses" there. Everything that only the phone can prove: `docs/DEVICE_CHECKLIST.md`
 (steps DC1-DC10).
