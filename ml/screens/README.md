@@ -18,6 +18,7 @@ CLI (repo root, venv `.cache/ml/ocr/venv`, `PYTHONPATH=.` or `-m` from the root)
     python -m ml.screens.render --batch SPECS.jsonl OUTDIR [--html]
     python -m ml.screens.build_ctx SPEC.json                        # ctx v2
     tools/heavy python -m ml.screens.build_ctx --batch SPECS.jsonl OUT.jsonl --workers 4 --threads 2 [--png-dir D]
+    python -m ml.screens.build_ctx --check FILE.jsonl [--loose]     # exit 1 if any context is stale (below)
 
 ## Spec
 
@@ -51,6 +52,38 @@ scrolled off and absent from `visible`):
 | ai_chat | assistant chat (inner: history) | conversation name | user / assistant turns | suggestion chips | prompt box |
 | calendar_tasks | agenda + tasks | date | events (author = organiser, time) | tasks | new task |
 | social_feed | post + comments | post title | post + comments | replies | comment box |
+
+## ctx.field.box (focused-field bounds)
+
+Every template marks the element that stands for the focused editable node with `data-focus`; its bounds,
+clipped to the visible area, in screenshot pixels, are `render(...)["field_box"]` and `ctx.field.box` — what the
+phone gets from `AccessibilityNodeInfo.getBoundsInScreen`. prompts/render.py anchors "nearest to the field"
+on it and drops the OCR lines inside it (the field's own text is given exactly as `before_cursor`/`hint`).
+No field -> no box; two marked fields in one render is an error.
+
+| templates | box = | evidence |
+|---|---|---|
+| all input pills (messengers, work chat, comment / reply / search / URL / prompt / new-task boxes) | text area between the icon buttons, full pill height (`data-focus="y-parent"`) | emulator, Google Messages compose EditText `[316,2310][796,2436]` on 1080x2520: icons outside, pill height |
+| email_compose | the To: value, or the body text block (quote and snippets are separate views below) | assumed |
+| notes | the note body: typed text + the rest of the note (one EditText); title, checklist, chips outside | assumed |
+| doc_editor | the document view (the whole page canvas) | assumed |
+| terminal, code_editor | the terminal / editor view (all its text is inside the box) | assumed |
+
+The assumed rows are checked by `ml/ocr/device_probe.sh` (report.json `aggregate.focused_fields`). With a
+big box (terminal, code editor, doc) render.py drops every OCR line of that view: phone parity, but the
+screen text of such contexts is then only what lies outside the editor.
+
+## Versions and stale contexts
+
+Every `build_ctx` meta carries `ocr` (`PIPELINE_VERSION`, hand-bumped), `ocr_src` (hash of ml/ocr config.py,
+pipeline.py, postprocess.py), `screens` (`RENDERER_VERSION`, hand-bumped), `screens_src` (hash of the renderer's
+.py/.js/.json sources except tests, samples.py, sheet.py, specs.py), `chrome` (Chrome build) and `det_limit`.
+`ml.screens.VERSION` = `screens.v2+src:<hash>`. `stale(meta, strict=True)` lists what differs from the current
+pipeline (loose: hand-bumped versions and det_limit only); `--check` applies it to build_ctx output
+(`meta`), prompt eval sets (`meta.render`) and ml/data records (`meta.screen.render`). Consumers that store
+contexts should copy the whole meta (minus `ms`) and refuse stale records before an eval or a training run.
+History: screens.v1/ocr.v1 = everything built on 2026-11-18 (no field.box; det_limit 1600 or 960; homoglyph
+rules changed in place); screens.v2/ocr.v2 = 2026-11-19.
 
 `visible` roles: content = `title, message, author, snippet, field`; non-content = `time, date, chrome, status,
 keyboard, hint, avatar, badge, filler, murmur`. `exclude_rects` (+ `exclude_kinds`): `status_bar`, `keyboard`

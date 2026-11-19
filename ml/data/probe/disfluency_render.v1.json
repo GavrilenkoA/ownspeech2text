@@ -1,0 +1,283 @@
+{
+ "source": "ml/data/probe/disfluency_probe.v1.jsonl -> CPU TTS -> ASR (ml/roundtrip runner)",
+ "rows": 724,
+ "note": "hesitation_keep = min(TTS-measured rate, family prior cap); see module doc",
+ "models": {
+  "distil-large-v3.5@onnx-int8": {
+   "utterances": 36,
+   "n_hesitations": 57,
+   "n_repeats": 9,
+   "tts_hesitation_keep": 0.474,
+   "hesitation_keep": 0.1,
+   "hesitation_cap_prior": 0.1,
+   "repeat_keep": 0.222,
+   "examples": [
+    {
+     "said": "So, um, I think we should, uh, move the meeting to Friday.",
+     "written": "So I think we should move the meeting to Friday."
+    },
+    {
+     "said": "So, um, I think we should, uh, move the meeting to Friday.",
+     "written": "So, um, I think we should move the meeting to Friday."
+    },
+    {
+     "said": "So, um, I think we should, uh, move the meeting to Friday.",
+     "written": "So, um, I think we should, uh, move the meeting to Friday."
+    }
+   ]
+  },
+  "gigaam-v3-e2e-ctc@onnx-int8": {
+   "utterances": 40,
+   "n_hesitations": 66,
+   "n_repeats": 8,
+   "tts_hesitation_keep": 0.712,
+   "hesitation_keep": 0.6,
+   "hesitation_cap_prior": 0.6,
+   "repeat_keep": 0.625,
+   "examples": [
+    {
+     "said": "Слушай, э-э, я сегодня, эм, приду чуть позже, наверное к к семи.",
+     "written": "Слушай, э-э, я сегодня, эм, приду чуть позже, наверное, к семи"
+    },
+    {
+     "said": "Слушай, э-э, я сегодня, эм, приду чуть позже, наверное к к семи.",
+     "written": "Слушай, э-э, я сегодня, эм, приду чуть позже, наверное, к семи."
+    },
+    {
+     "said": "Мы мы созвонимся, э-э, после обеда и всё обсудим.",
+     "written": "М мы созвонимся, э-э, после обеда и всё обсудим."
+    }
+   ]
+  },
+  "gigaam-v3-e2e-rnnt@onnx-int8": {
+   "utterances": 40,
+   "n_hesitations": 66,
+   "n_repeats": 8,
+   "tts_hesitation_keep": 0.379,
+   "hesitation_keep": 0.379,
+   "hesitation_cap_prior": 0.6,
+   "repeat_keep": 0.625,
+   "examples": [
+    {
+     "said": "Слушай, э-э, я сегодня, эм, приду чуть позже, наверное к к семи.",
+     "written": "Слушай, я сегодня, эм, приду чуть позже. Наверное, к семи."
+    },
+    {
+     "said": "Слушай, э-э, я сегодня, эм, приду чуть позже, наверное к к семи.",
+     "written": "Слушай, э-э, я сегодня, эм, приду чуть позже, наверное, к семи."
+    },
+    {
+     "said": "Мы мы созвонимся, э-э, после обеда и всё обсудим.",
+     "written": "Мы созвонимся, э-э, после обеда и всё обсудим."
+    }
+   ]
+  },
+  "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms": {
+   "utterances": 76,
+   "n_hesitations": 123,
+   "n_repeats": 17,
+   "tts_hesitation_keep": 0.463,
+   "hesitation_keep": 0.35,
+   "hesitation_cap_prior": 0.35,
+   "repeat_keep": 0.529,
+   "examples": [
+    {
+     "said": "Давай, э-э, обсудим roadmap, эм, в в пятницу.",
+     "written": "Давай обсудим родмап М в пятницу"
+    },
+    {
+     "said": "Я, эм, поправил README, э-э, и и закоммитил.",
+     "written": "Я им поправил ритмы и закомител"
+    },
+    {
+     "said": "Я, эм, поправил README, э-э, и и закоммитил.",
+     "written": ""
+    }
+   ]
+  },
+  "nemotron-speech-streaming-en-0.6b@onnx-int8-560ms": {
+   "utterances": 36,
+   "n_hesitations": 57,
+   "n_repeats": 9,
+   "tts_hesitation_keep": 0.789,
+   "hesitation_keep": 0.35,
+   "hesitation_cap_prior": 0.35,
+   "repeat_keep": 0.222,
+   "examples": [
+    {
+     "said": "So, um, I think we should, uh, move the meeting to Friday.",
+     "written": "So I think we should uh move the meeting to Friday"
+    },
+    {
+     "said": "So, um, I think we should, uh, move the meeting to Friday.",
+     "written": "So um, I think we should uh move the meeting to Friday"
+    },
+    {
+     "said": "So, um, I think we should, uh, move the meeting to Friday.",
+     "written": "So um, I think we should uh move the meeting to Friday"
+    }
+   ]
+  },
+  "parakeet-tdt-0.6b-v3@onnx-int8": {
+   "utterances": 76,
+   "n_hesitations": 123,
+   "n_repeats": 17,
+   "tts_hesitation_keep": 0.724,
+   "hesitation_keep": 0.35,
+   "hesitation_cap_prior": 0.35,
+   "repeat_keep": 0.588,
+   "examples": [
+    {
+     "said": "So, um, I think we should, uh, move the meeting to Friday.",
+     "written": "So um I think we should uh move the meeting to Friday."
+    },
+    {
+     "said": "So, um, I think we should, uh, move the meeting to Friday.",
+     "written": "So, um, I think we should uh move the meeting to Friday."
+    },
+    {
+     "said": "So, um, I think we should, uh, move the meeting to Friday.",
+     "written": "So um I think we should uh move the meeting to Friday."
+    }
+   ]
+  },
+  "parakeet-ultra-0.6b@onnx-int8": {
+   "utterances": 76,
+   "n_hesitations": 123,
+   "n_repeats": 17,
+   "tts_hesitation_keep": 0.642,
+   "hesitation_keep": 0.35,
+   "hesitation_cap_prior": 0.35,
+   "repeat_keep": 0.529,
+   "examples": [
+    {
+     "said": "Слушай, э-э, я сегодня, эм, приду чуть позже, наверное к к семи.",
+     "written": "Слушай, э, я сегодня М приду чуть позже, наверное, к семе."
+    },
+    {
+     "said": "Слушай, э-э, я сегодня, эм, приду чуть позже, наверное к к семи.",
+     "written": "Слушай, я сегодня М приду чуть позже, наверное, к семи."
+    },
+    {
+     "said": "Мы мы созвонимся, э-э, после обеда и всё обсудим.",
+     "written": "Но мы созвонимся, Э, после обеда и все обсудим."
+    }
+   ]
+  },
+  "qwen3-asr-0.6b@onnx-int8": {
+   "utterances": 76,
+   "n_hesitations": 123,
+   "n_repeats": 17,
+   "tts_hesitation_keep": 0.447,
+   "hesitation_keep": 0.15,
+   "hesitation_cap_prior": 0.15,
+   "repeat_keep": 0.529,
+   "examples": [
+    {
+     "said": "Я, э-э, закинул фикс в в main, эм, посмотри, когда будет время.",
+     "written": "Я э э закинул фикс в мейн м посмотри когда будет время"
+    },
+    {
+     "said": "Слушай, эм, deploy на staging, э-э, опять опять упал.",
+     "written": "Служей М Депо на стадионе А опять опять упал."
+    },
+    {
+     "said": "Слушай, эм, deploy на staging, э-э, опять опять упал.",
+     "written": "Слушай, М Деплоина стагиинг, ээ, опять опять упал."
+    }
+   ]
+  },
+  "t-one@onnx": {
+   "utterances": 40,
+   "n_hesitations": 66,
+   "n_repeats": 8,
+   "tts_hesitation_keep": 0.394,
+   "hesitation_keep": 0.394,
+   "hesitation_cap_prior": 0.6,
+   "repeat_keep": 0.625,
+   "examples": [
+    {
+     "said": "Слушай, э-э, я сегодня, эм, приду чуть позже, наверное к к семи.",
+     "written": "слушай э я сегодня эм приду чуть позже наверное к семи"
+    },
+    {
+     "said": "Слушай, э-э, я сегодня, эм, приду чуть позже, наверное к к семи.",
+     "written": "слушай э я сегодня м приду чуть позже наверное к семи"
+    },
+    {
+     "said": "Мы мы созвонимся, э-э, после обеда и всё обсудим.",
+     "written": "но мы созвонимся эк после обеда и все обсудим"
+    }
+   ]
+  },
+  "whisper-large-v3-turbo@onnx-int8": {
+   "utterances": 76,
+   "n_hesitations": 123,
+   "n_repeats": 17,
+   "tts_hesitation_keep": 0.472,
+   "hesitation_keep": 0.1,
+   "hesitation_cap_prior": 0.1,
+   "repeat_keep": 0.059,
+   "examples": [
+    {
+     "said": "Слушай, э-э, я сегодня, эм, приду чуть позже, наверное к к семи.",
+     "written": "Слушай, э, я сегодня, эм, приду чуть позже, наверное, к семи."
+    },
+    {
+     "said": "Слушай, э-э, я сегодня, эм, приду чуть позже, наверное к к семи.",
+     "written": "Слушай, ээ я сегодня, эм приду чуть позже, наверное к семи."
+    },
+    {
+     "said": "Мы мы созвонимся, э-э, после обеда и всё обсудим.",
+     "written": "ММС звонимся, э, после обеда и все обсудим."
+    }
+   ]
+  },
+  "whisper-medium@onnx-int8": {
+   "utterances": 76,
+   "n_hesitations": 123,
+   "n_repeats": 17,
+   "tts_hesitation_keep": 0.35,
+   "hesitation_keep": 0.1,
+   "hesitation_cap_prior": 0.1,
+   "repeat_keep": 0.235,
+   "examples": [
+    {
+     "said": "Uh, could you, um, check if the room is free?",
+     "written": "Ah, Kuchiwam, check if the room is free."
+    },
+    {
+     "said": "Uh, could you, um, check if the room is free?",
+     "written": "Could you check if the room is free?"
+    },
+    {
+     "said": "Uh, could you, um, check if the room is free?",
+     "written": "Could you check if the room is free?"
+    }
+   ]
+  },
+  "whisper-small@onnx-int8": {
+   "utterances": 76,
+   "n_hesitations": 123,
+   "n_repeats": 17,
+   "tts_hesitation_keep": 0.228,
+   "hesitation_keep": 0.1,
+   "hesitation_cap_prior": 0.1,
+   "repeat_keep": 0.294,
+   "examples": [
+    {
+     "said": "Слушай, э-э, я сегодня, эм, приду чуть позже, наверное к к семи.",
+     "written": "Слушай, я сегодня, Эм, приду чуть позже, наверное, к семи."
+    },
+    {
+     "said": "Слушай, э-э, я сегодня, эм, приду чуть позже, наверное к к семи.",
+     "written": "Слушай, эй, я сегодня, эм, приду чуть позже, наверное, к семи."
+    },
+    {
+     "said": "Мы мы созвонимся, э-э, после обеда и всё обсудим.",
+     "written": "Мы мы созвонимся, и после обеда и все обсудим."
+    }
+   ]
+  }
+ }
+}

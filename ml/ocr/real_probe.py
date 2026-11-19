@@ -105,6 +105,19 @@ def ground_truth(xml_text: str, size) -> list[dict]:
     return items
 
 
+def focused_field(xml_text: str) -> dict | None:
+    """The focused editable node of a uiautomator dump (what Murmur's ctx.field.box comes from on the phone):
+    an EditText (or any node with focused="true" and an EditText class name) -> {"cls", "pkg", "box"}."""
+    try:
+        root = ET.fromstring(xml_text[xml_text.find("<"):])
+    except ET.ParseError:
+        return None
+    for n in root.iter("node"):
+        if n.get("focused") == "true" and "EditText" in n.get("class", ""):
+            return {"cls": n.get("class", ""), "pkg": n.get("package", ""), "box": _bounds(n.get("bounds", ""))}
+    return None
+
+
 def report(d: Path) -> dict:
     from PIL import Image
     from . import pipeline as P
@@ -126,6 +139,7 @@ def report(d: Path) -> dict:
         gts = [g for g in gt if not M._inside(g["box"], meta["exclude_rects"])]
         cmp = compare_tree(gts, lines)
         cmp["name"] = name
+        cmp["focused_field"] = focused_field((d / f"{name}.xml").read_text(encoding="utf-8"))
         cmp["ms"] = det["ms"]
         cmp["size"] = list(size)
         per.append(cmp)
@@ -157,6 +171,8 @@ def report(d: Path) -> dict:
         for k, v in r["confusions"].items():
             conf[k] = conf.get(k, 0) + v
     agg["top_confusions"] = sorted(conf.items(), key=lambda kv: -kv[1])[:30]
+    # focused-field bounds per app: check the [data-focus] choice of each template (ml/screens/README.md)
+    agg["focused_fields"] = {r["name"]: r["focused_field"] for r in per if r.get("focused_field")}
     doc = {"aggregate": agg, "screens": per}
     (d / "report.json").write_text(json.dumps(doc, ensure_ascii=False, indent=1))
     return doc

@@ -56,8 +56,9 @@ def _fw(w: str) -> str:
 
 
 def plausible_sub(a: str, b: str) -> bool:
-    """A substitution a recogniser makes from the audio: sounds like the word (phonetic similarity >= 0.45 for
-    words of 4+ letters, >= 0.34 for shorter ones), a known function-word swap, or one letter for one letter."""
+    """A substitution a recogniser makes from the audio: sounds like the word (phonetic similarity >= 0.55 for
+    words of 8+ letters, >= 0.45 for 4-7, >= 0.34 for shorter ones), a known function-word swap, or one letter
+    for one letter. ('вопросительный' -> 'пользователей' is 0.50: rejected.)"""
     fa, fb = _fw(a), _fw(b)
     if not fb or fa == fb:
         return True
@@ -65,7 +66,7 @@ def plausible_sub(a: str, b: str) -> bool:
         return True
     if fb in SHORT_SWAPS.get(fa, ()) or fa in SHORT_SWAPS.get(fb, ()):
         return True
-    return T.phon_sim(a, b) >= (0.45 if len(fa) >= 4 else 0.34)
+    return T.phon_sim(a, b) >= (0.55 if len(fa) >= 8 else 0.45 if len(fa) >= 4 else 0.34)
 
 
 def plausible_ins(w: str) -> bool:

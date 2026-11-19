@@ -15,8 +15,25 @@ Owner of `ml/data/`, `ml/common/`, `docs/ml/DATA_CARD.md`. Binding: `docs/ml/PLA
    the ASR channel and hallucinated tails, so every noise op is known and recorded in `meta`.
 3. **ASR noise = the round-trip team's mined tables** (`ml/roundtrip/mine/noise.py` behind `synth/channel.py`,
    `--mined DIR`; real tables: `ml/roundtrip/samples/mined/real`, 11 ASR models). Fallback: built-in simulator
-   (`synth/asr_noise.py`). `meta.noise.source` says which one produced each transcript. Substitutions that sound
-   nothing like the word (mining artefacts such as `Sunday -> Utxpyri`) are retried with another seed.
+   (`synth/asr_noise.py`). `meta.noise.source` says which one produced each transcript. Realism guards on top
+   (`Channel.implausible` / `repair_terms`, review 2026-11-19): substitutions that do not sound like the word
+   (`по -> девять`, `стенде -> съем`) and inserted content words (`папы`) are retried with another seed; generic
+   term garbles a model's mined manglings never show (single letters, interior letter drops such as `Kuberetes`)
+   are replaced by a phonetic transliteration for models that write Latin terms in Cyrillic, else retried;
+   English clauses of code-switched speech are simulated as English for recognisers that write Latin (no
+   word-by-word `the -> tha`, `you -> йау`).
+9. **Disfluencies follow the recogniser.** Injected fillers are only those the deployed prompt deletes ("слушай"
+   is never injected: it often carries meaning). Whether a hesitation sound or a repeated word reaches the
+   transcript depends on the ASR model (`ml/data/probe/disfluency_render.v1.json`, measured with a CPU TTS -> ASR
+   probe, `make disfl-probe`; hesitations capped by a family prior because TTS articulates "э"/"um" as words).
+   `stats.json: asr_disfluency` reports the per-model hesitation-token rate of every run.
+10. **No eval leakage, human review list.** Records that near-duplicate a `prompts/eval` item (char-5-gram Jaccard
+   >= 0.8) are dropped (`ml/data/contam.py`); the teacher prompt's quoted examples are tested against the same sets.
+   Kept records whose target has a content word found in none of spoken / transcript / screen go to `review.jsonl`.
+11. **Apps are coherent**: `app.category` comes only from the shared `prompts/tones/app_categories.v1.json`
+   (unknown package -> `default`, as on the phone); the screen template follows the app
+   (`synth/screen.py: template_for`), address fields exist only in mail apps (e-mail) and browsers (URL), and no
+   prose is dictated into a terminal.
 4. **ctx = render -> real OCR** (`synth/screen.py`): teacher content -> `ml.screens.specs.from_teacher` spec
    (device / theme / font scale / keyboard / locale from the scenario seed, `avoid` list for must-not-show items) ->
    `ml.screens.build_ctx` -> ctx v2; app / field come from the scenario (accessibility side, exact). Category rules
@@ -44,13 +61,15 @@ Owner of `ml/data/`, `ml/common/`, `docs/ml/DATA_CARD.md`. Binding: `docs/ml/PLA
 | `synth/screen.py` | render specs, real / fixture backends, OCR-line rule checks |
 | `synth/screen_fixture.py` | layout-only stand-in (tests; refused for full-size runs) |
 | `synth/terms.py`, `synth/lexicon.py` | hard-term pool (`ml/roundtrip/probe/terms.jsonl`), near-miss finder, people |
-| `synth/teacher_prompts.py` | batch prompt + strict JSON schema (`gen.v5`) |
+| `synth/teacher_prompts.py` | batch prompt + strict JSON schema (`gen.v6`) |
 | `synth/teacher.py` | Responses / chat client: retries, Retry-After, request cap, resumable shards |
 | `synth/stub_teacher.py` | offline stub with the same interface |
 | `synth/build.py` | ctx v2, term garbling, surname misspelling, counterparts, recoverability check |
 | `synth/disfluency.py`, `synth/channel.py`, `synth/asr_noise.py` | fillers/restarts; ASR adapter; built-in simulator |
 | `synth/filters.py` | quality filters, near-dup removal, leakage report |
 | `make_sample.py` | reviewer sample (<= 200 lines) from a run |
+| `contam.py` | eval-contamination check (records and teacher prompt vs `prompts/eval`) |
+| `probe/` | disfluency probe sentences, `measure_disfluency.py`, measured `disfluency_render.v1.json` |
 | `public/` | converters + filters for public cleanup sets (secondary, frozen) |
 | `samples/` | committed sample of real-teacher, real-OCR output |
 | `tests/` | unit + end-to-end tests (stub teacher, fake Responses server, fixture and real screens) |
@@ -62,7 +81,7 @@ from `ml/screens`). The generator itself is stdlib-only, so the same interpreter
 
 ```bash
 PY=.cache/ml/ocr/venv/bin/python
-$PY -m pytest -q ml/data/tests                       # 35 tests (the real-OCR one is skipped without READY files)
+$PY -m pytest -q ml/data/tests                       # 46 tests (the real-OCR one is skipped without READY files)
 make -C ml/data stub                                 # offline end-to-end run: stub teacher, fixture screens
 # THE full set (~633 teacher requests; see docs/ml/DATA_CARD.md for measured wall time)
 tools/with-teacher tools/heavy $PY -m ml.data.generate --out .cache/ml/data/synth_v2 \
@@ -71,5 +90,5 @@ tools/with-teacher tools/heavy $PY -m ml.data.generate --out .cache/ml/data/synt
 $PY -m ml.data.recheck --run .cache/ml/data/synth_v2  # after any prompts/render.py change
 ```
 
-Output: `OUT/{train,dev,test}.jsonl`, `OUT/stats.json`, `OUT/REPORT.md`, `OUT/rejects.jsonl` (every rejected
-example with its reasons), `OUT/teacher/*.jsonl` (raw teacher shards), `OUT/scenarios.jsonl`.
+Output: `OUT/{train,dev,test}.jsonl`, `OUT/stats.json` (incl. `provenance`, `asr_disfluency`), `OUT/REPORT.md`,
+`OUT/rejects.jsonl` (every rejected example with its reasons), `OUT/review.jsonl` (for a human pass), `OUT/teacher/*.jsonl` (raw teacher shards), `OUT/scenarios.jsonl`.

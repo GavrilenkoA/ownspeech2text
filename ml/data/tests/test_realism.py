@@ -23,7 +23,7 @@ def test_plausible_substitutions_and_insertions():
     for a, b in [("the", "that"), ("a", "the"), ("конца", "коны"), ("Скинь", "В скин"), ("Я", "Е"), ("for", "from")]:
         assert plausible_sub(a, b), (a, b)
     for a, b in [("по", "девять"), ("the", "but"), ("стенде", "съем"), ("шесть", "съем"), ("I’ll", "And"),
-                 ("вы", "ини"), ("пожалуйста", "найденный")]:
+                 ("вы", "ини"), ("пожалуйста", "найденный"), ("вопросительный", "пользователей")]:
         assert not plausible_sub(a, b), (a, b)
     assert all(plausible_ins(w) for w in ["и", "ну", "the", "uh", "э"])
     assert not any(plausible_ins(w) for w in ["пост", "папы", "девяносто", "радел", "coup"])
@@ -127,3 +127,8 @@ def test_apps_categories_and_templates_are_coherent():
             assert app["category"] in ("email", "search"), app
         if app["package"] == "com.termux":
             pytest.fail("prose dictation into a terminal")
+
+
+def test_copied_prompt_examples_are_rejected():
+    assert F._copies_prompt_example("Новый абзац. Точка сбора у входа во двор.")
+    assert not F._copies_prompt_example("Встречаемся у входа во двор в семь.")

@@ -2,7 +2,7 @@
 ROOT := $(abspath ../..)
 PY := cd $(ROOT) && $(ROOT)/.cache/ml/ocr/venv/bin/python
 HEAVY := $(ROOT)/tools/heavy
-.PHONY: venv assets test golden golden-check measure
+.PHONY: venv assets test golden golden-check measure stale-check
 venv:
 	cd $(ROOT) && uv venv .cache/ml/ocr/venv -p 3.13 && uv pip install -p .cache/ml/ocr/venv -r ml/ocr/requirements.txt
 	cd $(ROOT)/.cache/ml/screens && cp $(ROOT)/ml/screens/package.json . && PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install --no-audit --no-fund
@@ -16,3 +16,5 @@ golden-check:    ## the full parity suite against the Python reference
 	$(HEAVY) $(PY) -m ml.ocr.golden check
 measure:         ## detector input limit / tiling sweep (writes .cache/ml/ocr/measure/)
 	$(HEAVY) $(PY) -m ml.ocr.measure detlimit
+stale-check:     ## make -C ml/ocr stale-check FILE=path.jsonl : contexts built by another OCR/renderer version
+	$(PY) -m ml.screens.build_ctx --check $(FILE)

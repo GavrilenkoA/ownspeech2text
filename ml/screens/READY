@@ -8,3 +8,6 @@ ml/screens ready (interface of docs/ml/CONTEXT_V2.md), 2026-11-18.
 Venv: .cache/ml/ocr/venv (ml/ocr/requirements.txt); Node deps: .cache/ml/screens/node_modules; fonts: ml/ocr/fetch_assets.sh.
 Tests: .cache/ml/ocr/venv/bin/python -m pytest -q ml/screens/tests
 OCR constants may still be tuned (meta.ocr carries the pipeline version); the interfaces will not change.
+2026-11-19: ctx.field.box (focused-node bounds, screenshot px) is emitted for every field; render() returns
+  "field_box". Version meta: ocr/ocr_src/screens/screens_src/chrome/det_limit; contexts built before this
+  (ocr.v1, no screens key) are stale: rebuild them. Check: python -m ml.screens.build_ctx --check FILE.jsonl

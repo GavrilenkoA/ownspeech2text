@@ -11,7 +11,7 @@ WORKERS ?= 5
 MINED ?= $(REPO)/ml/roundtrip/samples/mined/real
 MINED_ARG := $(if $(MINED),--mined $(MINED),)
 
-.PHONY: venv test stub proof synth recheck sample public validate
+.PHONY: venv test stub proof synth recheck sample public validate contam disfl-probe
 
 venv:   # secondary venv for the public converters (pyarrow) and tests
 	uv venv -q -p 3.13 $(REPO)/.cache/ml/data/venv && uv pip install -q -p $(PYPUB) -r $(REPO)/ml/data/requirements.txt
@@ -47,3 +47,15 @@ public:
 
 validate:
 	cd $(REPO) && for f in $(OUT)/train.jsonl $(OUT)/dev.jsonl $(OUT)/test.jsonl; do $(PY) -m ml.common.validate --strict $$f || exit 1; done
+
+# held-out eval sets (prompts/eval) vs a run and vs the teacher prompt's quoted examples
+contam:
+	cd $(REPO) && $(PY) -m ml.data.contam --prompt --data $(OUT)
+
+# per-ASR-model rendering of hesitations / repeats: CPU TTS -> every ASR model (~35 min, ml/roundtrip runner,
+# read-only use), then ml/data/probe/disfluency_render.v1.json
+disfl-probe:
+	cd $(REPO) && tools/heavy $(REPO)/.cache/ml/roundtrip/venv/bin/python -m ml.roundtrip.run_roundtrip \
+	    --probe ml/data/probe/disfluency_probe.v1.jsonl --out $(REPO)/.cache/ml/data/disfl_probe --tts cpu \
+	    --voices-per-sentence 1 --channels clean --asr all --workers 3 --threads 2 --mem-gb 14
+	cd $(REPO) && $(PY) -m ml.data.probe.measure_disfluency .cache/ml/data/disfl_probe/roundtrip/disfluency_probe.v1.jsonl

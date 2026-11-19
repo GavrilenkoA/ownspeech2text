@@ -4,10 +4,12 @@
 LoRA targets all-linear, which on Qwen3.5 includes the Gated DeltaNet in_proj_qkv / in_proj_z /
 in_proj_a / in_proj_b tensors that convert_hf_to_gguf.py reorders or transforms; a silent merge or
 conversion error would otherwise only show up as "the recipe does not work". This runs N dev items
-greedily through both (same rendered prompt from ml.eval.contract, same max_new_tokens rule) and
-fails when fewer than --min-identical of them give identical text. BF16 arithmetic differs between
-torch and llama.cpp, so a long output may legitimately diverge late; a broken export diverges on
-almost every item (and usually in the first tokens), which is what this catches.
+greedily through both (same rendered prompt from ml.eval.contract, same max_new_tokens rule). An item
+agrees when both texts are identical or share a common prefix of at least min(64 characters, half of
+the longer text): BF16 arithmetic differs between torch and llama.cpp, so a long output may
+legitimately diverge late (measured: one of 8 real items at character 33 of ~60; random-weight test
+models at characters 65-103 of long gibberish), while a broken export diverges at once on almost every
+item (measured negative control: 8 of 8 at character 0). Fails when fewer than --min-agree items agree.
 
   python -m ml.train.parity --run RUN_DIR --gguf RUN_DIR/gguf/NAME-BF16.gguf --data dev.jsonl [-n 24]
 
@@ -55,8 +57,8 @@ def main(argv=None) -> int:
     ap.add_argument("--gguf", required=True, help="the BF16 GGUF exported from that checkpoint")
     ap.add_argument("--data", nargs="+", required=True)
     ap.add_argument("-n", type=int, default=24)
-    ap.add_argument("--system", default="finetuned")
-    ap.add_argument("--min-identical", type=float, default=0.8)
+    ap.add_argument("--system", default=None, help="default: prompt.system of RUN/config.resolved.json")
+    ap.add_argument("--min-agree", type=float, default=0.8)
     ap.add_argument("--llama-bin", default=os.environ.get("MURMUR_LLAMA_BIN",
                                                           str(contract.REPO / ".cache/ml/llm/bin/llama-b12503")))
     ap.add_argument("--ngl", type=int, default=int(os.environ.get("MURMUR_LLAMA_NGL", "0")))
@@ -69,6 +71,10 @@ def main(argv=None) -> int:
         print(f"parity: missing {hf}/config.json or {a.gguf}", file=sys.stderr)
         return 2
     template = detect_template(str(hf))
+    if not a.system:
+        cfg_p = run / "config.resolved.json"
+        a.system = (json.loads(cfg_p.read_text()).get("prompt") or {}).get("system") if cfg_p.exists() else None
+        a.system = a.system or "finetuned.v2"
     items = pick(contract.load(a.data), a.n)
     prompts = [(ex, contract.render_prompt(ex, a.system, template)) for ex in items]
     t0 = time.time()
@@ -83,13 +89,16 @@ def main(argv=None) -> int:
             be.close()
     rows = []
     for (ex, _), h, g in zip(prompts, outs["hf"], outs["gguf"]):
-        rows.append({"id": ex["id"], "identical": h == g, "prefix_chars": common_prefix(h, g),
-                     "hf": h, "gguf": g})
-    ident = sum(r["identical"] for r in rows) / max(1, len(rows))
+        k = common_prefix(h, g)
+        rows.append({"id": ex["id"], "identical": h == g, "agree": h == g or k >= min(64, max(len(h), len(g)) // 2),
+                     "prefix_chars": k, "hf": h, "gguf": g})
+    n = max(1, len(rows))
+    ident = sum(r["identical"] for r in rows) / n
+    agree = sum(r["agree"] for r in rows) / n
     early = sum(1 for r in rows if not r["identical"] and r["prefix_chars"] < 8)
-    ok = ident >= a.min_identical
-    res = {"status": "PASS" if ok else "FAIL", "identical_share": round(ident, 3), "n": len(rows),
-           "diverged_in_first_8_chars": early, "min_identical": a.min_identical, "hf_dir": str(hf),
+    ok = agree >= a.min_agree
+    res = {"status": "PASS" if ok else "FAIL", "agree_share": round(agree, 3), "identical_share": round(ident, 3),
+           "n": len(rows), "diverged_in_first_8_chars": early, "min_agree": a.min_agree, "hf_dir": str(hf),
            "gguf": a.gguf, "template": template, "system": a.system, "seconds": round(time.time() - t0, 1),
            "rows": rows}
     out = Path(a.out or run / "eval/parity.json")

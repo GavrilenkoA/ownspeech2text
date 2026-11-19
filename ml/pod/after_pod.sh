@@ -9,6 +9,8 @@
 # teacher request per example (~400 per finalist); JUDGE_LIMIT caps it per eval dir.
 #   POD=root@1.2.3.4 POD_PORT=22022 bash ml/pod/after_pod.sh
 #   NO_SYNC=1 STEPS="judge cards" bash ml/pod/after_pod.sh
+# EVAL_THREADS (default 6): on a loaded shared host use 2 (measured 2026-11-19 at load average ~45:
+# llama.cpp decode 0.23 tok/s with 6 threads vs 18.6 tok/s with 2, its worker threads spin-wait)
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 R="${MURMUR_POD_RESULTS:-.cache/ml/train/pod-results}"; export DST="$R"   # sync_results.sh writes here
@@ -36,7 +38,7 @@ if has ship; then
     [[ -f "$out/report.json" ]] && { log "ship eval $run: done"; continue; }
     log "ship eval $run on CPU -> $out"
     heavy_eval --model "$g" --data "${TEST[@]}" --out "$out" --system "$ftsys" --label "$run Q4_0 test cpu" \
-      --llama-bin "$LLAMA_BIN" --ngl 0 --threads 6 >/dev/null
+      --llama-bin "$LLAMA_BIN" --ngl 0 --threads "${EVAL_THREADS:-6}" >/dev/null
   done
 fi
 
@@ -58,7 +60,7 @@ if has stock; then
       [[ -f "$out/report.json" ]] && continue
       log "stock $f $p -> $out"
       heavy_eval --model "$f" --data "${TEST[@]}" --out "$out" --system "$p" --label "stock $(basename "$f" .gguf) $p test cpu" \
-        --llama-bin "$LLAMA_BIN" --ngl 0 --threads 6 >/dev/null
+        --llama-bin "$LLAMA_BIN" --ngl 0 --threads "${EVAL_THREADS:-6}" >/dev/null
     done
   done
 fi

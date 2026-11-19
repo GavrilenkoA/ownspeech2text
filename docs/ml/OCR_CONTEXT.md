@@ -29,8 +29,29 @@ not on the phone.
    2.67 px/dp inner (738x819 dp); pixel sizes from the spec sheets.
 8. **`build_ctx`** is the only producer of ctx v2: render -> OCR with the render's exclusion rects -> app/field/
    screen. `privacy != full` or a password field -> no `screen`; `field: null` -> no `field`.
+9. **`ctx.field.box`** (2026-11-19, review fix): build_ctx emits the focused field's bounds in screenshot pixels,
+   as the phone gets them from `getBoundsInScreen`; templates mark the node with `data-focus` (table in
+   `ml/screens/README.md`). Input pills: the text area between the icons at full pill height, matching the
+   Google Messages compose EditText on the emulator (`[316,2310][796,2436]` on 1080x2520). Notes body, doc
+   view, terminal and code editor views: assumed, re-checked by the device probe.
+10. **Versioned contexts** (review fix): `PIPELINE_VERSION` ocr.v2 and `RENDERER_VERSION` screens.v2, plus source
+   hashes and the Chrome build in every build_ctx meta; `ml.screens.build_ctx.stale(meta)` / `--check FILE`
+   detect contexts the current pipeline would not produce. Everything built on 2026-11-18 (ocr.v1) is stale.
 
 ## Numbers
+
+### Effect of field.box (164 dev.v2 + test.v2 specs rebuilt with the current build_ctx, 2026-11-19)
+
+| | |
+|---|---|
+| fields with a box | 164 / 164 (before: 0) |
+| screens whose rendered `<context>` changes when the box is removed | 82 / 148 (first 3 shown lines differ in all 82) |
+| `before_cursor` repeated as OCR screen text | 0 / 11 with the box, 10 / 11 without |
+| context differs from the prompt engineer's stop-gap box (union of the visible field text) | 1 / 148 |
+| shown screen lines per screen, with / without the box | messenger_a 12.7 / 13.0, notes 5.4 / 5.7, doc_editor 2.4 / 3.2, terminal 2.8 / 4.2 |
+
+26/26 golden PNGs are pixel-identical after adding the markers (`data-focus` changes no pixel); only
+`pipeline` and the new `field_box` changed in the JSON.
 
 ### Detector input size (48 rendered screens, 24 per display, 4 threads, server under load)
 
@@ -141,16 +162,24 @@ What still differs (reported, not hidden):
 - Reading order: the two-pane gutter test can split a chat whose bubbles are all short on the inner display
   (needs >= 3 lines per side over >= 40 % of the height with nothing crossing); not seen in the 300-screen set.
 - Densities, status-bar height, keyboard height and the real Fold7 fonts are assumptions until the DEVICE check.
+- `field.box` of big editors (notes body, doc view, terminal, code editor, mail body) is assumed; with it,
+  prompts/render.py drops every OCR line inside the editor, so such contexts show only the text around it.
+- `stale()` in strict mode also fails on a Chrome update or any edit of the renderer/OCR sources (comments
+  included): intended for freezing eval sets and training data; `--loose` checks the hand-bumped versions only.
 
 ## Re-check on the Fold7 (DEVICE)
 
 `ml/ocr/device_probe.sh [SERIAL]`: cover display then (after unfolding) inner display; opens Settings,
 Display, Contacts, Messages, Calendar, Samsung Notes, My Files, Chrome on two pages, then the owner's own
-messenger with the keyboard up and a mail thread; screenshot + `uiautomator dump` + `wm size/density` +
+messenger with the keyboard up, a mail thread, a note, a mail reply body and (if installed) a terminal or
+code editor with the keyboard up; screenshot + `uiautomator dump` + `wm size/density` +
 window frames for each; runs the pipeline and writes `.cache/ml/ocr/real/fold7/report.json` and
 `metrics.txt`. Expected: ~24 screenshots, real display metrics (to replace the assumed densities in
 `ml/screens/chrome.py` DEVICES), CER on found items <= ~1 % as on the emulator, label-like share ~50 %;
 re-run `make -C ml/ocr measure` only if the inner-display CER is worse than the cover's by more than 1 point.
+`report.json` `aggregate.focused_fields` lists the focused EditText bounds per shot: if a note body, mail
+body or editor box is much smaller than the template's (table in `ml/screens/README.md`), change that
+template's `data-focus` element, bump `RENDERER_VERSION` and rebuild the contexts.
 
 ## Files
 
@@ -158,4 +187,4 @@ re-run `make -C ml/ocr measure` only if the inner-display CER is worse than the 
 `golden.py` + `golden/` (26 PNG+JSON pairs, 7.2 MB, `rec_keys.txt`), `terms_probe.py`, `ocr_hard_terms.json`,
 `real_probe.py`, `emu_probe.sh`, `device_probe.sh`, `fetch_assets.sh`, `requirements.txt`, `Makefile`, `tests/`.
 `ml/screens/`: `render.py`, `driver.js`, `package.json`, `base.py`, `chrome.py`, `filler.py`, `families/`,
-`templates.py`, `specs.py` (teacher screen -> spec), `build_ctx.py`, `samples.py`, `sheet.py`, `tests/`.
+`templates.py`, `specs.py` (teacher screen -> spec), `build_ctx.py` (+ `stale()`, `--check`), `samples.py`, `sheet.py`, `tests/`.

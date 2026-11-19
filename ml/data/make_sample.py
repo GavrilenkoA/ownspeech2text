@@ -2,10 +2,12 @@
 
   python -m ml.data.make_sample --run .cache/ml/data/synth_runs/proof_v6 --out ml/data/samples/synth_v2.sample.jsonl \
       [--drop context_counterpart:en]   # cells the current planner no longer produces
+      [--exclude-ids ids.json]           # records a later rule rejects (JSON list of ids)
 """
 from __future__ import annotations
 
 import argparse
+import json
 from collections import defaultdict
 from pathlib import Path
 
@@ -32,10 +34,12 @@ def main(argv=None) -> int:
     ap.add_argument("--out", required=True)
     ap.add_argument("--n", type=int, default=200)
     ap.add_argument("--drop", action="append", default=[], help="CATEGORY:LANG cells to leave out")
+    ap.add_argument("--exclude-ids", default=None, help="JSON list of record ids to leave out")
     a = ap.parse_args(argv)
     drop = {tuple(d.split(":", 1)) for d in a.drop}
+    excl = set(json.loads(Path(a.exclude_ids).read_text())) if a.exclude_ids else set()
     recs = [r for s in ("train", "dev", "test") if (Path(a.run) / f"{s}.jsonl").exists()
-            for r in read_jsonl(Path(a.run) / f"{s}.jsonl") if (r["category"], r["lang"]) not in drop]
+            for r in read_jsonl(Path(a.run) / f"{s}.jsonl") if (r["category"], r["lang"]) not in drop and r["id"] not in excl]
     n = write_jsonl(a.out, pick(recs, min(a.n, 200)))
     print(f"{n} lines -> {a.out}")
     return 0

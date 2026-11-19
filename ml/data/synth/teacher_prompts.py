@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 
-GEN_VERSION = "gen.v6"
+GEN_VERSION = "gen.v7"
 
 _SCREEN = {
     "type": "object", "additionalProperties": False,
@@ -54,7 +54,7 @@ Rules for "target" (never break them):
 
 Screen rules: the screen is rendered as a phone screenshot and read by OCR, so write only text that is visible on a real screen (no markup). It is written by other people or the app, in a language that fits the app and the persona; it must look like a real phone screen (real-looking chat names, subjects, short messages). Put every item of "screen_must_show" on the screen verbatim (in a message, the title or a snippet). Put every item of "screen_also_show" on the screen too. Never put "must_not_show" items on the screen. Items of "said_terms" are said by the user; items of "never_said" must not appear in "spoken" or "target".
 
-Write natural, colloquial, modern speech for the persona and register (ты/вы), not textbook sentences; vary topics, sentence shapes and openings across the batch. Respect "spoken_words" (length of "spoken" in words). Output only the JSON object."""
+Write natural, colloquial, modern speech for the persona and register (ты/вы), not textbook sentences; vary topics, sentence shapes and openings across the batch. The quoted phrases in these instructions only illustrate a rule: never copy them, invent your own every time. Respect "spoken_words" (length of "spoken" in words). Output only the JSON object."""
 
 CATEGORY_HINTS = {
     "plain": "Ordinary dictation for this app, persona and topic.",
@@ -66,7 +66,7 @@ CATEGORY_HINTS = {
     "context_irrelevant": "The screen is busy: messages and snippets mention the people and terms of screen_must_show. The dictation is about something else and mentions none of the screen's names or terms.",
     "no_op": "One or two short, already well-formed sentences that need no editing: 'target' = 'spoken' character for character (digits only where 'spoken' would read naturally with digits is NOT allowed: avoid numbers).",
     "near_no_op": "One or two short, well-formed sentences without numbers: 'target' = 'spoken' character for character.",
-    "formatting_commands": "The speaker dictates 2-4 punctuation/formatting commands of rule 5 as words in 'spoken' (e.g. 'точка', 'запятая', 'новый абзац', 'new line', 'question mark'). Where natural, include one false friend that must stay as words ('точка сбора у входа', 'a period of time', 'запятая в этом предложении лишняя').",
+    "formatting_commands": "The speaker dictates 2-4 punctuation/formatting commands of rule 5 as words in 'spoken' (e.g. 'точка', 'запятая', 'новый абзац', 'new line', 'question mark'). Where natural, include one false friend of your own that must stay as words (like 'точка сбора у входа', 'a period of time', 'запятая в этом предложении лишняя').",
     "list": "The speaker enumerates 3-5 items with spoken ordinals ('во-первых... во-вторых...', 'first... second...', 'раз... два...', 'пункт один... пункт два...') after a short intro. Target: intro line with a colon, then a numbered list.",
     "numbers": "Include at least two of: a clock time, a date, an amount of money, a percentage, a quantity with a unit, a phone number, a version or ticket number. Everything in words in 'spoken' (correct Russian case); digits in 'target' per rule 4.",
     "address": "The user dictates one e-mail address or URL into an address field (the kind given by 'address_kind'), said aloud in words ('ivan dot petrov at gmail dot com', 'анна точка смирнова собака яндекс точка ру', 'gitlab dot com slash orbit dash tools'). Use a plausible personal or company address (not example.com). Target: the literal address only.",
