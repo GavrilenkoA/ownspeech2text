@@ -29,6 +29,7 @@ import app.murmur.core.model.ModelKind
 import app.murmur.core.model.UnitPreference
 import app.murmur.core.store.BenchmarkRecord
 import app.murmur.core.store.BenchmarkResultData
+import app.murmur.core.store.InstallState
 import app.murmur.core.store.Settings
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -136,6 +137,33 @@ class ModelsScreenshotTest {
         val onlyNpu = d.speech.states.filterKeys { k -> d.asrInUse.artifacts.none { it.id == k } || k == d.asrInUse.artifacts.first().id }
         val inp = d.speech.copy(settings = pinned, states = onlyNpu)
         HubFrame(Device.TallCover, nav = false) { Detail(d.asrInUse, inp, cover = true) }
+    }
+
+    /** The same page while the pinned CPU artifact downloads: its progress and Pause under the picker (review F1). */
+    @Test
+    fun noFrameUnitPickerDownloading() {
+        val cpu = d.asrInUse.artifacts.first { it.units == listOf(app.murmur.core.model.ComputeUnit.CPU) }
+        val pinned = Settings(unitPreference = mapOf(d.asrInUse.id.value to UnitPreference.Pinned(app.murmur.core.model.ComputeUnit.CPU)))
+        val states = d.speech.states - cpu.id + (cpu.id to InstallState.Downloading(cpu.downloadBytes / 3, cpu.downloadBytes, 12_300_000))
+        val inp = d.speech.copy(settings = pinned, states = states)
+        shot("no-frame/unit-picker-downloading", tall = true, before = {
+            rule.onNodeWithTag(HubTags.EXTRA_DOWNLOAD).assertExists()
+            rule.onNodeWithText(context.getString(R.string.detail_pause)).assertExists()
+        }) {
+            HubFrame(Device.TallCover, nav = false) { Detail(d.asrInUse, inp, cover = true) }
+        }
+    }
+
+    /** Device profile not known yet (review F2): rows without controls, skeletons in their place. */
+    @Test
+    fun noFrameModelsLoading() {
+        val inp = d.speech.copy(device = null)
+        shot("no-frame/models-loading", before = {
+            assertTrue(rule.onAllNodes(hasTestTagPrefix(HubTags.LOADING), useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
+            assertTrue(rule.onAllNodes(hasClickAction() and hasContentDescription(context.getString(R.string.models_cd_pause))).fetchSemanticsNodes().isEmpty())
+        }) {
+            HubFrame(device) { Screen(HubTab.SPEECH, inp, d.asrInUse) }
+        }
     }
 
     /**

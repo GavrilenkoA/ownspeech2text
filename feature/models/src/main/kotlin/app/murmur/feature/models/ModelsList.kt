@@ -178,7 +178,7 @@ internal fun ModelsListContent(
                 Group(Modifier.testTag(HubTags.SUPPORT)) {
                     list.support.forEachIndexed { i, row ->
                         if (i > 0) InsetDivider(start = 16.dp)
-                        SupportRow(row, onOpen = { onOpen(row.id) }, onDownload = { onDownload(row.id) }, onPause = { onPause(row.id) },
+                        SupportRow(row, highlighted = selected == row.id, onOpen = { onOpen(row.id) }, onDownload = { onDownload(row.id) }, onPause = { onPause(row.id) },
                             onResume = { onResume(row.id) }, onBenchmark = { onBenchmark(row.id) }, onDelete = { onDelete(row.id) })
                     }
                 }
@@ -397,7 +397,7 @@ private fun RowControl(row: ModelRow, onSelect: () -> Unit, onDownload: () -> Un
  * install control or Benchmark (OCR) and Delete buttons. The row opens the detail.
  */
 @Composable
-private fun SupportRow(row: ModelRow, onOpen: () -> Unit, onDownload: () -> Unit, onPause: () -> Unit, onResume: () -> Unit, onBenchmark: () -> Unit, onDelete: () -> Unit) {
+private fun SupportRow(row: ModelRow, highlighted: Boolean, onOpen: () -> Unit, onDownload: () -> Unit, onPause: () -> Unit, onResume: () -> Unit, onBenchmark: () -> Unit, onDelete: () -> Unit) {
     val c = MurmurTheme.colors
     val t = MurmurTheme.type
     val loc = HubTexts.locale()
@@ -417,6 +417,8 @@ private fun SupportRow(row: ModelRow, onOpen: () -> Unit, onDownload: () -> Unit
     Row(
         Modifier
             .fillMaxWidth()
+            // The model shown in the inner display's detail pane, as for the model rows.
+            .background(if (highlighted) c.surface3 else c.surface)
             .clickable(role = Role.Button, onClick = onOpen)
             .padding(start = 16.dp, end = 8.dp, top = 10.dp, bottom = 10.dp)
             .testTag(HubTags.support(row.id)),

@@ -191,7 +191,7 @@ private fun factRows(view: ModelDetailView, open: (() -> Unit)?): List<KvRow> {
             }.joinToString("\n"))
             is Fact.Streaming -> KvRow(stringResource(R.string.detail_streaming), stringResource(if (f.streaming) R.string.detail_streaming_yes else R.string.detail_streaming_no))
             is Fact.License -> KvRow(stringResource(R.string.detail_license), f.id)
-            is Fact.Source -> KvRow(stringResource(R.string.detail_source), f.label, onClick = open, valueTag = "model-source")
+            is Fact.Source -> KvRow(stringResource(R.string.detail_source), f.label, onClick = open, valueTag = "model-source", small = true)
         }
     }
 }

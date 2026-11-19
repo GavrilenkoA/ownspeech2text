@@ -97,8 +97,18 @@ internal fun UnitBadgeView(unit: ComputeUnit, chosen: Boolean) {
     MurmurBadge(HubTexts.unit(unit), kind)
 }
 
-/** One row of [KvTable]. [onClick] makes the value a link (Source); [mono] = prototype `.v.mono` (12 sp). */
-internal class KvRow(val key: String, val value: String, val mono: Boolean = false, val onClick: (() -> Unit)? = null, val valueTag: String? = null)
+/**
+ * One row of [KvTable]. [onClick] makes the value a link (Source); [mono] = code values (template, files) in the mono
+ * face; [small] = the detail frame's Source value: the text face at 12 sp (`font-size:12px` in the prototype).
+ */
+internal class KvRow(
+    val key: String,
+    val value: String,
+    val mono: Boolean = false,
+    val onClick: (() -> Unit)? = null,
+    val valueTag: String? = null,
+    val small: Boolean = false,
+)
 
 /**
  * Key-value table (prototype .kv): keys in ink3 at their natural width (the widest key sets the column, at most half
@@ -114,7 +124,11 @@ internal fun KvTable(rows: List<KvRow>, modifier: Modifier = Modifier, valueStyl
         content = {
             rows.forEach { r ->
                 Text(r.key, style = t.body, color = c.ink3, modifier = Modifier.padding(vertical = 12.dp))
-                val vs = if (r.mono) t.mono.copy(lineHeight = 20.sp) else valueStyle
+                val vs = when {
+                    r.mono -> t.mono.copy(lineHeight = 20.sp)
+                    r.small -> valueStyle.copy(fontSize = 12.sp, lineHeight = 20.sp)
+                    else -> valueStyle
+                }
                 Box(
                     Modifier
                         .then(if (r.onClick != null) Modifier.clickable(role = Role.Button, onClick = r.onClick) else Modifier)

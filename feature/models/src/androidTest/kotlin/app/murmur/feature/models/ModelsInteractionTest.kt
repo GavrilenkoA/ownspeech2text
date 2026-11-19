@@ -176,7 +176,7 @@ class ModelsInteractionTest {
     @Test
     fun deletingACustomModelClosesItsDetail() {
         // Review F9: the entry leaves the catalog; the shell gets onClose instead of an empty page.
-        val w = World(allAsr)
+        val w = World(allAsr + otherLlm.artifacts.map { it.id })
         val custom = otherLlm.copy(id = app.murmur.core.model.ModelId("custom-x"), displayName = "Custom X", origin = app.murmur.core.catalog.Origin.CUSTOM)
         kotlinx.coroutines.runBlocking { w.catalogRepo.addCustom(custom) }
         var closed = 0
