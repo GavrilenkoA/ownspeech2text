@@ -164,6 +164,25 @@ class RetryTest {
         h.assertNoInternalErrors()
     }
 
+    /** ADR-064 + ADR-070: a number, phone or date field is not usable, so a History retry with focus there is copied only. */
+    @Test fun historyRetryWithTheFocusInANumberFieldIsCopiedNotInserted() = runTest {
+        val h = harness()
+        h.failToLoad()
+        val failed = h.only()
+        h.w.target.target = FakeTargetReader.defaultTarget("org.telegram.messenger")
+            .let { it.copy(field = it.field?.copy(inputType = 0x00000002, beforeCursor = "4242")) }
+        assertEquals(Outcome.Ok(failed.id), h.o.retry(failed.id))
+        val e = h.only()
+        assertEquals(EntryStatus.COPIED, e.status)
+        assertEquals(InsertMethod.CLIPBOARD_ONLY, e.insertMethod)
+        assertEquals(cleaned, e.finalText)
+        assertEquals(listOf(cleaned), h.w.inserter.clipboard)
+        assertTrue(h.w.inserter.inserted.isEmpty())
+        assertTrue(!h.w.engines.llm.requests.last().suffix.contains("4242"))
+        assertEquals(DictationOutcome.Copied(failed.id), h.outcomes().last())
+        h.assertNoInternalErrors()
+    }
+
     @Test fun historyRetryOfSilenceIsNoSpeechAndKeepsTheRecording() = runTest {
         val h = harness()
         h.failToLoad()

@@ -466,7 +466,11 @@ class DictationOrchestrator(
                 else -> MurmurError.NoEditableField
             },
         )
-        r.decision = decision
+        // A retry into a field dictation may not use (ADR-064, ADR-070) has no target either: copied only, no ctx.
+        r.decision = if (decision.dictationAllowed) decision else {
+            r.target = null
+            PrivacyDecision(PrivacyLevel.NONE, takeScreenshot = false, reason = null, skipLlm = false)
+        }
         val models = when (val m = deps.models.resolve(settings)) {
             is Outcome.Err -> return fail(m.error)
             is Outcome.Ok -> m.value
@@ -891,7 +895,7 @@ class DictationOrchestrator(
         }
         // Step 2 (I5): the clipboard first.
         deps.inserter.copyToClipboard(text)
-        // Step 3. A retry without a target (started in this app or an excluded one) is copied only.
+        // Step 3. A retry without a target (started in this app, an excluded one or a refused field) is copied only.
         val snap = r.target
         var why: MurmurError? = when {
             r.retryOf != null && snap == null -> MurmurError.NoEditableField
