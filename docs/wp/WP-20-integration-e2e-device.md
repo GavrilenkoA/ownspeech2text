@@ -175,7 +175,7 @@ Still in work: WP-10, 15, 16, 17, 20 (early paths).
 ## Integration notes (wave-1 integration pass 4; ADR-083 in DECISIONS)
 
 Merged on `integration/wave1` in this pass: WP-10 (in addition to WP-01..09, 11, 12, 13, 14).
-Still in work: WP-15, 16, 17, 20 (early paths).
+Still in work: WP-15, 16, 17, 18, 19, 20 (early paths).
 - Wave 3 (`AppContainer` taken over from WP-15): keep `exits = AndroidProcessExits(context)` in `DictationDeps` and
   `DefaultBenchmarkRunner` (ADR-083).
 - WP-10 is merged: the WP-14 emulator benchmark entry point (`.cache/spikes/wp-14/BenchmarkOnEmulatorTest.kt`) can now
@@ -190,3 +190,8 @@ Still in work: WP-15, 16, 17, 20 (early paths).
   what :main sees"; with ADR-083 the expected result is `OutOfMemory(LLM)` (exit reason `REASON_LOW_MEMORY` read by
   `AndroidProcessExits`), no `UnitHealth` mark, CPU tried again on the next press. Also: an e2e assertion that
   `unit-health.json` stays empty after an lmkd kill of `:llm` during its load, if the emulator can provoke one.
+- Pass-4 verification (ADR-084): in that DC step also record `ActivityManager.isLowMemoryKillReportSupported()` on the
+  phone (`adb shell dumpsys activity exit-info app.murmur` shows the raw reason/status) and the `MurmurEngines`
+  `load_death reason=… status=… lmk_report=… waited_ms=… oom=…` line: `waited_ms` says when the exit record arrived,
+  which decides whether the 2 s poll can be shortened (ARCHITECTURE 6.4 row D). Without lmk reports the expected result
+  is `lmk_report=false waited_ms=0 oom=false` and a unit mark (the documented fallback).

@@ -51,7 +51,7 @@ the AIDL until WP-06/WP-10 implement it; after that, any change bumps `InferApi.
 
 - JVM/Android unit tests: JSON round trip of every payload type (`InferApiJsonTest` exists; add `LlmRequest.minTokens`,
   `ProcessProbe.facts`), ring buffer (no blocking, no loss under a 50 Hz writer, overflow policy), timeout mapping,
-  `prefixMs` / `benchMs` / `scale` arithmetic (3,240 tokens at the 40 tok/s floor → 162 s).
+  `prefixMs` / `benchMs` / `scale` arithmetic (3,240 tokens at the 40 tok/s floor → 162 s; 3,240 was LFM3's first measurement, catalog 2026-11-20.1 says 3,226 → 161 s).
 - Instrumented tests in `infer/api/src/androidTest` with **test-only services** declared in the androidTest
   manifest with `android:process=":fakeasr"` / `":fakellm"` (implementing the AIDL with canned answers):
   - bind on demand; `pidof app.murmur:fakeasr` exists after `connect()`, is gone ≤ 2 s after `shutdown()`;

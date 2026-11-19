@@ -100,7 +100,7 @@ Still in work: WP-10, 15, 16, 17, 20 (early paths).
 ## Integration notes (wave-1 integration pass 4; ADR-083 in DECISIONS)
 
 Merged on `integration/wave1` in this pass: WP-10 (in addition to WP-01..09, 11, 12, 13, 14).
-Still in work: WP-15, 16, 17, 20 (early paths).
+Still in work: WP-15, 16, 17, 18, 19, 20 (early paths).
 - ADR-083 applies to the NPU ports too: an lmkd kill of `:asr` during an NPU load (exit reason low memory) is
   `OutOfMemory(kind)` in the executor, Preparing and the benchmark, never a unit failure; any other death during the
   load still marks the unit (ADR-066).

@@ -120,10 +120,12 @@ Still in work: WP-10, 15, 16, 17, 20 (early paths).
 ## Integration notes (wave-1 integration pass 4; ADR-083 in DECISIONS)
 
 Merged on `integration/wave1` in this pass: WP-10 (in addition to WP-01..09, 11, 12, 13, 14).
-Still in work: WP-15, 16, 17, 20 (early paths).
+Still in work: WP-15, 16, 17, 18, 19, 20 (early paths).
 - ADR-083: a process death during a load whose exit record says low memory is `OutOfMemory(kind)`: `PrepareReport.untested`
   (not `failed`), and the benchmark's `UnitFailed` with `engine.oom.*` no longer marks `UnitHealth` (it used to mark any
   load error). Show such a unit as "not tested, low memory", never as a unit failure.
-- Catalog 2026-11-19.1 (re-measured default.v4 `prefixTokens`, network-verified); `nCtx` is unchanged.
+- Catalog 2026-11-19.1 (re-measured default.v4 `prefixTokens`, network-verified); `nCtx` is unchanged. Pass-4 verification:
+  catalog 2026-11-20.1 raises the CPU `memoryMb` of LFM3 1.7B to 1,480 and Qwen3.5 0.8B to 880 (WP-10's emulator peak RSS,
+  rounded up; ADR-084); a hub row that shows memory reads it from the catalog, so no text pins the old 1,310 / 770.
 - `:llm` probe facts now include `native.build` and `cpu.variant` (emulator: `libggml-cpu-haswell.so`); `htp.arch` only on
   the phone. Without the native libraries (integration debug APKs) the probe reports the LLM runtime missing.

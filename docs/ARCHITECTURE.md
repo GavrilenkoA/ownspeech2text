@@ -1,6 +1,6 @@
 # Murmur architecture
 
-Version 2.1 · 2026-11-19 (wave-1 integration passes 1-4: ADR-064..083) · Owner: architect. Binding for all work packages (`docs/wp/`). Owner decisions D1-D12 are
+Version 2.1 · 2026-11-20 (wave-1 integration passes 1-4: ADR-064..084) · Owner: architect. Binding for all work packages (`docs/wp/`). Owner decisions D1-D12 are
 quoted verbatim at the top of `docs/DECISIONS.md`; conflicts and their evidence are ADR-nnn there; review findings and
 their resolution are under "Review responses" there. Everything that only the phone can prove: `docs/DEVICE_CHECKLIST.md`
 (steps DC1-DC10).
@@ -246,7 +246,7 @@ truncated and never inserted (`fallback:truncated`).
 |---|---|---|
 | `:asr` dies while Listening | `onServiceDisconnected`/`onBindingDied`, `EPIPE` on the pipe → `ProcessDied(ASR)` | keep recording; re-bind once; new session; replay the session buffer from sample 0; second death → stop at the user's stop, `Failed(ProcessDied(ASR))`, entry kept with audio ("Try again") |
 | `:asr` dies or times out in Finishing | same / `Timeout(ASR_FINAL)` | first time: `shutdown()`, re-bind, replay full PCM to a fresh session, `finish()`; second: Failed with audio |
-| ASR load fails (`EngineLoadFailed`, `UnitUnavailable(NPU)`, process death during load) | `loadAsr` error (a death with a low-memory exit record is `OutOfMemory(ASR)`, ADR-083) | executor: `UnitHealth.markFailed(artifact, unit)` (not for `OutOfMemory`, ADR-066), load `ActiveModels.asrFallback` (the model's other installed artifact) and replay the buffer; bubble keeps Listening. No fallback installed → `AsrLoadFailed(UnitUnavailable(NPU))`: keep recording, at stop "Couldn't load the speech model" + Open → hub row "Download the CPU version (671 MB)"; audio kept |
+| ASR load fails (`EngineLoadFailed`, `UnitUnavailable(NPU)`, process death during load) | `loadAsr` error (a death with a low-memory exit record is `OutOfMemory(ASR)`, ADR-083) | executor: `UnitHealth.markFailed(artifact, unit)` (not for `OutOfMemory`, ADR-066), load `ActiveModels.asrFallback` (the model's other installed artifact) and replay the buffer; bubble keeps Listening. No fallback installed → `AsrLoadFailed(UnitUnavailable(NPU))`: keep recording, at stop "Couldn't load the speech model" + Open → hub row "Download the CPU version (671 MB)"; audio kept. An `OutOfMemory(ASR)` stays `OutOfMemory` (not a unit error): at stop "Couldn't load the speech model" + Try again, audio kept, no mark (ADR-083, ADR-084). A death during a load waits up to 2 s for its exit record before the fallback starts (6.4 row D); each classified death logs `MurmurEngines` `load_death reason=… status=… lmk_report=… waited_ms=… oom=…` (numbers only) |
 | LLM load fails on a unit (`EngineLoadFailed`, rpcmem/VTCM/op rejection, PD refusal, death during load) | `load` error or `ProcessDied(LLM)` during load; a death whose exit record says low memory (lmkd) and a load refused host memory are `OutOfMemory(LLM)`: fallback tried, no mark (ADR-066, ADR-083) | executor: `markFailed(artifact, unit)`, load `ActiveLlm.fallback` (same GGUF on GPU, then CPU: no download), restore or build the prefix; cleanup proceeds if ready within `LLM_READY`; all failed → "Inserted, no cleanup", `skipped:llm_load` |
 | `:llm` dies after it was ready (before cleanup) | `ProcessDied(LLM)` | reload once (`ReloadLlm`: re-bind, load, prefix from disk); second death → no cleanup |
 | `:llm` dies or times out in Polishing | `ProcessDied(LLM)` / adaptive timer | `cancel()`; no `onDone` within 1 s → `shutdown(:llm)`; insert the raw transcript (`skipped:llm_died` / `skipped:timeout`) |
@@ -458,7 +458,7 @@ With the old n_ctx 4,096 this case could not run (review blocker, VERIFIED by to
 | A. 3 s dictation, first after > 60 s idle, NPU path | LLM load (1.05 GB copied into rpcmem, mmap off; UNVERIFIED-ON-DEVICE, estimate 1-3 s) + snapshot load from disk started at the press; after stop = max(0, load_end − stop) + 10 s budget rows | 1.3-1.6 s + 0-0.3 s wait |
 | B. same on the CPU path (Qwen3.5, `use_mmap=0`, 0.5 GB read + repack) | load ≈ 0.5-1.5 s, finished before the stop | ≈ 1.2-1.6 s |
 | C. first dictation after a prompt / preferences edit or a unit change, before the background re-prepare finished | full prefix prefill: LFM3 NPU 3,226 / 2,597 = 1.24 s; LFM3 CPU 3,226 / 368 = 8.8 s; Qwen3.5 CPU 3,116 / 569 = 5.5 s (AI Hub S25) | + max(0, prefill_end − stop); > 10 s → "Inserted, no cleanup" (`skipped:llm_not_ready`) |
-| D. NPU load fails (first time on this phone, if install-time Preparing did not catch it) | fallback to GPU/CPU of the same GGUF (no download) | + one CPU load (≈ 1-2 s [I]) |
+| D. NPU load fails (first time on this phone, if install-time Preparing did not catch it) | fallback to GPU/CPU of the same GGUF (no download). When the failure is a death of the process, the executor first reads its exit record (ADR-083, ADR-084): on a device that reports lmkd kills (`isLowMemoryKillReportSupported`) it polls up to 2 s for the record, so a late or missing record delays the fallback by up to 2 s; without that support it reads once and does not wait | + one CPU load (≈ 1-2 s [I]); after a death + up to 2 s for the exit record (UNVERIFIED-ON-DEVICE: DC measures when the record arrives, then the wait is shortened) |
 
 Preparing (8.5) makes C rare: it rebuilds the snapshot within ≈ 5 s of the edit while no dictation runs. DC8
 measures A-D ("first dictation after 70 s idle, 3 s long" is a scripted case). The 60 s idle default is re-evaluated
@@ -495,8 +495,8 @@ shipped template (WP-10 host test). Every number in section 6 is UNVERIFIED-ON-D
 | `:asr` Parakeet NPU + VAD + OCR | ≈ 0.6-1.0 GB (context binaries 653 MB on disk) + ORT arenas 60-140 MB [I] | catalog memoryMb 900 |
 | `:asr` Parakeet CPU int8 fallback | 1.3 GB | host peak RSS VERIFIED (asr-ocr 3) |
 | `:llm` LFM3 Q4_0 NPU | ≈ 1.1-1.2 GB rpcmem (weights copied, not mmapped) + 77 MiB compute + KV 9,216 × 12 KB = 108 MB + prefix snapshot in RAM ≈ 50 MB | llm spike 3.3, 5.4; KV formula VERIFIED (GGUF dims) |
-| `:llm` LFM3 CPU (`use_mmap=0`) | 1.25 GB at n_ctx 4,096 VERIFIED + 60 MB more KV = 1.31 GB; x86 emulator peak RSS with n_ctx 9,216 and the prefix built: 1.47 GB (WP-10) | catalog memoryMb (1,250: below the emulator peak, re-check on the phone, DC2) |
-| `:llm` Qwen3.5 0.8B CPU | 0.71 GB VERIFIED + 60 MB KV = 0.77 GB (+ ≈ 20 MB DeltaNet state in the snapshot); x86 emulator peak RSS 0.87 GB (WP-10) | catalog memoryMb (710, same caveat) |
+| `:llm` LFM3 CPU (`use_mmap=0`) | 1.25 GB at n_ctx 4,096 VERIFIED + 60 MB more KV = 1.31 GB; x86 emulator peak RSS with n_ctx 9,216 and the prefix built: 1.47 GB (WP-10) | catalog memoryMb 1,480 (catalog 2026-11-20.1: the emulator peak rounded up as a lower bound; re-check on the phone, DC2) |
+| `:llm` Qwen3.5 0.8B CPU | 0.71 GB VERIFIED + 60 MB KV = 0.77 GB (+ ≈ 20 MB DeltaNet state in the snapshot); x86 emulator peak RSS 0.87 GB (WP-10) | catalog memoryMb 880 (same rule and caveat) |
 | `:llm` Qwen3 0.6B/1.7B (full attention, 112 KB/token) | + 1.0 GB KV at 9,216 | catalog memoryMb 1,760 (hedge models) |
 | **Peak total** | **≈ 2.5 GB (NPU+NPU) … 2.3 GB (Parakeet CPU + Qwen3.5 CPU) … 2.8 GB (Parakeet CPU + LFM3 CPU)** | sum |
 | Idle (after 60 s) | `:main` only, ≈ 100 MB | D5 |
