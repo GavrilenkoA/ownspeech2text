@@ -706,6 +706,255 @@ fixed).
   differently (Device-only).
 <!-- END SECTION: Round trip -->
 
+<!-- BEGIN SECTION: Full run plan (owner: round-trip operator) -->
+## Full run plan
+
+The full CPU round trip over the probe set, sized from the measured throughput of the final 80-probe run.
+Operating instructions (launch, progress, stop, resume, mining): `.cache/ml/roundtrip/out/full/RUN.md`.
+Code: `ml/roundtrip/full_plan.py` (the plan), `ml/roundtrip/full_run.sh` (detached launch, status, stop),
+`ml/roundtrip/progress.py`, runner options `--plan`, `--asr-lookahead`, `--stop-file`, `--max-wall-h`. Tests:
+`test_roundtrip_full_plan.py` (5), `test_roundtrip_plan.py` (8), `test_roundtrip_progress.py` (1: weighted work
+line, `--complete-waves`).
+
+### Budget and the numbers it rests on
+
+About 4 h of wall time on this 16-core server at `nice 15`, 8 workers x 2 threads, `--mem-gb 12` in a
+16 GB `tools/heavy` scope (as in the final run). Speeds are the final run's per-worker x-realtime
+(`samples/roundtrip/final80.report.json`, measured inside 8 contended workers): Piper 6.65, Supertonic 1.38,
+Kokoro 0.67 (not in that run: Supertonic's figure scaled by the two systems' `--measure` ratio 2.83 / 5.82);
+ASR from GigaAM-CTC 6.54 down to whisper-medium 0.31. Clip length = words x seconds per word of the same
+TTS and language in the final and local-proof runs (Supertonic 0.40 / 0.49 / 0.53 s for en / ru / mixed,
+Piper 0.32 / 0.39 / 0.44, Kokoro 0.36). The final run kept only **4.15 ASR workers busy on average**
+(8339 worker-s in 2010 s; about 5 before its memory-bound whisper-medium tail): the 12 GB budget fits two
+whisper-medium (4.0 GB each) or one whisper-turbo (3.4 GB) beside a few small models. The plan assumes
+**5 busy workers**; `--max-wall-h 4` stops it at 4 h whatever the server load (the rest stays pending
+and resumable).
+
+The whole set does not fit: all 1,511 sentences with the same voice rules (1,736 clips) through all 12
+models is 102,203 worker-s of ASR, **5.9 h** with TTS at 5 busy workers, and whisper-medium would be 34% of
+it (`full_plan --n 1511 --medium-share 1.0`).
+
+### Sentences: 1,000 of 1,511
+
+1. **Cover**: a greedy set cover picks sentences with the most still-uncovered lexicon entries (ties go to
+   the stratum furthest below its share): 344 sentences cover **all 725 entries** (term surfaces resolved to
+   entries with `probe.lexicon.TermMatcher`, so `задеплоили` counts for `задеплоить`).
+2. **Fill** to 1,000 by stratified sampling over (language, category of the first term, seed / generated),
+   each stratum at its share of the full set.
+
+Result: ru 308, en 268, mixed 424 (full set 465 / 406 / 640, i.e. 66% of each); seed 391, generated 609;
+**1,972 term occurrences** of 725 entries.
+
+| category | entries | sentences in the set (first term) | in the plan | term occurrences in the plan |
+|---|---:|---:|---:|---:|
+| acronyms | 72 | 143 | 94 | 169 |
+| ai_ml_jargon | 82 | 148 | 97 | 185 |
+| ai_ml_jargon_ru | 41 | 129 | 85 | 177 |
+| ai_tools | 52 | 97 | 64 | 114 |
+| cli_commands | 43 | 79 | 52 | 102 |
+| cloud_services | 61 | 114 | 76 | 167 |
+| databases_data | 41 | 69 | 46 | 95 |
+| dev_slang_ru | 81 | 323 | 214 | 405 |
+| devops_infra | 47 | 74 | 49 | 103 |
+| files_config | 33 | 62 | 42 | 77 |
+| hardware | 30 | 48 | 32 | 70 |
+| languages_frameworks | 55 | 82 | 55 | 118 |
+| mobile_android | 33 | 55 | 36 | 79 |
+| model_names | 54 | 88 | 58 | 111 |
+
+### Voices, and the Piper decision
+
+Error-only WER per voice group, averaged over all models, from the existing rows (`mine.align`, clean channel;
+script `.cache/ml/roundtrip/full_plan/scratch/per_voice2.py`):
+
+| voices | lang | final run: clips / error-only WER | local proof (other texts): clips / error-only WER |
+|---|---|---:|---:|
+| piper ru_RU-denis (male) | ru | 11 / 0.242 | 7 / 0.217 |
+| piper ru_RU-dmitri (male) | ru | 16 / 0.282 | 8 / 0.275 |
+| supertonic3 (10 voices) | ru | 27 / 0.068 | 15 / 0.089 |
+| piper ru_RU-denis | mixed | 13 / 0.335 | 11 / 0.394 |
+| piper ru_RU-dmitri | mixed | 13 / 0.356 | 4 / 0.351 |
+| supertonic3 | mixed | 26 / 0.207 | 15 / 0.183 |
+| piper, 11 English voices | en | 27 / 0.108 | 15 / 0.117 |
+| supertonic3 | en | 27 / 0.041 | 15 / 0.033 |
+| kokoro1 | en | - | 15 / 0.042 |
+
+Both Russian Piper voices give 3.5-4x Supertonic's Russian error rate on two independent text sets, and the
+same recognisers make 5.3% error-only WER on real read Russian speech (enrich, Nemotron). Those errors are
+mostly artefacts of the voices. **Decision: Piper's Russian voices never read a sentence's first clip.** They
+read only the second clip of the paired sentences (below), so the primary set is Piper-ru-free, and the pairs
+measure the voice effect on the same text. That caps them at 109 of 841 ru/mixed clips (13%). Piper's English
+voices stay at a third of the English clips: they are worse than Supertonic and Kokoro too (0.108 vs 0.04),
+but they come from real recorded speakers (LibriTTS-R, LibriVox), and the per-TTS tables keep the gap visible.
+
+Assignment, in the plan order, by round-robin counters:
+- `ru`, `mixed`: Supertonic, its ten voices rotated (83-84 clips each).
+- `en`: rotated over Piper (11 voices, 9-10 clips each), Supertonic and Kokoro (27 voices; `am_santa`, a
+  novelty voice, left out): 104 / 102 / 102 clips.
+- **Second voice** for 15% of the sentences of each language (149 sentences): another system than the
+  first; for ru/mixed that can only be Piper (denis / dmitri alternating; Kokoro has no Russian), for en one
+  of the two other systems.
+
+Clips per language and system: ru Supertonic 308 + Piper 46, mixed Supertonic 424 + Piper 63, en Piper 104,
+Supertonic 102, Kokoro 102; **1,149 clips**. The Supertonic rotation runs over ru and mixed together, so each voice
+has 83-84 clips in all but 24-38 of the ru clips and 33-50 of the mixed ones (audit, recomputed from `plan.jsonl`).
+
+### Channel and models
+
+- **Channel**: 20% of the sentences of each language (both clips of a pair) go through `phone_noisy`:
+  247 clips; 902 clean. The two counters line up so that paired sentences are noisy more often: 33% of Piper's
+  Russian clips (36 of 109) against 20% of Supertonic's (145 of 732); en Piper 21%. Compare TTS systems on the
+  clean channel or within pairs (RUN.md has the commands).
+- **ASR**: all 12 CPU models. whisper-medium is 33% of the ASR cost at full coverage and only two of it fit
+  the 12 GB budget at once, so it runs on **50% of the clips (572)**, chosen evenly per (language, TTS
+  system, channel); that brings it to 20% of the ASR work, below the 2-of-8 workers it can hold.
+
+### Arithmetic
+
+| item | value |
+|---|---:|
+| audio: Supertonic / Piper / Kokoro | 5,520 / 1,096 / 517 s = 7,134 s |
+| TTS worker-s (audio / per-worker x-realtime) | 4,935 -> **617 s** on 8 workers |
+| ASR worker-s | 56,588 -> **11,318 s** at 5 busy workers |
+| expected wall | **11,935 s = 3.3 h** (the 4 h cap leaves 0.7 h for load) |
+| expected rows | **10,605** |
+
+| ASR model | rows | worker-s | | ASR model | rows | worker-s |
+|---|---:|---:|---|---|---:|---:|
+| whisper-medium (50%) | 572 | 11,357 | | parakeet-ultra-0.6b | 1,149 | 1,694 |
+| whisper-large-v3-turbo | 1,149 | 11,292 | | parakeet-tdt-0.6b-v3 | 1,149 | 1,637 |
+| whisper-small | 1,149 | 9,450 | | nemotron-speech-streaming-en | 308 | 1,406 |
+| qwen3-asr-0.6b | 1,149 | 6,874 | | gigaam-v3-e2e-rnnt | 841 | 997 |
+| nemotron-3.5-asr-streaming | 1,149 | 6,572 | | gigaam-v3-e2e-ctc | 841 | 843 |
+| distil-large-v3.5 | 308 | 2,549 | | t-one | 841 | 1,917 |
+
+### Order for early cut-off
+
+The run can be stopped at any moment (the cap, `full_run.sh stop`, a crash) and the rows written so far are
+a balanced sample up to the look-ahead: the cheap models may be up to 2 waves ahead of whisper-medium / -turbo, so
+for equal sentence sets per model keep only the complete waves (`python -m ml.roundtrip.progress --complete-waves
+OUT`):
+- **Sentence order**: within a language, round-robin over categories (each shuffled); languages merged in
+  proportion to their counts. Voices, second voices, channel and the whisper-medium share are assigned along
+  this order by counters, so every prefix has the same mix. Tested: in the first 1, 3 and 6 waves each
+  language is within 6 points of its overall share and all ten Supertonic voices are present.
+- **Waves** of 40 sentences (25 waves of ~46 clips, ~424 jobs each, 4% of the run).
+- **TTS** first, wave by wave (about 10 minutes at the final run's speed).
+- **ASR**: a shard never spans two waves; shards go out wave by wave and, inside a wave, round-robin over the
+  models (the model with the most work in that wave first). The previous order (the critical-path model
+  first, whole) would have finished whisper-medium before starting anything else. The memory gate is
+  unchanged, so a capped heavy model lets later shards go first, but only within `--asr-lookahead` (2) waves
+  of the oldest unfinished wave (added after the 5% check, below). Tested
+  (`test_interleaved_shards_cover_every_model_in_each_wave_before_the_next`,
+  `test_plan_rows_are_written_wave_by_wave_with_models_interleaved`).
+
+### Launch, detachment, resume
+
+`ml/roundtrip/full_run.sh start` builds the plan if missing (`python -m ml.roundtrip.full_plan --n 1000
+--out .cache/ml/roundtrip/out/full/plan.jsonl`, deterministic), then starts `setsid nohup tools/heavy nice -n 15
+full_run.sh _inner` (MURMUR_MEM=16G): a transient systemd user scope whose parent is `systemd --user` (the
+user has linger enabled), not the calling shell. `_inner` writes `runner.pid`, runs the runner and then
+`DONE` with `exit=<code>`. Rerunning `start` continues: the runner skips rows already written (key
+probe/system/voice/channel/model) and reuses audio. `stop` creates `STOP`; the runner submits no new shard,
+lets running shards finish and exits with the rest pending. Errors go to `roundtrip/full.errors.jsonl` as they
+happen, so `full_run.sh status` can show them while the run goes on. Checked on a 3-clip smoke plan: detached
+(PPID = systemd --user, own session and scope, nice 15), 5 rows, `DONE` = `exit=0`, rerun "0 pending ASR jobs (5
+already done)", no duplicates.
+
+### Measured at launch (2026-11-19)
+
+Launched 01:56 MSK (`full_run.sh start`, `--max-wall-h 4`). The server was shared with other users' builds and
+LLM jobs at nice 0 (load average 40-110 on 16 cores); at nice 15 the run got about 1.6 cores at first.
+
+- **TTS**: 1,149 / 1,149 clips in 3,976 s (66 min, planned 10 min), 0 errors. Per-worker x-realtime
+  Supertonic 0.23, Piper 0.95, Kokoro 0.12 (final run: 1.38 / 6.65 / 0.67), so 5-7x slower than planned.
+- **ASR, first 23 min**: 753 rows, 0 errors. The check at 5% showed the cheap models two waves ahead of
+  whisper-medium / -turbo (wave 0: medium 5 of 19, turbo 22 of 44, GigaAM already done with wave 2): the memory
+  gate let small shards of later waves overtake. Fix: `--asr-lookahead` (default 2): no shard starts more than
+  2 waves after the oldest wave with a queued or running shard
+  (`test_lookahead_keeps_cheap_models_within_k_waves_of_a_memory_bound_one`, which also shows the old
+  scheduler breaking the bound). The run was stopped with `full_run.sh stop` (03:22; running shards drained by
+  03:25:49, `DONE` = `exit=1`, report `stopped: stop file`, 0 errors) and resumed at 03:26 with
+  `MAX_WALL_H=2.5`, so both invocations together stay within about 4 h (cap at about 05:56). The resume found
+  9,852 pending and 753 done jobs; no duplicates.
+- Measured per-worker ASR x-realtime in the first invocation (final run in brackets): whisper-medium 0.09 (0.31),
+  turbo 0.16 (0.63), small 0.29 (0.75), distil 0.20 (0.64), qwen3-asr 0.40 (1.04), Nemotron 0.37 (1.09),
+  Parakeet 1.18-1.46 (4.2-4.4), GigaAM 1.7 (5.5-6.5), T-one 1.06 (2.87): 2.7-3.9x slower.
+- **Rate after the resume**: 594 jobs in 26 min = **1,376 jobs/h** (03:52: 1,347 / 10,605 jobs done, 12.7%).
+  **Corrected by the audit (04:03)**: jobs are not a unit of work (a whisper-medium row costs ~20x a GigaAM row)
+  and the cheap models ran 2 waves ahead, so jobs/h overstated progress. Weighted by the plan's expected
+  worker-seconds per row, 12.2% of the work was done when 14.5% of the jobs were; at the work rate since 03:26 the
+  cap reaches about 33-36% of the work (~3,600 jobs at the plan's mix, not ~4,200), the uncapped end would be
+  about 11:30-11:45, and the rest after the cap needs about 5 h at that load. Measured per-row worker time in this
+  invocation was 2.0-3.6x the plan's (whisper-medium 47.9 s vs 19.9 s); the scope got 1-2 of the 16 cores at load
+  45-55. `full_run.sh status` now prints this weighted `work` line and the `cap` projection.
+- **Row checks** (03:52, `.cache/ml/roundtrip/full_plan/scratch/check_rows.py`): 1,347 rows, 1,347 unique keys,
+  0 empty hypotheses, 0 errors; waves 0-1 complete or nearly (403/403, 400/435), wave 3 started, nothing beyond;
+  all 12 models, en 300 / ru 439 / mixed 608 rows, Supertonic 1,019 / Piper 235 / Kokoro 93, clean 1,079 /
+  phone_noisy 268, 39 voices so far. Every model routed only to its languages (no English-only model on ru/mixed,
+  no GigaAM/T-one on en).
+- **What the voice read** (`tts_input`): Supertonic on ru/mixed sentences with digits read `text_numbers` (11) or
+  `tts_text` (5) whenever the text has a number token, and plain `text` (10) only when the digits are part of a
+  name (H100, Gemini 2.5, Битрикс24). **Audit correction**: that is not "0 clips read raw digits". Over the plan,
+  72 of the 732 Supertonic ru/mixed clips still have digits in what the voice reads: inside a Latin name (H100,
+  A100, LPDDR5X, Qwen3-ASR, R8) or right after one, which the rule leaves alone ("RTX 5090", "Pixel 9", "Wi-Fi 7",
+  "Llama 4", "Material 3", "Gemini 2.5": 13 clips). In the rows so far Supertonic drops or garbles many of them:
+  "H100" -> "Hitsun", "A100" -> "Ace of Cloud", "B200" -> "бидвиг ста", "R8" -> "arocium", "Gemini 2.5" -> "Gemini
+  2. Pass", with the digits in 0 of 8-10 models' hypotheses (K2, S3, Битрикс24 survive in 6-7 of 9). They are listed
+  in `.cache/ml/roundtrip/out/full/flags_supertonic_digit_names.jsonl` for the miner. For the next run: respell
+  digit-bearing Latin names for Supertonic under `lang=ru` (not during this run: `tts_input` is recomputed on every
+  resume while the audio is reused). Times come back right ("Поставь на 15:30 ..."
+  -> GigaAM "Поставь на 15:30 ..."). "Битрикс24" read as written is heard as "Bitrix 24" / "битрик двадцать
+  четыре". **Known artefact**: "1С" read as written is garbled by Supertonic ("с 1С декодер" -> "Adrices
+  Decoder", "адиса с декодер"); 4 planned clips contain it. Respelling it ("один эс") is for the probe set's
+  `tts_text` rules; it was not changed during the run.
+
+### GPU pod probe (`ml/roundtrip/pod_probe.sh`) — UNVERIFIED-ON-GPU
+
+The hook `ml/pod/probe.sh` runs when `MURMUR_PROBE_CMD` is unset. GPU TTS only (Qwen3-TTS 1.7B Base and
+Chatterbox multilingual, cloning the 10 FLEURS reference clips); ASR runs later on this server's CPU.
+1. Own venv per system on the volume (`$W/venv-rt-qwen3tts`, `$W/venv-rt-chatterbox`, uv, Python 3.12), torch
+   checked against the GPU.
+2. Reference clips fetched on the pod (`fetch_refvoices --ru 6 --en 4`, same seed and FLEURS revision as here)
+   unless `RT_REF_DIR` points to a copy.
+3. Plans (`full_plan --gpu-system S --gpu-n N --ref-dir ...`): the first N sentences of the CPU run's order
+   (so they pair with CPU clips of the same text), clean, each voice cloned from a clip of the sentence's
+   language; ASR model lists as in the CPU plan.
+4. **Sizing**: 100 sentences per system = 200 utterances (about 1,230 s of audio at Supertonic's length per
+   word), `--skip-asr`, Qwen3-TTS `--tts-batch 8 --tts-shard 32`, Chatterbox unbatched; timed.
+5. **Main**: up to 300 sentences per system (the sizing 100 are reused), cut to what the remaining budget
+   allows at the per-sentence time measured in step 4.
+6. Summary `$W/roundtrip/out/pod_probe.summary.json` (clips per voice, runner reports with x-realtime).
+
+Budget: **30 pod minutes in total** (`POD_PROBE_BUDGET_MIN`), counted from the script start over all
+invocations (setup included) in `$W/roundtrip/.pod_probe_used_s`; every step checks it, synthesis gets
+`--max-wall-h` for the remainder plus a hard `timeout`; when it runs out the script exits 0 with what it has.
+Resumable: existing clips are reused. Output layout = the runner's (`$W/roundtrip/out/audio/<system>/<voice>/
+<probe>.clean.flac`), pulled with `WITH_PROBE=1 ml/pod/sync_results.sh`; then on this server
+`run_roundtrip --plan <pulled>/roundtrip/out/pod_plan_<system>_<N>.jsonl --tts <system> --ref-dir
+<pulled>/roundtrip/refvoices --out <pulled>/roundtrip/out --asr all ...` transcribes them (the GPU drivers list
+their voices without torch, and existing audio is never re-synthesised).
+
+Checked here: `bash -n`; argument checks (unknown argument, unknown system, sizing > max: exit 2);
+`--dry-run` builds the four plans from the local reference clips (100 and 300 clips per system, 10 voices),
+validates them with the runner's `load_plan`, prints every command with its budget, exits 0; a 1-minute
+budget stops at the first step. The dry run found and fixed one bug (a `find` on a missing directory under
+`pipefail` ended the script). Audit fixes (2026-11-19): every step now runs under `timeout` for the remaining
+budget (before, `uv venv`, `uv pip install` and the FLEURS fetch had no time limit, so the 30 minutes were not a hard
+stop); a failed step exits with its code instead of 0 (before, a failed install exited 0 and `ml/pod/probe.sh` then
+marked the probe done); the torch check launches a real CUDA kernel and prints the GPU's arch and torch's arch list
+(`is_available()` alone is true for a build without sm_120 kernels); the plan check uses a venv python unless the
+host has numpy, scipy and soundfile (it imports the runner). Checked here: dry run exit 0 with 4 plans; a step cut by
+the budget exits 0 in 3 s, a failing step exits 1 (function-level test). `POD_PROBE_MAX_N` can be raised above
+300 by env; 300 is the default, not a hard cap. Added for the pod: Qwen3-TTS falls back from `flash_attention_2` to `sdpa` when
+flash-attn is not installed (the venv has none; transformers would raise at load), `MURMUR_QWEN_ATTN`
+overrides (`gpu_tts.choose_attn`, tested). `shellcheck` is not installed here.
+
+UNVERIFIED-ON-GPU: venv installs and their torch/CUDA build for the 5090 (chatterbox-tts 0.1.7 pins its own
+torch; whether that build has sm_120 kernels is not checked), model downloads (~8 GB) within the budget, load,
+speed, batching memory, output quality, the 30-minute fit.
+<!-- END SECTION: Full run plan -->
+
 <!-- BEGIN SECTION: Mining (owner: mining agent) -->
 ## Mining
 

@@ -307,3 +307,19 @@ def test_fleurs_reference_clip_choice_is_deterministic_and_balanced():
     assert all(4.0 <= c.seconds <= 12.0 for c in a)
     assert len({c.text for c in a}) == 6  # one clip per transcript
     assert [c.gender for c in a].count("male") == 3  # genders alternate
+
+
+def test_qwen3_attention_falls_back_to_sdpa_without_flash_attn(monkeypatch):
+    import importlib.util
+
+    from ml.roundtrip.tts.gpu_tts import choose_attn
+
+    monkeypatch.delenv("MURMUR_QWEN_ATTN", raising=False)
+    real = importlib.util.find_spec
+    monkeypatch.setattr(importlib.util, "find_spec", lambda n, *a: None if n == "flash_attn" else real(n, *a))
+    assert choose_attn("flash_attention_2") == "sdpa"
+    assert choose_attn("eager") == "eager"
+    monkeypatch.setattr(importlib.util, "find_spec", lambda n, *a: object() if n == "flash_attn" else real(n, *a))
+    assert choose_attn("flash_attention_2") == "flash_attention_2"
+    monkeypatch.setenv("MURMUR_QWEN_ATTN", "sdpa")
+    assert choose_attn("flash_attention_2") == "sdpa"

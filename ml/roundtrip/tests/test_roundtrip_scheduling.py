@@ -109,15 +109,24 @@ def test_one_model_never_takes_the_whole_memory_budget():
     mem = {"heavy": 4, "light": 1}
     state = {"heavy": 0, "peak_heavy": 0, "light_started_while_heavy": False}
     lock = threading.Lock()
+    light_started = threading.Event()
 
     def job(m):
         with lock:
             if m == "heavy":
                 state["heavy"] += 1
                 state["peak_heavy"] = max(state["peak_heavy"], state["heavy"])
-            elif state["heavy"]:
-                state["light_started_while_heavy"] = True
-                state["heavy_when_light"] = max(state.get("heavy_when_light", 0), state["heavy"])
+                if not light_started.is_set():
+                    state["heavy_before_light"] = max(state.get("heavy_before_light", 0), state["heavy"])
+            else:
+                light_started.set()
+                if state["heavy"]:
+                    state["light_started_while_heavy"] = True
+                    state["heavy_when_light"] = max(state.get("heavy_when_light", 0), state["heavy"])
+        # a heavy shard stays running until a light one has started (a fixed 20 ms sleep was flaky on a loaded
+        # server: the heavy threads could finish before the light ones were scheduled)
+        if m == "heavy":
+            light_started.wait(1)
         time.sleep(0.02)
         with lock:
             if m == "heavy":
@@ -129,7 +138,9 @@ def test_one_model_never_takes_the_whole_memory_budget():
         got = list(rr._bounded_submit(pool, shards, 8, 12, mem, lambda m, part: (job, m)))
     assert len(got) == 10
     # while light shards wait, heavy may hold 2/3 of the 12-unit budget (2 x 4), not all of it (3 x 4)
-    assert state["light_started_while_heavy"] and state["heavy_when_light"] == 2
+    # (thread start order is not fixed, so a light shard may start before the second heavy one has counted itself)
+    assert state["light_started_while_heavy"] and 1 <= state["heavy_when_light"] <= 2
+    assert state["heavy_before_light"] <= 2  # without the cap 3 heavy shards start before any light one
 
 
 def test_the_cap_lifts_when_only_one_model_is_left():
