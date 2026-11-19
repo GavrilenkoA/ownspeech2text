@@ -545,10 +545,13 @@ class DictationOrchestrator(
             return
         }
         r.retryEntry = entry
+        // Like the live pump: buffered for a replay, and fed to the ASR session when it attached while this was read.
         var i = 0
         while (i < pcm.size) {
             val end = minOf(i + PcmFormat.FRAME_SAMPLES, pcm.size)
-            r.buffer += PcmChunk(pcm.copyOfRange(i, end), i.toLong())
+            val chunk = PcmChunk(pcm.copyOfRange(i, end), i.toLong())
+            r.buffer += chunk
+            r.asrSession?.accept(chunk)
             i = end
         }
         val ms = PcmFormat.samplesToMs(pcm.size.toLong())

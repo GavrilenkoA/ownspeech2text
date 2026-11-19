@@ -23,6 +23,10 @@ import app.murmur.core.model.Stage
  * release ignored by row 10); a start input in Done also accepts NotificationStart / InAppStart; row 26's speech
  * test applies when the ASR measures speech (SessionPlan.speechMeasured): a streaming model reports speechMs = 0
  * ("not measured", Transcript KDoc), so for it only blank text or the precheck make NoSpeech.
+ * Row 49's Retry of stored audio (WP-11 Deliver 4, "normal flow from Finishing") opens a new session at once instead of
+ * Idle + a fire-and-forget effect: Arming(retryOf) is born stopped, MicStarted brings the stored recording, row 9 takes
+ * it to Finishing (Transcribing), then Polishing and Delivering as usual; a Retry tapped while RecordFailure is still
+ * writing waits for FailureRecorded; with no recording kept, Retry is a new dictation (as for NoSpeech).
  */
 object DictationMachine {
 

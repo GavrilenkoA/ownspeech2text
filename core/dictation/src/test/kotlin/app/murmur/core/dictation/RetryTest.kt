@@ -74,6 +74,19 @@ class RetryTest {
         h.assertNoInternalErrors()
     }
 
+    /** The ASR is warm and attaches at once; the stored audio arrives later and still reaches it, all of it. */
+    @Test fun aSlowAudioReadStillFeedsTheWholeRecording() = runTest {
+        val h = harness()
+        h.dictate()                                                          // :asr warm with the model loaded
+        val first = h.only()
+        h.w.history.update(first.copy(status = EntryStatus.FAILED, finalText = null, failureCode = loadError.code))
+        h.w.audioStore.readDelayMs = 800
+        assertEquals(Outcome.Ok(first.id), h.o.retry(first.id))
+        assertEquals(2_800L * 16, h.w.engines.asr.sessions.last().samples)
+        assertEquals(EntryStatus.INSERTED, h.only().status)
+        h.assertNoInternalErrors()
+    }
+
     @Test fun aRetryThatFailsAgainShowsTheErrorAgainAndKeepsTheEntry() = runTest {
         val h = harness()
         val id = EntryId(h.failToLoad())

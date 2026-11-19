@@ -97,7 +97,8 @@ class InMemoryBenchmarkRepository : BenchmarkRepository {
     override suspend fun save(record: BenchmarkRecord) { rows.value = rows.value + record }
 }
 
-class InMemoryAudioStore : AudioStore {
+/** [readDelayMs] = how long readPcm takes (coroutine time; the real store decodes Ogg/Opus). */
+class InMemoryAudioStore(var readDelayMs: Long = 0) : AudioStore {
     val files = mutableMapOf<String, ShortArray>()
     private val refs = mutableMapOf<String, AudioRef>()
     override fun newWriter(key: String): AudioWriter = object : AudioWriter {
@@ -113,6 +114,9 @@ class InMemoryAudioStore : AudioStore {
     }
     override suspend fun delete(ref: AudioRef) { files.remove(ref.path); refs.remove(ref.path) }
     override suspend fun listAll(): List<AudioRef> = refs.values.toList()
-    override suspend fun readPcm(ref: AudioRef): ShortArray? = files[ref.path]
+    override suspend fun readPcm(ref: AudioRef): ShortArray? {
+        if (readDelayMs > 0) kotlinx.coroutines.delay(readDelayMs)
+        return files[ref.path]
+    }
     override suspend fun exists(ref: AudioRef) = ref.path in files
 }
