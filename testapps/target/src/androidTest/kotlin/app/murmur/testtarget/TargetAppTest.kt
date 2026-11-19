@@ -30,9 +30,12 @@ class TargetAppTest {
         return ParcelFileDescriptor.AutoCloseInputStream(pfd).use { it.readBytes().decodeToString() }
     }
 
+    /** Every TGT line since [start] cleared the log. */
+    private fun allLines(): List<String> = shell("logcat -d -v raw -s ${Tgt.TAG}:I").lines().map { it.trim() }
+
     /** TGT lines logged after the latest `open=<target>`. */
     private fun linesSinceOpen(target: String): List<String>? {
-        val lines = shell("logcat -d -v raw -s ${Tgt.TAG}:I").lines().map { it.trim() }
+        val lines = allLines()
         val from = lines.indexOfLast { it == "open=$target" }
         return if (from < 0) null else lines.drop(from + 1)
     }
@@ -71,8 +74,9 @@ class TargetAppTest {
 
     private fun typedTextIsLogged(target: String) {
         start(target)
-        // The web targets focus their field 300 ms after load; key events before that would go nowhere.
-        SystemClock.sleep(if (target.startsWith("web")) 1_500 else 500)
+        // The web targets focus their field by script after the page loaded; key events before that would go nowhere.
+        if (target.startsWith("web")) waitFor("focus=$target", timeoutMs = 20_000) { allLines().lastOrNull { it == "focus=$target" } }
+        SystemClock.sleep(500)
         shell("input text hello")
         val last = waitFor("text=hello from $target") { linesSinceOpen(target)?.lastOrNull { it == "text=hello" } }
         assertEquals("text=hello", last)

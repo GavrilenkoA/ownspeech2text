@@ -33,8 +33,12 @@ object TargetApp {
         val out = E2e.shell("am start -W --activity-clear-task -n ${target.component}$extras")
         assertTrue(out, out.contains("Status: ok"))
         E2e.waitFor("TGT open=${target.id}", 10_000, pollMs = 100) { linesSinceMark().takeIf { "open=${target.id}" in it } }
-        // Web targets focus their field 300 ms after the page loaded; every target needs the IME up for the bubble.
-        SystemClock.sleep(if (target.id.startsWith("web")) 1_500 else 700)
+        // Web targets focus their field by script once the page loaded (`TGT focus=<target>`, seconds on a loaded
+        // emulator); every target needs the IME up for the bubble.
+        if (target.id.startsWith("web")) {
+            E2e.waitFor("TGT focus=${target.id}", 20_000, pollMs = 100) { linesSinceMark().takeIf { "focus=${target.id}" in it } }
+        }
+        SystemClock.sleep(700)
         if (E2e.dismissSystemDialogs()) SystemClock.sleep(500)
         E2e.waitUntil("the target window has the focus (focused: ${focusedPackage()})", 5_000, pollMs = 100) { focusedPackage() == PKG }
     }

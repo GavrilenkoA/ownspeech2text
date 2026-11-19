@@ -21,7 +21,7 @@ class WebActivity : Activity() {
         target = if (kind == KIND_CONTENTEDITABLE) Tgt.WEB_CONTENTEDITABLE else Tgt.WEB_INPUT
         val web = WebView(this)
         web.settings.javaScriptEnabled = true
-        web.addJavascriptInterface(Bridge(), "Tgt")
+        web.addJavascriptInterface(Bridge(target), "Tgt")
         web.loadDataWithBaseURL("https://target.invalid/", page(kind), "text/html", "utf-8", null)
         setContentView(web)
         web.requestFocus()
@@ -48,6 +48,7 @@ class WebActivity : Activity() {
               const f = document.getElementById('f');
               const read = () => (f.value !== undefined ? f.value : f.innerText);
               f.addEventListener('input', () => Tgt.changed(read()));
+              f.addEventListener('focus', () => Tgt.focused());
               setTimeout(() => { f.focus(); }, 300);
             </script></body></html>"""
     }
@@ -56,8 +57,9 @@ class WebActivity : Activity() {
     private fun escape(s: String) =
         s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;").replace("'", "&#39;")
 
-    private class Bridge {
+    private class Bridge(private val target: String) {
         @JavascriptInterface fun changed(text: String) = Tgt.text(text)
+        @JavascriptInterface fun focused() = Tgt.focus(target)
     }
 
     companion object {

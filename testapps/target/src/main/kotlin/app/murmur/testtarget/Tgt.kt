@@ -14,7 +14,9 @@ import android.widget.TextView
 /**
  * The receiving side of every end-to-end test. Each target logs, on tag `TGT`:
  * - `open=<target>` when its window comes to the front (so a test knows which field the following lines belong to);
- * - `text=<full field text>` after every change of its field (insertion is verified here, not through Murmur).
+ * - `text=<full field text>` after every change of its field (insertion is verified here, not through Murmur);
+ * - web targets only: `focus=<target>` when the page's field got the focus (it is focused by script after the page
+ *   loaded, which takes seconds on a loaded emulator; native targets focus their field in onCreate).
  * Read with `adb logcat -d -v raw -s TGT:I`. The format is shared with :platform:a11y's tests (WP-02), which parse
  * lines starting with `text=`.
  */
@@ -42,6 +44,7 @@ object Tgt {
 
     fun open(target: String) = Log.i(TAG, "open=$target")
     fun text(text: String) = Log.i(TAG, "text=$text")
+    fun focus(target: String) = Log.i(TAG, "focus=$target")
 }
 
 internal fun Activity.prefill(): Pair<String, Int>? {
