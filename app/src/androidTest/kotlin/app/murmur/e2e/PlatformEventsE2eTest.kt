@@ -35,6 +35,12 @@ class PlatformEventsE2eTest : DictationTest() {
 
     private val doneTimeoutMs get() = if (Pipeline.fakes != null) 15_000L else 240_000L
 
+    /** The ASR of the running dictation has its model loaded (the fakes load at once; GigaAM on the emulator in seconds). */
+    private fun awaitAsrReady() =
+        E2e.waitUntil("ASR loaded (AsrReadiness.Ready)", if (Pipeline.fakes != null) 10_000L else 60_000L, pollMs = 50) {
+            rec.enginesOf(rec.state)?.asr is app.murmur.core.dictation.AsrReadiness.Ready
+        }
+
     private fun assertInsertedRow() {
         assertInserted(rec.awaitDone(doneTimeoutMs), noCleanup = false)
         TargetApp.awaitText("inserted text") { it.isNotBlank() }
@@ -91,12 +97,17 @@ class PlatformEventsE2eTest : DictationTest() {
         E2e.report("events.call.outcome", outcome::class.simpleName!!)
     }
 
-    /** (d) :asr dies while Listening: re-bind + replay of the session buffer, the dictation still ends Inserted. */
+    /**
+     * (d) :asr dies while Listening with its model loaded: re-bind + replay of the session buffer, the dictation still
+     * ends Inserted. The kill waits for AsrReadiness.Ready: on the real engines the model load takes seconds (GigaAM
+     * 3-7 s on the emulator) and a kill inside it is a different case (a death during a load, [AsrLoadDeathE2eTest]).
+     */
     @Test
     fun asrDeathWhileListeningIsRecovered() {
         val sessionsBefore = Pipeline.fakes?.asr?.sessions?.size
         dictate(listenMs = 4_500) {
-            SystemClock.sleep(1_500)
+            awaitAsrReady()
+            SystemClock.sleep(1_000)
             E2e.report("events.asr_kill", Pipeline.crash(InferProcess.ASR))
             E2e.waitUntil("ASR restarted (asrCrashes = 1)", 15_000, pollMs = 50) { rec.enginesOf(rec.state)?.asrCrashes == 1 }
             assertTrue("still Listening: ${rec.state}", rec.state is DictationState.Listening)
@@ -115,6 +126,7 @@ class PlatformEventsE2eTest : DictationTest() {
     fun secondAsrDeathFailsWithAudio() {
         val sessionsBefore = Pipeline.fakes?.asr?.sessions?.size
         dictate(listenMs = 5_000) {
+            awaitAsrReady()
             SystemClock.sleep(1_000)
             val first = Pipeline.crash(InferProcess.ASR)
             E2e.waitUntil("first ASR crash counted", 15_000, pollMs = 50) { rec.enginesOf(rec.state)?.asrCrashes == 1 }
@@ -148,6 +160,32 @@ class PlatformEventsE2eTest : DictationTest() {
         val row = assertEntry(EntryStatus.FAILED)
         assertEquals(MurmurError.ProcessDied(InferProcess.ASR).code, row.failureCode)
         assertEquals("nothing typed into the target", null, TargetApp.lastText())
+    }
+
+    /**
+     * (d'') :asr dies while Finishing a long dictation (WP-11's proposed case, ADR-069): the session is re-bound and the
+     * recording replayed, the death is counted once (asrCrashes 1, not 2: the failed finish() and the death are one
+     * event), and the text is inserted. On the fakes finish() takes 3 s (a long tail decode) so the kill lands in it; on
+     * the real engines the kill follows the first Finishing state as fast as the test can see it.
+     */
+    @Test
+    fun asrDeathDuringFinishingIsCountedOnce() {
+        val fakes = Pipeline.fakes
+        val sessionsBefore = fakes?.asr?.sessions?.size
+        if (fakes != null) {
+            Pipeline.fakeWorld(llmMsPerWord = 250, wav = Fixtures.toneBurst(totalMs = 12_000, speechMs = 11_000))
+            fakes.asr.finishDelayMs = 3_000
+        }
+        dictate(listenMs = if (fakes != null) 10_000 else 8_000)
+        rec.awaitState("Finishing", 10_000) { it as? DictationState.Finishing }
+        E2e.report("events.asr_kill_finishing", Pipeline.crash(InferProcess.ASR))
+        assertInsertedRow()
+        val crashes = rec.states.mapNotNull { rec.enginesOf(it.value)?.asrCrashes }
+        assertEquals("one death, counted once (asrCrashes over the states: ${crashes.distinct()})", 1, crashes.maxOrNull())
+        if (fakes != null) {
+            assertEquals("one re-bound session after the death", sessionsBefore!! + 2, fakes.asr.sessions.size)
+            fakes.asr.finishDelayMs = 0
+        }
     }
 
     /** (e) :llm dies during Polishing: the raw transcript is inserted, "Inserted, no cleanup" (skipped:llm_died). */

@@ -34,6 +34,9 @@ object Pipeline {
         val fakes = requireFakes()
         fakes.llm.delayPerPieceMs = llmMsPerWord
         fakes.llm.hang = false
+        // Knobs a test may have set (one instrumentation run shares one :main and so one set of fakes).
+        fakes.asr.finishDelayMs = 0
+        fakes.asr.loadError = null
         runBlocking { E2e.container.settings.update { it.copy(debugIgnoreMemoryGate = true, debugTimeoutScale = 1f) } }
         Fixtures.installCapture(wav)
         return fakes

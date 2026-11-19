@@ -36,6 +36,8 @@ object Bubble {
     val finishText: String by lazy { string("bubble_finish_cd") }
     val insertedText: String by lazy { string("bubble_inserted") }
     val polishingText: String by lazy { string("bubble_polishing") }
+    /** The Error pill's action for a failure with the recording kept (WP-03 `bubble_action_retry`). */
+    val retryText: String by lazy { string("bubble_action_retry") }
 
     private fun find(desc: String): UiObject2? = E2e.device.findObject(By.desc(desc))
 
@@ -54,6 +56,15 @@ object Bubble {
         val pill = E2e.waitFor("Listening pill '$finishText'; overlays now: ${overlayTexts()}", timeoutMs, pollMs = 100) { find(finishText) }
         E2e.note("tap bubble (finish) at ${pill.visibleBounds}")
         pill.click()
+    }
+
+    /** Tap on the action button of a result pill ([retryText] on an Error pill). */
+    fun tapAction(label: String, timeoutMs: Long = 5_000) {
+        val action = E2e.waitFor("pill action '$label'; overlays now: ${overlayTexts()}", timeoutMs, pollMs = 50) {
+            E2e.device.findObject(By.desc(label)) ?: E2e.device.findObject(By.text(label))
+        }
+        E2e.note("tap bubble action '$label' at ${action.visibleBounds}")
+        action.click()
     }
 
     /** Overlay windows of app.murmur: the bubble pill and its cancel button (TYPE_ACCESSIBILITY_OVERLAY). */
