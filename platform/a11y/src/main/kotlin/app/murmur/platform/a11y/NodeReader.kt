@@ -59,7 +59,8 @@ internal class NodeReader(private val service: MurmurAccessibilityService) {
         return null
     }
 
-    fun inputFocusWindowId(): Int? = service.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)?.windowId?.takeIf { it >= 0 }
+    fun inputFocus(): FocusWindow? = service.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+        ?.takeIf { it.windowId >= 0 }?.let { FocusWindow(it.windowId, it.packageName?.toString()) }
 
     /** PackageManager label (needs <queries> LAUNCHER, ADR-021); null when the package is not visible (launcher). */
     fun label(pkg: String): String? = runCatching {

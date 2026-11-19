@@ -79,6 +79,22 @@ class WindowsTest {
     }
 
     @Test
+    fun displayCaptureAlsoExcludesOtherAppsWindowsOfTheTarget() {
+        // Split screen: the target on top, another app below, plus a root-less application window.
+        val ws = listOf(
+            w(1, app, focused = true, pkg = "app.target", bounds = Rect(0, 0, 1968, 1090)),
+            w(2, app, pkg = "com.other", bounds = Rect(0, 1094, 1968, 2184)),
+            w(3, app, pkg = null, bounds = Rect(100, 100, 200, 200)),
+            w(4, ime, bounds = Rect(0, 1343, 1968, 2184)),
+            w(5, app, display = 1, pkg = "com.other", bounds = Rect(0, 0, 50, 50)), // other display
+        )
+        val rects = ExclusionRects.of(ws, "app.murmur", displayId = 0, displayW = 1968, displayH = 2184, targetPkg = "app.target")
+        assertEquals(listOf(Rect(0, 1094, 1968, 2184), Rect(100, 100, 200, 200), Rect(0, 1343, 1968, 2184)), rects)
+        // Without a target (the snapshot's own rectangles), application windows stay in.
+        assertEquals(listOf(Rect(0, 1343, 1968, 2184)), ExclusionRects.of(ws, "app.murmur", 0, 1968, 2184))
+    }
+
+    @Test
     fun clipDropsRectanglesOutsideTheFrame() {
         assertNull(ExclusionRects.clip(Rect(2000, 0, 2100, 50), 1968, 2184))
         assertEquals(Rect(0, 0, 10, 10), ExclusionRects.clip(Rect(-5, -5, 10, 10), 1968, 2184))

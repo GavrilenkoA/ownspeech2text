@@ -19,8 +19,10 @@ import app.murmur.platform.overlay.OverlayHost
 import app.murmur.platform.overlay.VisibilityInput
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.android.asCoroutineDispatcher
+import kotlinx.coroutines.asExecutor
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -77,10 +79,10 @@ private class OverlayBubbleSurface(private val host: OverlayHost) : BubbleSurfac
  */
 class MurmurAccessibilityService : AccessibilityService() {
     private val ioThread = HandlerThread("a11y-io")
-    internal lateinit var io: Handler
-        private set
-    internal lateinit var ioDispatcher: CoroutineDispatcher
-        private set
+    private lateinit var io: Handler
+    /** Node reads, screenshots and their callbacks; survives onDestroy without cancelling or stranding callers. */
+    internal val lane = IoLane({ io.post(it) }, Dispatchers.Default.asExecutor())
+    internal val ioDispatcher: CoroutineDispatcher get() = lane.dispatcher
     private val main = Handler(Looper.getMainLooper())
     private var scope: CoroutineScope? = null
 
@@ -104,7 +106,6 @@ class MurmurAccessibilityService : AccessibilityService() {
         super.onCreate()
         ioThread.start()
         io = Handler(ioThread.looper)
-        ioDispatcher = io.asCoroutineDispatcher("a11y-io")
     }
 
     override fun onCreateInputMethod(): InputMethod = MurmurInputMethod(this, ::requestFocusRead).also { ime = it }
@@ -162,6 +163,8 @@ class MurmurAccessibilityService : AccessibilityService() {
 
     override fun onDestroy() {
         teardown("destroy")
+        lane.close()
+        windowsVersion.update { it + 1 } // wakes a snapshotAfterShade waiting for a window change
         ioThread.quitSafely()
         super.onDestroy()
     }
@@ -196,6 +199,10 @@ class MurmurAccessibilityService : AccessibilityService() {
             h.bubbleFor(this, displayId).also { it.attach() }
         } catch (e: RuntimeException) {
             // e.g. a display that went away between the event and the attach (WindowManager.BadTokenException).
+            Log.w(TAG, "bubble_attach_failed display=$displayId ${e.javaClass.simpleName}")
+            return
+        } catch (e: NotImplementedError) {
+            // A host without a bubble implementation: the service still reads, captures and inserts.
             Log.w(TAG, "bubble_attach_failed display=$displayId ${e.javaClass.simpleName}")
             return
         }

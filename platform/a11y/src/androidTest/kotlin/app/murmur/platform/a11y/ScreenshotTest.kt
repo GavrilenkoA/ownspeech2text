@@ -1,5 +1,7 @@
 package app.murmur.platform.a11y
 
+import android.accessibilityservice.AccessibilityService
+import android.graphics.Bitmap
 import android.os.SystemClock
 import android.view.accessibility.AccessibilityWindowInfo
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -8,19 +10,25 @@ import app.murmur.core.model.Outcome
 import app.murmur.core.ocr.ScreenImage
 import app.murmur.platform.a11y.A11yTestSupport.enableService
 import app.murmur.platform.a11y.A11yTestSupport.launch
+import app.murmur.platform.a11y.A11yTestSupport.launchOtherApp
 import app.murmur.platform.a11y.A11yTestSupport.note
 import app.murmur.platform.a11y.A11yTestSupport.service
 import app.murmur.platform.a11y.A11yTestSupport.snapshotOf
+import app.murmur.platform.a11y.A11yTestSupport.snapshotOfPackage
 import app.murmur.platform.a11y.A11yTestSupport.waitFor
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 import kotlin.math.abs
 
 /** screenshot(): ARCHITECTURE 9.1 on the emulator (window capture, FLAG_SECURE, rate limit). */
@@ -73,6 +81,38 @@ class ScreenshotTest {
         assertEquals(listOf(ShotError.SECURE_WINDOW), rec.errors)
     }
 
+    /** The display capture of a FLAG_SECURE window is black (FrameCheck, the display path's rule); a normal one is not. */
+    @Test
+    fun displayCaptureOfASecureWindowIsBlack() = runBlocking {
+        launch(SecureTargetActivity::class.java)
+        val secure = snapshotOf("Secure target")
+        delay(400)
+        val secureFrame = displayFrame(secure.displayId)
+        launch(PlainTargetActivity::class.java) { putExtra("prefill", "Frame") }
+        val plain = snapshotOf("Plain target")
+        delay(400)
+        val plainFrame = displayFrame(plain.displayId)
+        note("display_capture secure=${secureFrame.width}x${secureFrame.height} black=${FrameCheck.isBlack(secureFrame)} plain_black=${FrameCheck.isBlack(plainFrame)}")
+        assertTrue(FrameCheck.isBlack(secureFrame))
+        assertFalse(FrameCheck.isBlack(plainFrame))
+    }
+
+    /** F1: after a switch to another app, the snapshot's app is captured or nothing is; never the app in front. */
+    @Test
+    fun anotherAppInFrontIsNeverCaptured() = runBlocking {
+        launch(PlainTargetActivity::class.java) { putExtra("prefill", "Mine") }
+        val mine = snapshotOf("Plain target")
+        launchOtherApp()
+        snapshotOfPackage(A11yTestSupport.OTHER_APP)
+        delay(400)
+        val r = service().targetReader.screenshot(mine)
+        val rec = service().targetReader.lastShot!!
+        note("screenshot after_app_switch result=${(r as? Outcome.Err)?.error?.code ?: "ok"} errors=${rec.errors} path=${rec.path}")
+        assertTrue("path ${rec.path}", rec.path != ShotPath.FOCUS_WINDOW && rec.path != ShotPath.DISPLAY)
+        if (r is Outcome.Ok) assertEquals(ShotPath.WINDOW, rec.path) // the snapshot's own window, still alive
+        else assertEquals(Outcome.Err(MurmurError.TargetChanged), r)
+    }
+
     @Test
     fun secondCapture200msLaterWaitsAndSucceeds() = runBlocking {
         launch(PlainTargetActivity::class.java)
@@ -88,11 +128,36 @@ class ScreenshotTest {
         val r1 = first.await()
         val r2 = second.await()
         val done2 = SystemClock.uptimeMillis()
-        val rec = reader.lastShot!!
-        note("screenshot pair requested_gap=${t2 - t1} second_done_after_first_request=${done2 - t1} last_errors=${rec.errors} last_path=${rec.path}")
+        val (a, b) = reader.recentShots.takeLast(2).sortedBy { it.calledAtMs }
+        note("screenshot pair requested_gap=${t2 - t1} second_done_after_first_request=${done2 - t1} " +
+            "first=${a.path}${a.errors} second=${b.path}${b.errors} calls_apart=${b.calledAtMs - a.calledAtMs}")
         assertTrue(r1 is Outcome.Ok)
         assertTrue(r2 is Outcome.Ok)
         assertTrue(t2 - t1 < 333) // asked inside the platform's minimum interval
+        assertTrue(b.calledAtMs - a.calledAtMs < 333)
         assertTrue(done2 - t1 >= RateLimiter.RETRY_AFTER_MS) // and served after it
+        // Both from the window itself: the limiter waited (no error), or error 3 was answered by the one retry.
+        // A display capture, or any other error, means the rate limit was not handled.
+        for (rec in listOf(a, b)) {
+            val waited = rec.path == ShotPath.WINDOW && rec.errors.isEmpty()
+            val retried = rec.path == ShotPath.WINDOW_RETRY && rec.errors == listOf(ShotError.INTERVAL_TIME_SHORT)
+            assertTrue("path=${rec.path} errors=${rec.errors}", waited || retried)
+        }
+    }
+
+    private suspend fun displayFrame(displayId: Int): ScreenImage = suspendCancellableCoroutine { cont ->
+        service().takeScreenshot(displayId, { it.run() }, object : AccessibilityService.TakeScreenshotCallback {
+            override fun onSuccess(result: AccessibilityService.ScreenshotResult) {
+                val hb = result.hardwareBuffer
+                val sw = Bitmap.wrapHardwareBuffer(hb, result.colorSpace)!!.copy(Bitmap.Config.ARGB_8888, false)
+                hb.close()
+                val px = IntArray(sw.width * sw.height).also { sw.getPixels(it, 0, sw.width, 0, 0, sw.width, sw.height) }
+                cont.resume(ScreenImage(sw.width, sw.height, px))
+            }
+
+            override fun onFailure(errorCode: Int) {
+                cont.resumeWithException(AssertionError("display capture failed with $errorCode"))
+            }
+        })
     }
 }

@@ -6,14 +6,13 @@ import android.os.SystemClock
 import android.util.Log
 import app.murmur.core.context.A11ySnapshot
 import app.murmur.core.dictation.TargetReader
+import app.murmur.core.model.MurmurError
 import app.murmur.core.model.Outcome
 import app.murmur.core.ocr.Rect
 import app.murmur.core.ocr.ScreenImage
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
-import java.util.concurrent.Executor
 import kotlin.coroutines.resume
 
 /**
@@ -23,13 +22,18 @@ import kotlin.coroutines.resume
 class A11yTargetReader internal constructor(private val service: MurmurAccessibilityService) : TargetReader {
     private val nodes get() = service.nodes
     private val limiter = RateLimiter(SystemClock::uptimeMillis)
-    private val ioExecutor = Executor { service.io.post(it) }
+    private val lane get() = service.lane
 
     /** Call time, finish time, path and platform error codes of the latest [screenshot] (no pixels). */
     @Volatile var lastShot: ShotRecord? = null
         private set
 
-    override suspend fun snapshot(): A11ySnapshot? = withContext(service.ioDispatcher) {
+    private val shots = ArrayDeque<ShotRecord>()
+
+    /** The latest [screenshot] records, oldest first (at most [SHOT_HISTORY]). */
+    val recentShots: List<ShotRecord> get() = synchronized(shots) { shots.toList() }
+
+    override suspend fun snapshot(): A11ySnapshot? = lane.call(null) {
         val t0 = SystemClock.uptimeMillis()
         val ws = nodes.windows()
         val snap = WindowChoice.target(ws)?.let { nodes.snapshot(it, ws) }
@@ -44,37 +48,44 @@ class A11yTargetReader internal constructor(private val service: MurmurAccessibi
         val target = withTimeoutOrNull(timeoutMs) { awaitAppWindowAfterShade() }
         Log.i(TAG, "after_shade waited_ms=${SystemClock.uptimeMillis() - t0} found=${target != null}")
         if (target == null) return null
-        return withContext(service.ioDispatcher) {
+        return lane.call(null) {
             val ws = nodes.windows()
             nodes.snapshot(WindowChoice.reResolve(ws, target.id, target.pkg ?: "") ?: target, ws)
         }
     }
 
-    /** Returns at once when a focused non-SystemUI app window exists, else re-checks after each WINDOWS_CHANGED. */
-    private suspend fun awaitAppWindowAfterShade(): WinInfo {
+    /**
+     * Returns at once when a focused non-SystemUI app window exists, else re-checks after each WINDOWS_CHANGED; null
+     * when the service ended meanwhile.
+     */
+    private suspend fun awaitAppWindowAfterShade(): WinInfo? {
         while (true) {
             val version = service.windowsVersion.value
-            val ws = withContext(service.ioDispatcher) { nodes.windows() }
+            val ws = lane.call(null) { nodes.windows() } ?: return null
             WindowChoice.afterShade(ws)?.let { return it }
-            service.windowsVersion.first { it > version }
+            service.windowsVersion.first { it > version || !lane.open }
+            if (!lane.open) return null
         }
     }
 
-    override suspend fun screenshot(target: A11ySnapshot): Outcome<ScreenImage> = withContext(service.ioDispatcher) {
+    override suspend fun screenshot(target: A11ySnapshot): Outcome<ScreenImage> = lane.call(Outcome.Err(MurmurError.AccessibilityOff)) {
         val chain = ScreenshotChain(TargetShooter(target), limiter, SystemClock::uptimeMillis)
-        val (outcome, record) = chain.capture(target.windowId, target.displayId)
+        val (outcome, record) = chain.capture(target.pkg, target.windowId, target.displayId)
         lastShot = record
+        synchronized(shots) { shots.addLast(record); while (shots.size > SHOT_HISTORY) shots.removeFirst() }
         Log.i(TAG, "screenshot path=${record.path} ms=${record.finishedAtMs - record.calledAtMs} errors=${record.errors} result=${record.error ?: "ok"}")
         outcome
     }
 
     private inner class TargetShooter(private val target: A11ySnapshot) : Shooter {
-        override suspend fun window(windowId: Int): ShotResult = capture { cb -> service.takeScreenshotOfWindow(windowId, ioExecutor, cb) }
-        override suspend fun display(displayId: Int): ShotResult = capture { cb -> service.takeScreenshot(displayId, ioExecutor, cb) }
+        override suspend fun window(windowId: Int): ShotResult = capture { cb -> service.takeScreenshotOfWindow(windowId, lane.executor, cb) }
+        override suspend fun display(displayId: Int): ShotResult = capture { cb -> service.takeScreenshot(displayId, lane.executor, cb) }
         override suspend fun resolveWindow(): Int? = WindowChoice.reResolve(nodes.windows(), target.windowId, target.pkg)?.id
-        override suspend fun inputFocusWindow(): Int? = nodes.inputFocusWindowId()
+        override suspend fun inputFocus(): FocusWindow? = nodes.inputFocus()
+        override suspend fun frontPackage(displayId: Int): String? =
+            WindowChoice.target(nodes.windows().filter { it.displayId == displayId })?.pkg
         override suspend fun exclusionRects(displayId: Int, width: Int, height: Int): List<Rect> =
-            ExclusionRects.of(nodes.windows(), service.packageName, displayId, width, height)
+            ExclusionRects.of(nodes.windows(), service.packageName, displayId, width, height, targetPkg = target.pkg)
     }
 
     private suspend fun capture(call: (AccessibilityService.TakeScreenshotCallback) -> Unit): ShotResult =
@@ -109,7 +120,8 @@ class A11yTargetReader internal constructor(private val service: MurmurAccessibi
         }
     }
 
-    private companion object {
-        const val TAG = "MurmurA11y"
+    companion object {
+        private const val TAG = "MurmurA11y"
+        const val SHOT_HISTORY = 8
     }
 }

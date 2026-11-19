@@ -48,22 +48,25 @@ object WindowChoice {
 
 /**
  * OCR exclusion rectangles for the display-capture fallback (ARCHITECTURE 9.1): the IME window, Murmur's own
- * accessibility overlays and the system bars, in screen pixels, clipped to the display. A window capture needs none
- * (it holds only the app's pixels, platform spike 2).
+ * accessibility overlays and the system bars, in screen pixels, clipped to the display. With [targetPkg], also every
+ * application window of another package (split screen, a pop-up window): the privacy filters of 9.2 cleared the
+ * target app only. A window capture needs none (it holds only the app's pixels, platform spike 2).
  */
 object ExclusionRects {
-    fun of(windows: List<WinInfo>, ownPackage: String, displayId: Int, displayW: Int, displayH: Int): List<Rect> =
+    fun of(windows: List<WinInfo>, ownPackage: String, displayId: Int, displayW: Int, displayH: Int, targetPkg: String? = null): List<Rect> =
         windows.asSequence()
-            .filter { it.displayId == displayId && excluded(it, ownPackage) }
+            .filter { it.displayId == displayId && excluded(it, ownPackage, targetPkg) }
             .mapNotNull { clip(it.bounds, displayW, displayH) }
             .distinct()
             .toList()
 
-    private fun excluded(w: WinInfo, ownPackage: String): Boolean = when (w.type) {
+    private fun excluded(w: WinInfo, ownPackage: String, targetPkg: String?): Boolean = when (w.type) {
         AccessibilityWindowInfo.TYPE_INPUT_METHOD -> true
         AccessibilityWindowInfo.TYPE_SYSTEM -> true
         // An overlay without a root node is ours too: the only service drawing overlays for this process is Murmur's.
         AccessibilityWindowInfo.TYPE_ACCESSIBILITY_OVERLAY -> w.pkg == null || w.pkg == ownPackage
+        // A window without a root cannot be attributed to the target, so it is excluded as well.
+        AccessibilityWindowInfo.TYPE_APPLICATION -> targetPkg != null && w.pkg != targetPkg
         else -> false
     }
 

@@ -14,7 +14,6 @@ import app.murmur.core.dictation.InsertResult
 import app.murmur.core.dictation.Inserter
 import app.murmur.core.model.MurmurError
 import app.murmur.core.store.InsertMethod
-import kotlinx.coroutines.withContext
 
 /**
  * [Inserter] over the connected service (ARCHITECTURE 11 steps 3 and 5): the field is re-resolved at insert time,
@@ -27,27 +26,27 @@ class A11yInserter internal constructor(private val service: MurmurAccessibility
     /** What [copyToClipboard] last put there, restored after a PASTE rung replaced it with the joined text. */
     @Volatile private var lastCopied: String? = null
 
-    override suspend fun insert(target: A11ySnapshot, text: String): InsertResult = withContext(service.ioDispatcher) {
-        if (text.isEmpty()) return@withContext InsertResult.Failed(MurmurError.InsertRejected)
+    override suspend fun insert(target: A11ySnapshot, text: String): InsertResult = service.lane.call(InsertResult.Failed(MurmurError.AccessibilityOff)) {
+        if (text.isEmpty()) return@call InsertResult.Failed(MurmurError.InsertRejected)
         val t0 = SystemClock.uptimeMillis()
         val nodes = service.nodes
         val now = WindowChoice.target(nodes.windows())
         if (now == null || now.pkg != target.pkg) {
             Log.i(TAG, "insert result=${MurmurError.TargetChanged.code}")
-            return@withContext InsertResult.Failed(MurmurError.TargetChanged)
+            return@call InsertResult.Failed(MurmurError.TargetChanged)
         }
         val node = nodes.focusedEditable(now.id)
         val ime = service.ime
         val connection = ime?.connectionFor(target.pkg)
         if (node == null && connection == null) {
             Log.i(TAG, "insert result=${MurmurError.NoEditableField.code}")
-            return@withContext InsertResult.Failed(MurmurError.NoEditableField)
+            return@call InsertResult.Failed(MurmurError.NoEditableField)
         }
         val editor = ime?.editorFor(target.pkg)
         val inputType = FieldFacts.inputType(editor?.inputType, node?.inputType ?: 0)
         if (FieldFacts.isPassword(node?.isPassword == true, inputType, editor?.inputType)) {
             Log.i(TAG, "insert result=${MurmurError.PasswordField.code}")
-            return@withContext InsertResult.Failed(MurmurError.PasswordField)
+            return@call InsertResult.Failed(MurmurError.PasswordField)
         }
         val field = AndroidLadderField(node, connection)
         val r = ladder.run(field, text)

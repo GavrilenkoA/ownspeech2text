@@ -21,15 +21,23 @@ sealed interface ShotResult {
     data class Failed(val code: Int) : ShotResult
 }
 
+/** The input-focused node's window and package (findFocus(FOCUS_INPUT)). */
+data class FocusWindow(val windowId: Int, val pkg: String?)
+
 /** The platform calls behind [ScreenshotChain]; the Android implementation lives in [A11yTargetReader]. */
 interface Shooter {
     suspend fun window(windowId: Int): ShotResult
     suspend fun display(displayId: Int): ShotResult
     /** The snapshot's window again, from a fresh window list (it can be transiently missing, platform spike c). */
     suspend fun resolveWindow(): Int?
-    /** findFocus(FOCUS_INPUT).windowId, or null. */
-    suspend fun inputFocusWindow(): Int?
-    /** IME, own overlay and system bars of the display, clipped to the captured frame, for the display capture. */
+    /** findFocus(FOCUS_INPUT), or null. */
+    suspend fun inputFocus(): FocusWindow?
+    /** Package of the application window in front on [displayId] ([WindowChoice.target]), or null. */
+    suspend fun frontPackage(displayId: Int): String?
+    /**
+     * IME, own overlay, system bars and other apps' windows of the display, clipped to the captured frame, for the
+     * display capture.
+     */
     suspend fun exclusionRects(displayId: Int, width: Int, height: Int): List<Rect>
 }
 
@@ -41,7 +49,12 @@ data class ShotRecord(val calledAtMs: Long, val finishedAtMs: Long, val path: Sh
 /**
  * The capture rules of ARCHITECTURE 9.1, as a sequence over a [Shooter]:
  * window capture of the re-resolved target -> on error 3 one retry after >= 340 ms -> on error 5 (window gone)
- * findFocus(FOCUS_INPUT).windowId -> display capture + exclusion rects. Error 6 or a black frame anywhere -> SecureWindow.
+ * findFocus(FOCUS_INPUT).windowId -> display capture + exclusion rects. Error 6 anywhere, or a black display frame
+ * (FLAG_SECURE content in a display capture, platform spike c) -> SecureWindow.
+ *
+ * Only the target app's pixels may come back (the privacy filters of 9.2 ran on the snapshot's package): the input-focus
+ * window is used only when it belongs to [capture]'s package, and the display is captured only while that package is
+ * the one in front; otherwise the result is Err(TargetChanged), i.e. no screen context.
  * The per-window and per-display minimum interval (333 ms, independent; platform spike 2) is respected *before* each
  * call by [RateLimiter], so a second capture 200 ms after the first waits instead of burning a request.
  */
@@ -50,13 +63,15 @@ class ScreenshotChain(
     private val limiter: RateLimiter,
     private val now: () -> Long,
 ) {
-    suspend fun capture(fallbackWindowId: Int, displayId: Int): Pair<Outcome<ScreenImage>, ShotRecord> {
+    suspend fun capture(pkg: String, snapshotWindowId: Int, displayId: Int): Pair<Outcome<ScreenImage>, ShotRecord> {
         val calledAt = now()
         val errors = mutableListOf<Int>()
         fun done(o: Outcome<ScreenImage>, path: ShotPath?) =
             o to ShotRecord(calledAt, now(), path, errors.toList(), (o as? Outcome.Err)?.error?.code)
 
-        val windowId = shooter.resolveWindow() ?: shooter.inputFocusWindow() ?: fallbackWindowId.takeIf { it >= 0 }
+        // The snapshot's own window id is safe even when the list no longer shows it: a window capture holds only
+        // that window's pixels, and a window that is gone answers error 5.
+        val windowId = shooter.resolveWindow() ?: snapshotWindowId.takeIf { it >= 0 }
         if (windowId != null) {
             var r = windowShot(windowId)
             var path = ShotPath.WINDOW
@@ -67,23 +82,26 @@ class ScreenshotChain(
             }
             if (r is ShotResult.Failed && r.code == ShotError.INVALID_WINDOW) {
                 errors += r.code
-                val focusId = shooter.inputFocusWindow()
+                val focusId = shooter.inputFocus()?.takeIf { it.pkg == pkg }?.windowId
                 if (focusId != null && focusId != windowId) { r = windowShot(focusId); path = ShotPath.FOCUS_WINDOW }
             }
             when (r) {
-                is ShotResult.Frame -> return done(frameOutcome(r.image), path)
+                // A window capture holds only the app's pixels; a dark app is not a secure one (error 6 covers that).
+                is ShotResult.Frame -> return done(Outcome.Ok(r.image), path)
                 is ShotResult.Failed -> {
                     if (r.code == ShotError.SECURE_WINDOW) { errors += r.code; return done(Outcome.Err(MurmurError.SecureWindow), path) }
                     if (errors.lastOrNull() != r.code) errors += r.code
                 }
             }
         }
-        // Display capture: contains the keyboard, the bubble and the bars, so OCR gets their rectangles excluded.
+        // Display capture: everything on the display, so only while the target app is the one in front.
+        if (!targetInFront(pkg, displayId)) return done(Outcome.Err(MurmurError.TargetChanged), null)
         val d = displayShot(displayId)
         return when (d) {
             is ShotResult.Frame -> {
                 val img = d.image
-                done(frameOutcome(ScreenImage(img.width, img.height, img.argb, shooter.exclusionRects(displayId, img.width, img.height))), ShotPath.DISPLAY)
+                if (FrameCheck.isBlack(img)) done(Outcome.Err(MurmurError.SecureWindow), ShotPath.DISPLAY)
+                else done(Outcome.Ok(ScreenImage(img.width, img.height, img.argb, shooter.exclusionRects(displayId, img.width, img.height))), ShotPath.DISPLAY)
             }
             is ShotResult.Failed -> {
                 errors += d.code
@@ -91,6 +109,12 @@ class ScreenshotChain(
                 done(Outcome.Err(e), ShotPath.DISPLAY)
             }
         }
+    }
+
+    /** Every known signal (input focus, front application window) names [pkg], and at least one is known. */
+    private suspend fun targetInFront(pkg: String, displayId: Int): Boolean {
+        val known = listOfNotNull(shooter.inputFocus()?.pkg, shooter.frontPackage(displayId))
+        return known.isNotEmpty() && known.all { it == pkg }
     }
 
     private suspend fun windowShot(id: Int): ShotResult {
@@ -102,22 +126,26 @@ class ScreenshotChain(
         limiter.awaitSlot(RateLimiter.displayKey(id))
         return shooter.display(id)
     }
-
-    private fun frameOutcome(img: ScreenImage): Outcome<ScreenImage> =
-        if (FrameCheck.isBlack(img)) Outcome.Err(MurmurError.SecureWindow) else Outcome.Ok(img)
 }
 
 /** Minimum interval per window and per display, tracked separately (platform spike 2: 330 ms fails, 340 ms passes). */
 class RateLimiter(private val now: () -> Long) {
     private val last = HashMap<String, Long>()
 
-    fun waitFor(key: String): Long = last[key]?.let { (it + RETRY_AFTER_MS - now()).coerceAtLeast(0) } ?: 0L
+    fun waitFor(key: String): Long = synchronized(last) { last[key]?.let { (it + RETRY_AFTER_MS - now()).coerceAtLeast(0) } ?: 0L }
 
-    /** Waits until [key] may be captured again, then records the call time. */
+    /**
+     * Reserves the next free slot of [key] (now, or the previous slot + [RETRY_AFTER_MS]) and waits until it. The slot
+     * is taken before waiting, so two concurrent callers get slots one interval apart instead of waking together.
+     */
     suspend fun awaitSlot(key: String) {
-        val w = synchronized(last) { waitFor(key) }
+        val w = synchronized(last) {
+            val t = now()
+            val slot = last[key]?.let { maxOf(t, it + RETRY_AFTER_MS) } ?: t
+            last[key] = slot
+            slot - t
+        }
         if (w > 0) delay(w)
-        synchronized(last) { last[key] = now() }
     }
 
     companion object {
@@ -128,22 +156,17 @@ class RateLimiter(private val now: () -> Long) {
 }
 
 /**
- * A FLAG_SECURE window shot through the display capture comes back black (platform spike c: centre luma 5). A frame
- * whose sampled pixels are all near black has no text for OCR either way, so it is treated as "no screen".
+ * A FLAG_SECURE window shot through the display capture comes back black (platform spike c: centre luma 5). Applied to
+ * display captures only. Every pixel is checked (the scan stops at the first non-black one, so a normal frame costs a
+ * few reads): a true-black dark theme with a single line of light text is not black.
  */
 object FrameCheck {
-    private const val GRID = 48
     private const val MAX_CHANNEL = 16
 
     fun isBlack(img: ScreenImage): Boolean {
         if (img.width == 0 || img.height == 0) return true
-        for (gy in 0 until GRID) {
-            val y = ((gy * 2 + 1) * img.height) / (GRID * 2)
-            for (gx in 0 until GRID) {
-                val x = ((gx * 2 + 1) * img.width) / (GRID * 2)
-                val p = img.argb[y * img.width + x]
-                if ((p shr 16 and 0xff) > MAX_CHANNEL || (p shr 8 and 0xff) > MAX_CHANNEL || (p and 0xff) > MAX_CHANNEL) return false
-            }
+        for (p in img.argb) {
+            if ((p shr 16 and 0xff) > MAX_CHANNEL || (p shr 8 and 0xff) > MAX_CHANNEL || (p and 0xff) > MAX_CHANNEL) return false
         }
         return true
     }
