@@ -40,10 +40,17 @@ fun ModelsScreen(deps: ModelsDeps, onOpenModel: (ModelId) -> Unit, modifier: Mod
 }
 
 /**
- * Model detail (DESIGN 6.4 model-detail), hosted by the app shell: pushed on the cover display ([onBack] = back arrow),
- * the right pane next to the 316 dp list on the inner display ([onBack] = null). WP-18 builds it.
+ * Model detail (DESIGN 6.4 model-detail), hosted by the app shell with the same convention as WP-16's History detail:
+ * the pushed screen on the cover display ([pane] false: back arrow), the right pane next to the 316 dp list on the
+ * inner display ([pane] true). [onClose] = Back. WP-18 builds it.
  */
 @Composable
-fun ModelDetail(deps: ModelsDeps, id: ModelId, onBack: (() -> Unit)?, modifier: Modifier = Modifier) {
+fun ModelDetail(
+    deps: ModelsDeps,
+    id: ModelId,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier,
+    pane: Boolean = false,
+) {
     Box(modifier.fillMaxSize().testTag("screen-model-detail")) { Text("Model") }
 }
