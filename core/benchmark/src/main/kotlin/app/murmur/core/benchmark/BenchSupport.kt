@@ -57,11 +57,20 @@ object BenchNotes {
     const val MEM_AVAIL_DROP_MB = "mem.avail_drop.mb"
     /** In-process load time reported by the engine (LoadInfo.loadMs); the record's load time also covers process start. */
     const val LOAD_ENGINE_MS = "load.engine.ms"
+    /**
+     * Clip ids (comma-separated) whose session reported no progress before its final segment, so their tail is the
+     * whole decode of the pushed clip (an upper bound) instead of the last segment's decode. Absent when every clip had one.
+     */
+    const val ASR_TAIL_WHOLE_DECODE = "asr.tail.whole_decode"
     const val LLM_PREFIX_TOKENS = "llm.prefix.tokens"
     const val LLM_PREFIX_MS = "llm.prefix.ms"
     const val LLM_PREFIX_RESTORED = "llm.prefix.restored"
     const val LLM_PROMPT_TOKENS = "llm.prompt.tokens"
     const val LLM_GENERATED_TOKENS = "llm.generated.tokens"
+    /** Wall ms of the fixed case's warm-up pass, of its measured pass and of the synthetic pp/tg bench (CLEANUP_CASE step). */
+    const val LLM_WARMUP_MS = "llm.warmup.ms"
+    const val LLM_CASE_MS = "llm.case.ms"
+    const val LLM_SYNTHETIC_MS = "llm.synthetic.ms"
     const val LLM_PP_TPS = "llm.pp512.tps"
     const val LLM_TG_TPS = "llm.tg128.tps"
     /** guard.py rule of the fixed case ("ok" or the R-rule that fell back). */

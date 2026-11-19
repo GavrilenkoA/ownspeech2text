@@ -6,6 +6,7 @@ import app.murmur.core.catalog.Candidate
 import app.murmur.core.catalog.LanguageMode
 import app.murmur.core.catalog.ModelEntry
 import app.murmur.core.catalog.UnitHealthRepository
+import app.murmur.core.engine.AsrEvent
 import app.murmur.core.engine.AsrSessionOptions
 import app.murmur.core.engine.Engines
 import app.murmur.core.engine.InferenceHost
@@ -23,6 +24,7 @@ import app.murmur.core.model.MurmurClock
 import app.murmur.core.model.MurmurError
 import app.murmur.core.model.Outcome
 import app.murmur.core.model.Stage
+import app.murmur.core.ocr.ScreenText
 import app.murmur.core.prompt.GuardAction
 import app.murmur.core.prompt.OutputGuard
 import app.murmur.core.prompt.PromptAssets
@@ -44,11 +46,14 @@ import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.ceil
 
 /**
@@ -72,26 +77,41 @@ class DefaultBenchmarkRunner(
     private val config: BenchConfig = BenchConfig(),
 ) : BenchmarkRunner {
     private val mutex = Mutex()
-    private val stopRequested = MutableStateFlow(false)
+    /** Every run() gets the next id; stop() stops every run with an id up to [stoppedThrough]. */
+    private val runsCreated = AtomicLong(0)
+    private val stoppedThrough = MutableStateFlow(0L)
+    /** Id of the run holding [mutex] (runs never overlap). */
+    @Volatile private var activeRun = 0L
 
     override fun stop() {
-        stopRequested.value = true
+        stoppedThrough.update { maxOf(it, runsCreated.get()) }
     }
 
-    override fun run(entry: ModelEntry, candidates: List<Candidate>): Flow<BenchProgress> = flow {
-        mutex.withLock {
-            stopRequested.value = false
-            val used = mutableSetOf<InferenceHost>()
-            try {
-                runLocked(entry, candidates, used)
-            } catch (e: CancellationException) {
-                // Stopped by the user: no Finished, nothing saved for the unit in flight. A cancelled collector
-                // (sheet closed) is not swallowed.
-                if (!(stopRequested.value && currentCoroutineContext().isActive)) throw e
-            } finally {
-                // Whatever happened (finished, stopped, failed, collector cancelled): no process keeps a model loaded.
-                withContext(NonCancellable) { used.forEach { runCatching { it.shutdown() } } }
+    private fun stopped(run: Long) = stoppedThrough.value >= run
+
+    override fun run(entry: ModelEntry, candidates: List<Candidate>): Flow<BenchProgress> {
+        val id = runsCreated.incrementAndGet()
+        return flow {
+            mutex.withLock {
+                activeRun = id
+                // Stopped before it started (before collection, or while an earlier run held the lock): nothing runs.
+                if (stopped(id)) return@withLock
+                runAsActive(id, entry, candidates)
             }
+        }
+    }
+
+    private suspend fun FlowCollector<BenchProgress>.runAsActive(id: Long, entry: ModelEntry, candidates: List<Candidate>) {
+        val used = mutableSetOf<InferenceHost>()
+        try {
+            runLocked(entry, candidates, used)
+        } catch (e: CancellationException) {
+            // Stopped by the user: no Finished, nothing saved for the unit in flight. A cancelled collector
+            // (sheet closed) is not swallowed.
+            if (!(stopped(id) && currentCoroutineContext().isActive)) throw e
+        } finally {
+            // Whatever happened (finished, stopped, failed, collector cancelled): no process keeps a model loaded.
+            withContext(NonCancellable) { used.forEach { runCatching { it.shutdown() } } }
         }
     }
 
@@ -155,13 +175,13 @@ class DefaultBenchmarkRunner(
     private suspend fun <T> stoppable(block: suspend () -> T): T = coroutineScope {
         val scope = this
         val watcher = launch(start = CoroutineStart.UNDISPATCHED) {
-            stopRequested.first { it }
+            stoppedThrough.first { it >= activeRun }
             scope.cancel(StopRequested())
         }
         try {
             block()
         } catch (e: CancellationException) {
-            if (stopRequested.value) throw StopRequested() else throw e
+            if (stopped(activeRun)) throw StopRequested() else throw e
         } finally {
             watcher.cancel()
         }
@@ -223,6 +243,9 @@ class DefaultBenchmarkRunner(
         val medianWer = Stats.median(wers)
         val invalid = BenchValidity.asr(medianWer, if (unit == ComputeUnit.CPU) null else cpuWer(entry))
         notes.putAll(memory.notes); notes[BenchNotes.LOAD_ENGINE_MS] = cold.info.loadMs.toString()
+        measured.filter { !it.tailAnchored }.takeIf { it.isNotEmpty() }?.let { whole ->
+            notes[BenchNotes.ASR_TAIL_WHOLE_DECODE] = whole.joinToString(",") { it.clipId }
+        }
         return BenchmarkResultData.Asr(
             rtfx = audioMs.toDouble() / processMs,
             tailMs = Stats.medianLong(measured.map { it.tailMs }),
@@ -236,36 +259,73 @@ class DefaultBenchmarkRunner(
         )
     }
 
-    private class Pass(val clipId: String, val audioMs: Long, val processMs: Long, val tailMs: Long, val wer: Double)
+    /** [tailAnchored] = false when the session reported no progress, so [tailMs] is the whole decode (upper bound). */
+    private class Pass(
+        val clipId: String, val audioMs: Long, val processMs: Long, val tailMs: Long, val tailAnchored: Boolean, val wer: Double,
+    )
 
-    /** One clip through a fresh session as fast as accept() takes it; decode time = first sample -> finish() returned. */
-    private suspend fun pass(entry: ModelEntry, clip: BenchClip): Pass {
+    /**
+     * One clip through a fresh session as fast as accept() takes it. Decode time = first sample -> finish() returned.
+     *
+     * Tail = what a dictation waits for after the stop tap: the decode of the last segment only. Spoken in real time,
+     * every earlier segment is decoded while the user is still talking; pushed at once, they are all still queued when
+     * finish() is called, so the time from the push to finish() is the whole backlog, not the tail. The session's own
+     * progress events mark where the backlog ends: the last Speech edge (a VAD segment closes and goes to the decoder),
+     * Partial (streaming hypothesis) or Committed of an earlier segment that arrived before finish() returned. Tail =
+     * finish() returned - that event. The final segment's Committed (index = segments - 1) comes after its own decode and
+     * is not a marker. Without any marker the tail falls back to the whole decode (never under-reported).
+     */
+    private suspend fun pass(entry: ModelEntry, clip: BenchClip): Pass = coroutineScope {
         val hint = if (entry.languages.mode == LanguageMode.HINT && clip.languages.size == 1) clip.languages.single() else null
-        val session = guarded { engines.asr.startSession(AsrSessionOptions(language = hint, emitPartials = false)) }
-        val pcm = clip.pcm16k
-        val start = clock.elapsedMs()
-        guarded {
-            var i = 0
-            while (i < pcm.size) {
-                val n = minOf(config.chunkSamples, pcm.size - i)
-                session.accept(PcmChunk(pcm.copyOfRange(i, i + n), i.toLong()))
-                i += n
+        // Partials are the only progress a streaming model without a VAD reports; batch models never send them.
+        val options = AsrSessionOptions(language = hint, emitPartials = entry.asr?.streaming == true)
+        val session = guarded { engines.asr.startSession(options) }
+        val progress = ConcurrentLinkedQueue<Pair<AsrEvent, Long>>()
+        val listener = launch(start = CoroutineStart.UNDISPATCHED) {
+            try {
+                session.events.collect { progress += it to clock.elapsedMs() }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // An event stream that breaks only costs the tail its marker (the whole decode is reported instead).
             }
         }
-        val stopAt = clock.elapsedMs()
-        val finished = try {
-            guarded { session.finish() }
-        } catch (e: CancellationException) {
-            session.cancel() // stopped mid-decode: do not leave the session decoding
-            throw e
+        try {
+            val pcm = clip.pcm16k
+            val start = clock.elapsedMs()
+            guarded {
+                var i = 0
+                while (i < pcm.size) {
+                    val n = minOf(config.chunkSamples, pcm.size - i)
+                    session.accept(PcmChunk(pcm.copyOfRange(i, i + n), i.toLong()))
+                    i += n
+                }
+            }
+            val finished = try {
+                guarded { session.finish() }
+            } catch (e: CancellationException) {
+                session.cancel() // stopped mid-decode: do not leave the session decoding
+                throw e
+            }
+            val end = clock.elapsedMs()
+            val (text, segments) = when (finished) {
+                is Outcome.Ok -> finished.value.text to finished.value.segments
+                // A model that hears nothing in a clip full of speech is a wrong result, not a crash: WER 100 %.
+                is Outcome.Err -> if (finished.error == MurmurError.NoSpeech) "" to 0 else throw UnitFailure(finished.error)
+            }
+            val marker = progress.filter { (e, at) -> at <= end && e.precedesFinalDecode(segments) }.maxOfOrNull { it.second }
+            val tailFrom = maxOf(start, marker ?: start)
+            Pass(clip.id, clip.audioMs, end - start, end - tailFrom, marker != null, WordErrorRate.wer(clip.reference, text))
+        } finally {
+            listener.cancel()
         }
-        val text = when (finished) {
-            is Outcome.Ok -> finished.value.text
-            // A model that hears nothing in a clip full of speech is a wrong result, not a crash: WER 100 %.
-            is Outcome.Err -> if (finished.error == MurmurError.NoSpeech) "" else throw UnitFailure(finished.error)
-        }
-        val end = clock.elapsedMs()
-        return Pass(clip.id, clip.audioMs, end - start, end - stopAt, WordErrorRate.wer(clip.reference, text))
+    }
+
+    /** Progress the session reports before it starts on the final segment (see [pass]). */
+    private fun AsrEvent.precedesFinalDecode(segments: Int): Boolean = when (this) {
+        is AsrEvent.Speech, is AsrEvent.Partial -> true
+        is AsrEvent.Committed -> index < segments - 1
+        is AsrEvent.Failure -> false
     }
 
     /** Median WER of the latest CPU record of the same model (any of its artifacts), for the "CPU + 5 pp" rule. */
@@ -316,9 +376,17 @@ class DefaultBenchmarkRunner(
         lateinit var done: LlmEvent.Done
         lateinit var synthetic: app.murmur.core.engine.SyntheticBench
         step(unit, BenchStep.CLEANUP_CASE) {
+            // Wall time of each part, so the step's duration can be accounted for (ADR-051 budget: < 60 s per unit).
+            fun timed(key: String, t: Long) { notes[key] = (clock.elapsedMs() - t).toString() }
+            var t = clock.elapsedMs()
             generate(request) // warm-up
+            timed(BenchNotes.LLM_WARMUP_MS, t)
+            t = clock.elapsedMs()
             done = generate(request)
+            timed(BenchNotes.LLM_CASE_MS, t)
+            t = clock.elapsedMs()
             synthetic = guarded { llm.bench(config.syntheticPrompt, config.syntheticGen, config.syntheticReps) }.orFail(markFailed = false)
+            timed(BenchNotes.LLM_SYNTHETIC_MS, t)
         }
         val memory = unloadAndMeasure(unit, host, cold.baseline) { llm.unload() }
         val stats = done.stats
@@ -381,8 +449,7 @@ class DefaultBenchmarkRunner(
         val (det, rec) = if (entry.kind == ModelKind.OCR_DET) spec.main to partner else partner to spec.main
         lateinit var cold: ColdLoad
         step(unit, BenchStep.LOAD) { cold = coldStart(host) { ocr.loadOcr(det, rec) } }
-        var boxes = 0
-        var invalid: String? = null
+        val compared = mutableListOf<Pair<ScreenText, ScreenText>>()
         val times = pages.map { page ->
             step(unit, BenchStep.OCR_PAGE, page.id) {
                 val image = try { page.image() } catch (e: java.io.IOException) {
@@ -392,18 +459,19 @@ class DefaultBenchmarkRunner(
                 val t = clock.elapsedMs()
                 val text = guarded { ocr.recognize(image) }.orFail(markFailed = false)
                 val ms = clock.elapsedMs() - t
-                boxes += text.lines.size
-                if (invalid == null) invalid = OcrGoldenMatch.check(page.golden, text)
+                compared += page.golden to text
                 notes[BenchNotes.OCR_MS_PREFIX + page.id] = ms.toString()
                 ms
             }
         }
         val memory = unloadAndMeasure(unit, host, cold.baseline) { ocr.unloadOcr() }
+        // One gate over all pages (the README tolerance is a suite rule, see OcrGoldenMatch).
+        val invalid = OcrGoldenMatch.check(compared)
         notes.putAll(memory.notes)
         notes[BenchNotes.LOAD_ENGINE_MS] = cold.info.loadMs.toString()
         return BenchmarkResultData.Ocr(
             msPerScreenshot = Stats.medianLong(times),
-            boxes = boxes,
+            boxes = compared.sumOf { it.second.lines.size },
             loadMsCold = cold.ms,
             peakMemMb = memory.peakMb,
             ranOn = cold.info.deviceName,
@@ -474,7 +542,7 @@ class DefaultBenchmarkRunner(
 
     /** Between steps: a stop requested while the step ran without suspending (or by the collector) ends the run here. */
     private fun checkStop() {
-        if (stopRequested.value) throw StopRequested()
+        if (stopped(activeRun)) throw StopRequested()
     }
 
     /** Engine calls must not throw (Outcome everywhere); if one does, it fails this unit instead of the whole run. */
