@@ -1,11 +1,10 @@
 package app.murmur.feature.settings
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.viewmodel.compose.viewModel
 import app.murmur.core.catalog.CatalogRepository
 import app.murmur.core.dictation.PermissionMonitor
 import app.murmur.core.model.Outcome
@@ -33,8 +32,22 @@ class SettingsDeps(
     val permissions: PermissionMonitor,
 )
 
-/** WP-19. */
+/**
+ * WP-19: Settings (DESIGN 6.5). Lays itself out by the window size class: grouped lists on compact width (cover
+ * display), a 260 dp category list with a detail pane on medium width and up (inner display). The prompt editor and
+ * Tone per app are screens below Settings: on compact width they cover the whole screen, so the shell hides its
+ * bottom bar while [onSubScreenChange] reports true; on the inner display they open in the detail pane (false).
+ * Back closes them (the prompt editor asks first when there are unsaved changes).
+ */
 @Composable
-fun SettingsScreen(deps: SettingsDeps, modifier: Modifier = Modifier) {
-    Box(modifier.fillMaxSize().testTag("screen-settings")) { Text("Settings") }
+fun SettingsScreen(
+    deps: SettingsDeps,
+    modifier: Modifier = Modifier,
+    onSubScreenChange: (open: Boolean) -> Unit = {},
+) {
+    val context = LocalContext.current
+    val showDebug = remember(context) { SystemScreens.isDebuggable(context) }
+    val version = remember(context) { SystemScreens.versionName(context) }
+    val vm = viewModel { SettingsViewModel(deps) }
+    SettingsRoot(vm, showDebug, version, onSubScreenChange, modifier)
 }
