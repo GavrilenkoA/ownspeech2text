@@ -8,6 +8,7 @@ import androidx.test.uiautomator.UiSelector
 import androidx.test.uiautomator.Until
 import app.murmur.MainActivity
 import app.murmur.R
+import app.murmur.feature.settings.R as SettingsR
 import app.murmur.core.model.ModelId
 import app.murmur.core.store.HistoryEntry
 import java.text.NumberFormat
@@ -103,17 +104,28 @@ object AppTabs {
         return TabResult("Models", problems.isEmpty(), problems.joinToString("; ").ifEmpty { "$asr and $llm installed, others downloadable" })
     }
 
+    /**
+     * A Settings row: on the cover display one scrolling list; on the inner display a section list with the section's
+     * rows beside it, so the section ([section], its label) is opened first when the row is not on screen.
+     */
+    private fun settingsRow(section: Int, text: String): Boolean {
+        if (scrollTo(text)) return true
+        device.findObject(By.text(ctx.getString(section)))?.click() ?: return false
+        device.waitForIdle(2_000)
+        return has(By.textContains(text), 3_000) || scrollTo(text)
+    }
+
     fun settings(): TabResult {
         tab(R.string.tab_settings)
         val s = E2e.container.settings.settings.value
         val scale = ctx.getString(
-            app.murmur.feature.settings.R.string.settings_debug_timeout_value,
+            SettingsR.string.settings_debug_timeout_value,
             if (s.debugTimeoutScale == s.debugTimeoutScale.toInt().toFloat()) s.debugTimeoutScale.toInt().toString() else s.debugTimeoutScale.toString(),
         )
         val problems = mutableListOf<String>()
-        if (!scrollTo(ctx.getString(app.murmur.feature.settings.R.string.settings_perm_a11y))) problems += "no accessibility row"
-        else if (!has(By.text(ctx.getString(app.murmur.feature.settings.R.string.settings_status_on)), 3_000)) problems += "accessibility service not shown On"
-        if (!scrollTo(scale)) problems += "timeout scale $scale not shown"
+        if (!settingsRow(SettingsR.string.settings_section_permissions, ctx.getString(SettingsR.string.settings_perm_a11y))) problems += "no accessibility row"
+        else if (!has(By.text(ctx.getString(SettingsR.string.settings_status_on)), 3_000)) problems += "accessibility service not shown On"
+        if (!settingsRow(SettingsR.string.settings_section_debug, scale)) problems += "timeout scale $scale not shown"
         return TabResult("Settings", problems.isEmpty(), problems.joinToString("; ").ifEmpty { "service On, timeout scale $scale" })
     }
 }

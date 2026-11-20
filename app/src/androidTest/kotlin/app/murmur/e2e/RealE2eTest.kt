@@ -142,17 +142,21 @@ class RealE2eTest : DictationTest() {
         assertEquals("screenshot planned (privacy full, OCR models resolved)", true, plan?.screenshot)
         assertTrue("screen context with text: $context", context is ContextReadiness.Ready && context.hasScreen && context.contextWords > 0)
 
-        // Latency per stage after the stop (stop tap -> text inserted), from the orchestrator's own states.
-        fun firstAt(kind: (DictationState) -> Boolean) = rec.states.firstOrNull { it.atMs >= stopAt - 50 && kind(it.value) }?.atMs
+        // Latency per stage after the stop (stop -> text inserted), from the orchestrator's own states: the stop is the
+        // Finishing state (the orchestrator took the stop tap), then the final transcript (Polishing), the cleanup
+        // (Delivering) and the verified insertion (Done).
+        val lastListening = rec.states.indexOfLast { it.value is DictationState.Listening }
+        val after = rec.states.drop(lastListening + 1)
+        fun firstAt(kind: (DictationState) -> Boolean) = after.firstOrNull { kind(it.value) }?.atMs
         val finishingAt = firstAt { it is DictationState.Finishing }
         val polishingAt = firstAt { it is DictationState.Polishing }
         val deliveringAt = firstAt { it is DictationState.Delivering }
-        val doneStateAt = firstAt { it is DictationState.Done } ?: doneAt
+        val doneStateAt = firstAt { it is DictationState.Done }
         fun span(a: Long?, b: Long?) = if (a != null && b != null) b - a else -1
         E2e.report(
             "$r.stages_ms",
-            "stop->finishing=${span(stopAt, finishingAt)} asr_final=${span(finishingAt, polishingAt)} " +
-                "cleanup=${span(polishingAt, deliveringAt)} insert=${span(deliveringAt, doneStateAt)} total=${doneStateAt - stopAt}",
+            "asr_final=${span(finishingAt, polishingAt)} cleanup=${span(polishingAt, deliveringAt)} " +
+                "insert=${span(deliveringAt, doneStateAt)} stop_to_inserted=${span(finishingAt, doneStateAt)}",
         )
         E2e.report("$r.stop_to_done_ms_test", doneAt - stopAt)
         E2e.report("$r.stop_to_done_ms_history", row.timings.stopToDoneMs ?: -1)
