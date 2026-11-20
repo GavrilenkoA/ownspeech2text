@@ -19,7 +19,10 @@ import kotlin.math.sin
  * [GigaAmCtcModel] end to end on ORT CPU with fixtures/tiny_ctc_20s.onnx (native/qnn-contexts/make_tiny_ctc.py): the
  * GigaAM graph's interface ([1, 64, 2000] + feature_lengths -> [1, 500, 257]) where mel band m votes for token 2 + m and
  * the blank wins in silence. Tones at band centres (600 / 900 / 1650 Hz = bands 15 / 20 / 30) must come out as those
- * tokens, in order, from the right 20 s window; the padded tail of a window adds nothing.
+ * tokens, in order, from the right 20 s window. The graph honours feature_lengths: its last valid step
+ * ((len - 1) / 4) is a marker ("X" for a part window, "Q" when all 500 steps are valid) and every later step the PAD
+ * token "Z". So a part window ends in "X" only when the model passes the real frame count (the padded 2000 makes it
+ * "Q") and reads exactly the valid steps (reading on adds "Z").
  */
 class GigaAmCtcModelTest {
     private val dir = File(Fixtures.repoRoot, "native/qnn-contexts/fixtures")
@@ -43,15 +46,20 @@ class GigaAmCtcModelTest {
 
     private fun tok(band: Int) = vocab.tokens[2 + band].replace('▁', ' ').trim()
 
+    /** The stand-in's marker on the last valid step of a part window (make_tiny_ctc.py END) and of a full one (FULL). */
+    private val end = "X"
+    private val full = "Q"
+
     @Test
     fun tonesBecomeTheirTokensWithinOneWindow() {
         model().use { m ->
             assertEquals(320_160, m.windowSamples)
-            assertEquals(tok(15) + tok(20) + tok(30), m.transcribe(audio(6.0, 1.0 to 600.0, 2.5 to 900.0, 4.0 to 1650.0)))
-            assertEquals("", m.transcribe(audio(3.0)))
+            assertEquals(tok(15) + tok(20) + tok(30) + end, m.transcribe(audio(6.0, 1.0 to 600.0, 2.5 to 900.0, 4.0 to 1650.0)))
+            // silence: only the length marker, so the padded tail of the window adds nothing
+            assertEquals(end, m.transcribe(audio(3.0)))
             assertEquals("", m.transcribe(FloatArray(100)))
             val d = m.decoder().decode(audio(2.0, 0.5 to 900.0), "ru")
-            assertEquals(tok(20), d.text)
+            assertEquals(tok(20) + end, d.text)
             assertNull("GigaAM reports no language", d.language)
         }
     }
@@ -59,9 +67,10 @@ class GigaAmCtcModelTest {
     @Test
     fun audioLongerThanTheWindowIsDecodedWindowByWindow() {
         model().use { m ->
-            // 27 s: two tones in the first 20.01 s window, one in the second; window texts are joined with a space
+            // 27 s: two tones in the first 20.01 s window (all 2000 frames valid), one in the second (shorter, so its
+            // marker sits earlier); window texts are joined with a space
             val text = m.transcribe(audio(27.0, 1.0 to 600.0, 18.0 to 900.0, 23.0 to 1650.0))
-            assertEquals(tok(15) + tok(20) + " " + tok(30), text)
+            assertEquals(tok(15) + tok(20) + full + " " + tok(30) + end, text)
         }
     }
 }
