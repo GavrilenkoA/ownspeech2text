@@ -154,6 +154,9 @@ app_files() { "${ADB[@]}" shell run-as "$PKG" "$@"; }
 
 fake_mode() { # on|off
   "${ADB[@]}" shell am force-stop "$PKG"
+  # The e2e suites run on the real container: drop the shell tests' debug fake container flag (MurmurTestRunner
+  # -e murmurFake writes it and it survives app updates), which would swap the whole data side for in-memory fakes.
+  app_files rm -f files/debug-fake-container
   if [ "$1" = on ]; then
     app_files mkdir -p files
     app_files touch files/debug-fake-engines

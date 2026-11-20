@@ -72,7 +72,7 @@ object SettingsFixtures {
 
     /** settings / settings-off / settings-dark: an edited prompt ("Edited"), three apps hidden ("3 apps"). */
     val frameSettings = Settings(
-        promptOverride = PromptOverride(PROTOTYPE_PROMPT, "default.v4"),
+        promptOverride = PromptOverride(PROTOTYPE_PROMPT, "default.v1"),
         hiddenInPackages = setOf(SBER, TBANK, VTB),
     )
 
