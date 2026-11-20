@@ -82,6 +82,10 @@ class EmulatorHarnessTest {
 
     /** Binds the service the way the binder clients do, kills its process, and checks the client sees the death. */
     private fun killAndObserve(process: InferProcess, service: Class<*>, name: String) {
+        // The container probes the device once per app version when :main starts (ARCHITECTURE 8.4): while its binding
+        // lives, a killed process is restarted for it. Let the probe finish and its process idle out (5 s) first.
+        kotlinx.coroutines.runBlocking { E2e.container.deviceProfile.ensure() }
+        Processes.awaitGone(name, 20_000)
         val connected = CountDownLatch(1)
         val died = CountDownLatch(1)
         val conn = object : ServiceConnection {
