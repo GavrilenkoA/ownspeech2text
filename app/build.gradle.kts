@@ -6,8 +6,9 @@ plugins {
 }
 
 val productName = providers.gradleProperty("murmur.productName").getOrElse("Murmur")
-// Local device builds only (DEVICE_CHECKLIST DC8): -Pmurmur.htp=true -Pmurmur.qnn=true. Never redistributed until the
-// owner has read the Hexagon SDK CE and QNN runtime licences (ADR-048).
+// Device builds (DEVICE_CHECKLIST DC8): -Pmurmur.htp=true -Pmurmur.qnn=true. Both flags gate libraries whose
+// licences allow object-code distribution only inside the application (ADR-048); the APK is the only shape they
+// may leave in - never a standalone library download.
 val shipHtp = providers.gradleProperty("murmur.htp").map { it.toBoolean() }.getOrElse(false)
 
 android {

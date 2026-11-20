@@ -71,8 +71,8 @@ tools/e2e/check_apk_engines.sh app/build/outputs/apk/debug/app-debug.apk
 
 CI does the same before it builds (`native-libs` job, cached) and fails the build when an APK
 is missing an engine library. The public APKs carry the CPU engines only. The complete device
-build adds the Qualcomm NPU paths and stays unpublished until the licences named in
-`docs/DECISIONS.md` (ADR-048) are read:
+build adds the Qualcomm NPU paths and is published as separate `*-npu-*` release assets, built
+locally because the Qualcomm toolchains need a licence-accepting account (ADR-048):
 
 ```bash
 tools/device/build_full_apk.sh        # NPU + QNN libraries, verified, into dist/
@@ -93,5 +93,5 @@ things that write files, and only locally.
 
 ## License
 
-No license has been chosen yet, so all rights are reserved for now. Third-party models
-downloaded by the app keep their own licenses, listed per entry in the catalog.
+Apache-2.0 (see `LICENSE`). Third-party components are listed in `THIRD_PARTY_NOTICES.md`;
+models downloaded by the app keep their own licenses, listed per entry in the catalog.
