@@ -11,8 +11,9 @@ plugins {
 val nativeLibsDir = providers.gradleProperty("murmur.nativeLibsDir")
     .orElse(rootDir.resolve(".cache/native/jniLibs").absolutePath)
 
-// ADR-048: Qualcomm's QNN runtime ships only in local device builds (-Pmurmur.qnn=true) until the owner has read its
-// licence. Then exactly four libraries of com.qualcomm.qti:qnn-runtime 2.52.0 are packaged (asr-ocr A3); the 89.6 MB
+// ADR-048: Qualcomm's QNN runtime ships behind -Pmurmur.qnn=true; its licence (read 2026-11-20) allows object-code
+// distribution inside an application only, so it is packaged exclusively in APKs. Exactly four libraries of
+// com.qualcomm.qti:qnn-runtime 2.52.0 are packaged (asr-ocr A3); the 89.6 MB
 // libQnnHtpPrepare.so (on-device compile), the other skels and the GPU/DSP backends are left out.
 val shipQnn = providers.gradleProperty("murmur.qnn").map { it.toBoolean() }.getOrElse(false)
 val qnnLibs = listOf("libQnnHtp.so", "libQnnSystem.so", "libQnnHtpV79Stub.so", "libQnnHtpV79Skel.so")
