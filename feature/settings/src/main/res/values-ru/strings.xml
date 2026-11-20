@@ -152,7 +152,7 @@
     <string name="settings_on_device">Модели и история остаются на этом телефоне.</string>
 
     <string name="settings_debug_fakes">Тестовые движки</string>
-    <string name="settings_debug_fakes_sub">Диктовка работает на встроенных заглушках вместо моделей</string>
+    <string name="settings_debug_fakes_sub">Диктовка работает на встроенных заглушках вместо моделей. Применяется при следующем запуске приложения</string>
     <string name="settings_debug_timeout">Множитель таймаутов</string>
     <string name="settings_debug_timeout_sub">Умножает все таймауты диктовки и вызовов процессов</string>
     <string name="settings_debug_timeout_value">×%1$s</string>

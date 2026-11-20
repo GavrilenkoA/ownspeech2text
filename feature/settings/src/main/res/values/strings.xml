@@ -155,7 +155,7 @@
 
     <!-- Debug builds only -->
     <string name="settings_debug_fakes">Use fake engines</string>
-    <string name="settings_debug_fakes_sub">Dictation runs on built-in fakes instead of models</string>
+    <string name="settings_debug_fakes_sub">Dictation runs on built-in fakes instead of models. Applies at the next app start</string>
     <string name="settings_debug_timeout">Timeout scale</string>
     <string name="settings_debug_timeout_sub">Multiplies every dictation and binder timeout</string>
     <!-- %1$s = factor -->
