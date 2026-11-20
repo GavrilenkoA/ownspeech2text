@@ -140,12 +140,17 @@ def gh_file(repo: str, tag: str, path: str, bytes_: int, sha256: str, archive: s
 # WP-21: the ORT QNN plugin EP artifacts are our own host compiles (native/qnn-contexts/compile.sh, QAIRT 2.52 via
 # onnxruntime-qnn 2.8.0, SM8750). Their bytes and sha256 come from the committed build manifest; QNN compiles are not
 # bit-reproducible, so the pinned files are exactly the ones that build wrote (and the simulator suite checked).
-# Hosting is an owner decision (docs/OWNER_QUESTIONS.md, WP-21): the owner HF repo below does not exist yet, so the
-# URLs answer 404 until the files are uploaded at that tag. No shipped build offers these downloads: the ort-qnn
-# runtimes are reported only by a -Pmurmur.qnn=true build whose QNN EP registered (RuntimeKeys.qnnEp, ADR-048/059).
+# Hosting is an owner decision (docs/OWNER_QUESTIONS.md, WP-21): NPU_CTX_REPO is a neutral placeholder until the owner
+# names the HF repo (the product name stays out of it, ADR-036), so the URLs answer 404 and the files are listed as
+# "pending host" in the catalog's generated line. With the owner's answer: upload the files at that revision, set the
+# repo here and rebuild (the network run then checks size and sha256 of each). No shipped build offers these downloads:
+# the ort-qnn runtimes are reported only by a -Pmurmur.qnn=true build whose QNN EP registered (RuntimeKeys.qnnEp,
+# ADR-048/059).
 QNN_CTX_MANIFEST = json.loads((REPO / "native/qnn-contexts/manifest.json").read_text(encoding="utf-8"))
-NPU_CTX_REPO = "murmur-dictation/murmur-npu-contexts"
+NPU_CTX_REPO = "owner-hosting-pending/npu-contexts"
 NPU_CTX_REVISION = "qairt-2.52.0-r1"
+# NPU context files whose host did not answer (network run) or that were not checked (--offline): not verified.
+NPU_CTX_PENDING: list[str] = []
 
 
 def npu_ctx_files(artifact_id: str) -> tuple[list[dict], dict]:
@@ -157,15 +162,17 @@ def npu_ctx_files(artifact_id: str) -> tuple[list[dict], dict]:
     for r in rows:
         path = f"{artifact_id.replace('@', '--')}/{r['name']}"
         url = f"https://huggingface.co/{NPU_CTX_REPO}/resolve/{NPU_CTX_REVISION}/{path}"
+        info = None
         if not OFFLINE:
             try:
                 info = hf_paths_info(NPU_CTX_REPO, NPU_CTX_REVISION, [path]).get(path)
             except urllib.error.HTTPError as e:
-                info = None
                 print(f"  pending host {NPU_CTX_REPO}@{NPU_CTX_REVISION}: HTTP {e.code} for {path}", file=sys.stderr, flush=True)
             if info is not None:
                 lfs = (info.get("lfs") or {}).get("oid")
                 assert info["size"] == r["bytes"] and lfs in (None, r["sha256"]), (path, info, r)
+        if info is None:
+            NPU_CTX_PENDING.append(path)
         f = {"name": r["name"], "url": url, "bytes": r["bytes"], "sha256": r["sha256"], "source": "huggingface",
              "repo": NPU_CTX_REPO, "revision": NPU_CTX_REVISION, "path": path}
         if not plain:
@@ -374,7 +381,7 @@ def aux_models() -> list[dict]:
                                             sha256="193bab7a" if OFFLINE else None, name="det.onnx")],
                           "layout": {"model": "det.onnx"}, "memoryMb": {"cpu": 60}},
                          npu_ctx_artifact("pp-ocrv6-tiny-det@qnn-sm8750", "ort-qnn/ppocr-det",
-                                          notes="One context per detector input 960x416, 416x960, 960x864, 864x960, 960x960 (other window shapes are padded into the smallest that holds them).")],
+                                          notes="One context per detector input 960x416, 416x960, 960x864, 864x960, 960x960; any other window shape runs the unchanged det.onnx shipped in the same zip on the CPU (padding into a larger context changes the output: the detector pools globally).")],
            "followUps": [{"id": "npu-port", "note": "fp16 fixed-shape graphs compile 100 % onto the HTP (asr-ocr.md 7.5); decide after phone CPU vs QNN times."}],
            "evidence": "docs/research/verify/asr-ocr.md"}
     rec = {"id": "pp-ocrv5-cyrillic-mobile-rec", "kind": "ocr-rec", "displayName": "PP-OCRv5 Cyrillic recogniser",
@@ -511,7 +518,9 @@ def main() -> int:
     cat = {
         "schema": 1,
         "catalogVersion": CATALOG_VERSION,
-        "generated": "2026-11-20 by core/catalog/tools/build_catalog.py" + (" (--offline)" if OFFLINE else " (network-verified)"),
+        "generated": "2026-11-20 by core/catalog/tools/build_catalog.py" + (" (--offline)" if OFFLINE else " (network-verified)")
+                     + (f"; {len(NPU_CTX_PENDING)} NPU context files pending host, not verified (sha256 from native/qnn-contexts/manifest.json)"
+                        if NPU_CTX_PENDING else ""),
         "defaults": {
             "asr": {"ru+en": "parakeet-tdt-0.6b-v3", "en": "parakeet-tdt-0.6b-v3", "ru": "gigaam-v3-e2e-rnnt"},
             "llm": LLM.get("default_model_id", "lfm3-1.7b"),

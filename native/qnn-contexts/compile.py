@@ -10,7 +10,8 @@ Every graph is compiled with the CPU EP fallback disabled, so a session exists o
 HTP; the result is checked again (exactly one EPContext node, nothing else). fp16 precision, no quantisation
 (asr-ocr.md 7.5 / 5.4). One fixed shape per graph:
   * detector: the resize rule of ml/ocr (long side 960, multiples of 32) gives 960x416 (cover) and 960x864 (inner),
-    plus the two landscape rotations and 960x960 (any other window shape is padded into the smallest of these).
+    plus the two landscape rotations and 960x960. Any other window shape runs the unchanged det.onnx, which ships in
+    the same zip, on the CPU: padding into a larger context changes the whole map (the detector pools globally).
   * recogniser: one graph per ml/ocr bucket width (README 5.2: padding changes the output, so no bucket is padded
     into a wider one). One context binary per graph (52 MB for the ten): QNN HTP weight sharing (one 18 MB binary
     for all buckets) compiles, but the x86 HTP simulator segfaults loading such a context, so it is not verifiable here.
