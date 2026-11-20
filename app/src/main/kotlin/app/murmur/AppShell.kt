@@ -26,6 +26,7 @@ import androidx.compose.material3.adaptive.navigation3.ListDetailSceneStrategy
 import androidx.compose.material3.adaptive.navigation3.rememberListDetailSceneStrategy
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -126,6 +127,8 @@ fun AppShell(deps: ShellDeps, links: StateFlow<DeepLink?>, onLinkHandled: () -> 
         backStack.addAll(stack)
     }
 
+    // A Settings sub-screen (prompt editor, Tone per app) is open on the cover display: it covers the bottom bar.
+    var settingsSubScreen by remember { mutableStateOf(false) }
     // The hub segment an "Open Models" link asked for, until the Models screen has shown it (saved across fold/unfold).
     var modelsSegment by rememberSaveable { mutableStateOf<ModelKind?>(null) }
     val link = links.collectAsStateValue()
@@ -206,8 +209,9 @@ fun AppShell(deps: ShellDeps, links: StateFlow<DeepLink?>, onLinkHandled: () -> 
                         ModelDetail(deps.models, ModelId(r.id), onClose = { close(ModelsRoute) }, pane = wide)
                     }
                 }
-                // WIRING SLOT (WP-19): Settings lays out its own panes on the inner display (260 dp list).
-                entry<SettingsRoute> { SettingsScreen(deps.settings) }
+                // Settings lays out its own panes on the inner display (260 dp list); on the cover display its
+                // sub-screens are full screens that cover the bottom bar (WP-19).
+                entry<SettingsRoute> { SettingsScreen(deps.settings, onSubScreenChange = { settingsSubScreen = it }) }
                 entry<PracticeRoute>(metadata = mapOf(DETAIL to true)) {
                     PracticeScreen(deps.practice, onClose = { close(ShellNav.tabOf(backStack.toList())) }, Modifier.testTag("shell-practice"))
                 }
@@ -231,7 +235,10 @@ fun AppShell(deps: ShellDeps, links: StateFlow<DeepLink?>, onLinkHandled: () -> 
         Column(Modifier.fillMaxSize().background(c.bg).testTag("shell")) {
             content(Modifier.weight(1f).windowInsetsPadding(insets.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)))
             // The bar pads itself by the gesture inset (72 dp + inset, DESIGN 4). A pushed screen covers it (hist-detail).
-            if (!ShellNav.isPushed(backStack.toList())) MurmurNavigationBar(items, ShellNav.indexOf(tab), select, Modifier.testTag("nav-bar"))
+            val coveredBySettings = settingsSubScreen && tab == SettingsRoute
+            if (!ShellNav.isPushed(backStack.toList()) && !coveredBySettings) {
+                MurmurNavigationBar(items, ShellNav.indexOf(tab), select, Modifier.testTag("nav-bar"))
+            }
         }
     }
 }

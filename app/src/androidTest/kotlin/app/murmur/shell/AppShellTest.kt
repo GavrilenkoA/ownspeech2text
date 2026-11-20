@@ -6,6 +6,7 @@ import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -77,6 +78,33 @@ class AppShellTest {
         compose.onNode(tab(R.string.tab_history)).performClick()
         compose.waitForTag("screen-history")
         Device.shot("shell-history")
+    }
+
+    /** Integration pass 6: a Settings sub-screen on the cover display covers the bottom bar (WP-19 onSubScreenChange). */
+    @Test
+    fun aSettingsSubScreenCoversTheBarOnCover() {
+        requireFakeContainer()
+        assumeTrue("cover display (murmur_fold7_cover)", !Device.wide())
+        launch()
+        compose.onNode(tab(R.string.tab_settings)).performClick()
+        compose.waitForTag("screen-settings")
+        compose.onNodeWithTag("settings-row-prompt").performScrollTo().performClick()
+        compose.waitForTag("settings-prompt-editor")
+        compose.waitForIdle()
+        assertFalse("the prompt editor covers the bottom bar", compose.hasTag("nav-bar"))
+        Device.ui.pressBack()
+        compose.waitForTag("nav-bar")
+        compose.onNode(tab(R.string.tab_settings)).assertIsSelected()
+    }
+
+    /** Integration pass 6 (ADR-087): "Open Models" for a cleanup problem lands on the Cleanup segment. */
+    @Test
+    fun anOpenModelsLinkForCleanupShowsTheCleanupSegment() {
+        requireFakeContainer()
+        launch(DeepLink.intent(Device.context, DeepLink.Models(app.murmur.core.model.ModelKind.LLM)))
+        compose.waitForTag("screen-models")
+        compose.waitForTag("models-none")
+        compose.onNode(tab(R.string.tab_models)).assertIsSelected()
     }
 
     @Test
