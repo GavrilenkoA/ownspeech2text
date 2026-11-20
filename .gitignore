@@ -39,3 +39,6 @@ __pycache__/
 *.pyc
 .pytest_cache/
 node_modules/
+
+# Local full-build outputs (tools/device/build_full_apk.sh)
+dist/
