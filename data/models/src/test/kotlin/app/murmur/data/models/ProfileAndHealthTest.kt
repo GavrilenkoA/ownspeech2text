@@ -62,6 +62,44 @@ class DeviceProfileProberTest {
         val slow = DeviceProfileProber(File(dir, "other.json"), "1.0+1", FakeInferenceHost(InferProcess.ASR), hanging, base, timeoutMs = 200)
         assertEquals(setOf(CPU), slow.ensure().availableUnits)
     }
+
+    @Test
+    fun aCpuOnlyFallbackIsProbedAgainOnceTheRetryIsDue() = runBlocking {
+        // ADR-092: a probe that failed at :main start (boot, a slow first QNN EP registration) must not keep a
+        // long-lived :main on CPU only; the first ensure() after retryAfterMs probes again, nothing earlier.
+        var now = 1_000L
+        val asr = FakeInferenceHost(InferProcess.ASR, units = setOf(NPU, CPU)).also { it.crashOnConnect = 1 }
+        val llm = FakeInferenceHost(InferProcess.LLM)
+        val prober = DeviceProfileProber(cache, "1.0+1", asr, llm, base, retryAfterMs = 60_000, clock = { now })
+        assertEquals(setOf(CPU), prober.ensure().availableUnits)
+        val connects = asr.connects
+        now += 59_999
+        assertEquals(setOf(CPU), prober.ensure().availableUnits)
+        assertEquals("no probe before the retry is due", connects, asr.connects)
+        assertFalse(cache.exists())
+        now += 1
+        assertEquals(setOf(NPU, CPU), prober.ensure().availableUnits)
+        assertEquals(connects + 1, asr.connects)
+        assertTrue(cache.isFile)
+        // A probed profile is final for the process: no more probes, however much time passes.
+        now += 10 * 60_000
+        assertEquals(setOf(NPU, CPU), prober.ensure().availableUnits)
+        assertEquals(connects + 1, asr.connects)
+    }
+
+    @Test
+    fun aRetryThatFailsAgainWaitsAnotherFullInterval() = runBlocking {
+        var now = 0L
+        val asr = FakeInferenceHost(InferProcess.ASR, units = setOf(NPU, CPU)).also { it.crashOnConnect = 2 }
+        val prober = DeviceProfileProber(cache, "1.0+1", asr, FakeInferenceHost(InferProcess.LLM), base, retryAfterMs = 1_000, clock = { now })
+        assertEquals(setOf(CPU), prober.ensure().availableUnits)
+        now = 1_000
+        assertEquals(setOf(CPU), prober.ensure().availableUnits)   // retry 1 fails
+        now = 1_999
+        assertEquals(setOf(CPU), prober.ensure().availableUnits)   // not due: counted from the failed retry
+        now = 2_000
+        assertEquals(setOf(NPU, CPU), prober.ensure().availableUnits)
+    }
 }
 
 class FileUnitHealthRepositoryTest {

@@ -24,8 +24,10 @@ data class BaseDeviceInfo(val soc: String?, val abi: String, val totalRamMb: Int
  *  - probe = bind both inference processes, InferenceHost.probe(), merge: units that initialised in either process
  *    (+ CPU), runtime keys of both, `native.build` facts as [DeviceProfile.nativeBuilds] ("asr", "llm"); SoC, ABI and
  *    RAM from [base]. Cached in [cacheFile] with the app version;
- *  - any failure or timeout -> [DeviceProfile.cpuOnly] with the runtimes this build implements, kept for this process
- *    only (a later process probes again), never an exception;
+ *  - any failure or timeout -> [DeviceProfile.cpuOnly] with the runtimes this build implements, never cached in the
+ *    file and never an exception. A fallback is retried: the first [ensure] at least [retryAfterMs] after it probes
+ *    again (bounded by [retryTimeoutMs]), so a probe that failed at :main start (boot, a slow first QNN registration)
+ *    does not keep a long-lived :main on CPU only (ADR-092);
  *  - after probing, both processes get an idle exit (D5: they are not kept alive by the probe).
  */
 class DeviceProfileProber(
@@ -36,21 +38,39 @@ class DeviceProfileProber(
     private val base: () -> BaseDeviceInfo,
     private val timeoutMs: Long = 30_000,
     private val log: DlLog = DlLog.NONE,
+    /** How long a cpuOnly fallback is kept before the next [ensure] probes again. */
+    private val retryAfterMs: Long = RETRY_AFTER_MS,
+    /** Budget of such a retry: it may run inside a press (resolver), so it is shorter than the first probe's. */
+    private val retryTimeoutMs: Long = RETRY_TIMEOUT_MS,
+    /** Monotonic milliseconds. */
+    private val clock: () -> Long = { System.nanoTime() / 1_000_000 },
 ) {
     private val mutex = Mutex()
     private val _profile = MutableStateFlow<DeviceProfile?>(null)
     val profile: StateFlow<DeviceProfile?> = _profile.asStateFlow()
 
+    /** When the held profile is a cpuOnly fallback: the clock() of that fallback; null for a probed or cached one. */
+    private var fallbackAtMs: Long? = null
+
     suspend fun ensure(): DeviceProfile = mutex.withLock {
-        _profile.value ?: (readCache() ?: probeOrCpuOnly()).also { _profile.value = it }
+        val held = _profile.value
+        val fallbackAt = fallbackAtMs
+        when {
+            held == null -> (readCache() ?: probeOrCpuOnly(timeoutMs)).also { _profile.value = it }
+            fallbackAt != null && clock() - fallbackAt >= retryAfterMs -> {
+                log.event("probe_retry")
+                probeOrCpuOnly(retryTimeoutMs).also { _profile.value = it }
+            }
+            else -> held
+        }
     }
 
-    suspend fun reprobe(): DeviceProfile = mutex.withLock { probeOrCpuOnly().also { _profile.value = it } }
+    suspend fun reprobe(): DeviceProfile = mutex.withLock { probeOrCpuOnly(timeoutMs).also { _profile.value = it } }
 
-    private suspend fun probeOrCpuOnly(): DeviceProfile {
+    private suspend fun probeOrCpuOnly(budgetMs: Long): DeviceProfile {
         val info = safeBase()
         val profile = try {
-            withTimeout(timeoutMs) {
+            withTimeout(budgetMs) {
                 val asr = probeOne(asrHost)
                 val llm = probeOne(llmHost)
                 merge(info, asr, llm)
@@ -63,8 +83,10 @@ class DeviceProfileProber(
         }
         if (profile == null) {
             log.event("probe_cpu_only")
+            fallbackAtMs = clock()
             return DeviceProfile.cpuOnly(info.abi, info.totalRamMb, RuntimeKeys.implemented)
         }
+        fallbackAtMs = null
         writeCache(profile)
         log.event("probe_done", "units" to profile.availableUnits.joinToString(","), "runtimes" to profile.supportedRuntimes.size)
         return profile
@@ -98,6 +120,8 @@ class DeviceProfileProber(
 
     companion object {
         const val IDLE_AFTER_PROBE_MS = 5_000L
+        const val RETRY_AFTER_MS = 5 * 60_000L
+        const val RETRY_TIMEOUT_MS = 10_000L
 
         fun merge(info: BaseDeviceInfo, asr: ProcessProbe, llm: ProcessProbe): DeviceProfile = DeviceProfile(
             soc = info.soc,

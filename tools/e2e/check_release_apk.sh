@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Release APK content checks (WP-20 acceptance, ADR-048, D6):
 #   - native libraries only for arm64-v8a;
-#   - no Hexagon DSP skel (libggml-htp-*.so) and no QNN library (libQnn*.so) without -Pmurmur.htp / -Pmurmur.qnn;
+#   - no Hexagon DSP skel (libggml-htp-*.so), no QNN library (libQnn*.so) and no ONNX Runtime QNN plugin EP
+#     (libonnxruntime_providers_qnn.so, WP-21) without -Pmurmur.htp / -Pmurmur.qnn;
 #   - no class of the :testing fakes (app/murmur/testing) in any dex.
 #
 #   tools/e2e/check_release_apk.sh [--no-build] [--native-libs <dir>] [--probe-libs] [--control] [<apk>]
@@ -11,7 +12,8 @@
 # holding a placeholder libggml-hexagon.so + libggml-htp-v79.so (arm64 and x86_64) to show the skel is dropped while
 # the hexagon backend stays.
 # --control first builds the same release APK with -Pmurmur.qnn=true -Pmurmur.htp=true and requires the checks to see
-# what the flags add: libQnnHtp.so (the qnn-runtime AAR, Maven Central) and, when the native dir holds one,
+# what the flags add: libQnnHtp.so (the qnn-runtime AAR, Maven Central), libonnxruntime_providers_qnn.so (the
+# onnxruntime-android-qnn AAR) and, when the native dir holds one,
 # libggml-htp-v79.so. Without that positive control a PASS of the two exclusion checks proves nothing. The control
 # APK is checked and then rebuilt without the flags.
 # Exit: 0 every check passed; 1 a check failed; 2 a build failed or no APK; 4 the positive control failed.
@@ -73,6 +75,8 @@ if [ "$CONTROL" = 1 ]; then
   cfail=0
   if grep -q '^lib/arm64-v8a/libQnnHtp.so$' <<<"$clibs"; then echo "CONTROL PASS libQnnHtp.so packaged with -Pmurmur.qnn=true"
   else echo "CONTROL FAIL -Pmurmur.qnn=true packaged no lib/arm64-v8a/libQnnHtp.so: the libQnn check has no positive control on this tree"; cfail=1; fi
+  if grep -q '^lib/arm64-v8a/libonnxruntime_providers_qnn.so$' <<<"$clibs"; then echo "CONTROL PASS libonnxruntime_providers_qnn.so (QNN plugin EP) packaged with -Pmurmur.qnn=true"
+  else echo "CONTROL FAIL -Pmurmur.qnn=true packaged no lib/arm64-v8a/libonnxruntime_providers_qnn.so: the plugin EP check has no positive control on this tree"; cfail=1; fi
   if [ -n "$NATIVE" ] && ls "$NATIVE"/llama/arm64-v8a/libggml-htp-*.so > /dev/null 2>&1; then
     if grep -q '^lib/arm64-v8a/libggml-htp-' <<<"$clibs"; then echo "CONTROL PASS libggml-htp-*.so packaged with -Pmurmur.htp=true"
     else echo "CONTROL FAIL -Pmurmur.htp=true packaged no libggml-htp-*.so although $NATIVE/llama/arm64-v8a has one"; cfail=1; fi
@@ -93,6 +97,7 @@ abis="$(sed -n 's#^lib/\([^/]*\)/.*#\1#p' <<<"$libs" | sort -u | paste -sd ' ')"
 if [ "$abis" = "arm64-v8a" ]; then echo "PASS abi: $abis"; else echo "FAIL abi: '$abis' (expected arm64-v8a only)"; fail=1; fi
 if grep -q 'libggml-htp-' <<<"$libs"; then echo "FAIL libggml-htp-*.so present"; fail=1; else echo "PASS no libggml-htp-*.so"; fi
 if grep -q 'libQnn' <<<"$libs"; then echo "FAIL QNN libraries present"; fail=1; else echo "PASS no libQnn*.so"; fi
+if grep -q 'libonnxruntime_providers_qnn' <<<"$libs"; then echo "FAIL QNN plugin EP present"; fail=1; else echo "PASS no libonnxruntime_providers_qnn.so"; fi
 dexdump="$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)dexdump"
 tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
 unzip -q -o "$APK" 'classes*.dex' -d "$tmp"
