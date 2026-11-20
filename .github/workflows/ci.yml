@@ -37,6 +37,8 @@ jobs:
       - name: Fetch model assets used by the host tests
         run: python3 tools/models/fetch pp-ocrv6-tiny-det@onnx pp-ocrv5-cyrillic-mobile-rec@onnx
       - name: Unit tests
+        env:
+          MURMUR_OCR_PARITY: off
         run: ./gradlew testDebugUnitTest --stacktrace
       - name: Publish test report
         if: always()

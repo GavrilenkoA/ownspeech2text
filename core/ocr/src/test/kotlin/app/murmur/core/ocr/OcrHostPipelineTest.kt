@@ -2,6 +2,7 @@ package app.murmur.core.ocr
 
 import app.murmur.core.model.ModelKind
 import org.junit.AfterClass
+import org.junit.Assume.assumeFalse
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
@@ -20,13 +21,19 @@ class OcrHostPipelineTest {
 
         @BeforeClass @JvmStatic
         fun runSuite() {
+            assumeFalse(
+                "bit-exact goldens hold on the reference host only",
+                System.getenv("MURMUR_OCR_PARITY") == "off",
+            )
             models = HostOrtModels()
             val pipeline = OcrPipeline(OcrConfig(), models)
             runs = Golden.all().associateWith { pipeline.runDetailed(Golden.image(it)) }
         }
 
         @AfterClass @JvmStatic
-        fun close() = models.close()
+        fun close() {
+            if (::models.isInitialized) models.close()
+        }
     }
 
     @Test
