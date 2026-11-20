@@ -41,9 +41,11 @@ HINTS = {
     "en": {"message": "Message", "email_body": "Compose email", "email_subject": "Subject", "search": "Search",
            "address": "Enter address", "note": "Note", "code": "", "generic": "Type here"},
 }
-# screen absent (CONTEXT_V2: secure window, password field, denylisted app, screenshot error, OCR found nothing)
-ABSENT_REASONS = [("secure_window", 30), ("denylisted_app", 25), ("screenshot_error", 15), ("ocr_empty", 20),
-                  ("password_field", 10)]
+# screen absent (CONTEXT_V2: secure window, denylisted app, screenshot error, OCR found nothing). A password field
+# is never generated: the app does not run the LLM there (ADR-070, prompts/render.py NO_SCREEN_LEVEL -> "none"),
+# so such a ctx is never rendered and belongs in no training or eval example.
+ABSENT_REASONS = [("secure_window", 30), ("denylisted_app", 25), ("screenshot_error", 15), ("ocr_empty", 20)]
+NEVER_GENERATED_REASONS = {"password_field"}
 
 
 def _pick(r, weighted):
@@ -143,6 +145,18 @@ def avoid_list(sc: dict) -> list[str]:
     return out
 
 
+CHAT_TEMPLATES = {"messenger_a", "messenger_b", "work_chat"}
+
+
+def effective_injection(sc: dict) -> dict | None:
+    """Where the hostile text is placed. Chat screens cut the title to one short line and show a snippet only
+    sometimes (pinned bar / link preview, ml/screens/families/messengers.py): there it arrives as a message."""
+    inj = sc.get("injection")
+    if inj and sc["render"].get("screen_template") in CHAT_TEMPLATES and inj["where"] != "message":
+        return inj | {"where": "message", "planned_where": inj["where"]}
+    return inj
+
+
 def make_spec(sc: dict, content: dict, variant: int = 0) -> dict:
     """Teacher content {title, messages[{author,is_me,text}], snippets[], before_cursor} -> render spec.
     With ml/screens available the spec comes from ml.screens.specs.from_teacher (its template chooser) with the
@@ -153,12 +167,13 @@ def make_spec(sc: dict, content: dict, variant: int = 0) -> dict:
             for m in (content.get("messages") or []) if (m.get("text") or "").strip()]
     snippets = [s.strip() for s in (content.get("snippets") or []) if s and s.strip()]
     title = (content.get("title") or "").strip()
-    inj = sc.get("injection")
+    inj = effective_injection(sc)
     if inj:
-        if inj["where"] == "message":
+        where = inj["where"]
+        if where == "message":
             author = title if _person_like(title) else r.choice(["Unknown", "Support", "Bot", "Неизвестный", "Админ"])
             msgs = msgs[-5:] + [{"author": author, "is_me": False, "text": inj["text"]}]
-        elif inj["where"] == "snippet":
+        elif where == "snippet":
             snippets = [inj["text"]] + snippets
         else:
             title = inj["text"]
@@ -332,19 +347,28 @@ def finalize(ctx: dict, sc: dict) -> dict:
     return out
 
 
+def no_screen_level(reason: str) -> str:
+    """privacy.level the phone sends without a screen: the shared table prompts/render.py NO_SCREEN_LEVEL
+    (ADR-070), never a copy of it. A reason the app never sends to the LLM (password field) is refused."""
+    from ml.common.render_bridge import render
+    if reason in NEVER_GENERATED_REASONS:
+        raise ValueError(f"no-screen reason {reason!r} never reaches the LLM (ADR-070): not a valid example")
+    table = getattr(render(), "NO_SCREEN_LEVEL", None) or {}
+    if reason not in table:
+        raise ValueError(f"no-screen reason {reason!r} is not in prompts/render.py NO_SCREEN_LEVEL")
+    return table[reason]
+
+
 def absent_ctx(sc: dict, before_cursor: str = "") -> dict:
-    """No screenshot: secure window, password field, denylisted app, screenshot error, OCR found nothing."""
+    """No screenshot: secure window, denylisted app, screenshot error, OCR found nothing."""
     reason = sc["screen_absent"]
     out = {"v": 2, "app": dict(sc["app"])}
     if sc.get("field_present", True):
         out["field"] = {"kind": sc["field_kind"], "before_cursor": before_cursor if sc["category"] == "continuation" else ""}
         if sc.get("input_type_variation"):
             out["field"]["input_type_variation"] = sc["input_type_variation"]
-        if reason == "password_field":
-            out["field"]["password"] = True
     out["language"] = {"asr": "en" if sc["lang"] == "en" else "ru"}
-    level = {"denylisted_app": "app_only", "secure_window": "app_only", "password_field": "app_only"}.get(reason, "full")
-    out["privacy"] = {"level": level, "reason": reason}
+    out["privacy"] = {"level": no_screen_level(reason), "reason": reason}
     return out
 
 

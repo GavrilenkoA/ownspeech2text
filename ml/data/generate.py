@@ -55,6 +55,66 @@ def make_jobs(scs: list[dict], batch: int, prefix: str = "gen") -> list[dict]:
     return jobs
 
 
+def interleave(jobs: list[dict], by_sid: dict) -> list[dict]:
+    """Request order only (ids and batches unchanged): round-robin over (category, language) of each batch's first
+    scenario, so the first answers of a long run cover every category and can be reviewed early."""
+    groups = defaultdict(list)
+    for j in jobs:
+        sc = by_sid[j["sids"][0]]
+        groups[(sc["category"], sc["lang"])].append(j)
+    keys = sorted(groups)
+    out, i = [], 0
+    while len(out) < len(jobs):
+        for k in keys:
+            if i < len(groups[k]):
+                out.append(groups[k][i])
+        i += 1
+    return out
+
+
+RESERVE_SEED_OFFSET = 1000
+RESERVE_INDEX_OFFSET = 100000
+
+
+def parse_reserve(spec: str) -> list[dict]:
+    """'train/context_resolution=120,dev/injection=6;train/address=6' -> one dict per ';'-separated layer,
+    {("train", "context_resolution"): 120, ...}. A later layer adds scenarios after those of the earlier ones and
+    is batched apart, so extending a run never changes a batch the teacher already answered."""
+    layers = []
+    for layer in filter(None, (x.strip() for x in (spec or "").split(";"))):
+        out = {}
+        for part in filter(None, (x.strip() for x in layer.split(","))):
+            cell, k = part.split("=")
+            split, cat = cell.split("/")
+            if cat in S.CODE_ONLY:
+                raise SystemExit(f"--reserve: {cat} is code-made (counterparts come from context_resolution reserves)")
+            out[(split, cat)] = int(k)
+        layers.append(out)
+    return layers
+
+
+def reserve_plan(a, layers: list[dict]) -> list[dict]:
+    """Reserve scenarios for cells that fell short: the plan of another seed (same shares, its own groups), the next
+    k per (split, category) for each layer. They sort after every primary scenario, so they only fill a shortfall;
+    the primary plan, its batches and their job ids stay unchanged. sc["reserve"] = layer number (1, 2, ...)."""
+    if isinstance(layers, dict):
+        layers = [layers]
+    if not any(layers):
+        return []
+    alt = S.plan(a.n, a.dev, a.test, a.seed + RESERVE_SEED_OFFSET, overgen=1.0)
+    by_cell = defaultdict(list)
+    for sc in alt:
+        by_cell[(sc["split"], sc["category"])].append(sc)
+    out, used = [], defaultdict(int)
+    for li, cells in enumerate(layers, 1):
+        for c, k in cells.items():
+            for sc in by_cell[c][used[c]:used[c] + k]:
+                out.append(sc | {"reserve": li, "index": sc["index"] + RESERVE_INDEX_OFFSET})
+            used[c] += k
+    order = {sc["sid"]: i for i, sc in enumerate(alt)}
+    return sorted(out, key=lambda sc: (sc["reserve"], order[sc["sid"]]))
+
+
 def stratified_limit(scs: list[dict], k: int) -> list[dict]:
     """First k scenarios taken round-robin over (category, split), so a small test run covers every category."""
     groups = defaultdict(list)
@@ -93,6 +153,8 @@ def run(a) -> dict:
     out.mkdir(parents=True, exist_ok=True)
     t0 = time.time()
     plan = S.plan(a.n, a.dev, a.test, a.seed, overgen=a.overgen)
+    reserves = reserve_plan(a, parse_reserve(getattr(a, "reserve", "")))
+    plan += reserves
     tgt_counts = S.targets(a.n, a.dev, a.test)
     with open(out / "scenarios.jsonl", "w", encoding="utf-8") as f:
         for sc in plan:
@@ -103,7 +165,10 @@ def run(a) -> dict:
         keep_sids = {sc["sid"] for sc in teach}
     channel = Channel(a.mined)  # fail fast on a bad --mined dir (workers build their own)
     teacher = TC.make_teacher(a.teacher, max_requests=a.max_requests)
-    jobs = make_jobs(teach, a.batch)
+    # reserves are batched apart, so the primary batches (and their job ids) never change
+    layers = sorted({sc.get("reserve") or 0 for sc in teach})
+    jobs = interleave([j for li in layers for j in make_jobs([sc for sc in teach if (sc.get("reserve") or 0) == li], a.batch)],
+                      {sc["sid"]: sc for sc in teach})
     st_t = TC.run_sharded(jobs, teacher, out / "teacher", "gen", shard_size=a.shard_size,
                           concurrency=a.concurrency, max_retries=a.max_retries)
     ex, bad = examples_from(TC.load_results(out / "teacher", "gen"), jobs)
@@ -116,6 +181,11 @@ def run(a) -> dict:
                                 concurrency=a.concurrency, max_retries=a.max_retries)
         ex2, _ = examples_from(TC.load_results(out / "teacher", "topup"), tjobs)
         ex.update(ex2)
+    if getattr(a, "stage", "all") == "teacher":  # shards only; the same command without --stage builds from them (0 requests)
+        st = {"stage": "teacher", "teacher_jobs": len(jobs), "teacher_run": st_t, "topup_run": st_top,
+              "teacher_examples": len(ex), "batch_problems": dict(bad), "wall_s": round(time.time() - t0, 1)}
+        (out / "teacher_stage.json").write_text(json.dumps(st, ensure_ascii=False, indent=1), encoding="utf-8")
+        return st
     # build: render + OCR + noise + filters (parallel workers; each owns its OCR session)
     recs, rejects, reasons = [], [], Counter()
     ocr_drops: dict = {"by_category": Counter(), "by_term": Counter(), "by_rule": Counter()}
@@ -186,20 +256,14 @@ def run(a) -> dict:
         else:
             clean.append(r)
     recs = clean
-    # exact counts per (split, category): first survivors in plan order
-    final, short = [], {}
-    by_cell = defaultdict(list)
-    for r in recs:
-        by_cell[(r["split"], r["category"])].append(r)
-    for split, cc in tgt_counts.items():
-        for cat, c in cc.items():
-            cell = sorted(by_cell.get((split, cat), []), key=lambda r: by_sid[r["meta"]["scenario"]]["index"])
-            if not a.limit and len(cell) < c:
-                short[f"{split}/{cat}"] = {"target": c, "got": len(cell)}
-            final += cell if a.limit else cell[:c]
-    # a counterpart is useless without its context-resolution parent (and vice versa it stays useful alone)
-    ids = {r["id"] for r in final}
-    final = [r for r in final if r["category"] != "context_counterpart" or r["meta"]["counterpart_of"] in ids]
+    # the prompt's false-friend illustration ('точка сбора у входа') still echoes in some formatting examples:
+    # at most ECHO_CAP of them per split, so one phrase does not become the false friend the model learns
+    recs, echo = cap_prompt_echo(recs, by_sid)
+    for _ in echo:
+        reasons["dedup:prompt_echo_cap"] += 1
+    # every survivor before the exact-count cut (selection can be redone without a rebuild)
+    write_jsonl(out / "survivors.jsonl", recs)
+    final, short = select_exact(recs, tgt_counts, by_sid, keep_all=bool(a.limit))
     leak = F.leakage(final)
     for split in ("train", "dev", "test"):
         write_jsonl(out / f"{split}.jsonl", [r for r in final if r["split"] == split])
@@ -211,7 +275,9 @@ def run(a) -> dict:
     stats = {
         "args": {k: v for k, v in vars(a).items()}, "teacher": getattr(getattr(teacher, "cfg", None), "public", lambda: {"name": "stub"})(),
         "provenance": provenance(teacher),
-        "noise_source": channel.source, "scenarios_planned": len(plan), "teacher_scenarios": len(teach),
+        "noise_source": channel.source, "scenarios_planned": len(plan), "reserve_scenarios": len(reserves),
+        "final_from_reserve": sum(1 for r in final if by_sid[r["meta"]["scenario"]].get("reserve")),
+        "teacher_scenarios": len(teach),
         "teacher_jobs": len(jobs), "teacher_run": st_t, "topup_run": st_top, "teacher_examples": len(ex),
         "batch_problems": dict(bad), "built_and_filtered_kept": len(recs) + len(dups), "after_dedup": len(recs),
         "final": len(final), "reasons": dict(reasons.most_common()), "shortfall": short, "leakage": leak,
@@ -238,6 +304,55 @@ def run(a) -> dict:
     (out / "stats.json").write_text(json.dumps(stats, ensure_ascii=False, indent=1), encoding="utf-8")
     (out / "REPORT.md").write_text(report(stats), encoding="utf-8")
     return stats
+
+
+ECHO_PHRASES = ("точка сбора", "period of time")
+ECHO_CAP = 3
+
+
+def cap_prompt_echo(recs: list[dict], by_sid: dict) -> tuple[list[dict], list[dict]]:
+    seen, keep, drop = defaultdict(int), [], []
+    for r in sorted(recs, key=lambda r: by_sid[r["meta"]["scenario"]]["index"]):
+        low = (r["meta"].get("spoken") or "").lower()
+        hit = next((p for p in ECHO_PHRASES if p in low), None)
+        if hit and r["category"] == "formatting_commands":
+            seen[(r["split"], hit)] += 1
+            if seen[(r["split"], hit)] > ECHO_CAP:
+                drop.append(r)
+                continue
+        keep.append(r)
+    ids = {r["id"] for r in keep}
+    return [r for r in recs if r["id"] in ids], drop
+
+
+def select_exact(recs: list[dict], tgt_counts: dict, by_sid: dict, keep_all: bool = False) -> tuple[list[dict], dict]:
+    """Exact counts per (split, category): first survivors in plan order (primary scenarios before reserves).
+    A counterpart is useless without its context-resolution parent, so context_resolution prefers parents whose
+    counterpart survived, and counterparts are drawn only from the selected parents (a parent stays useful alone)."""
+    idx = lambda r: by_sid[r["meta"]["scenario"]]["index"]  # noqa: E731
+    with_cp = {r["meta"]["counterpart_of"] for r in recs if r["category"] == "context_counterpart"}
+    by_cell = defaultdict(list)
+    for r in recs:
+        by_cell[(r["split"], r["category"])].append(r)
+    final, short = [], {}
+    for split, cc in tgt_counts.items():
+        cats = sorted(cc, key=lambda c: c == "context_counterpart")  # parents first
+        chosen = set()
+        for cat in cats:
+            c = cc[cat]
+            cell = by_cell.get((split, cat), [])
+            if cat == "context_resolution":
+                cell = sorted(cell, key=lambda r: (r["id"] not in with_cp, idx(r)))
+            elif cat == "context_counterpart":
+                cell = sorted((r for r in cell if r["meta"]["counterpart_of"] in chosen), key=idx)
+            else:
+                cell = sorted(cell, key=idx)
+            if not keep_all and len(cell) < c:
+                short[f"{split}/{cat}"] = {"target": c, "got": len(cell)}
+            take = cell if keep_all else cell[:c]
+            chosen |= {r["id"] for r in take}
+            final += take
+    return final, short
 
 
 def provenance(teacher) -> dict:
@@ -388,10 +503,17 @@ def main(argv=None) -> int:
                     help="ctx source: real = ml.screens.build_ctx (render + OCR); auto = real when READY files exist")
     ap.add_argument("--allow-fixture", action="store_true", help="allow a full-size run on the fixture backend")
     ap.add_argument("--workers", type=int, default=4, help="build processes (render + OCR); <= 6 on shared CPUs")
+    ap.add_argument("--reserve", default="", help="extra scenarios for short cells: 'train/near_miss=40,dev/list=3' "
+                    "(another seed's plan; used only after every primary survivor)")
+    ap.add_argument("--stage", default="all", choices=["all", "teacher"],
+                    help="teacher = stop after the (resumable) teacher shards; all = build the set as well")
     a = ap.parse_args(argv)
     if a.concurrency is None:
         a.concurrency = TC.TeacherConfig().concurrency if a.teacher != "stub" else 4
     st = run(a)
+    if a.stage == "teacher":
+        print(json.dumps(st, ensure_ascii=False, indent=1))
+        return 0
     print(json.dumps({k: st[k] for k in ("final", "final_by_split", "teacher_run", "shortfall", "leakage", "wall_s")},
                      ensure_ascii=False, indent=1))
     print(f"report: {Path(a.out) / 'REPORT.md'}", file=sys.stderr)

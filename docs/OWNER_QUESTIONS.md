@@ -187,3 +187,9 @@ Pass 5 (prompt decision and WP-20):
   model's benchmark re-tests a failed unit and a good result clears the mark (ADR-080); WP-18 shows "Try again" on a
   failed unit for that (ADR-086). Blocks nothing.
 
+
+ML data (2026-11-20):
+- (Blocks only publishing) The synthetic training set (about 3,600 records) was written by the teacher model behind
+  the local proxy. Its terms for using the output to train models that we then publish are not confirmed
+  (docs/ml/DATA_CARD.md section 2a). Recommendation: until you confirm, the dataset and the fine-tuned models stay
+  private (nothing uploaded publicly; a private HF repo at most). Training itself goes ahead.

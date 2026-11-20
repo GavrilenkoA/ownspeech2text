@@ -20,7 +20,7 @@ CMD_PHRASES = ["новый абзац", "новая строка", "с ново�
 CMD_WORDS = {"точка", "запятая", "запятую", "двоеточие", "тире", "абзац", "строка", "строки", "кавычки", "знак",
              "вопросительный", "восклицательный", "period", "comma", "colon", "paragraph", "line", "quote", "quotes",
              "mark", "point", "dash", "semicolon", "открыть", "закрыть", "открой", "закрой", "новый", "новая", "new",
-             "open", "close", "full", "stop", "скобка", "скобку", "bracket"}
+             "open", "close", "full", "stop", "скобка", "скобку", "bracket", "question", "exclamation"}
 ORDINALS = {"во-первых", "во-вторых", "в-третьих", "в-четвертых", "в-пятых", "первое", "второе", "третье", "четвертое",
             "пятое", "first", "second", "third", "fourth", "fifth", "firstly", "secondly", "thirdly", "пункт", "item",
             "number", "раз", "два", "три", "четыре", "пять", "one", "two", "three", "four", "five", "во", "первых",
@@ -29,7 +29,12 @@ ORDINALS = {"во-первых", "во-вторых", "в-третьих", "в-�
 SC_MARKERS = ["нет, ", "ой, ", "точнее", "вернее", "в смысле", "то есть", "не-не", "no wait", "scratch that",
               "i mean", "sorry, ", "make that", "or rather"]
 SYMBOL_WORDS = {"плюс", "plus", "решётка", "решетка", "hash", "собака", "at", "dot", "точка", "слэш", "слеш", "slash",
-                "дефис", "hyphen", "dash", "underscore", "подчёркивание", "подчеркивание", "амперсанд", "ampersand"}
+                "дефис", "hyphen", "dash", "underscore", "подчёркивание", "подчеркивание", "амперсанд", "ampersand",
+                "тильда", "tilde", "sharp", "шарп", "шарпе", "шарпа", "шарпом", "си"}
+# number-scale words: 'eight hundred' -> '800'
+SCALE_WORDS = {"hundred", "hundreds", "thousand", "thousands", "million", "millions", "billion", "сто", "тысяча",
+               "тысячи", "тысяч", "тысячу", "миллион", "миллиона", "миллионов", "номер", "номера", "номеру"}
+_SYMBOL_IN_TOKEN = re.compile(r"\w[#./~@+]|[#./~@+]\w")
 SYMBOL_CATS = {"address", "formatting_commands", "numbers"}  # where a spoken symbol may become a symbol
 UNIT_PREFIXES = ("процент", "percent", "доллар", "dollar", "бакс", "buck", "рубл", "евро", "euro", "cent", "цент",
                  "pound", "фунт", "тенге", "o'clock")
@@ -43,6 +48,10 @@ def _parts(words) -> set[str]:
         out.add(w)
         out.update(p for p in w.split("-") if p)
     return out
+
+
+def _no_numbers(s: str) -> str:
+    return " ".join(w for w in s.split() if not T.numbers_in(w.strip(".,!?;:()«»\"'")))
 
 
 def _numberish(w: str) -> bool:
@@ -82,13 +91,14 @@ def check(rec: dict) -> list[str]:
         out.append("no_op_not_identical")
     if len(tgt) > 1200:
         out.append("too_long")
-    if T.has_preamble(tgt):
+    if T.has_preamble(tgt) and not T.has_preamble(spoken):  # 'Here's my plan:' the user said is not a preamble
         out.append("preamble")
     low = tgt.lower()
     if any(m in low for m in TAIL_MARKERS):
         out.append("artifact_in_target")
     # language: never translate
-    cs_t, cs_s = T.cyr_share(tgt), T.cyr_share(spoken or tr)
+    # script shares without numbers: 'в семь' -> 'в 7' is not a script shift
+    cs_t, cs_s = T.cyr_share(_no_numbers(tgt)), T.cyr_share(_no_numbers(spoken or tr))
     if lang == "en" and cs_t > 0:
         out.append("cyrillic_in_en")
     if lang == "ru" and cat != "address" and cs_t < 0.5:
@@ -112,12 +122,14 @@ def check(rec: dict) -> list[str]:
             out.append("novel_content")
     if cat not in ("self_correction", "address"):
         tw = T.norm_words(tgt)
-        tg = _parts(tw) | {a + b for a, b in zip(tw, tw[1:])} | {T.norm_word(w) for e in ents for w in T.words(e)}
+        tg = _parts(tw) | {a + b for a, b in zip(tw, tw[1:])} | _parts(T.norm_word(w) for e in ents for w in T.words(e))
+        sym_ok = cat in SYMBOL_CATS or bool(_SYMBOL_IN_TOKEN.search(tgt))  # 'config dot yaml' -> 'config.yaml'
         dropped = [w for w in _parts(T.content_words(spoken)) if "-" not in w and not _matches(w, tg)
-                   and w not in CMD_WORDS and not (w in SYMBOL_WORDS and cat in SYMBOL_CATS) and not _numberish(w)
+                   and w not in CMD_WORDS and not (w in SYMBOL_WORDS and sym_ok) and not _numberish(w)
+                   and w not in SCALE_WORDS
                    and (cat in ("list", "formatting_commands") or w not in ORDINALS)]
-        if cat in ("list", "formatting_commands"):
-            dropped = [w for w in dropped if w not in ORDINALS]
+        if cat in ("list", "formatting_commands"):  # 'в' is the first part of 'в-третьих'
+            dropped = [w for w in dropped if w not in ORDINALS and w != "в"]
         if dropped:
             out.append("dropped_content")
     # numbers
@@ -144,7 +156,7 @@ def check(rec: dict) -> list[str]:
             out.append("distractor_in_target")
             break
     chk = meta.get("check") or {}
-    if any(f.lower() in low for f in chk.get("forbid", [])):
+    if any(f.lower() in low and f.lower() not in (spoken or "").lower() for f in chk.get("forbid", [])):
         out.append("forbidden_in_target")
     if meta.get("injection") and meta["injection"]["text"][:25].lower() in low:
         out.append("injection_in_target")
@@ -185,7 +197,9 @@ def check(rec: dict) -> list[str]:
 @lru_cache(maxsize=1)
 def _prompt_examples() -> tuple[str, ...]:
     from ml.data.contam import prompt_phrases
-    return tuple(p.lower().replace("ё", "е") for p in prompt_phrases() if len(p) >= 12 and len(p.split()) >= 3)
+    # rule examples about numbers and times ('к девяти утра', 'at six thirty pm') are everyday phrases, not copies
+    return tuple(p.lower().replace("ё", "е") for p in prompt_phrases()
+                 if len(p) >= 12 and len(p.split()) >= 3 and not T.numbers_in(p))
 
 
 def _copies_prompt_example(text: str) -> bool:
@@ -241,12 +255,23 @@ def dedup(recs: list[dict], thr: float = 0.8) -> tuple[list[dict], list[tuple[st
     kept_idx: list[int] = []
     dropped: list[tuple[str, str, str]] = []
     seen_exact: dict = {}
+    n_same: dict = {}
+    noise_split: dict = {}
     buckets: dict[tuple, list[tuple[int, frozenset]]] = {}
     for i in order:
         r = recs[i]
         tgt = r["target"]
         key = (re.sub(r"\W+", " ", tgt.lower()).strip(), re.sub(r"\W+", " ", r["transcript"].lower()).strip())
         grp = r["meta"].get("group")
+        if r["category"] == "noise_only":  # a few spellings of silence repeat by nature: at most 3 of each,
+            n_same[key] = n_same.get(key, 0) + 1  # all in one split (held-out splits come first and win)
+            first_split = noise_split.setdefault(key, r["split"])
+            if n_same[key] > 3 or first_split != r["split"]:
+                dropped.append((r["id"], "exact_duplicate", seen_exact.get(key, ("",))[0]))
+                continue
+            seen_exact.setdefault(key, (r["id"], grp))
+            kept_idx.append(i)
+            continue
         if key in seen_exact and seen_exact[key][1] != grp:
             dropped.append((r["id"], "exact_duplicate", seen_exact[key][0]))
             continue

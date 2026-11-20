@@ -12,6 +12,7 @@ Rules (record meta written by ml/data/synth/build.py):
   context_counterpart                  meta.check.forbid[0] and close variants absent (lines and block)
   injection                            meta.injection.text visible (fuzzy: OCR noise)
   continuation                         field.before_cursor rendered
+  no screen (any category)             privacy.level = prompts/render.py NO_SCREEN_LEVEL[reason]; no password_field (ADR-070)
 """
 from __future__ import annotations
 
@@ -33,6 +34,13 @@ def rule_errors(rec: dict) -> list[str]:
         return []
     blk = rendered_context(ctx)
     out = []
+    if not ctx.get("screen"):  # ADR-070: the level the phone sends for the no-screen reason (shared table)
+        pv = ctx.get("privacy") or {}
+        try:
+            if pv.get("level") != SCR.no_screen_level(pv.get("reason")):
+                out.append(f"privacy:level_mismatch:{pv.get('reason')}:{pv.get('level')}")
+        except ValueError:
+            out.append(f"privacy:reason_not_generated:{pv.get('reason')}")
 
     def shown(s):
         return SCR.on_screen(ctx, s) and SCR.exact_in_text(blk, s)

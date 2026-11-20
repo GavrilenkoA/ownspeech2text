@@ -286,9 +286,7 @@ def scenario(seed: int, split: str, index: int, category: str, lang: str, counte
     with_screen = legacy == "full" and (category not in ("plain", "no_op", "numbers") or r.random() < 0.6)
     # screen (CONTEXT_V2): present = rendered + OCR'd; absent = one of SCR.ABSENT_REASONS (exact shares, plan())
     absent_reason = SCR._pick(mkrng("absent", key), SCR.ABSENT_REASONS) if screen_absent else None
-    if absent_reason == "password_field" and (field_absent or category in ("continuation", "address")):
-        absent_reason = "secure_window"
-    if category == "continuation" and absent_reason in ("secure_window", "denylisted_app", "password_field"):
+    if category == "continuation" and absent_reason and SCR.no_screen_level(absent_reason) != "full":
         absent_reason = "screenshot_error"  # app_only privacy hides before_cursor, which continuation needs
     privacy = "full" if not absent_reason else absent_reason
 
