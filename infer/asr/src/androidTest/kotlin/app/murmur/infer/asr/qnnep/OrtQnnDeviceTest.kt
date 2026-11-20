@@ -55,9 +55,9 @@ import kotlin.concurrent.thread
  * path stays the only one (WP-07's and WP-06's suites cover it).
  *
  * On the phone, [deviceSmoke] is DEVICE_CHECKLIST DC4's measurement, started by tools/device/ort_qnn_smoke.sh (which
- * passes `-e ortQnnSmoke 1` and pushes the CPU and NPU artifacts into filesDir/models and the FLEURS clips into
- * filesDir/ortqnn/fleurs-ru): OCR det/rec QNN vs CPU per call (ms, binary-map / argmax agreement) and per page (ms,
- * README tolerance), GigaAM v3 CTC NPU vs the CPU artifact through AsrService (processing ms, WER). One JSON object
+ * passes `-e ortQnnSmoke 1` and pushes the CPU and NPU artifacts into filesDir/models, the 26 ml/ocr golden pages into
+ * filesDir/ortqnn/golden and the FLEURS clips into filesDir/ortqnn/fleurs-ru): OCR det/rec QNN vs CPU per call (ms,
+ * binary-map / argmax agreement) and per page (ms, README tolerance), then each stage alone on the HTP, GigaAM v3 CTC NPU vs the CPU artifact through AsrService (processing ms, WER). One JSON object
  * per row as `ortqnn` status lines; without that argument it is skipped (it needs the phone's HTP).
  */
 @RunWith(AndroidJUnit4::class)
@@ -150,77 +150,117 @@ class OrtQnnDeviceTest {
     private fun ocrSmoke() {
         val config = OcrConfig()
         val libDir = context.applicationInfo.nativeLibraryDir
+        val pages = goldens()
         val t0 = SystemClock.elapsedRealtime()
-        val qnn = OrtOcrModels(Models.spec("pp-ocrv6-tiny-det@qnn-sm8750"), Models.spec("pp-ocrv5-cyrillic-mobile-rec@qnn-sm8750"), config) {
-            QnnEpAndroid.ep(libDir)
-        }
+        val qnn = OrtOcrModels(Models.spec(QNN_DET), Models.spec(QNN_REC), config) { QnnEpAndroid.ep(libDir) }
         val qnnLoadMs = SystemClock.elapsedRealtime() - t0
-        val t1 = SystemClock.elapsedRealtime()
-        val cpu = OrtOcrModels(Models.spec("pp-ocrv6-tiny-det@onnx"), Models.spec("pp-ocrv5-cyrillic-mobile-rec@onnx"), config)
-        row("ocr-load", "qnn_ms" to qnnLoadMs, "cpu_ms" to SystemClock.elapsedRealtime() - t1)
-        // one stage on the HTP at a time: which stage could be adopted on its own (ADR-059)
-        val detOnly = OrtOcrModels(Models.spec("pp-ocrv6-tiny-det@qnn-sm8750"), Models.spec("pp-ocrv5-cyrillic-mobile-rec@onnx"), config) {
-            QnnEpAndroid.ep(libDir)
-        }
-        val recOnly = OrtOcrModels(Models.spec("pp-ocrv6-tiny-det@onnx"), Models.spec("pp-ocrv5-cyrillic-mobile-rec@qnn-sm8750"), config) {
-            QnnEpAndroid.ep(libDir)
-        }
+        val pagesQ = ArrayList<OcrTolerance.Page>(); val pagesC = ArrayList<OcrTolerance.Page>()
+        var binmapAll = ""; var argmaxAll = ""
         try {
-            val tq = Timed(qnn); val tc = Timed(cpu)
-            val pq = OcrPipeline(config, tq); val pc = OcrPipeline(config, tc)
-            val agree = Agreement(qnn, cpu)
-            val pa = OcrPipeline(config, agree)
-            val pagesQ = ArrayList<OcrTolerance.Page>(); val pagesC = ArrayList<OcrTolerance.Page>()
-            val pagesDet = ArrayList<OcrTolerance.Page>(); val pagesRec = ArrayList<OcrTolerance.Page>()
-            val pDet = OcrPipeline(config, detOnly); val pRec = OcrPipeline(config, recOnly)
-            for ((g, image) in goldens()) {
-                pq.run(image); pc.run(image) // warm-up
-                tq.reset(); tc.reset()
-                val q0 = SystemClock.elapsedRealtime(); val outQ = pq.run(image); val qMs = SystemClock.elapsedRealtime() - q0
-                val c0 = SystemClock.elapsedRealtime(); val outC = pc.run(image); val cMs = SystemClock.elapsedRealtime() - c0
-                val before = agree.pxDiffer to agree.stepsDiffer
-                val px0 = agree.px; val st0 = agree.steps
-                pa.run(image)
-                val pageQ = OcrTolerance.compare(g.name, g.ocr.lines, outQ.lines).also { pagesQ += it }
-                pagesC += OcrTolerance.compare(g.name, g.ocr.lines, outC.lines)
-                pagesDet += OcrTolerance.compare(g.name, g.ocr.lines, pDet.run(image).lines)
-                pagesRec += OcrTolerance.compare(g.name, g.ocr.lines, pRec.run(image).lines)
-                row("ocr-page", "page" to g.name, "det_in" to "${outQ.stats?.detInput?.joinToString("x")}",
-                    "qnn_ms" to qMs, "cpu_ms" to cMs,
-                    "qnn_det_ms" to "%.1f".format(tq.detMs), "cpu_det_ms" to "%.1f".format(tc.detMs),
-                    "qnn_rec_ms_per_line" to "%.1f".format(tq.recMs / maxOf(1, tq.recCalls)), "cpu_rec_ms_per_line" to "%.1f".format(tc.recMs / maxOf(1, tc.recCalls)),
-                    "lines" to tq.recCalls,
-                    "binmap_agree" to "%.6f".format(1.0 - (agree.pxDiffer - before.first).toDouble() / maxOf(1, agree.px - px0)),
-                    "argmax_agree" to "%.6f".format(1.0 - (agree.stepsDiffer - before.second).toDouble() / maxOf(1, agree.steps - st0)),
-                    "qnn_exact" to pageQ.exact, "qnn_page" to pageQ.toString())
+            val t1 = SystemClock.elapsedRealtime()
+            val cpu = OrtOcrModels(Models.spec(CPU_DET), Models.spec(CPU_REC), config)
+            row("ocr-load", "qnn_ms" to qnnLoadMs, "cpu_ms" to SystemClock.elapsedRealtime() - t1, "pages" to pages.size, "golden" to goldenSource)
+            try {
+                val tq = Timed(qnn); val tc = Timed(cpu)
+                val pq = OcrPipeline(config, tq); val pc = OcrPipeline(config, tc)
+                val agree = Agreement(qnn, cpu)
+                val pa = OcrPipeline(config, agree)
+                for (page in pages) {
+                    val (g, image) = page.load()
+                    pq.run(image); pc.run(image) // warm-up
+                    tq.reset(); tc.reset()
+                    val cpuCalls0 = qnn.detectorCpuCalls
+                    val q0 = SystemClock.elapsedRealtime(); val outQ = pq.run(image); val qMs = SystemClock.elapsedRealtime() - q0
+                    // a window shape without a context runs the detector on the CPU: never count that time as the HTP's
+                    val detUnit = if (qnn.detectorCpuCalls > cpuCalls0) "cpu" else "npu"
+                    val c0 = SystemClock.elapsedRealtime(); val outC = pc.run(image); val cMs = SystemClock.elapsedRealtime() - c0
+                    val before = agree.pxDiffer to agree.stepsDiffer
+                    val px0 = agree.px; val st0 = agree.steps
+                    pa.run(image)
+                    val pageQ = OcrTolerance.compare(g.name, g.ocr.lines, outQ.lines).also { pagesQ += it }
+                    pagesC += OcrTolerance.compare(g.name, g.ocr.lines, outC.lines)
+                    row("ocr-page", "page" to g.name, "det_in" to "${outQ.stats?.detInput?.joinToString("x")}",
+                        "qnn_ms" to qMs, "cpu_ms" to cMs,
+                        "qnn_det_ms" to "%.1f".format(tq.detMs), "cpu_det_ms" to "%.1f".format(tc.detMs),
+                        "qnn_rec_ms_per_line" to "%.1f".format(tq.recMs / maxOf(1, tq.recCalls)), "cpu_rec_ms_per_line" to "%.1f".format(tc.recMs / maxOf(1, tc.recCalls)),
+                        "lines" to tq.recCalls, "det_unit" to detUnit,
+                        "binmap_agree" to "%.6f".format(1.0 - (agree.pxDiffer - before.first).toDouble() / maxOf(1, agree.px - px0)),
+                        "argmax_agree" to "%.6f".format(1.0 - (agree.stepsDiffer - before.second).toDouble() / maxOf(1, agree.steps - st0)),
+                        "qnn_exact" to pageQ.exact, "qnn_in_tolerance" to pageQ.withinLineTolerance, "qnn_page" to pageQ.toString())
+                }
+                binmapAll = "%.6f".format(1.0 - agree.pxDiffer.toDouble() / maxOf(1, agree.px))
+                argmaxAll = "%.6f".format(1.0 - agree.stepsDiffer.toDouble() / maxOf(1, agree.steps))
+            } finally {
+                cpu.close()
             }
-            val sq = OcrTolerance.Suite(pagesQ); val sc = OcrTolerance.Suite(pagesC)
-            val sDet = OcrTolerance.Suite(pagesDet); val sRec = OcrTolerance.Suite(pagesRec)
-            row("ocr-total", "pages" to pagesQ.size, "qnn_ok" to sq.ok, "cpu_ok" to sc.ok, "qnn_exact" to pagesQ.count { it.exact },
-                "det_only_ok" to sDet.ok, "rec_only_ok" to sRec.ok, "det_only_exact" to pagesDet.count { it.exact },
-                "rec_only_exact" to pagesRec.count { it.exact },
-                "cpu_exact" to pagesC.count { it.exact }, "binmap_agree" to "%.6f".format(1.0 - agree.pxDiffer.toDouble() / maxOf(1, agree.px)),
-                "argmax_agree" to "%.6f".format(1.0 - agree.stepsDiffer.toDouble() / maxOf(1, agree.steps)),
-                "qnn_suite" to sq.toString().lines().last())
-            // a measurement for DC4, not a gate here: the table says which stage keeps the README tolerance
         } finally {
-            qnn.close(); cpu.close(); detOnly.close(); recOnly.close()
+            qnn.close()
+        }
+        // one stage on the HTP at a time (ADR-059: which stage could be adopted on its own), each pair opened only
+        // after the previous one is closed, so the HTP never holds more than one set of contexts
+        val pagesDet = stageOnly(pages, config) { OrtOcrModels(Models.spec(QNN_DET), Models.spec(CPU_REC), config) { QnnEpAndroid.ep(libDir) } }
+        val pagesRec = stageOnly(pages, config) { OrtOcrModels(Models.spec(CPU_DET), Models.spec(QNN_REC), config) { QnnEpAndroid.ep(libDir) } }
+        val sq = OcrTolerance.Suite(pagesQ); val sc = OcrTolerance.Suite(pagesC)
+        val sDet = OcrTolerance.Suite(pagesDet); val sRec = OcrTolerance.Suite(pagesRec)
+        row("ocr-total", "pages" to pagesQ.size, "qnn_ok" to sq.ok, "cpu_ok" to sc.ok, "qnn_exact" to pagesQ.count { it.exact },
+            "det_only_ok" to sDet.ok, "rec_only_ok" to sRec.ok, "det_only_exact" to pagesDet.count { it.exact },
+            "rec_only_exact" to pagesRec.count { it.exact }, "cpu_exact" to pagesC.count { it.exact },
+            "qnn_out" to outOfTolerance(pagesQ), "det_only_out" to outOfTolerance(pagesDet), "rec_only_out" to outOfTolerance(pagesRec),
+            "qnn_identical" to identical(sq), "det_only_identical" to identical(sDet), "rec_only_identical" to identical(sRec),
+            "binmap_agree" to binmapAll, "argmax_agree" to argmaxAll,
+            "qnn_suite" to sq.toString().lines().last(), "det_only_suite" to sDet.toString().lines().last(),
+            "rec_only_suite" to sRec.toString().lines().last())
+        // a measurement for DC4, not a gate here: the table says which stage keeps the README tolerance
+    }
+
+    /** Every page through a pair with one stage on the HTP; the pair is closed before this returns. */
+    private fun stageOnly(pages: List<GoldenPage>, config: OcrConfig, open: () -> OrtOcrModels): List<OcrTolerance.Page> {
+        val models = open()
+        try {
+            val pipeline = OcrPipeline(config, models)
+            return pages.map { page -> page.load().let { (g, image) -> OcrTolerance.compare(g.name, g.ocr.lines, pipeline.run(image).lines) } }
+        } finally {
+            models.close()
         }
     }
 
-    private fun goldens(): List<Pair<OcrGolden, ScreenImage>> {
-        val dir = args.getString("goldenDir")?.let(::File)
-        val names = if (dir != null) dir.list()!!.filter { it.matches(Regex("\\d{3}\\.json")) }.sorted()
-        else instrumentation.context.assets.list("ocr")!!.filter { it.endsWith(".json") }.sorted()
+    /** Pages whose line count, boxes or confidences leave the README tolerance ("-" for none). */
+    private fun outOfTolerance(pages: List<OcrTolerance.Page>): String =
+        pages.filter { !it.withinLineTolerance }.joinToString(" ") { it.name }.ifEmpty { "-" }
+
+    private fun identical(s: OcrTolerance.Suite): String = "%.2f".format(100.0 * s.identical / maxOf(1, s.lines))
+
+    /** One golden page, decoded only when it is used (all 26 at once would not fit the test process's heap). */
+    private class GoldenPage(val name: String, val load: () -> Pair<OcrGolden, ScreenImage>)
+
+    /**
+     * `-e goldenDir <dir>`: a directory with ml/ocr/golden's NNN.json + NNN.png (a relative path is under this test
+     * app's files dir; ort_qnn_smoke.sh pushes all 26 pages to ortqnn/golden). Without it, the 4 pages in the test assets.
+     */
+    private val goldenDir: File? = args.getString("goldenDir")?.let { File(it).takeIf(File::isAbsolute) ?: File(context.filesDir, it) }
+    private val goldenSource: String get() = if (goldenDir != null) "dir" else "assets"
+
+    private fun goldens(): List<GoldenPage> {
+        val dir = goldenDir
+        val names = if (dir != null) {
+            assertTrue("golden dir ${dir.path} missing", dir.isDirectory)
+            dir.list()!!.filter { it.matches(Regex("\\d{3}\\.json")) }.sorted()
+        } else {
+            instrumentation.context.assets.list("ocr")!!.filter { it.endsWith(".json") }.sorted()
+        }
+        assertTrue("no golden pages", names.isNotEmpty())
         return names.map { n ->
-            val json = if (dir != null) File(dir, n).readText() else instrumentation.context.assets.open("ocr/$n").bufferedReader().readText()
-            val g = OcrGolden.parse(n.removeSuffix(".json"), json)
-            val png = n.removeSuffix(".json") + ".png"
-            val bmp = (if (dir != null) File(dir, png).inputStream() else instrumentation.context.assets.open("ocr/$png")).use {
-                BitmapFactory.decodeStream(it, null, BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.ARGB_8888 })!!
+            GoldenPage(n.removeSuffix(".json")) {
+                val json = if (dir != null) File(dir, n).readText() else instrumentation.context.assets.open("ocr/$n").bufferedReader().readText()
+                val g = OcrGolden.parse(n.removeSuffix(".json"), json)
+                val png = n.removeSuffix(".json") + ".png"
+                val bmp = (if (dir != null) File(dir, png).inputStream() else instrumentation.context.assets.open("ocr/$png")).use {
+                    BitmapFactory.decodeStream(it, null, BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.ARGB_8888 })!!
+                }
+                val argb = IntArray(bmp.width * bmp.height).also { bmp.getPixels(it, 0, bmp.width, 0, 0, bmp.width, bmp.height) }
+                bmp.recycle()
+                g to g.image(bmp.width, bmp.height, argb)
             }
-            val argb = IntArray(bmp.width * bmp.height).also { bmp.getPixels(it, 0, bmp.width, 0, 0, bmp.width, bmp.height) }
-            g to g.image(bmp.width, bmp.height, argb)
         }
     }
 
@@ -287,6 +327,13 @@ class OrtQnnDeviceTest {
             pos += 8 + len + (len and 1)
         }
         error("no data chunk in ${f.name}")
+    }
+
+    private companion object {
+        const val QNN_DET = "pp-ocrv6-tiny-det@qnn-sm8750"
+        const val QNN_REC = "pp-ocrv5-cyrillic-mobile-rec@qnn-sm8750"
+        const val CPU_DET = "pp-ocrv6-tiny-det@onnx"
+        const val CPU_REC = "pp-ocrv5-cyrillic-mobile-rec@onnx"
     }
 
     private fun npuSpec(artifactId: String): LoadSpec = Models.spec(artifactId).also { assertEquals(ComputeUnit.NPU, it.unit) }
