@@ -29,7 +29,9 @@ class StoredPrefillSpeeds(
     private val copies = ConcurrentHashMap<ArtifactId, StateFlow<List<BenchmarkRecord>>>()
 
     fun watch(artifact: ArtifactId): StateFlow<List<BenchmarkRecord>> =
-        copies.getOrPut(artifact) { records.latest(artifact).stateIn(scope, SharingStarted.Eagerly, emptyList()) }
+        // computeIfAbsent, not getOrPut: the start-up watch loop and a binder call can ask at once, and only one copy
+        // may collect in the app scope.
+        copies.computeIfAbsent(artifact) { records.latest(it).stateIn(scope, SharingStarted.Eagerly, emptyList()) }
 
     override fun invoke(artifact: ArtifactId, unit: ComputeUnit): Double? =
         BenchScores.llmSpeed(watch(artifact).value, artifact, unit)?.prefillTps
