@@ -258,7 +258,8 @@ class OcrRecognizeScreenTest {
 
     /**
      * Newest frame wins: three frames of the slowest bundled page. The second and third are sent back to back while the
-     * first is running (a quarter into its page): the first stops at its next model call, the second is still queued
+     * first is running (a quarter into its page): the first stops in its model call (RunOptions terminate, WP-21) or at
+     * the next one, the second is still queued
      * and is answered at once, both `OcrFailed("superseded")`; the third gives the page's normal result and waits
      * behind the first for at most one model call, not for the rest of its page.
      * No SharedMemory or descriptor stays open in :asr.
@@ -279,11 +280,14 @@ class OcrRecognizeScreenTest {
         var sentLast = 0L
         try {
             frames.forEachIndexed { i, shm ->
-                if (i == 1) SystemClock.sleep((full.stats!!.totalMs / 4).toLong())
+                if (i == 1) {
+                    SystemClock.sleep((full.stats!!.totalMs / 4).toLong())
+                    // checked before the newer frame goes out: that frame now also stops the model call in flight
+                    assertEquals("the first frame was still running", 1L, replies[0].latch.count)
+                }
                 sentLast = SystemClock.elapsedRealtime()
                 service.recognizeScreen(shm, w, h, exclude, replies[i].cb)
             }
-            assertEquals("the first frame was still running", 1L, replies[0].latch.count)
             replies.forEach { it.await(120) }
         } finally {
             frames.forEach { it.close() }
@@ -300,7 +304,9 @@ class OcrRecognizeScreenTest {
             replies[0].at - sentLast, waited, full.stats!!.totalMs, full.stats!!.detMs))
         assertTrue("the queued frame is answered before the newest one", replies[1].at <= replies[2].at)
         assertTrue("newest waited $waited ms (page alone ${full.stats!!.totalMs} ms)", waited < full.stats!!.totalMs / 2)
-        assertEquals("fds in :asr", fdsBefore, asrFds())
+        // no descriptor left behind (the count may drop: :asr closes descriptors of its own, e.g. binder buffers, meanwhile)
+        val fdsAfter = asrFds()
+        assertTrue("fds in :asr $fdsBefore -> $fdsAfter", fdsAfter <= fdsBefore)
     }
 
     companion object {
