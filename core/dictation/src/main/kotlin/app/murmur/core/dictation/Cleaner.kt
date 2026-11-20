@@ -44,9 +44,11 @@ internal class Cleaner(
         renderer.cachePrefix(profile(active), active.template, preferences, override)
 
     /**
-     * Tone per app (ADR-020, ADR-088): the app's own row in [Settings.tonePerApp]; else, for an app without a style
-     * category of its own (ctx has no category), [Settings.defaultTone] ("All other apps"). null = the category style
-     * line. Without a ctx (Re-polish, Try it) only the app's own row applies.
+     * Tone per app (ADR-020, ADR-088), for a dictation only: the app's own row in [Settings.tonePerApp]; else, for an
+     * app without a style category of its own (ctx has no category), [Settings.defaultTone] ("All other apps").
+     * null = the category style line. A dictation whose ctx was not assembled (no context decision) gets only the app's
+     * own row. Re-polish and Try it never call this and pass no tone: they keep the category line, even for an app that
+     * has its own row (only a dictation knows the category, ADR-088).
      */
     fun tone(settings: Settings, pkg: String?, ctx: CtxV2?): Tone? =
         pkg?.let { settings.tonePerApp[it] } ?: settings.defaultTone?.takeIf { ctx != null && ctx.app.category.isNullOrEmpty() }

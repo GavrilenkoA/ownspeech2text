@@ -97,6 +97,25 @@ class OrchestratorFlowTest {
         listOf(noCategory, withCategory, own, noText).forEach { it.assertNoInternalErrors() }
     }
 
+    /** ADR-088: Re-polish and Try it have no ctx and keep the category line, even when the app has its own tone row. */
+    @Test fun rePolishAndTryItKeepTheCategoryLineEvenWithAToneRowForTheApp() = runTest {
+        val h = harness {
+            renderer.toneTexts = mapOf("formal" to "Formal register.")
+            settings.edit { it.copy(defaultTone = Tone.FORMAL, tonePerApp = mapOf("org.telegram.messenger" to Tone.FORMAL)) }
+        }
+        h.dictate()
+        assertEquals("the dictation uses the row", "Formal register.", h.w.renderer.inputs.last().styleOverride)
+        val renders = h.w.renderer.inputs.size
+        h.o.repolish(h.only().id)
+        assertTrue("Re-polish rendered", h.w.renderer.inputs.size > renders)
+        assertNull("Re-polish: category line", h.w.renderer.inputs.last().styleOverride)
+        val afterRepolish = h.w.renderer.inputs.size
+        h.o.tryCleanup("привет мир", null, null)
+        assertTrue("Try it rendered", h.w.renderer.inputs.size > afterRepolish)
+        assertNull("Try it: category line", h.w.renderer.inputs.last().styleOverride)
+        h.assertNoInternalErrors()
+    }
+
     @Test fun bubbleSequenceOfTheHappyPathWithASlowTailIsExact() = runTest {
         val slow = harness { engines.asr.finishDelayMs = 500 }
         slow.dictate(stopAt = 2_800)
