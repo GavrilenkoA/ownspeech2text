@@ -17,6 +17,7 @@ import app.murmur.core.store.InstallState
 import app.murmur.core.store.ModelUse
 import app.murmur.core.store.Settings
 import app.murmur.core.store.Timings
+import app.murmur.data.models.DefaultDeviceProfileRepository
 import app.murmur.feature.onboarding.PackPlanner
 import app.murmur.testing.FakeBenchmarkRunner
 import app.murmur.testing.FakeCatalogRepository
@@ -35,6 +36,7 @@ import app.murmur.testing.InMemoryMetricsRepository
 import app.murmur.testing.InMemorySettingsRepository
 import app.murmur.testing.contrib.Wp12MetricsFixture
 import app.murmur.testing.contrib.Wp15StagedDownloads
+import app.murmur.wiring.EngineRecords
 import app.murmur.wiring.FakeData
 import app.murmur.wiring.Replacements
 import java.io.File
@@ -49,7 +51,8 @@ import kotlinx.coroutines.runBlocking
  * Debug builds only (D6). Two switches, both files in the app's filesDir, read once when the container first needs
  * them (the instrumented tests' runner writes them before the Application starts; by hand:
  * `adb shell run-as app.murmur sh -c 'echo seeded > files/debug-fake-container'`):
- *  - `debug-fake-engines`: inference on :testing fakes, everything else real.
+ *  - `debug-fake-engines`: inference on :testing fakes, everything else real except what the engines report:
+ *    benchmark records and unit health in memory, the device profile cached in its own file (ADR-089).
  *  - `debug-fake-container` = `seeded` | `fresh` (optionally `:fold7` / `:emulator` for the device profile): the whole
  *    data side in memory (FakeAppContainer mode). `seeded` = onboarding done, a day of history (the DESIGN sample
  *    entries), a week of metrics, the recommended pack installed plus rows mid-download and paused. `fresh` = a
@@ -63,13 +66,28 @@ class DebugWiring(private val context: Context, private val scope: CoroutineScop
         val container = flag(FAKE_CONTAINER)
         val engines = flag(FAKE_ENGINES) != null || container != null
         val data = container?.let { fakeData(it) }
+        val fakeEngines = if (engines) FakeEngines() else null
         return Replacements(
-            engines = if (engines) FakeEngines() else null,
+            engines = fakeEngines,
             data = data,
             renderer = if (engines) FakePromptRenderer() else null,
             guard = if (engines) PassThroughGuard() else null,
+            // Engines-only mode: the real data side, but what the fake engines report stays out of the real stores.
+            engineRecords = if (fakeEngines != null && data == null) engineRecords(fakeEngines) else null,
         )
     }
+
+    /**
+     * ADR-089: benchmark records and unit health in memory; the real device-profile probe over the fake hosts, cached in
+     * its own file. The real DefaultBenchmarkRunner and resolver run over them.
+     */
+    private fun engineRecords(engines: FakeEngines) = EngineRecords(
+        benchmarks = InMemoryBenchmarkRepository(),
+        unitHealth = FakeUnitHealth(),
+        device = DefaultDeviceProfileRepository(
+            context, engines.asrHost, engines.llmHost, cacheFile = File(context.noBackupFilesDir, FAKE_ENGINES_PROFILE),
+        ),
+    )
 
     private fun fakeData(spec: String): FakeData {
         val mode = spec.substringBefore(':').ifBlank { SEEDED }
@@ -171,6 +189,8 @@ class DebugWiring(private val context: Context, private val scope: CoroutineScop
 
     companion object {
         const val FAKE_ENGINES = "debug-fake-engines"
+        /** The fake-engines mode's device-profile cache (noBackupFilesDir), next to the real device-profile.json. */
+        const val FAKE_ENGINES_PROFILE = "debug-fake-engines-device-profile.json"
         const val FAKE_CONTAINER = "debug-fake-container"
         const val SEEDED = "seeded"
         const val FRESH = "fresh"

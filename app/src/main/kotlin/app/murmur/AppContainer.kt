@@ -97,7 +97,9 @@ class AppContainer(private val context: Context) {
     val audioStore: AudioStore by lazy { fake?.audioStore ?: OpusAudioStore(context) }
     val history: HistoryRepository by lazy { fake?.history ?: DbModule.history(db, audioStore) }
     val metrics: MetricsRepository by lazy { fake?.metrics ?: DbModule.metrics(db) }
-    val benchmarks: BenchmarkRepository by lazy { fake?.benchmarks ?: DbModule.benchmarks(db) }
+    /** Fake engines with the real data side keep their records apart (ADR-089, [Replacements.engineRecords]). */
+    private val engineRecords get() = replacements.engineRecords
+    val benchmarks: BenchmarkRepository by lazy { fake?.benchmarks ?: engineRecords?.benchmarks ?: DbModule.benchmarks(db) }
     val settings: SettingsRepository by lazy { fake?.settings ?: DbModule.settings(context, appScope) }
     /** Retention now (Settings "Keep history" shortening, WP-12 runNow); the scheduler only for the real database. */
     private val retentionScheduler by lazy { DbModule.retention(context, db, history, metrics, audioStore, settings, clock, appScope) }
@@ -114,8 +116,8 @@ class AppContainer(private val context: Context) {
     // --- engines (real binder clients, or :testing fakes in debug)
     val engines: Engines by lazy { replacements.engines ?: BinderEngines(serviceOrApp) }
     /** The only owner of the probe (WP-13, ARCHITECTURE 8.4); never throws (CPU-only profile on failure). */
-    val deviceProfile: DeviceProfileRepository by lazy { fake?.device ?: DefaultDeviceProfileRepository(context, engines.asrHost, engines.llmHost) }
-    val unitHealth: UnitHealthRepository by lazy { fake?.unitHealth ?: FileUnitHealthRepository(ModelsModule.storage(context), ModelsModule.appVersion(context)) }
+    val deviceProfile: DeviceProfileRepository by lazy { fake?.device ?: engineRecords?.device ?: DefaultDeviceProfileRepository(context, engines.asrHost, engines.llmHost) }
+    val unitHealth: UnitHealthRepository by lazy { fake?.unitHealth ?: engineRecords?.unitHealth ?: FileUnitHealthRepository(ModelsModule.storage(context), ModelsModule.appVersion(context)) }
     /** The production resolver; kept as its own type for the benchmark runner's specs (ADR-080, `resolver.benchSpecs`). */
     private val resolver by lazy { DefaultModelResolver(catalog, installed, deviceProfile, unitHealth, benchmarks) { ModelsModule.storage(context).dir(it).path } }
     /** What the orchestrator and the status notification resolve with: the debug fake container's resolver, else [resolver]. */
@@ -124,8 +126,9 @@ class AppContainer(private val context: Context) {
     /**
      * WP-14 runner over the production engines, specs from the production resolver's loadSpec (ADR-080; [resolver] stays
      * a [DefaultModelResolver] reference for `benchSpecs` even when [models] is a fake). The :testing runner exists only
-     * inside the debug fake container ([FakeData.benchmarkRunner], over the in-memory [benchmarks]): a normal debug build
-     * never stores its made-up records (ADR-087).
+     * inside the debug fake container ([FakeData.benchmarkRunner], over the in-memory [benchmarks]). With fake engines
+     * and the real data side, this runner runs over the fake engines and [benchmarks] / [unitHealth] are in memory
+     * ([Replacements.engineRecords], ADR-089): no debug mode stores made-up records in the real database (ADR-087).
      */
     val benchmarkRunner: BenchmarkRunner by lazy {
         fake?.benchmarkRunner ?: DefaultBenchmarkRunner(

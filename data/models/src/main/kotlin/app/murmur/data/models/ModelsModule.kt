@@ -24,9 +24,11 @@ class DefaultDeviceProfileRepository(
     private val asrHost: InferenceHost,
     private val llmHost: InferenceHost,
     appVersion: String = ModelsModule.appVersion(context),
+    /** Where the probed profile is cached; the debug fake-engines mode passes its own file (ADR-089). */
+    cacheFile: File = File(context.noBackupFilesDir, "device-profile.json"),
 ) : DeviceProfileRepository {
     private val prober = DeviceProfileProber(
-        cacheFile = File(context.noBackupFilesDir, "device-profile.json"),
+        cacheFile = cacheFile,
         appVersion = appVersion,
         asrHost = asrHost,
         llmHost = llmHost,
