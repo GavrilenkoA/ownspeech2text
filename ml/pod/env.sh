@@ -50,10 +50,11 @@ timed() {
 # start), container start = now - elapsed time of PID 1 (counts setup and idle time, not only stages),
 # plus BUDGET_SESSION_OVERHEAD_S per session for provisioning / image pull before the container runs.
 # Persisted on the volume in $W/.budget/sessions.tsv ("start<TAB>last" per session).
-#   MAX_GPU_HOURS     hard cap (owner: 5): nothing starts that would end past it
+#   MAX_GPU_HOURS     hard cap (owner: 4): nothing starts that would end past it, and a training that is
+#                     already running stops at MURMUR_TRAIN_DEADLINE (budget_deadline, ml/train/sft.py StopRules)
 #   TARGET_GPU_HOURS  plan (3): optional runs (sweep extras, DoRA, full FT) start only if they fit
 # MURMUR_SESSION_START (epoch seconds) overrides the container start (local simulation, odd runtimes).
-export MAX_GPU_HOURS="${MAX_GPU_HOURS:-5}" TARGET_GPU_HOURS="${TARGET_GPU_HOURS:-3}"
+export MAX_GPU_HOURS="${MAX_GPU_HOURS:-4}" TARGET_GPU_HOURS="${TARGET_GPU_HOURS:-3}"
 export BUDGET_SESSION_OVERHEAD_S="${BUDGET_SESSION_OVERHEAD_S:-300}"
 export BUDGET_DIR="$W/.budget"; mkdir -p "$BUDGET_DIR"
 _session_start() {
@@ -86,6 +87,13 @@ budget_check() {
     return 5
   fi
   log "budget: used ${used}s of ${lim}s ($kind); next $what (~${reserve}s)"
+}
+# budget_deadline AFTER_S: epoch second at which a training must stop so that AFTER_S more seconds (the rest
+# of its run: merge, export, parity, dev eval) still end inside MAX_GPU_HOURS. Exported by run_one.sh as
+# MURMUR_TRAIN_DEADLINE; ml/train/sft.py stops after the current optimizer step, saves and finishes the run.
+budget_deadline() {
+  local used lim; used=$(budget_used); lim=$(awk "BEGIN{print int($MAX_GPU_HOURS*3600)}")
+  echo $(( $(date +%s) + lim - used - ${1:-0} ))
 }
 # median seconds of finished timed steps whose name starts with $1 (e.g. "eval:"), else $2
 median_seconds() {

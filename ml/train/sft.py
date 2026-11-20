@@ -25,7 +25,7 @@ from torch.utils.data import Dataset
 
 from ml.eval import contract
 from ml.train import config as cfglib
-from ml.train.render_data import IGNORE, PromptMix, build
+from ml.train.render_data import IGNORE, PromptMix, build, padding_stats
 
 COPY_FILES = ("chat_template.jinja", "LICENSE", "NOTICE")
 
@@ -43,14 +43,16 @@ class FeatDataset(Dataset):
 
 class Collator:
     """Right padding: safe for the causal recurrent layers (Gated DeltaNet, short conv) because
-    padding comes after every real token."""
+    padding comes after every real token. Dynamic: each batch is padded to its own longest example
+    (rounded up to `multiple_of`); `fixed_len` pads every batch to that length instead (train.padding:
+    max_len, kept only to prove that padding changes nothing but the cost)."""
 
-    def __init__(self, pad_id: int, multiple_of: int = 8):
-        self.pad, self.mult = pad_id, multiple_of
+    def __init__(self, pad_id: int, multiple_of: int = 8, fixed_len: int | None = None):
+        self.pad, self.mult, self.fixed = pad_id, multiple_of, fixed_len
 
     def __call__(self, batch):
         n = max(len(b["input_ids"]) for b in batch)
-        n = int(math.ceil(n / self.mult) * self.mult)
+        n = self.fixed if self.fixed else int(math.ceil(n / self.mult) * self.mult)
         ids = torch.full((len(batch), n), self.pad, dtype=torch.long)
         lab = torch.full((len(batch), n), IGNORE, dtype=torch.long)
         att = torch.zeros((len(batch), n), dtype=torch.long)
@@ -81,6 +83,41 @@ def completion_loss(model, inputs: dict, num_items_in_batch=None):
     if num_items_in_batch is not None:
         return loss / num_items_in_batch, out, True
     return loss / max(1, target.numel()), out, False
+
+
+class StopRules:
+    """Stop rules checked INSIDE training (ml/pod/env.sh checks before every step; this covers a step
+    that is already running):
+      * budget: MURMUR_TRAIN_DEADLINE (epoch seconds, set by ml/pod/run_one.sh = the time at which the
+        rest of the run - merge, export, parity, dev eval - would still end inside MAX_GPU_HOURS).
+        Past it, training stops after the current optimizer step, saves and finishes normally
+        (train_info.json: stopped_by = "budget"), so the run still gets exported and evaluated.
+      * divergence: a logged training loss that is NaN/inf stops at once (stopped_by = "diverged");
+        sft exits 4 without writing train_info.json, so the run is reported as failed."""
+
+    def __init__(self, deadline: float | None):
+        from transformers import TrainerCallback
+
+        rules = self
+
+        class _CB(TrainerCallback):
+            def on_step_end(self, args, state, control, **kw):
+                if rules.deadline and time.time() > rules.deadline and not rules.stopped_by:
+                    rules.stopped_by = "budget"
+                    print(f"STOP budget: deadline passed at step {state.global_step}", flush=True)
+                    control.should_training_stop = True
+                    control.should_save = True
+                return control
+
+            def on_log(self, args, state, control, logs=None, **kw):
+                loss = (logs or {}).get("loss")
+                if loss is not None and not math.isfinite(float(loss)):
+                    rules.stopped_by = "diverged"
+                    print(f"STOP diverged: loss {loss} at step {state.global_step}", flush=True)
+                    control.should_training_stop = True
+                return control
+
+        self.deadline, self.stopped_by, self.callback = deadline, None, _CB()
 
 
 def detect_template(base: str) -> str:
@@ -183,7 +220,26 @@ def main(argv=None) -> int:
     max_len = tinfo["max_len"]  # resolved on the training split; dev uses the same limit
     dev_f, dinfo = (build(cfg["data"]["dev"], "dev", tok, template, mix, max_len) if cfg["data"].get("dev")
                     else ([], {}))
-    stats = {"template": template, "train": tinfo, "dev": dinfo, "render_s": round(time.time() - t0, 1)}
+    # dev loss is order-independent in what it measures, so evaluate it in length order (sequential
+    # eval batches of mixed lengths would pad the short finetuned.v2 rows to the stock-profile ones)
+    dev_f.sort(key=lambda f: len(f["input_ids"]))
+    bs, ga = int(tr.get("batch_size", 8)), int(tr.get("grad_accum", 1))
+    padding = tr.get("padding", "dynamic")
+    if padding not in ("dynamic", "max_len"):
+        raise ValueError(f"train.padding must be dynamic|max_len, got {padding!r}")
+    lengths = [len(f["input_ids"]) for f in train_f]
+    g0 = torch.Generator()  # the sampler below (same seed) -> the batches training will really see (epoch 1)
+    g0.manual_seed(int(tr.get("seed", 42)))
+    order = list(LengthGroupedSampler(bs * ga, lengths=lengths, generator=g0)) if lengths else []
+    pad = padding_stats(lengths, order, bs) if padding == "dynamic" else {
+        "real_tokens": sum(lengths), "padded_tokens": len(lengths) * max_len,
+        "efficiency": round(sum(lengths) / (len(lengths) * max_len), 4) if lengths else None}
+    stats = {"template": template, "train": tinfo, "dev": dinfo, "render_s": round(time.time() - t0, 1),
+             "batching": {"padding": padding, "sampler": "length_grouped", "batch_size": bs, "grad_accum": ga,
+                          "epoch_padded_tokens": pad["padded_tokens"], "epoch_real_tokens": pad["real_tokens"],
+                          "padding_efficiency": pad["efficiency"],
+                          "padding_efficiency_random_order": padding_stats(lengths, list(range(len(lengths))), bs)[
+                              "efficiency"] if lengths else None}}
     (out / "data_stats.json").write_text(json.dumps(stats, indent=1, ensure_ascii=False))
     (out / "config.resolved.json").write_text(json.dumps(cfg, indent=1, ensure_ascii=False))
     print(json.dumps(stats, ensure_ascii=False))
@@ -195,7 +251,6 @@ def main(argv=None) -> int:
     model, pinfo = load_model(cfg)
     print(json.dumps(pinfo))
     _, autocast_bf16 = precision(cfg)
-    bs, ga = int(tr.get("batch_size", 8)), int(tr.get("grad_accum", 1))
     args = TrainingArguments(
         output_dir=str(out), per_device_train_batch_size=bs, per_device_eval_batch_size=bs,
         gradient_accumulation_steps=ga, learning_rate=float(tr["lr"]),
@@ -212,7 +267,6 @@ def main(argv=None) -> int:
         dataloader_num_workers=int(tr.get("workers", 0)), use_cpu=not torch.cuda.is_available(),
         torch_compile=bool(tr.get("torch_compile", False)), save_only_model=bool(tr.get("save_only_model", False)),
         use_liger_kernel=bool(tr.get("liger", False)), prediction_loss_only=True)
-    lengths = [len(f["input_ids"]) for f in train_f]
 
     class MurmurTrainer(Trainer):
         def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):
@@ -225,9 +279,13 @@ def main(argv=None) -> int:
             g.manual_seed(int(tr.get("seed", 42)))
             return LengthGroupedSampler(bs * ga, lengths=lengths, generator=g)
 
-    pad = tok.pad_token_id if tok.pad_token_id is not None else tok.convert_tokens_to_ids(contract.TEMPLATES[template])
-    trainer = MurmurTrainer(model=model, args=args, data_collator=Collator(pad), train_dataset=FeatDataset(train_f),
-                            eval_dataset=FeatDataset(dev_f) if dev_f else None)
+    pad_id = tok.pad_token_id if tok.pad_token_id is not None else tok.convert_tokens_to_ids(contract.TEMPLATES[template])
+    dl = os.environ.get("MURMUR_TRAIN_DEADLINE")
+    rules = StopRules(float(dl) if dl else None)
+    trainer = MurmurTrainer(model=model, args=args,
+                            data_collator=Collator(pad_id, fixed_len=max_len if padding == "max_len" else None),
+                            train_dataset=FeatDataset(train_f), eval_dataset=FeatDataset(dev_f) if dev_f else None,
+                            callbacks=[rules.callback])
     resume = last_checkpoint(out) if tr.get("resume", True) else None
     if resume:
         print(f"resuming from {resume}")
@@ -236,6 +294,10 @@ def main(argv=None) -> int:
     t1 = time.time()
     res = trainer.train(resume_from_checkpoint=resume)
     train_s = time.time() - t1
+    if rules.stopped_by == "diverged":
+        print(json.dumps({"run_name": cfg.get("run_name"), "stopped_by": "diverged",
+                          "step": trainer.state.global_step}), flush=True)
+        return 4
     final = save_final(trainer.model, tok, cfg, out)
     steps = trainer.state.global_step
     seqs = steps * bs * ga * max(1, args.world_size)
@@ -248,6 +310,10 @@ def main(argv=None) -> int:
         "peak_cuda_mem_gb": round(torch.cuda.max_memory_allocated() / 1e9, 2) if torch.cuda.is_available() else None,
         "device": torch.cuda.get_device_name(0) if torch.cuda.is_available() else platform.processor() or "cpu",
         "versions": {m: __import__(m).__version__ for m in ("torch", "transformers", "peft", "accelerate")},
+        # tokens the GPU really processed (padding included) per second: the number the pod plan projects with
+        "padded_tokens_per_s": round(steps * pad["padded_tokens"] / max(1, math.ceil(len(lengths) / bs) // ga)
+                                     / train_s, 1) if train_s and lengths else None,
+        "stopped_by": rules.stopped_by, "planned_steps": trainer.state.max_steps,
         "final_dir": str(final), "resumed_from": resume, "data": stats,
     }
     (out / "train_info.json").write_text(json.dumps(info, indent=1, ensure_ascii=False))

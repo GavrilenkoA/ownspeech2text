@@ -22,7 +22,16 @@ Owner of `ml/data/`, `ml/common/`, `docs/ml/DATA_CARD.md`. Binding: `docs/ml/PLA
    term garbles a model's mined manglings never show (single letters, interior letter drops such as `Kuberetes`)
    are replaced by a phonetic transliteration for models that write Latin terms in Cyrillic, else retried;
    English clauses of code-switched speech are simulated as English for recognisers that write Latin (no
-   word-by-word `the -> tha`, `you -> йау`).
+   word-by-word `the -> tha`, `you -> йау`). Measured against the real round trip (`realism.py`, review 2026-11-20):
+   each model's sentence-final mark rate and first-word drops (`probe/asr_style.v1.json`), its non-term word error
+   rate (`probe/word_noise_scale.v1.json`, refit on a built set, capped at 2x), straight apostrophes only; one
+   recogniser per scenario for all attempts but the last, so the noisiest ones do not drop out of the set.
+12. **The target never guesses** (CONTEXT_V2 binding rule, made mechanical): a channel-garbled term is written
+   correctly only when it is on screen, is a spelling variant, or is well-known (`build.is_well_known`, exactly the
+   terms that get no counterpart); a channel substitution of one real word by another (`Would` for `Could`,
+   `Проверю` for `Проверь`) that the target undoes without screen support is retried (`build.real_word_guess`;
+   noun/adjective agreement repairs pass); targets never spell out a number the transcript has in digits;
+   durations follow prompt rule 4 (`10 minutes`); address paths are never transliterated from Russian.
 9. **Disfluencies follow the recogniser.** Injected fillers are only those the deployed prompt deletes ("слушай"
    is never injected: it often carries meaning). Whether a hesitation sound or a repeated word reaches the
    transcript depends on the ASR model (`ml/data/probe/disfluency_render.v1.json`, measured with a CPU TTS -> ASR
@@ -70,7 +79,8 @@ Owner of `ml/data/`, `ml/common/`, `docs/ml/DATA_CARD.md`. Binding: `docs/ml/PLA
 | `synth/filters.py` | quality filters, near-dup removal, leakage report |
 | `make_sample.py` | reviewer sample (<= 200 lines) from a run |
 | `contam.py` | eval-contamination check (records and teacher prompt vs `prompts/eval`) |
-| `probe/` | disfluency probe sentences, `measure_disfluency.py`, measured `disfluency_render.v1.json` |
+| `probe/` | disfluency probe sentences, `measure_disfluency.py`, measured `disfluency_render.v1.json`; `asr_style.v1.json`, `word_noise_scale.v1.json` |
+| `realism.py` | real round trip vs a built set: `measure` (style table), `calibrate` (word-noise factors), `audit` (data-review numbers) |
 | `public/` | converters + filters for public cleanup sets (secondary, frozen) |
 | `samples/` | committed sample of real-teacher, real-OCR output |
 | `tests/` | unit + end-to-end tests (stub teacher, fake Responses server, fixture and real screens) |
@@ -82,16 +92,18 @@ from `ml/screens`). The generator itself is stdlib-only, so the same interpreter
 
 ```bash
 PY=.cache/ml/ocr/venv/bin/python
-$PY -m pytest -q ml/data/tests                       # 54 tests (the real-OCR one is skipped without READY files)
+$PY -m pytest -q ml/data/tests                       # 65 tests (the real-OCR one is skipped without READY files)
 make -C ml/data stub                                 # offline end-to-end run: stub teacher, fixture screens
-# THE full set (686 teacher requests incl. reserves, ~2 h; build ~30 min with 5 workers; docs/ml/DATA_CARD.md)
+# THE full set (699 teacher requests incl. reserves; build ~23 min cold with 5 workers, ~1 min with a warm CTX_CACHE)
 make -C ml/data synth STAGE=teacher                  # teacher shards only (resumable; requests in category-interleaved order)
-make -C ml/data synth                                # build from the shards (0 requests when they are complete)
-#   = tools/with-teacher env MURMUR_MEM=24G tools/heavy nice -n 15 $PY -m ml.data.generate --out .cache/ml/data/synth_v2 \
-#     --n 3000 --dev 300 --test 300 --mined ml/roundtrip/samples/mined/full --workers 5 --screens real --reserve "$RESERVE"
-# rerunning the same command resumes (an answered batch is never re-requested, whatever shard holds it);
-# --reserve 'split/cat=k,...;...' adds scenarios of another seed for cells that fall short, one ';' layer per extension
-$PY -m ml.data.recheck --run .cache/ml/data/synth_v2  # after any prompts/render.py change
+make -C ml/data rebuild                              # build from the shards (--offline: never sends a request)
+#   = env MURMUR_MEM=24G tools/heavy nice -n 15 $PY -m ml.data.generate --out .cache/ml/data/synth_v3 --offline \
+#     --n 3000 --dev 300 --test 300 --mined ml/roundtrip/samples/mined/full --workers 5 --screens real \
+#     --reserve "$RESERVE" --ctx-cache .cache/ml/data/ctx_cache
+# --reserve 'split/cat=k,...;...' adds scenarios of another seed for cells that fall short, one ';' layer per extension;
+# --sample K builds K answered scenarios only (scratch check, job ids unchanged)
+make -C ml/data audit                                # data-review numbers of OUT (vs the real round trip)
+$PY -m ml.data.recheck --run .cache/ml/data/synth_v3  # after any prompts/render.py change
 ```
 
 Output: `OUT/{train,dev,test}.jsonl`, `OUT/stats.json` (incl. `provenance`, `asr_disfluency`), `OUT/REPORT.md`,

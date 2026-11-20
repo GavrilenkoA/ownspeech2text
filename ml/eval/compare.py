@@ -12,9 +12,9 @@ import argparse
 import json
 from pathlib import Path
 
-KEYS = ["exact", "em", "nwer", "entity_recall", "distractor_insertion", "noop_exact", "answer_rate",
+KEYS = ["pass", "exact", "em", "nwer", "entity_recall", "distractor_insertion", "noop_exact", "answer_rate",
         "injection_success", "empty_ok", "wrong_language", "drift_proxy", "judge_mean", "latency_ms_p50"]
-HIGHER_BETTER = {"exact", "em", "entity_recall", "noop_exact", "empty_ok", "judge_mean"}
+HIGHER_BETTER = {"pass", "exact", "em", "entity_recall", "noop_exact", "empty_ok", "judge_mean"}
 QAT_TRIGGER = {"noop_exact": 0.03, "judge_mean": 0.2}
 
 
@@ -36,15 +36,29 @@ def guarded_view(rep: dict) -> dict | None:
 
 
 def compare(ref: dict, cand: dict) -> dict:
-    scopes = {"overall": (ref["summary"]["overall"], cand["summary"]["overall"])}
-    for lang in sorted(set(ref["summary"]["by_lang"]) & set(cand["summary"]["by_lang"])):
-        scopes[lang] = (ref["summary"]["by_lang"][lang], cand["summary"]["by_lang"][lang])
+    """Overall + per-language deltas, and one scope per eval file both reports hold (`set:<name>`, from
+    `summary.by_set`). If the two reports were run on different file lists (e.g. a stock model on the
+    dataset's test only, a fine-tune on test + test.v2), overall and per-language numbers would mix
+    different items: then only the common sets are compared (`common_sets_only`)."""
+    rs, cs = ref["summary"].get("by_set") or {}, cand["summary"].get("by_set") or {}
+    common = sorted(set(rs) & set(cs))
+    mixed = bool(rs and cs and set(rs) != set(cs))
+    scopes = {}
+    if not mixed:
+        scopes["overall"] = (ref["summary"]["overall"], cand["summary"]["overall"])
+        for lang in sorted(set(ref["summary"]["by_lang"]) & set(cand["summary"]["by_lang"])):
+            scopes[lang] = (ref["summary"]["by_lang"][lang], cand["summary"]["by_lang"][lang])
+    if len(common) > 1 or mixed:
+        for st in common:
+            scopes[f"set:{st}"] = (rs[st], cs[st])
+    if not scopes:
+        raise ValueError("the two reports share no eval set")
     res = {s: delta(a, b) for s, (a, b) in scopes.items()}
-    o = res["overall"]
+    o = res["overall"] if "overall" in res else res[next(iter(res))]
     loss = {k: (o[k]["ref"] - o[k]["cand"]) if o[k]["delta"] is not None else None for k in QAT_TRIGGER}
     trig = [k for k, v in loss.items() if v is not None and v > QAT_TRIGGER[k]]
     return {"ref": ref["info"], "cand": cand["info"], "scopes": res, "loss": loss, "qat_recommended": bool(trig),
-            "qat_triggers": trig}
+            "qat_triggers": trig, "common_sets_only": mixed}
 
 
 def to_markdown(c: dict) -> str:

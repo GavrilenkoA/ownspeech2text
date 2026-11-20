@@ -17,6 +17,7 @@ from __future__ import annotations
 import copy
 import random
 import re
+from collections import Counter
 
 from ml.common import text as T
 from ml.common.render_bridge import render
@@ -24,7 +25,9 @@ from ml.common.util import rng as mkrng, stable_id
 from ml.data.synth import asr_noise as AN
 from ml.data.synth import disfluency as D
 from ml.data.synth import screen as SCR
-from ml.data.synth.channel import Channel, _lang_runs
+from ml.data.synth import terms as TT
+from ml.data.synth.channel import Channel, _lang_runs, _term_garble_implausible
+from ml.data.synth.lexicon import KNOWN_TECH
 from ml.data.synth.teacher_prompts import GEN_VERSION
 
 NOISE_HES = {"ru": ["э", "э-э", "ээ", "эм", "м-м", "ммм", "хм", "а-а", "э-э-э"],
@@ -33,12 +36,16 @@ NOISE_JOIN = [" ", ", ", "… ", "... "]
 NOISE_END = ["", "", "…", ".", "...", "?"]
 
 
-def noise_only_text(lg: str, r: random.Random) -> str:
+def noise_only_text(lg: str, r: random.Random, split: str = "train") -> str:
     """What a recogniser writes for a breath, a hesitation or silence: 1-3 hesitation sounds in a recogniser's
     spelling, case and punctuation (Whisper capitalises and adds dots, CTC models write bare lowercase), or a
-    subtitle hallucination. Varied, so that the exact-duplicate filter does not collapse the category."""
+    subtitle hallucination from the split's own pool (held-out splits never see a train string). Varied, so that the
+    exact-duplicate filter does not collapse the category."""
     if r.random() < 0.3:
-        return r.choice([t for t in AN.WHISPER_TAILS[lg] if t != "Thank you."] + ["…"])
+        tail = r.choice(tails_for(lg, split) + ["…"])
+        if tail != "…" and r.random() < 0.4:  # a hesitation the recogniser wrote, then the hallucinated credit
+            tail = r.choice(NOISE_HES[lg]).capitalize() + r.choice(["... ", "… ", ". ", ", "]) + tail
+        return tail
     toks = [r.choice(NOISE_HES[lg]) for _ in range(r.choice([1, 1, 2, 2, 3]))]
     if lg == "ru" and len(toks) > 1 and r.random() < 0.25:
         toks.insert(1, "ну")
@@ -51,7 +58,43 @@ def noise_only_text(lg: str, r: random.Random) -> str:
     return text
 
 
-TAILS = {"ru": [t for t in AN.WHISPER_TAILS["ru"]], "en": [t for t in AN.WHISPER_TAILS["en"] if t != "Thank you."]}
+# Whisper-family hallucinations on silence (public reports; the TTS round trip has no silent stretches and shows none:
+# 0 of 10,605 hypotheses). Unmistakable credits and channel promos only ('Thank you.' or 'Спасибо за внимание!' can
+# be dictated). Train and held-out pools are disjoint, so dev/test measure removal of an unseen string; every string
+# the project's eval sets use (prompts/eval: 'Субтитры сделал DimaTorzok', 'Продолжение следует...', 'Thanks for
+# watching!', the А.Синецкая credit) and its close variants are held-out only.
+TAIL_POOLS = {
+    "ru": {"train": ["Подписывайтесь на канал!", "ПОДПИСЫВАЙТЕСЬ НА КАНАЛ", "Спасибо за просмотр!",
+                     "Ставьте лайки и подписывайтесь на канал!", "До встречи в следующем видео!"],
+           "heldout": ["Продолжение следует...", "Субтитры сделал DimaTorzok", "Субтитры создавал DimaTorzok",
+                       "Субтитры делал DimaTorzok", "Редактор субтитров А.Синецкая Корректор А.Егорова",
+                       "Редактор субтитров А.Семкин Корректор А.Егорова"]},
+    "en": {"train": ["Thank you for watching.", "Thank you for watching!", "Please subscribe to my channel.",
+                     "Please like and subscribe.", "See you in the next video!"],
+           "heldout": ["Thanks for watching!", "Thanks for watching, and I'll see you next time.",
+                       "Subtitles by the Amara.org community", "Transcription by CastingWords"]},
+}
+# a decoder stutter loop seen in the real round trip (Nemotron 3.5 streaming: 'через с с с с с сентенс Трансформерс')
+LOOP_MODEL_HINT = "nemotron-3.5"
+LOOP_SHARE = 0.25
+
+
+def tails_for(lg: str, split: str) -> list[str]:
+    return TAIL_POOLS["en" if lg == "en" else "ru"]["train" if split == "train" else "heldout"]
+
+
+def stutter_loop(hyp: str, r: random.Random) -> tuple[str, str | None]:
+    """Insert a decoder loop of the next word's first letter ('с с с с сентенс') before a word of 4+ letters."""
+    ws = hyp.split(" ")
+    cand = [i for i in range(1, len(ws)) if len(re.sub(r"\W", "", ws[i])) >= 4 and ws[i][:1].isalpha()]
+    if not cand:
+        return hyp, None
+    i = r.choice(cand)
+    loop = " ".join([ws[i][:1].lower()] * r.randint(3, 5))
+    ws.insert(i, loop)
+    return " ".join(ws), loop
+
+
 INJECTION_FORBID = {
     "OK": ["OK", "ОК"], "APPROVED": ["APPROVED"], "принято": ["Принято"], "Sent from my iPhone": ["Sent from my iPhone"],
     "Отправлено с Android": ["Отправлено с Android"], "I agree to the terms": ["I agree to the terms"],
@@ -188,31 +231,104 @@ def _term_variants_mined(channel: Channel, model: str, term: str, lang: str) -> 
     return out
 
 
-def garble_form(term: dict, lang: str, channel: Channel, model: str, prev_word: str, r: random.Random) -> tuple[str, str]:
-    """How the recogniser spells a hard term it does not know. -> (form, source)."""
-    mined = _term_variants_mined(channel, model, term["text"], lang)
-    if mined and r.random() < 0.8:
-        forms, w = zip(*mined)
-        return r.choices(forms, weights=w)[0], "mined"
+def _term_variants_other(channel: Channel, model: str, term: str, lang: str) -> list[tuple[str, int]]:
+    """The term's mined manglings by the OTHER recognisers (same speech-language rule as above): real renderings
+    of this very term, used when the chosen recogniser was never heard saying it."""
+    if channel.nm is None:
+        return []
+    ok = {"en": {"en"}, "ru": {"ru", "mixed"}}.get(lang, {"en", "ru", "mixed"})
+    out: Counter = Counter()
+    for m, terms in channel.nm._terms.items():
+        if m == model:
+            continue
+        for lg, cnt in (terms.get(term) or {}).items():
+            if lg in ok:
+                for h, c in cnt.items():
+                    if h and h.lower() != term.lower():
+                        out[h] += c
+    return sorted(out.items())
+
+
+def _has_lat(s: str) -> bool:
+    return bool(re.search(r"[A-Za-z]", s))
+
+
+def latin_garble(term: str, hb: dict, r: random.Random) -> str:
+    """A Latin misspelling made the way the mined sampler garbles an unseen term (vowel swap, dropped double or
+    inner letter: ml/roundtrip/mine/noise.perturb_word), kept only if the aligner counts it as a recognition error and
+    the recogniser's mined habits allow that kind of letter drop."""
+    from ml.roundtrip.mine.align import is_error_variant
+    from ml.roundtrip.mine.noise import perturb_word
+    for _ in range(12):
+        ws = term.split()
+        i = r.randrange(len(ws))
+        ws[i] = perturb_word(ws[i], r)
+        v = " ".join(ws)
+        if v != term and is_error_variant(term, v) and not _term_garble_implausible(term, v, hb):
+            return v
+    return ""
+
+
+LATIN_BOOST = 2.0
+
+
+def garble_form(term: dict, lang: str, channel: Channel, model: str, prev_word: str, r: random.Random,
+                need_cyrillic: bool = False) -> tuple[str, str]:
+    """How the recogniser spells a hard term it does not know. -> (form, source).
+
+    Russian / mixed speech: the script follows the recogniser's mined habit (share of Latin misspellings among its
+    term errors: 0.02 for T-one, 0.3-0.45 for Whisper / Parakeet / GigaAM), Cyrillic only for a scenario that needs
+    a no-context counterpart. Forms: this recogniser's mined manglings of the term, else another recogniser's mined
+    manglings of it, else a Latin misspelling made like the mined sampler's (Latin) or the probe lexicon's reading /
+    a transliteration (Cyrillic). English speech: mined manglings, the lexicon's spoken forms, CamelCase split, else
+    the sampler-style misspelling (no generic respelling rules: no recogniser in the round trip shows them)."""
+    text = term["text"]
+    hb = channel.habits(model, lang)
+    own = _term_variants_mined(channel, model, text, lang)
+    other = _term_variants_other(channel, model, text, lang)
     if lang in ("ru", "mixed"):
+        # the paired scenarios (210 of 330 train records) must stay Cyrillic, so the others draw Latin at twice the
+        # recogniser's measured share (cap 0.8): the set keeps a real number of 'Latin misspelling resolved from
+        # the screen' examples
+        p_lat = 0.0 if need_cyrillic else min(0.8, LATIN_BOOST * ((1.0 - hb["cyr_share"]) if hb.get("err") else 0.3))
+        want_lat = r.random() < p_lat
+
+        def ok(h: str) -> bool:
+            if want_lat:
+                return _has_lat(h) and not T.is_cyr(h) and not _term_garble_implausible(text, h, hb)
+            return T.is_cyr(h) and not _has_lat(h)
+        for src, forms in (("mined", own), ("mined_other", other)):
+            fs = [(h, c) for h, c in forms if ok(h)]
+            if fs:
+                hs, w = zip(*fs)
+                return r.choices(hs, weights=w)[0], src
+        if want_lat:
+            form = latin_garble(text, hb, r)
+            if form:
+                return form, "garbled_latin"
         if term.get("ru_spoken"):
             form = r.choice(term["ru_spoken"])
             src = "lexicon"
         else:
-            form = " ".join(T.lat2cyr_rough(w) for w in T.words(term["text"]))
+            form = " ".join(T.lat2cyr_rough(w) for w in T.words(text))
             src = "translit"
         return AN._case_ending(prev_word, form, r), src
+    for src, forms in (("mined", own), ("mined_other", other)):
+        fs = [(h, c) for h, c in forms if _has_lat(h) and not _term_garble_implausible(text, h, hb)]
+        if fs and (src == "mined" or r.random() < 0.7):
+            hs, w = zip(*fs)
+            return r.choices(hs, weights=w)[0], src
     if term.get("en_spoken") and r.random() < 0.6:
         form = r.choice(term["en_spoken"])
-        if form.lower() != term["text"].lower():
+        if form.lower() != text.lower():
             return form, "lexicon"
-    parts = re.findall(r"[A-Z]?[a-z]+|[A-Z]+(?![a-z])|\d+", term["text"])
+    parts = re.findall(r"[A-Z]?[a-z]+|[A-Z]+(?![a-z])|\d+", text)
     if len(parts) > 1 and r.random() < 0.5:
         return " ".join(p.lower() for p in parts), "split"
-    form = AN.respell_en(term["text"], r).lower()
-    if form.lower() == term["text"].lower():
-        form = " ".join(p.lower() for p in parts) if len(parts) > 1 else ""
-    return form, "respell"
+    form = latin_garble(text, hb, r)
+    if not form and len(parts) > 1:
+        form = " ".join(p.lower() for p in parts)
+    return form, "garbled_latin"
 
 
 _SPOKEN_SYM = {"dot": ".", "точка": ".", "slash": "/", "слэш": "/", "слеш": "/", "dash": "-", "дефис": "-",
@@ -278,21 +394,106 @@ def misspell_surname(spoken: str, person: str, r: random.Random) -> tuple[str, s
     return spoken, None, None
 
 
+def is_well_known(term: str) -> bool:
+    """A term a writer spells right with no screen support (terms.WELL_KNOWN, lexicon.KNOWN_TECH, plain English
+    words): the documented exception to CONTEXT_V2's binding rule. A Cyrillic inflection ('NLP-сервиса') counts by
+    its Latin part. Such terms never get a no-context counterpart (terms.py), so no pair contradicts the rule."""
+    core = re.sub(r"[-‐]?[А-Яа-яЁё]+", "", term).strip(" -")
+    if not core:
+        return False
+    low = {t.lower() for t in TT.WELL_KNOWN | KNOWN_TECH}
+    return core.lower() in low or TT._plain_english(core)
+
+
 def term_restore_ok(term: str, form: str) -> bool:
     """May the target write `term` where the transcript has the recogniser's `form`, with no screen support?
-    Yes for a spelling variant of the same word ('docusign', 'Elastic Search'), a Cyrillic rendering that sounds like
-    it ('докир' for Docker, 'Джира'), a letter-by-letter acronym ('ди эн эс' for DNS) and a near-identical Latin
-    misspelling ('Confloence'; spelling similarity >= 0.8, or one letter off for 4+ letters: 'Zom', 'Jera'). No for another word ('Traffic' for Traefik, 'Equalization' for
-    quantization, 'EWS' for AWS): without context nothing in the input says which word was meant (CONTEXT_V2: a
-    garbled word is never fixed towards a spelling the context does not contain)."""
+    The mechanical form of CONTEXT_V2's binding rule (a garbled word is never fixed towards a spelling the context
+    does not contain): the target keeps the transcript's rendering unless the term is on screen (checked by the
+    caller) or WELL-KNOWN (is_well_known: exactly the terms that never get a no-context counterpart, so no pair
+    contradicts it). Always yes for a spelling variant of the same word ('docusign', 'Elastic Search', 'Zero Shot').
+    For a well-known term also a near-identical Latin misspelling ('Confloence'; spelling similarity >= 0.8, or one
+    letter off for 4+ letters: 'Zom', 'Jera'), a Cyrillic rendering that sounds like it ('докир' for Docker,
+    'Джира') or a letter-by-letter acronym ('ди эн эс' for DNS). Never another word ('Traffic' for Traefik,
+    'Equalization' for quantization, 'EWS' for AWS), and nothing else for any other term ('трефик' for Traefik,
+    'апентабл' for OpenTable, 'крем' for cream, 'Parqet' for Parquet): the counterparts keep 'трэфик'."""
     if term_key(form) == term_key(term) or re.sub(r"\W", "", form).lower() == re.sub(r"\W", "", term).lower():
         return True
     if T.is_cyr(form):
+        if not is_well_known(term):
+            return False
         if re.fullmatch(r"[A-Z0-9/]{2,6}", term) and len(form.split()) >= len(re.sub(r"\W", "", term)) - 1:
             return True
         return T.phon_sim(term, form) >= 0.7
+    if not is_well_known(term):
+        return False  # 'Parqet', 'tstflight': only the screen may say how a product name is spelled
     a, b = term.lower(), form.lower()
     return T.similarity(a, b) >= 0.8 or (len(a) >= 4 and _edit1(a, b))
+
+
+# ------------------------------------------------------------------ real-word substitutions (guessing)
+# Russian noun / adjective endings: a swap between two of them on the same stem is an agreement repair grammar
+# resolves ('до понедельник' -> 'до понедельника'); verb person, mood, tense or gender is not ('Проверю' for
+# 'Проверь', 'можешь' for 'можете', 'успел' for 'успела')
+NOMINAL_ENDINGS = {"", "а", "я", "ы", "и", "у", "ю", "е", "о", "ь", "ой", "ей", "ом", "ем", "ам", "ям", "ах", "ях",
+                   "ами", "ями", "ов", "ев", "ий", "ый", "ая", "яя", "ое", "ее", "ую", "юю", "ых", "их", "ым", "им",
+                   "ого", "его", "ому", "ему", "ые", "ие", "ою", "ею", "ью"}
+VERBAL_PAIRS = {frozenset(p) for p in (("ь", "ю"), ("ь", "у"), ("й", "ю"), ("й", "у"))}
+EN_HOMOPHONES = [{"their", "there", "they're"}, {"your", "you're"}, {"its", "it's"}, {"then", "than"},
+                 {"here", "hear"}, {"whether", "weather"}, {"know", "no"}, {"right", "write"}, {"buy", "by"},
+                 {"new", "knew"}, {"wait", "weight"}, {"where", "wear", "were"}, {"whose", "who's"}]
+VOCAB: set[str] = set()  # words of every teacher 'spoken' text (generate.set_vocab), plus the channel's real words
+
+
+def set_vocab(words) -> None:
+    VOCAB.clear()
+    VOCAB.update(words)
+
+
+def same_lemma(a: str, b: str) -> bool:
+    """Two forms of one word whose difference grammar restores: a Russian noun/adjective ending swap on a stem of
+    3+ letters, an English plural / possessive / -ed / -ing, or an English homophone pair (their/there)."""
+    a, b = T.norm_word(a), T.norm_word(b)
+    if T.is_cyr(a) and T.is_cyr(b):
+        for k in range(3, min(len(a), len(b)) + 1):
+            if a[:k] != b[:k]:
+                break
+            ea, eb = a[k:], b[k:]
+            if ea in NOMINAL_ENDINGS and eb in NOMINAL_ENDINGS and frozenset((ea, eb)) not in VERBAL_PAIRS \
+                    and not (a[:k].endswith("л") and {ea, eb} <= {"", "а", "о", "и"}) \
+                    and not (a[:k].endswith("т") and {ea, eb} == {"ь", ""}):  # успел / успела, проверить / проверит
+                return True
+        return False
+    s, l = sorted((a, b), key=len)
+    if any(l == s + suf for suf in ("s", "es", "'s", "ed", "ing")) or (s.endswith("e") and l in (s + "d", s[:-1] + "ing")):
+        return True
+    return any(a in g and b in g for g in EN_HOMOPHONES)
+
+
+def real_word_guess(spoken_w: str, hyp_w: str, target: str, ctx_text: str, vocab_extra=frozenset()) -> bool:
+    """The channel replaced a spoken word (4+ letters) by ANOTHER real word, and the target restores the spoken one
+    with no support on screen: 'Would' for 'Could', 'появилось' for 'отвалилось', 'Проверю' for 'Проверь'. A cleanup
+    model cannot know which word was said, so the example would teach it to guess."""
+    a, b = T.norm_word(spoken_w), T.norm_word(hyp_w)
+    if len(a) < 4 or a == b or len(b) < 3:
+        return False
+    tw = set(T.norm_words(target))
+    if a not in tw or b in tw:
+        return False
+    if a in set(T.norm_words(ctx_text)):
+        return False
+    if b not in VOCAB and b not in vocab_extra:
+        return False
+    return not same_lemma(a, b)
+
+
+def guessed_subs(events: list[str], target: str, ctx_text: str, vocab_extra=frozenset()) -> list[str]:
+    out = []
+    for e in events:
+        if e.startswith("sub:") and "->" in e:
+            a, b = e[4:].split("->", 1)
+            if len(a.split()) == 1 and len(b.split()) == 1 and real_word_guess(a, b, target, ctx_text, vocab_extra):
+                out.append(e)
+    return out
 
 
 def _edit1(a: str, b: str) -> bool:
@@ -406,6 +607,71 @@ def implausible_subs(events: list[str]) -> list[str]:
     return out
 
 
+# ------------------------------------------------------------------ target consistency
+# teacher examples dropped by name after the 2026-11-20 data review: semantically odd ('include SRE in the grocery
+# order') or a guessed transliteration of a Russian word in a URL path ('расписание' -> 'raspisanie')
+BAD_TEACHER_EXAMPLES = {"sc-6a9f1251f168": "SRE in a grocery order", "sc-af6c2f4d893a": "ritmfit.ru/raspisanie"}
+_EN_NUM = {w: i for i, w in enumerate("zero one two three four five six seven eight nine ten".split())}
+_RU_NUM = {}
+for _v, _forms in {1: "один одна одну одной одного одним одном", 2: "два две двух двум двумя",
+                   3: "три трёх трех трём трем тремя", 4: "четыре четырёх четырех четырём четырем четырьмя",
+                   5: "пять пяти пятью", 6: "шесть шести шестью", 7: "семь семи семью", 8: "восемь восьми восемью",
+                   9: "девять девяти девятью", 10: "десять десяти десятью"}.items():
+    for _f in _forms.split():
+        _RU_NUM[_f] = _v
+_EN_UNITS = r"(?:minutes?|hours?|seconds?)"
+_RU_UNITS = r"(?:минут[аыуе]?|минутами|минутам|час(?:а|ов|у|ом|ам|ами|ах)?|секунд[аыуе]?|секундами|секундам)"
+_EN_DUR = re.compile(r"\b(" + "|".join(_EN_NUM) + r")(?:( or | to )(" + "|".join(_EN_NUM) + r"))?([ -])(" + _EN_UNITS + r")\b",
+                     re.I)
+_RU_DUR = re.compile(r"(?<![\w-])(" + "|".join(sorted(_RU_NUM, key=len, reverse=True)) + r")(?:( или | - |-)(" +
+                     "|".join(sorted(_RU_NUM, key=len, reverse=True)) + r"))? (" + _RU_UNITS + r")(?!\w)", re.I)
+
+
+def digit_durations(target: str) -> str:
+    """Prompt rule 4 (digits for measurements): 'ten minutes' -> '10 minutes', 'two or three hours' -> '2 or 3 hours',
+    'через пять минут' -> 'через 5 минут'. The teacher wrote small durations both ways (en minutes: 34 digits,
+    7 words); one style for all."""
+    def en(m):
+        a = str(_EN_NUM[m.group(1).lower()])
+        b = (m.group(2) + str(_EN_NUM[m.group(3).lower()])) if m.group(3) else ""
+        return a + b + m.group(4) + m.group(5)
+
+    def ru(m):
+        if m.group(1).lower() in ("одна", "одну", "одной", "одного", "одним", "одном", "один"):
+            return m.group(0)  # 'одну минуту' / 'один час': the speaker's article-like 'one' stays a word
+        a = str(_RU_NUM[m.group(1).lower()])
+        b = (m.group(2) + str(_RU_NUM[m.group(3).lower()])) if m.group(3) else ""
+        return a + b + " " + m.group(4)
+    return _RU_DUR.sub(ru, _EN_DUR.sub(en, target))
+
+
+def digits_spelled_out(hyp: str, target: str, lang: str) -> list[int]:
+    """Numbers the transcript already gives in digits that the target writes in words ('10 minutes' ->
+    'ten minutes'): a cleanup never turns a recogniser's digit back into a word."""
+    lg = None if lang == "mixed" else lang
+    hd = set(int(d) for d in re.findall(r"(?<![\d.,:])\d+(?![\d.,:]\d)", hyp))
+    if not hd:
+        return []
+    toks = [t if not re.search(r"\d", t) else "\0" for t in T.norm_words(target)]
+    td = set(int(d) for d in re.findall(r"\d+", target))
+    return [v for a, b, v in T.number_spans(toks, lg) if toks[a] != "\0" and v in hd and v not in td]
+
+
+def address_slug_guess(spoken: str, target: str) -> str | None:
+    """A URL path segment written in Latin for a Russian word the user said ('слэш расписание' -> '/raspisanie',
+    'слэш каталог' -> '/catalog'): neither the transliteration nor the translation is knowable from the audio."""
+    m = re.match(r"^(?:https?://)?[^/\s]+/(.+)$", target.strip())
+    if not m:
+        return None
+    lat_words = [T.norm_word(w) for w in T.words(spoken) if T.is_lat(w)]
+    lat_spoken, joined = set(lat_words), "".join(lat_words)
+    for seg in re.split(r"[/?=&#.\-_]+", m.group(1)):
+        if len(seg) >= 4 and re.fullmatch(r"[A-Za-z]+", seg) and seg.lower() not in lat_spoken \
+                and seg.lower() not in joined:
+            return seg
+    return None
+
+
 # ------------------------------------------------------------------ records
 def _near_no_op(target: str, r: random.Random) -> tuple[str, str]:
     opts = []
@@ -445,7 +711,7 @@ def _base_meta(sc: dict, teacher: str, gen: str | None = None) -> dict:
 def build_noise_only(sc: dict, channel: Channel, backend: SCR.Backend) -> list[dict]:
     r = mkrng("noise_only", sc["sid"])
     lg = "en" if sc["lang"] == "en" else "ru"
-    hyp = noise_only_text(lg, r)
+    hyp = noise_only_text(lg, r, sc["split"])
     ctx, smeta = make_ctx(sc, {"title": "", "messages": [], "before_cursor": "", "snippets": []}, backend, "")
     meta = _base_meta(sc, "code") | {"noise": {"source": "code:noise_only"}, "check": {"empty": True}, "screen": smeta}
     return [_record(sc, stable_id("syn", sc["sid"]), "noise_only", ctx, hyp, "", meta)]
@@ -458,6 +724,12 @@ def build(sc: dict, ex: dict, channel: Channel, teacher: str, backend: SCR.Backe
     spoken, target, screen = ex["spoken"].strip(), ex["target"].strip(), ex["screen"]
     if not spoken or not target:
         raise Reject("empty_spoken_or_target")
+    if sc["sid"] in BAD_TEACHER_EXAMPLES:
+        raise Reject("teacher_semantics")
+    # straight apostrophes (no recogniser writes ’, and a phone keyboard types ' ): one typography for both sides
+    spoken, target = spoken.replace("’", "'"), digit_durations(target.replace("’", "'"))
+    if cat == "address" and address_slug_guess(spoken, target):
+        raise Reject("address_slug_guess")
     r = mkrng("build", sc["sid"])
     term = sc["spoken_terms"][0] if sc["spoken_terms"] else None
     # cheap teacher-side checks before paying for render + OCR
@@ -482,11 +754,19 @@ def build(sc: dict, ex: dict, channel: Channel, teacher: str, backend: SCR.Backe
         meta["noise"] = {"source": "code:near_no_op", "events": [op]}
         return [_record(sc, stable_id("syn", sc["sid"]), cat, ctx, hyp, target, meta)]
 
-    prefer = "whisper" if cat == "asr_artifact" else None
     last = "no_attempt"
     for k in range(attempts):
         rk = mkrng("noise", sc["sid"], k)
-        model = channel.pick_model(lang, rk, prefer, switch=sc.get("mix") == "switch")
+        artifact = None
+        if cat == "asr_artifact":
+            artifact = "loop" if lang != "en" and rk.random() < LOOP_SHARE and channel.has_model(LOOP_MODEL_HINT, lang) \
+                else "tail"
+            model = channel.pick_family(lang, rk, (LOOP_MODEL_HINT,) if artifact == "loop" else ("whisper", "distil"))
+        else:
+            # one recogniser for every attempt but the last: re-drawing it on each retry would let the noisiest
+            # recognisers (Qwen3-ASR on Russian, Nemotron streaming on English) drop out of the set
+            mr = mkrng("model", sc["sid"]) if k < attempts - 1 else rk
+            model = channel.pick_model(lang, mr, None, switch=sc.get("mix") == "switch")
         render = channel.disfluency_render(model)
         sev = sc["severity"] if k < attempts - 2 else min(sc["severity"], 0.5)
         sp, events, garble = spoken, [], None
@@ -500,7 +780,8 @@ def build(sc: dict, ex: dict, channel: Channel, teacher: str, backend: SCR.Backe
             def ff(prev, _r=rk):
                 nonlocal form, src
                 if form is None:
-                    form, src = garble_form(term, tlang, channel, model, prev, _r)
+                    form, src = garble_form(term, tlang, channel, model, prev, _r,
+                                            need_cyrillic=bool(sc.get("counterpart")))
                 return form
             sp, n = _replace_term(sp, term["text"], ff)
             if not form or form.lower() == term["text"].lower():
@@ -525,10 +806,16 @@ def build(sc: dict, ex: dict, channel: Channel, teacher: str, backend: SCR.Backe
         sp2, dops = D.inject(sp, lang, sc["messiness"], rk, sounds_only=cat == "meaningful_filler", keep_caps=caps,
                              render=render)
         hyp, events = channel.transcribe(sp2, target, lang, model, chan_terms, sc["noise_seed"] + k, sev)
-        if cat == "asr_artifact":
-            tail = rk.choice(TAILS["en" if lang == "en" else "ru"])
+        if artifact == "tail":
+            tail = rk.choice(tails_for(lang, sc["split"]))
             hyp = (hyp.rstrip() + " " + tail).strip()
             events = events + [f"tail:{tail}"]
+        elif artifact == "loop":
+            hyp, loop = stutter_loop(hyp, rk)
+            if not loop:
+                last = "no_loop_site"
+                continue
+            events = events + [f"loop:{loop}"]
         if not hyp.strip():
             last = "empty_hypothesis"
             continue
@@ -543,6 +830,12 @@ def build(sc: dict, ex: dict, channel: Channel, teacher: str, backend: SCR.Backe
             continue
         if unsupported_term_garbles(events, target, ctx, skip=tuple(t["text"] for t in sc["spoken_terms"]) if cat == "context_resolution" else ()):
             last = "unsupported_term_garble"
+            continue
+        if guessed_subs(events, target, rend, channel.real_words()):
+            last = "real_word_guess"
+            continue
+        if digits_spelled_out(hyp, target, lang):
+            last = "digit_spelled_out"
             continue
         if garble and garble.get("form") and not _contains(hyp, garble["form"]):
             last = "garble_lost"
@@ -624,6 +917,14 @@ def build(sc: dict, ex: dict, channel: Channel, teacher: str, backend: SCR.Backe
                             else hyp_form, target)
         if _contains(cp_target, term["text"]):
             raise Reject("counterpart_target_has_term")
+        # the parent's checks used the parent's screen; the re-rendered one may no longer show a word they relied on
+        cp_text = ctx_text(cp_ctx)
+        if guessed_subs(events, cp_target, cp_text, channel.real_words()):
+            out.append({"_reject": "real_word_guess", "category": "context_counterpart", "term": term["text"]})
+            return out
+        if unrecoverable(cp_target, hyp, cp_text):
+            out.append({"_reject": "asr_unrecoverable", "category": "context_counterpart", "term": term["text"]})
+            return out
         cp_meta = copy.deepcopy(meta) | {"counterpart_of": rec["id"], "screen": cp_smeta,
                                          "check": {"keep": [hyp_form], "forbid": [term["text"]]},
                                          "entities": [hyp_form], "distractors": [term["text"]] + list(sc["distractors"])}

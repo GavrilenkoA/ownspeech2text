@@ -17,6 +17,10 @@ Every report carries two measurements of the same predictions: `summary`/`gates`
 output (what select.py ranks), and `guarded` = the same after prompts/guard.py (precheck skip ->
 empty, post-LLM repair/fallback), i.e. what the app inserts. The guard is deterministic, so it is
 recomputed on --rescore; scores_guarded.jsonl holds the per-example rows.
+Both carry `pass` (prompts/eval/score.py, the prompt-eval scorer) and a per-file breakdown
+(`by_set`: dev.v2, test.v2, the dataset's dev/test, ...); `baseline` compares the prompt eval sets
+with the stock models' numbers (ml/eval/baselines/, docs/ml/PROMPT_EVAL.md), raw vs raw and guarded
+vs guarded (ml/eval/scoring.py, ml/eval/baseline.py).
 """
 from __future__ import annotations
 
@@ -30,10 +34,8 @@ import sys
 import time
 from pathlib import Path
 
-from . import contract, gates, metrics
+from . import baseline, contract, gates, metrics, scoring
 from .backends import HFBackend, LlamaServer, TeacherBackend
-
-import guard as app_guard  # noqa: E402  prompts/guard.py (contract puts prompts/ on sys.path)
 
 DEFAULT_LLAMA_BIN = os.environ.get("MURMUR_LLAMA_BIN", str(contract.REPO / ".cache/ml/llm/bin/llama-b12503"))
 _THINK = re.compile(r"^\s*<think>.*?</think>\s*", re.S)
@@ -163,22 +165,7 @@ def main(argv=None) -> int:
     judged = load_judged(out)
     if a.judge:
         judged = judge_all(data, done, out, JudgeConfig(a.judge_url))
-    rows, grows, reasons = [], [], {}
-    for ex in data:
-        p = done[ex["id"]]
-        extra = {k: p.get(k) for k in ("latency_ms", "prompt_tokens", "completion_tokens", "prefill_ms", "decode_ms")}
-        r = metrics.score_example(ex, p["out"])
-        r.update(extra)
-        if ex["id"] in judged:
-            r.update({k: judged[ex["id"]][k] for k in ("judge_score", "judge_drift")})
-        rows.append(r)
-        v = app_guard.guard(ex["transcript"], p.get("raw_out") or p["out"], ex.get("ctx"))
-        reasons[v.reason] = reasons.get(v.reason, 0) + 1
-        gr = metrics.score_example(ex, v.text)
-        gr.update(extra, guard_action=v.action, guard_reason=v.reason)
-        if ex["id"] in judged and v.text == p["out"]:
-            gr.update({k: judged[ex["id"]][k] for k in ("judge_score", "judge_drift")})
-        grows.append(gr)
+    rows, grows, reasons = scoring.score_all(data, done, a.system, scoring.set_map(a.data), judged)
     contract.write_jsonl(out / "scores.jsonl", rows)
     contract.write_jsonl(out / "scores_guarded.jsonl", grows)
     summ = metrics.summarize(rows)
@@ -208,13 +195,14 @@ def main(argv=None) -> int:
                "fired": sum(n for k, n in reasons.items() if k not in ("ok", "repaired")), "reasons": reasons,
                "note": "judge scores are copied only where the guard left the raw output unchanged"}
     report = {"info": info, "summary": summ, "gates": g, "guarded": guarded}
+    report["baseline"] = baseline.compare(report)
     (out / "report.json").write_text(json.dumps(report, ensure_ascii=False, indent=1), encoding="utf-8")
     (out / "report.md").write_text(to_markdown(report), encoding="utf-8")
     print(to_markdown(report))
     return 0
 
 
-COLS = [("n", "n"), ("exact", "exact"), ("em", "EM"), ("nwer", "N-WER"), ("nwer_raw", "raw"),
+COLS = [("n", "n"), ("pass", "pass"), ("exact", "exact"), ("em", "EM"), ("nwer", "N-WER"), ("nwer_raw", "raw"),
         ("entity_recall", "ent"), ("ctx_resolution_rate", "resolve"), ("distractor_insertion", "distr"),
         ("noop_exact", "noop"),
         ("answer_rate", "answer"), ("injection_success", "inject"), ("empty_ok", "empty"),
@@ -227,9 +215,9 @@ def table(summ: dict) -> str:
         return "" if v is None else (str(v) if isinstance(v, int) else f"{v:.3g}")
     lines = ["| group | " + " | ".join(s for _, s in COLS) + " |", "|---|" + "---:|" * len(COLS)]
     lines.append("| **all** | " + " | ".join(cell(summ["overall"][k]) for k, _ in COLS) + " |")
-    for name in ("by_lang", "by_ctx_source", "by_category"):
+    for name in ("by_set", "by_lang", "by_ctx_source", "by_category"):
         for k, v in summ.get(name, {}).items():
-            tag = f"ctx:{k}" if name == "by_ctx_source" else k
+            tag = {"by_ctx_source": f"ctx:{k}", "by_set": f"set:{k}"}.get(name, k)
             lines.append(f"| {tag} | " + " | ".join(cell(v.get(c)) for c, _ in COLS) + " |")
     return "\n".join(lines)
 
@@ -246,6 +234,8 @@ def to_markdown(rep: dict) -> str:
         body += (f"\n## After prompts/guard.py (what the app inserts; guard fired {gd['fired']}x: "
                  + ", ".join(f"{k} {v}" for k, v in sorted(gd["reasons"].items())) + ")\n\n"
                  + table(gd["summary"]) + "\n\n" + gates.to_markdown(gd["gates"]) + "\n")
+    if rep.get("baseline"):
+        body += "\n" + baseline.to_markdown(rep["baseline"]) + "\n"
     return body
 
 

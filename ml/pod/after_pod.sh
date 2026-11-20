@@ -3,8 +3,10 @@
 #   1. pull results + the finalists' Q4_0 GGUFs from the pod            (skipped with NO_SYNC=1)
 #   2. CPU ship-gate eval of each finalist's Q4_0 on the test sets       (llama.cpp CPU, 6 threads, greedy)
 #   3. LLM judge (teacher, Responses API) on those reports -> judge_mean / drift gates, then rescore
-#   4. stock baselines (B2) on the dev server CPU: vendor Q4_0 GGUFs x prompted-model profiles
-#   5. model cards + catalog entries from the CPU report (the ship measurement), leaderboard
+#   4. stock baselines (B2) on the dev server CPU: vendor Q4_0 GGUFs x the shipped stock profile (default.v1)
+#      on the dataset's own test (and dev with STOCK_DEV=1); dev.v2/test.v2 are frozen in ml/eval/baselines/
+#   5. model cards + catalog entries from the CPU report (the ship measurement), leaderboard, vs_stock.md
+#      (every report per eval set next to the stock models: ml.eval.baseline table)
 # Steps 2-4 are resumable (predictions/judgements are cached per example). The judge costs one
 # teacher request per example (~400 per finalist); JUDGE_LIMIT caps it per eval dir.
 #   POD=root@1.2.3.4 POD_PORT=22022 bash ml/pod/after_pod.sh
@@ -18,16 +20,21 @@ PY=.cache/ml/train/venv/bin/python
 export PYTHONPATH="$PWD" OMP_NUM_THREADS="${OMP_NUM_THREADS:-6}"
 LLAMA_BIN="${MURMUR_LLAMA_BIN:-.cache/ml/llm/bin/llama-b12503}"
 STEPS="${STEPS:-sync ship judge stock cards}"
-PROFILES="${PROFILES:-default.v4 default.v4s}"   # what the app ships for stock models; reports carry raw + guarded
+PROFILES="${PROFILES:-default.v1}"   # what the app ships for stock models (ADR-085); reports carry raw + guarded
 STOCK_P="${PROFILES%% *}"
 read -r -a TEST <<<"${EVAL_TEST:-$R/data/test.jsonl prompts/eval/sets/test.v2.jsonl}"
+# stock models: the dataset's own sets only (their dev.v2/test.v2 numbers are frozen in ml/eval/baselines/)
+read -r -a STOCK_TEST <<<"${EVAL_STOCK_TEST:-$R/data/test.jsonl}"
+read -r -a STOCK_DEVSET <<<"${EVAL_STOCK_DEV:-$R/data/dev.jsonl}"
 has() { [[ " $STEPS " == *" $1 "* ]]; }
 log() { echo "[$(date -u +%FT%TZ)] $*" >&2; }
-heavy_eval() { tools/heavy "$PY" -m ml.eval.run_eval "$@"; }
+heavy_eval() { nice -n 15 tools/heavy "$PY" -m ml.eval.run_eval "$@"; }
 
 if has sync && [[ -z "${NO_SYNC:-}" ]]; then WITH_GGUF=1 bash ml/pod/sync_results.sh; fi
-[[ -f "$R/runs/finalists.txt" ]] || { log "no $R/runs/finalists.txt (did export_eval.sh run on the pod?)"; exit 2; }
-mapfile -t FIN < <(awk '{print $2}' "$R/runs/finalists.txt" | sort -u)
+FIN=()
+if [[ -f "$R/runs/finalists.txt" ]]; then mapfile -t FIN < <(awk '{print $2}' "$R/runs/finalists.txt" | sort -u)
+elif [[ "$STEPS" != stock ]]; then log "no $R/runs/finalists.txt (did export_eval.sh run on the pod?)"; exit 2
+fi   # STEPS=stock alone needs no pod results: the stock baselines can run before the pod
 
 if has ship; then
   for run in "${FIN[@]}"; do
@@ -56,11 +63,14 @@ if has stock; then
   for f in .cache/ml/llm/LFM3-1.7B-QAD-Q4_0.gguf .cache/ml/llm/Qwen3.5-0.8B-Q4_0.gguf .cache/ml/llm/Qwen3.5-2B-Q4_0.gguf; do
     [[ -f "$f" ]] || continue
     for p in $PROFILES; do
-      out="$R/eval/stock/$(basename "$f" .gguf)/$p-test-cpu"
-      [[ -f "$out/report.json" ]] && continue
-      log "stock $f $p -> $out"
-      heavy_eval --model "$f" --data "${TEST[@]}" --out "$out" --system "$p" --label "stock $(basename "$f" .gguf) $p test cpu" \
-        --llama-bin "$LLAMA_BIN" --ngl 0 --threads "${EVAL_THREADS:-6}" >/dev/null
+      for sp in test ${STOCK_DEV:+dev}; do
+        out="$R/eval/stock/$(basename "$f" .gguf)/$p-$sp-cpu"
+        [[ -f "$out/report.json" ]] && continue
+        log "stock $f $p $sp -> $out"
+        if [[ $sp == test ]]; then sets=("${STOCK_TEST[@]}"); else sets=("${STOCK_DEVSET[@]}"); fi
+        heavy_eval --model "$f" --data "${sets[@]}" --out "$out" --system "$p" --label "stock $(basename "$f" .gguf) $p $sp cpu" \
+          --llama-bin "$LLAMA_BIN" --ngl 0 --threads "${EVAL_THREADS:-6}" >/dev/null
+      done
     done
   done
 fi
@@ -77,4 +87,5 @@ if has cards; then
       $([[ -f "$stock" ]] && echo --stock-eval "$stock") >/dev/null && log "card: $dir/gguf/README.md"
   done
   "$PY" -m ml.eval.leaderboard "$R/eval" "$R/runs" --out "$R/leaderboard.md" && log "leaderboard: $R/leaderboard.md"
+  "$PY" -m ml.eval.baseline table "$R/eval" "$R/runs" --out "$R/vs_stock.md" >/dev/null && log "versus stock: $R/vs_stock.md"
 fi

@@ -76,7 +76,7 @@ def test_prompt_mix_deterministic_and_prefs_win():
     a = [choose_prompt(e, mix, pool) for e in SMOKE]
     b = [choose_prompt(e, mix, pool) for e in SMOKE]
     assert a == b
-    assert {s for s, _ in a} == {"default.v4s", "finetuned.v2"}
+    assert {s for s, _ in a} == {"default.v1", "finetuned.v2"}
     e = dict(SMOKE[0], meta={**SMOKE[0]["meta"], "preferences": "Use British spelling."})
     assert all(choose_prompt(dict(e, id=f"x{i}"), mix, pool)[1] == "Use British spelling." for i in range(20))
 
@@ -94,7 +94,7 @@ def test_configs_resolve():
         c = cfglib.resolve(p, ["train.max_steps=3"])
         assert c["method"] in ("lora", "dora", "full"), p
         assert c["train"]["max_steps"] == 3
-        assert c["prompt"]["system"] == "finetuned.v2" and c["prompt"]["default_system"] == "default.v4s"
+        assert c["prompt"]["system"] == "finetuned.v2" and c["prompt"]["default_system"] == "default.v1"
         assert "${" not in str(c), p
 
 
@@ -147,3 +147,12 @@ def test_build_auto_max_len_from_rendered_examples(tmp_path):
     assert info["rendered_len"]["max"] == longest
     _, capped = build([{"path": str(p)}], "train", tok, "qwen3.5", PromptMix(), f"auto:{longest - 1}")
     assert capped["dropped_too_long"] >= 1
+
+
+def test_padding_stats():
+    from ml.train.render_data import padding_stats
+    lens = [10, 100, 12, 98]
+    grouped = padding_stats(lens, [1, 3, 0, 2], 2)     # (100, 98) (10, 12) -> padded 104*2 + 16*2
+    mixed = padding_stats(lens, [0, 1, 2, 3], 2)       # (10, 100) (12, 98) -> 104*2 + 104*2
+    assert grouped == {"real_tokens": 220, "padded_tokens": 240, "efficiency": round(220 / 240, 4)}
+    assert mixed["padded_tokens"] == 416 and mixed["efficiency"] < grouped["efficiency"]

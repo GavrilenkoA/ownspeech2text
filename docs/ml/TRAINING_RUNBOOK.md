@@ -1,7 +1,7 @@
 # Murmur — training, export and evaluation runbook (PLAN_V2)
 
-Date: 2026-11-18, review fixes 2026-11-19. Binding plan: `docs/ml/PLAN_V2.md` (1–5K synthetic examples, teacher on the dev
-server, one RTX 5090 for 2–3 GPU-hours, LoRA first). Code: `ml/train`, `ml/eval`, `ml/pod` (overview in
+Date: 2026-11-18, review fixes 2026-11-19, turnkey pod plan on the final data 2026-11-20. Binding plan: `docs/ml/PLAN_V2.md` (1–5K synthetic examples, teacher on the dev
+server, one RTX 5090 for 2–3 GPU-hours, hard cap 4 h, LoRA first). Code: `ml/train`, `ml/eval`, `ml/pod` (overview in
 `ml/README.md`). GPU request: `ml/pod/REQUEST.md`.
 Legend: **[V]** verified here (command, file or source given), **[I]** design choice, **[A]** assumed.
 
@@ -53,13 +53,17 @@ Legend: **[V]** verified here (command, file or source given), **[I]** design ch
    runs only with `FULL=1`, i.e. when LoRA misses the gates. "Misses the gates" is only meaningful because
    a perfect model passes them: an oracle (output := target) gives PASS or INCOMPLETE, never FAIL, on every
    eval set (`test_oracle_never_fails_the_gates`; before the 2026-11-19 fix it FAILed every set).
-8. **Prompts** [I, 2026-11-19]: fine-tunes train and are evaluated with **`finetuned.v2`** (OCR wording; the ctx
-   v2 data is what it was written for; prompts/README said "adopt with the next fine-tune", which is this one).
-   The robustness mix renders **5 %** of examples with **`default.v4s`** (the stock profile a user can actually
-   select, 8 OCR shots, ~2.2K tokens; 5 % keeps the mean at ~395 tokens). The eval of a run always uses the
-   `prompt.system` it trained with (read from its `config.resolved.json`), and the card / catalog entry
-   record it, so the app must send `finetuned.v2` to these models (the Kotlin renderer needs that file).
-   Stock baselines use what the app ships for stock models: profiles `default.v4` and `default.v4s`.
+8. **Prompts** [I, 2026-11-19; mix revised 2026-11-20]: fine-tunes train and are evaluated with **`finetuned.v2`**
+   (OCR wording; the ctx v2 data is what it was written for). The robustness mix renders **5 %** of examples with
+   **`default.v1`**, the stock profile the app ships for every stock model since ADR-085 (PROMPT_EVAL R.5), i.e. the
+   prompt a fine-tune most likely receives besides its own (a user who switches the prompt back, an app build
+   that has not picked up the catalog's prompt). It replaces `default.v4s` (no longer the default, still selectable):
+   the runbook's rule was "the stock profile a user can actually select", and that is now v1. Side effect: v1 has no
+   shot turns (~1.25-1.3K tokens rendered vs ~2.2K), so the mean rendered length drops from 419 to 374 tokens
+   (Qwen3.5) and max_len from 2,496 to 1,536 on the final set [M, section 2.1]. The eval of a run always uses the
+   `prompt.system` it trained with (read from its `config.resolved.json`), and the card / catalog entry record it,
+   so the app must send `finetuned.v2` to these models (the Kotlin renderer needs that file). Stock baselines use
+   what the app ships for stock models: profile `default.v1` + `prompts/guard.py`.
 9. **Selection and ship sets are ctx v2 only** [I]: dev = synthetic dev split + `prompts/eval/sets/dev.v2.jsonl`
    + `smoke_cases.v2` (converted); test = synthetic test split + `test.v2.jsonl`. The v1 structured-context sets
    are a labelled legacy column (`LEGACY=1`), never used by `select.py`, the gates or the cards.
@@ -71,59 +75,130 @@ Legend: **[V]** verified here (command, file or source given), **[I]** design ch
    server). The pod produces predictions; the dev server judges them (`ml.eval.judge`, 2 concurrent
    requests, Retry-After honoured) and recomputes the reports (`run_eval --rescore`).
 
-## 1. End-to-end sequence
+## 1. Turnkey sequence (one pod session, 2026-11-20)
 
-| # | Step | Where | Command | Time |
-|---|---|---|---|---|
-| 1 | Unit tests + CPU dry run of the chain | dev server | `make -C ml/train test dryrun` | tests 10 s; dry run section 4 [V] |
-| 2 | Request the pod | Hermes | `ml/pod/REQUEST.md` | — |
-| 3 | **Session 1** push code | dev server | `POD=… POD_PORT=… POD_KEY=/home/private/projects/murmur/.cache/ml/train/pod-ssh/murmur_pod_ed25519 bash ml/pod/push_code.sh` | 1 min [A] |
-| 4 | Bootstrap (driver check, uv + Python on the volume, llama.cpp CPU+CUDA, venv, self-test) | pod | `STAGES="bootstrap probe" bash ml/pod/run_all.sh` | 8 min [A] |
-| 5 | **ROUND-TRIP PROBE (owned by `ml/roundtrip`, not implemented here)**: TTS + ASR on GPU | pod | same command; `ml/pod/probe.sh` runs `MURMUR_PROBE_CMD` or `ml/roundtrip/pod_probe.sh` | 15–30 min [A] |
-| 6 | Pull probe outputs; **stop the pod** | dev server | `WITH_PROBE=1 POD=… bash ml/pod/sync_results.sh` | 3 min [A] |
-| 7 | Error mining + synthetic data (~3K) with the teacher; assemble with leak check | dev server | owned by `ml/roundtrip` + `ml/data`; then `python -m ml.train.assemble --out DIR shards/*.jsonl` | hours, no GPU |
-| 8 | **Session 2** push code + data | dev server | `WITH_DATA=1 DATA_DIR=DIR POD=… bash ml/pod/push_code.sh` | 1 min [A] |
-| 9 | Bootstrap re-check + base weights; preflight (fla kernel, CUDA llama.cpp); anchor `lfm3-r16` → measured tokens/s and projections → optional sweep runs that fit the target → select → phase B (Qwen 0.8B, 2B); each run trained, merged, exported, **HF-vs-GGUF parity**, Q4_0 dev eval | pod | `tmux new -s murmur "STAGES='bootstrap train eval' bash ml/pod/run_all.sh"` | 84 min [A] |
-| 10 | Finalists (best run per base): BF16 dev eval (quant loss), Q4_0 test eval, default.v4-prompt eval, cards, leaderboard | pod | stage `eval` of the same command | 30 min [A] |
-| 11 | Pull results + finalist GGUFs; **stop the pod** | dev server | `POD=… bash ml/pod/after_pod.sh` (does the sync first) | 4 min [A] |
-| 12 | CPU ship-gate eval, judge (teacher), rescore, stock baselines, cards, leaderboard | dev server | same `after_pod.sh` (no GPU) | ~1–3 h CPU [A] |
-| 13 | Owner picks; upload | dev server | `tools/with-teacher python -m ml.train.upload_hf --run … --repo OWNER/…` (`HF_TOKEN` from env) | minutes |
-| 14 | On-device: Benchmark button + real dictations | Fold7 | app | owner |
+The round-trip probe already ran and the final data exists (`.cache/ml/data/final`: train 2,997 / dev 300 /
+test 300, `docs/ml/DATA_CARD.md`), so the pod is used **once**, for training and evaluation only. Everything
+else (stock baselines, judge, CPU ship gates, cards, upload) runs on the dev server without a GPU. Every step
+is idempotent: after an SSH drop, a crash or a stop, re-run the same command.
 
-If LoRA misses the gates: start the pod once more, `FULL=1 PHASE_A="" PHASE_B="" STAGES="train eval" bash ml/pod/run_all.sh`
-(+68 min [A]). The budget is enforced where the time is spent: billed pod time (since container start, summed
-over sessions on the volume) is checked before every stage, run, run step and eval; nothing starts that would
-end past `MAX_GPU_HOURS` (5), optional runs must fit `TARGET_GPU_HOURS` (3) together with the mandatory rest
-(`ml/pod/REQUEST.md`, "Hard stop"). Every step skips finished work (markers, `train_info.json`, `manifest.json`, `report.json`);
-training resumes from its newest checkpoint, so after a stop or crash the same command continues.
+Before the pod (dev server, no GPU):
+
+```
+cd /home/private/projects/murmur
+make -C ml/train test                                   # 86 unit tests, 30-100 s
+bash .cache/ml/train/podsim-real/simulate.sh            # optional: the whole sequence below on CPU with tiny
+                                                        # models on the real data (section 4.2), ~15 min
+```
+
+Request the pod with `ml/pod/REQUEST.md` (name `alexm-training`, 1x RTX 5090, 80 GB volume, no secrets). Then:
+
+```
+export POD=root@<host> POD_PORT=<port>
+export POD_KEY=/home/private/projects/murmur/.cache/ml/train/pod-ssh/murmur_pod_ed25519
+S="ssh -p $POD_PORT -i $POD_KEY -o StrictHostKeyChecking=accept-new $POD"
+
+# 1. code + data to the volume (rsync, < 1 min)
+WITH_DATA=1 DATA_DIR=.cache/ml/data/final bash ml/pod/push_code.sh
+
+# 2. bootstrap (driver >= 580 check, uv + Python, llama.cpp CPU + CUDA, venv, fla sm_120 kernel test,
+#    self-test, 9.8 GB base weights; ~12 min; re-run after an SSH drop)
+$S 'mkdir -p /workspace/logs && cd /workspace/murmur && bash ml/pod/bootstrap.sh 2>&1 | tee -a /workspace/logs/bootstrap.log | tail -20'
+
+# 3. the matrix + finalist evals, detached in tmux (~1.7-2.4 h; budget guard inside)
+$S "tmux new -d -s murmur 'cd /workspace/murmur && STAGES=\"bootstrap train eval\" bash ml/pod/run_all.sh \
+    >>/workspace/logs/run_all.log 2>&1; echo EXIT \$? >>/workspace/logs/run_all.log'"
+#    poll every ~10 min (short, non-blocking):
+$S 'tail -3 /workspace/logs/pod.log; cat /workspace/logs/anchor.jsonl /workspace/logs/runs.jsonl 2>/dev/null; grep EXIT /workspace/logs/run_all.log'
+
+# 4. when run_all.log says EXIT: pull reports, logs and the finalists' Q4_0 GGUFs (~3 GB, ~3 min)
+WITH_GGUF=1 bash ml/pod/sync_results.sh
+ls .cache/ml/train/pod-results/runs/*/gguf/*-Q4_0.gguf && cat .cache/ml/train/pod-results/eval/vs_stock.md
+
+# 5. STOP the pod (Hermes); keep the volume until step 6 has read the GGUFs, then terminate
+
+# 6. dev server, no GPU: CPU ship-gate eval of each finalist (Q4_0, test + test.v2), judge (teacher, 2 concurrent),
+#    rescore, stock default.v1 on the dataset's test, cards, leaderboard, vs_stock.md (~1-3 h CPU)
+NO_SYNC=1 bash ml/pod/after_pod.sh
+#    (EVAL_THREADS=2 when the host load average is > 20; STOCK_DEV=1 adds the stock models on the dataset's dev)
+
+# 7. owner picks; upload to a PRIVATE repo (teacher-output licence unconfirmed)
+tools/with-teacher .cache/ml/train/venv/bin/python -m ml.train.upload_hf --run .cache/ml/train/pod-results/runs/<run> --repo <owner>/<name>
+```
+
+Exit codes of `run_all.sh`: 0 done; 5 budget refused a stage/run (results so far are complete and synced as
+usual); 6 preflight (fla kernel or CUDA llama.cpp missing: fix, or `PHASE_B=""` / `ALLOW_*`, re-run); 2 no data.
+If LoRA misses the gates: `FULL=1 PHASE_A="" PHASE_B="" STAGES="train eval"` in the same session if the budget
+allows (+53 min [A]), otherwise in a second session (the volume keeps everything; the budget file sums sessions).
+The stock baselines on the dataset's own dev/test (dev.v2/test.v2 are frozen in `ml/eval/baselines/`) can be
+produced before or during the pod session, free, on the dev server CPU (~1-1.5 h for test, as much again for dev):
+`NO_SYNC=1 STEPS=stock STOCK_DEV=1 EVAL_STOCK_TEST=.cache/ml/data/final/test.jsonl EVAL_STOCK_DEV=.cache/ml/data/final/dev.jsonl bash ml/pod/after_pod.sh`
+(same output dir as step 6, which then skips them). If the data is rebuilt afterwards, delete
+`.cache/ml/train/pod-results/eval/stock/` and run it again (a finished report is never recomputed).
+
+Time and stop rules: `ml/pod/REQUEST.md` ("Time budget", "Stop rules"); budget defaults `MAX_GPU_HOURS=4`
+(owner cap) and `TARGET_GPU_HOURS=3`.
 
 ## 2. Run matrix (one GPU, sequential)
 
-Same data, same prompt mix (finetuned.v2; 5 % default.v4s; 15 % random preferences block), max_len auto
-(longest rendered example rounded up to 64, cap 4096),
-batch 16 (≈190 steps per epoch at 3K examples), cosine, warmup 5 %, β2 0.95, alpha = 2r, dropout 0.05,
+Same data, same prompt mix (finetuned.v2; 5 % default.v1; 15 % random preferences block), max_len auto
+(longest rendered example rounded up to 64, cap 4096; 1,536 on the final set, nothing dropped), length-grouped
+batches with per-batch padding (section 2.1), batch 16 (188 steps per epoch at 2,997 examples), cosine, warmup 5 %, β2 0.95, alpha = 2r, dropout 0.05,
 all linear layers except `lm_head`. Selection on the **Q4_0 GGUF dev eval** (the shipping artifact):
 fewest failed gates, then EM, N-WER, no-op exactness, fewer trainable parameters (`ml/train/select.py`).
 
-| Phase | Run (config) | Base | Method | r | LR | Epochs | Question | GPU min [A] |
-|---|---|---|---|---:|---:|---:|---|---:|
-| A anchor | `lfm3-r16` | LFM3-1.7B | LoRA | 16 | 2e-4 | 3 | anchor = Liquid's recipe; measures tokens/s | 27 |
-| A opt. | `lfm3-r64` | LFM3-1.7B | LoRA | 64 | 2e-4 | 3 | capacity | 30 |
-| A opt. | `lfm3-r16-lr5e-4` | LFM3-1.7B | LoRA | 16 | 5e-4 | 3 | under-training at ~570 steps? | 27 |
-| A opt. | `lfm3-r16-e5` | LFM3-1.7B | LoRA | 16 | 2e-4 | 5 | more passes over a small set | 45 |
-| A opt. | `lfm3-dora-r16` (`DORA=1`) | LFM3-1.7B | DoRA | 16 | 2e-4 | 3 | DoRA vs LoRA | 35 |
-| B | `q08-lora` + winner's r/α/lr/epochs | Qwen3.5-0.8B | LoRA | ← A | ← A | ← A | speed option | 16 |
-| B | `q2-lora` + winner's r/α/lr/epochs | Qwen3.5-2B | LoRA | ← A | ← A | ← A | quality option | 35 |
-| fallback | `full-fallback` (`FULL=1`) | LFM3-1.7B (embeddings frozen) | full FT | — | 1e-5 | 3 | does full FT fix what LoRA misses? | 68 |
+| Phase | order | Run (config) | Base | Method | r | LR | Epochs | Question | GPU min plan / worst [A] |
+|---|---:|---|---|---|---:|---:|---:|---|---:|
+| A anchor | 1 | `lfm3-r16` | LFM3-1.7B | LoRA | 16 | 2e-4 | 3 | anchor = Liquid's recipe; measures tokens/s | 21 / 34 |
+| A opt. | 2 | `lfm3-r64` | LFM3-1.7B | LoRA | 64 | 2e-4 | 3 | capacity | 23 / skipped |
+| A opt. | 3 | `lfm3-r16-lr5e-4` | LFM3-1.7B | LoRA | 16 | 5e-4 | 3 | under-training at ~560 steps? | 21 / skipped |
+| A opt. | 4 | `lfm3-r16-e5` | LFM3-1.7B | LoRA | 16 | 2e-4 | 5 | more passes over a small set | skipped / skipped |
+| A opt. | (`DORA=1`) | `lfm3-dora-r16` | LFM3-1.7B | DoRA | 16 | 2e-4 | 3 | DoRA vs LoRA | not planned |
+| B | 5 | `q08-lora` + winner's r/α/lr/epochs | Qwen3.5-0.8B | LoRA | ← A | ← A | ← A | speed option | 13 / 20 |
+| B | 6 | `q2-lora` + winner's r/α/lr/epochs | Qwen3.5-2B | LoRA | ← A | ← A | ← A | quality option | 27 / 44 |
+| fallback | (`FULL=1`) | `full-fallback` | LFM3-1.7B (embeddings frozen) | full FT | — | 1e-5 | 3 | does full FT fix what LoRA misses? | 53 / 85 |
 
-Per-run minutes = train + merge + GGUF + parity + Q4_0 dev eval, from the anchor estimate (3K examples ×
-~395 tokens × 3 epochs at ~3.1K tokens/s = 30 % MFU, see `ml/pod/REQUEST.md`) times the cost factors in
-`ml/pod/train_matrix.sh` (`RUN_COST`) [A]. On the pod the anchor runs first and alone; its measured time
-replaces the estimate, `train_matrix.sh` prints the projection of every remaining run, and each optional run
-("A opt.", DoRA, full FT) starts only if its projection plus all mandatory work still ahead (phase B + 30 min of
-finalist evals) fits `TARGET_GPU_HOURS`. At the assumed speed no optional run fits; at >= 6K tokens/s one or
-two do. Data-limited check (PLAN_V2 "scale only if eval says so"): if `lfm3-r16-e5` beats `lfm3-r16` while dev
+Per-run minutes = train + merge + GGUF + parity + Q4_0 dev eval, from the anchor estimate (3.69M padded tokens
+per 3-epoch LFM3 run [M] at 4.8K tokens/s = 20 % MFU of the 5090's 209.5 dense BF16 TFLOP/s, worst case 10 %;
+see `ml/pod/REQUEST.md`) times the cost factors in `ml/pod/train_matrix.sh` (`RUN_COST`) [A]. On the pod the
+anchor runs first and alone; its measured time replaces the estimate, `train_matrix.sh` prints the projection of
+every remaining run, and each optional run ("A opt.", DoRA, full FT) starts only if its projection plus all
+mandatory work still ahead (phase B + 30 min of finalist evals) fits `TARGET_GPU_HOURS` (3 h). At plan speed
+`lfm3-r64` and `lfm3-r16-lr5e-4` fit and `lfm3-r16-e5` does not; at half speed no optional run fits. To force a
+particular sweep, set `PHASE_A="lfm3-r16 lfm3-r16-e5"` (order = priority). Data-limited check (PLAN_V2 "scale only if eval says so"): if `lfm3-r16-e5` beats `lfm3-r16` while dev
 loss still falls, the set is too small for the task → generate more (up to 5K) rather than add epochs.
+
+### 2.1 Sequence length and batching [M 2026-11-20, real final data, real tokenizers]
+
+`max_len` never pads anything: the Collator pads each batch to its own longest row (rounded up to 8) and the
+train sampler is `LengthGroupedSampler` (megabatches of 50 batches sorted by length, longest batch first so an
+OOM shows at step 1). `max_len` is only the drop filter and the bound of that longest batch. Measured with
+`render_data.build` + the sampler (`data_stats.json` -> `batching` records it for every run):
+
+| mix (finetuned.v2 + 15 % prefs +) | tokenizer | mean | p99 | max -> max_len auto | dropped | padding efficiency grouped / random / fixed max_len |
+|---|---|---:|---:|---:|---:|---|
+| 5 % default.v4s (before) | Qwen3.5 | 419 | 2,272 | 2,436 -> 2,496 | 0 | 0.93 / 0.29 / 0.17 |
+| 5 % default.v4s (before) | LFM3 | 436 | 2,352 | 2,511 -> 2,560 | 0 | 0.93 / 0.29 / 0.17 |
+| **5 % default.v1 (now)** | Qwen3.5 | **374** | 1,318 | 1,482 -> **1,536** | **0** | **0.95** / 0.41 / 0.24 |
+| **5 % default.v1 (now)** | LFM3 | **390** | 1,364 | 1,523 -> **1,536** | **0** | **0.95** / 0.41 / 0.25 |
+| 10 % default.v1 | LFM3 | 435 | 1,404 | 1,544 -> 1,600 | 0 | 0.96 / 0.38 / 0.27 |
+| finetuned.v2 only | LFM3 | 346 | 597 | 761 -> 768 | 0 | 0.97 / 0.66 / 0.45 |
+
+finetuned.v2 rows alone: 99 % under 548 (Qwen3.5) / 597 (LFM3) tokens. No cap: any cap below ~1.3K would drop
+exactly the stock-prompt rows (140 of 2,997) and so remove the robustness mix, and above it nothing is dropped;
+with length grouping the long rows cost only their own tokens. Real tokens per epoch 1.12M (Qwen3.5) / 1.17M
+(LFM3), padded 1.18M / 1.23M; completion (loss) tokens 82K / 96K. The dev split (300) is evaluated sorted by
+length (eval loss every 100 steps; in file order every batch holding one of the 15 stock-profile rows
+would be padded to ~1.3K).
+
+Proof that padding changes only the cost [V]: `test_padding_does_not_change_the_loss` (tiny random LFM3 and
+Qwen3.5 models from the real configs: dynamic padding, padding to 128 and each example alone give the same
+completion loss, atol 1e-5) and a training A/B on the real final data (tiny LFM3, LoRA r8, dropout 0 so dropout
+masks do not depend on the padded shape, 6 steps of 16, same length-grouped order; scratch log `padab/`):
+step losses and grad norms identical to the logged precision (11.83, 11.83, 11.82, 11.82, 11.82, 11.80;
+grad norm 0.8427 / 0.8203 / 0.5771 / 0.6545 / 0.6605 / 0.76 in both), train loss 11.8188507 vs 11.8188508,
+eval loss 11.807299 in both; wall time train 38.9 s vs 72.9 s, dev eval 10 s vs 36 s (dynamic vs max_len,
+padding efficiency 0.95 vs 0.25).
 
 Export parity (every run, `ml/train/parity.py`, `PARITY_N=24`): after GGUF conversion the merged HF checkpoint
 (bf16, torch) and the BF16 GGUF (llama.cpp) decode the same 24 category-spread dev items greedily; an item agrees when the texts are identical or share a
@@ -173,6 +248,41 @@ overall and per language, PASS / FAIL / NO_DATA; a non-GGUF report is flagged "n
 measurement is the finalist's Q4_0 file on the CPU llama.cpp build (`after_pod.sh`, `Q4_0-test-cpu`).
 `test_oracle_never_fails_the_gates` scores output := target on proof_v6 dev/test, `dev.v2`, `test.v2`,
 `smoke_cases.v2` and the v2 fixture: every one is PASS or INCOMPLETE (too few items for some gates), never FAIL.
+
+### 3.1 Comparison with the stock baseline (same sets, same scorer) [V 2026-11-20]
+
+The number to beat is the prompt-eval **pass rate** of the shipped stock setup (`default.v1` + `prompts/guard.py`,
+vendor Q4_0, `docs/ml/PROMPT_EVAL.md` 0.1): Qwen3.5-2B **0.57 dev.v2 / 0.50 test.v2**, LFM3-1.7B 0.37 / 0.32,
+Qwen3.5-0.8B 0.34 / 0.32 (after the guard; raw 0.44 / 0.41, 0.21 / 0.24, 0.23 / 0.24). So that a fine-tune is
+measured on exactly that scale:
+
+* every report row carries `pass` = `prompts/eval/score.py score_case(...)["ok"]` with the ctx2 options of the
+  prompt profile it ran with (`ml/eval/scoring.py`), raw and after the guard, next to the ml/eval metrics;
+* every report breaks all metrics down per eval file (`by_set`: `dev.v2`, `test.v2`, `smoke.v2.test`, the
+  dataset's `dev` / `test`), because the stock numbers exist per prompt set, not for the merged dev eval;
+* `ml/eval/baselines/stock.default.v1.json` freezes the stock numbers, computed by `python -m ml.eval.baseline
+  build` from the stored prompt-eval runs (`.cache/ml/prompt/runs/{q2b,lfm3,q08}.default.v1.{dev,test}.v2.jsonl`)
+  through the same `scoring.score_all` a fine-tune's report uses: it reproduces PROMPT_EVAL exactly (pass cases
+  after the guard 56/98, 33/66; 36, 21; 33, 21; raw 0.439/0.409, 0.214/0.242, 0.235/0.242), test
+  `test_frozen_baselines_match_prompt_eval_doc`; the pod has no run files, so it reads the frozen JSON;
+* `report.json` -> `baseline` and `report.md` "Versus the stock models": per prompt set, this run vs each stock
+  model (pass raw / guarded, EM, N-WER, answered, injection) and the delta to the best stock model; the card adds
+  the same table and the catalog entry `eval.vs_best_stock_pass_guarded`;
+* `python -m ml.eval.baseline table DIRS` -> `vs_stock.md` (pod: `$W/eval/vs_stock.md`; dev server:
+  `pod-results/vs_stock.md`): one table per eval set over every report (finalists, all runs, stock reports of
+  `after_pod.sh` on the dataset's test and, with `STOCK_DEV=1`, dev), the frozen stock rows on top;
+* sets the fine-tunes see: dev = dataset dev (300) + `dev.v2` (98) + `smoke.v2.test` (24) in every run's Q4_0 dev
+  eval (selection); test = dataset test (300) + `test.v2` (66) for the finalists (pod GPU and the CPU ship eval);
+  guard on and off are both in every report.
+
+Scorer difference: ml/eval's own metrics (entity recall, `ctx_rule_ok`, the Eval-set integrity gate) check
+screen support on **all OCR lines** with a fuzzy, inflection-tolerant match (the CONTEXT_V2 data rules are stated
+on `screen.lines`); `score.py` checks a kept term only against the **rendered `<context>` block** under the
+profile's ctx2 (`score.on_screen`: after the renderer's filters and the 1,400-character budget), exact after
+folding. Aligning cost nothing for the comparison number: `pass` is computed by `score.py` itself, so
+fine-tune and stock are on `score.on_screen`; the gates stay on the OCR lines (they judge the data as well as
+the model). An oracle (output := target) passes 98/98 of dev.v2 raw and after the guard
+(`test_report_has_pass_by_set_and_stock_comparison`). `select.py` still ranks on gates, then EM (raw), unchanged.
 
 CPU eval fallback timing [M on the dev server, 6 threads, shared host]: Q4_0 0.8B ~1-2 s per item with the
 short prompt, 2B / LFM3-1.7B 4-9 s per item with the long default prompt (`.cache/ml/train/eval/v2*`). A
@@ -285,9 +395,39 @@ What it shows: on the real screen the Murmur bubble cut "Grafana" to "Grai"; bot
 exactly the invented-term failure CONTEXT_V2 forbids. Qwen3.5-2B translated the English half of the code-switch
 case into Russian; all models output "э"/"Э" for noise-only input; 0.8B mostly returns the transcript untouched.
 
+### 4.2 Turnkey rehearsal on the REAL final data (2026-11-20) [V]
+
+`.cache/ml/train/podsim-real/simulate.sh` (log `sim.log`, step times `times.txt`; host load average 14-29 from
+other users' jobs): the exact command sequence of section 1 on CPU, with tiny random-weight models built from the
+real LFM3-1.7B / Qwen3.5-0.8B / Qwen3.5-2B configs + tokenizers, the **real configs** (`lfm3-r16`, `lfm3-r64`,
+`q08-lora`, `q2-lora`; only `base_model` and the step budget overridden: 2 steps of 4) and the real final data
+(2,997 / 300 / 300). A fake `ssh` runs the remote side locally into a "pod volume"; the CPU llama.cpp build
+stands in for the CUDA one.
+
+| step | result |
+|---|---|
+| `push_code.sh WITH_DATA=1 DATA_DIR=.cache/ml/data/final` | code + data on the volume, 0 s; everything after runs from the pushed copy |
+| pod self-test (bootstrap step 6) from the pushed copy | 73 passed, 13 skipped (need the local tokenizer dirs), 12 s |
+| `run_all.sh STAGES="train eval"` | EXIT 0, 876 s: every run rendered all 2,997 rows with the real tokenizer (max_len 1,536, 0 dropped, 140 default.v1 rows, padding efficiency 0.97 at batch 4), trained, merged (5 s), exported BF16 + Q4_0 (5-14 s), parity (10-15 s), Q4_0 dev eval on 6 dataset dev + 4 dev.v2 cases (11-15 s, report `by_set` {dev, dev.v2}, `baseline` vs the frozen stock numbers); `lfm3-r64` parity FAIL (random weights: near-tied logits diverge after 10-60 characters; real weights pass, section 4) -> not evaluated, matrix continued (the failure path); select -> `lfm3-r16` + its overrides to phase B; finalists one per base; BF16 dev, Q4_0 test (6 + 4), Q4_0 dev with `default.v1`; cards; leaderboard; `vs_stock.md` |
+| same command again | 37 s, nothing recomputed |
+| budget | billed 943 s recorded in `.budget/sessions.tsv`; training deadline exported per run ("deadline in 13800 s, reserving 570 s") |
+| `after_pod.sh` (sync with the finalists' Q4_0 GGUFs, CPU ship eval, judge on 2 items per eval dir through `tools/with-teacher`, stock `default.v1` on the dataset test, cards, leaderboard, `vs_stock.md`) | EXIT 0, 560 s; 12 judge requests; catalog entries carry `pass_guarded_by_set` and `vs_best_stock_pass_guarded`; the card's stock comparison uses the common set only (`set:test`) because the stock models ran on the dataset test alone |
+
+Quality numbers of the tiny models are meaningless (random weights); this proves that every step of the pipeline
+runs on the real data shape, file names and set breakdown, not the recipe.
+
 ## 5. Known gaps and risks
 
-* No GPU run happened: every GPU time and memory figure is [A] until `logs/timings.jsonl` of session 2.
+* No GPU run happened: every GPU time and memory figure is [A] until `logs/timings.jsonl` and the anchor's
+  `train_info.json` (`padded_tokens_per_s`, `peak_cuda_mem_gb`) exist. The 5090 peak (209.5 dense BF16 TFLOP/s
+  with FP32 accumulate) is taken from secondary sources quoting NVIDIA's whitepaper; the plan uses 20 % of it.
+* Memory: the longest batch is 16 x 1,536 tokens (length grouping puts it first, so an OOM shows at step 1, not
+  after an hour). Not measured on a GPU; if it OOMs, `--set train.batch_size=8 train.grad_accum=2` (same
+  effective batch) in the run's config.
+* The pod self-test skips the 13 tests that need the local tokenizer/config dirs (`.cache/ml/train/models`,
+  not pushed): padding invariance and completion loss are proven on the dev server only.
+* A budget stop inside training leaves the cosine schedule unfinished; the run is still exported and
+  evaluated (`stopped_by: budget` in `train_info.json` and the log) and should be read as under-trained.
 * flash-linear-attention 0.6.0 with torch 2.15.0 / Triton on sm_120 is unverified; bootstrap runs its
   `chunk_gated_delta_rule` forward + backward once on the GPU and, if that fails, writes a marker on which
   `train_matrix.sh` refuses the Qwen3.5 runs (`ALLOW_SLOW_QWEN=1` overrides).

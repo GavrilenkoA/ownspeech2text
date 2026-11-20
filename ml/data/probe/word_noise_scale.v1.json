@@ -1,0 +1,60 @@
+{
+ "note": "multiplier on the mined non-term word substitution/deletion rates per (model, language); previous factor x real/synthetic word-miss rate of the built set",
+ "fitted_on": ".cache/ml/data/synth_v3",
+ "fitted": "2026-11-20",
+ "factors": {
+  "distil-large-v3.5@onnx-int8": {
+   "en": 2.0
+  },
+  "gigaam-v3-e2e-ctc@onnx-int8": {
+   "mixed": 0.731,
+   "ru": 1.31
+  },
+  "gigaam-v3-e2e-rnnt@onnx-int8": {
+   "mixed": 0.612,
+   "ru": 1.327
+  },
+  "nemotron-3.5-asr-streaming-0.6b@onnx-int8-560ms": {
+   "en": 1.974,
+   "mixed": 2.0,
+   "ru": 1.823
+  },
+  "nemotron-speech-streaming-en-0.6b@onnx-int8-560ms": {
+   "en": 2.0
+  },
+  "parakeet-tdt-0.6b-v3@onnx-int8": {
+   "en": 1.003,
+   "mixed": 1.608,
+   "ru": 1.398
+  },
+  "parakeet-ultra-0.6b@onnx-int8": {
+   "en": 0.687,
+   "mixed": 1.706,
+   "ru": 1.383
+  },
+  "qwen3-asr-0.6b@onnx-int8": {
+   "en": 1.923,
+   "mixed": 2.0,
+   "ru": 2.0
+  },
+  "t-one@onnx": {
+   "mixed": 1.174,
+   "ru": 1.674
+  },
+  "whisper-large-v3-turbo@onnx-int8": {
+   "en": 2.0,
+   "mixed": 2.0,
+   "ru": 1.897
+  },
+  "whisper-medium@onnx-int8": {
+   "en": 2.0,
+   "mixed": 2.0,
+   "ru": 2.0
+  },
+  "whisper-small@onnx-int8": {
+   "en": 2.0,
+   "mixed": 2.0,
+   "ru": 2.0
+  }
+ }
+}

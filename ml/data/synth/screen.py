@@ -16,6 +16,7 @@ import copy
 import hashlib
 import importlib
 import json
+import os
 import re
 import time
 from functools import lru_cache
@@ -267,7 +268,34 @@ class Backend:
             self._render = None
             self.version = {"backend": "fixture", "screens": SF.VERSION, "ocr": "none (fixture: layout only, no OCR)"}
 
+    def _cache_path(self, spec: dict) -> Path | None:
+        """MURMUR_CTX_CACHE=DIR: build_ctx results stored per (render spec, screens + OCR version). A rebuild that
+        only changes the ASR channel or the filters then skips render + OCR (the screens are byte-identical)."""
+        d = os.environ.get("MURMUR_CTX_CACHE")
+        if not d or self.kind != "real":
+            return None
+        key = hashlib.sha256(json.dumps([spec, self.version], sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+        return Path(d) / key[:2] / f"{key}.json"
+
     def build_ctx(self, spec: dict) -> dict:
+        t = time.time()
+        cp = self._cache_path(spec)
+        if cp is not None and cp.exists():
+            d = json.loads(cp.read_text(encoding="utf-8"))
+            self.last_meta = d["meta"]
+            self.timing["cache_hits"] = self.timing.get("cache_hits", 0) + 1
+            self.timing["build_ctx_s"] += time.time() - t
+            self.timing["calls"] += 1
+            return d["ctx"]
+        ctx = self._build_ctx(spec)
+        if cp is not None:
+            cp.parent.mkdir(parents=True, exist_ok=True)
+            tmp = cp.with_suffix(f".{os.getpid()}.tmp")
+            tmp.write_text(json.dumps({"ctx": ctx, "meta": self.last_meta}, ensure_ascii=False), encoding="utf-8")
+            os.replace(tmp, cp)
+        return ctx
+
+    def _build_ctx(self, spec: dict) -> dict:
         t = time.time()
         if self._detailed is not None:
             d = self._detailed(copy.deepcopy(spec))

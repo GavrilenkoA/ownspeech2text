@@ -43,3 +43,13 @@ def test_budget_check_hard_and_target(tmp_path):
     assert tgt.returncode == 5 and "NOT started" in tgt.stderr
     cap = sh(tmp_path, "budget_check run-y 3600 hard", MURMUR_SESSION_START=start, MAX_GPU_HOURS=2.5)
     assert cap.returncode == 5
+
+
+def test_budget_deadline_and_default_cap(tmp_path):
+    """The training deadline leaves AFTER_S for the rest of the run inside MAX_GPU_HOURS (default 4 h)."""
+    now = int(time.time())
+    start = now - 3600  # 1 h + 300 s overhead billed
+    r = sh(tmp_path, "echo $MAX_GPU_HOURS; budget_deadline 600", MURMUR_SESSION_START=start)
+    cap, dl = r.stdout.split()
+    assert cap == "4"
+    assert abs(int(dl) - (now + 4 * 3600 - 3900 - 600)) <= 5, r

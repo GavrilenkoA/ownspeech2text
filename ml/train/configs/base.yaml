@@ -21,16 +21,20 @@ data:
 prompt:
   system: finetuned.v2   # prompts/system/finetuned.v2.md (short, OCR wording, ~110 tokens): what the app must
                           # send to these fine-tunes (card + catalog entry record it; eval reads it per run)
-  default_system: default.v4s  # the stock-model profile a user can actually select (default.v4 + 8 OCR shots,
-                               # ~2.2K tokens rendered): robustness to switching the prompt
-  default_share: 0.05     # 5 %: mean rendered length ~395 tokens (measured on proof_v6 train); 10 % would be ~490
+  default_system: default.v1   # the stock profile the app ships for every stock model (ADR-085, PROMPT_EVAL R.5):
+                               # the prompt a fine-tune most likely receives besides its own; ~1.25-1.3K tokens rendered
+  default_share: 0.05     # 5 %: mean rendered length 374 (Qwen3.5) / 390 (LFM3) tokens on the final 3K train set,
+                          # max 1,482 / 1,523 -> max_len auto 1,536, nothing dropped (TRAINING_RUNBOOK 2.1)
   preferences_share: 0.15 # random target-neutral "My preferences" block (meta.preferences always wins)
   preferences_pool: ml/train/preferences_pool.v1.txt
   seed: 1234
 train:
   max_len: auto           # longest rendered train example rounded up to 64, cap 4096 ("auto:3072" sets the cap,
                           # an int fixes it); longer ones are dropped, never truncated; data_stats.json has the
-                          # resolved value and the rendered-length percentiles (OCR ctx v2 is longer than v1)
+                          # resolved value and the rendered-length percentiles (OCR ctx v2 is longer than v1).
+                          # It bounds only the longest batch: batches are length-grouped and padded to their own
+                          # longest row (padding efficiency ~0.95 measured, data_stats.json "batching")
+  padding: dynamic        # dynamic | max_len (max_len only for the padding-invariance check, ~4x the tokens)
   epochs: 3
   max_steps: -1
   batch_size: 16          # per device; 3K examples -> ~190 optimizer steps per epoch

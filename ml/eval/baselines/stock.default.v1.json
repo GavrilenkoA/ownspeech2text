@@ -1,0 +1,272 @@
+{
+ "profile": "default.v1",
+ "guard_version": "guard.v1.1",
+ "scorer": "ml/eval/scoring.py (pass = prompts/eval/score.py score_case on the rendered context)",
+ "source": "vendor Q4_0 GGUFs, llama.cpp b12503 CPU, greedy (docs/ml/PROMPT_EVAL.md section R.5)",
+ "models": {
+  "Qwen3.5-2B": {
+   "dev.v2": {
+    "raw": {
+     "n": 98,
+     "pass": 0.4388,
+     "em": 0.3571,
+     "nwer": 0.1751,
+     "nwer_raw": 0.1942,
+     "answer_rate": 0.0556,
+     "injection_success": 0.1667,
+     "noop_exact": 0.8333,
+     "entity_recall": 0.7574,
+     "distractor_insertion": null,
+     "empty_ok": 0.0,
+     "wrong_language": 0.0978
+    },
+    "guarded": {
+     "n": 98,
+     "pass": 0.5714,
+     "em": 0.4592,
+     "nwer": 0.1315,
+     "nwer_raw": 0.1942,
+     "answer_rate": 0.0,
+     "injection_success": 0.0,
+     "noop_exact": 1.0,
+     "entity_recall": 0.7751,
+     "distractor_insertion": null,
+     "empty_ok": 1.0,
+     "wrong_language": 0.0217
+    },
+    "lost": 0,
+    "pass_cases": {
+     "raw": 43,
+     "guarded": 56
+    },
+    "run_file": ".cache/ml/prompt/runs/q2b.default.v1.dev.v2.jsonl",
+    "run_sha256": "5df6dd35641187ed",
+    "producer": "ee0a7097398c",
+    "model_file": "Qwen3.5-2B-Q4_0.gguf",
+    "prompt_eval_pass": {
+     "raw": 0.4388,
+     "guarded": 0.5714
+    }
+   },
+   "test.v2": {
+    "raw": {
+     "n": 66,
+     "pass": 0.4091,
+     "em": 0.303,
+     "nwer": 0.1988,
+     "nwer_raw": 0.2286,
+     "answer_rate": 0.0909,
+     "injection_success": 0.0,
+     "noop_exact": 1.0,
+     "entity_recall": 0.7385,
+     "distractor_insertion": null,
+     "empty_ok": 0.0,
+     "wrong_language": 0.129
+    },
+    "guarded": {
+     "n": 66,
+     "pass": 0.5,
+     "em": 0.3636,
+     "nwer": 0.1491,
+     "nwer_raw": 0.2286,
+     "answer_rate": 0.0,
+     "injection_success": 0.0,
+     "noop_exact": 1.0,
+     "entity_recall": 0.7692,
+     "distractor_insertion": null,
+     "empty_ok": 1.0,
+     "wrong_language": 0.0645
+    },
+    "lost": 0,
+    "pass_cases": {
+     "raw": 27,
+     "guarded": 33
+    },
+    "run_file": ".cache/ml/prompt/runs/q2b.default.v1.test.v2.jsonl",
+    "run_sha256": "8185e44e8a342c2c",
+    "producer": "ee0a7097398c",
+    "model_file": "Qwen3.5-2B-Q4_0.gguf",
+    "prompt_eval_pass": {
+     "raw": 0.4091,
+     "guarded": 0.5
+    }
+   }
+  },
+  "LFM3-1.7B": {
+   "dev.v2": {
+    "raw": {
+     "n": 98,
+     "pass": 0.2143,
+     "em": 0.1531,
+     "nwer": 0.974,
+     "nwer_raw": 0.1942,
+     "answer_rate": 0.1667,
+     "injection_success": 0.5,
+     "noop_exact": 0.3333,
+     "entity_recall": 0.6391,
+     "distractor_insertion": null,
+     "empty_ok": 0.0,
+     "wrong_language": 0.1196
+    },
+    "guarded": {
+     "n": 98,
+     "pass": 0.3673,
+     "em": 0.2551,
+     "nwer": 0.2049,
+     "nwer_raw": 0.1942,
+     "answer_rate": 0.0,
+     "injection_success": 0.1667,
+     "noop_exact": 0.5,
+     "entity_recall": 0.568,
+     "distractor_insertion": null,
+     "empty_ok": 1.0,
+     "wrong_language": 0.0543
+    },
+    "lost": 0,
+    "pass_cases": {
+     "raw": 21,
+     "guarded": 36
+    },
+    "run_file": ".cache/ml/prompt/runs/lfm3.default.v1.dev.v2.jsonl",
+    "run_sha256": "d2394c4cea37fc3e",
+    "producer": "ee0a7097398c",
+    "model_file": "LFM3-1.7B-QAD-Q4_0.gguf",
+    "prompt_eval_pass": {
+     "raw": 0.2143,
+     "guarded": 0.3673
+    }
+   },
+   "test.v2": {
+    "raw": {
+     "n": 66,
+     "pass": 0.2424,
+     "em": 0.1364,
+     "nwer": 0.7505,
+     "nwer_raw": 0.2286,
+     "answer_rate": 0.2727,
+     "injection_success": 0.25,
+     "noop_exact": 1.0,
+     "entity_recall": 0.6769,
+     "distractor_insertion": null,
+     "empty_ok": 0.0,
+     "wrong_language": 0.1774
+    },
+    "guarded": {
+     "n": 66,
+     "pass": 0.3182,
+     "em": 0.197,
+     "nwer": 0.3072,
+     "nwer_raw": 0.2286,
+     "answer_rate": 0.0909,
+     "injection_success": 0.25,
+     "noop_exact": 1.0,
+     "entity_recall": 0.6385,
+     "distractor_insertion": null,
+     "empty_ok": 1.0,
+     "wrong_language": 0.1129
+    },
+    "lost": 0,
+    "pass_cases": {
+     "raw": 16,
+     "guarded": 21
+    },
+    "run_file": ".cache/ml/prompt/runs/lfm3.default.v1.test.v2.jsonl",
+    "run_sha256": "4a4798a65e699bc3",
+    "producer": "ee0a7097398c",
+    "model_file": "LFM3-1.7B-QAD-Q4_0.gguf",
+    "prompt_eval_pass": {
+     "raw": 0.2424,
+     "guarded": 0.3182
+    }
+   }
+  },
+  "Qwen3.5-0.8B": {
+   "dev.v2": {
+    "raw": {
+     "n": 98,
+     "pass": 0.2347,
+     "em": 0.102,
+     "nwer": 0.1728,
+     "nwer_raw": 0.1942,
+     "answer_rate": 0.0,
+     "injection_success": 0.1667,
+     "noop_exact": 0.6667,
+     "entity_recall": 0.5089,
+     "distractor_insertion": null,
+     "empty_ok": 0.0,
+     "wrong_language": 0.1522
+    },
+    "guarded": {
+     "n": 98,
+     "pass": 0.3367,
+     "em": 0.1837,
+     "nwer": 0.1575,
+     "nwer_raw": 0.1942,
+     "answer_rate": 0.0,
+     "injection_success": 0.1667,
+     "noop_exact": 0.8333,
+     "entity_recall": 0.5503,
+     "distractor_insertion": null,
+     "empty_ok": 1.0,
+     "wrong_language": 0.087
+    },
+    "lost": 0,
+    "pass_cases": {
+     "raw": 23,
+     "guarded": 33
+    },
+    "run_file": ".cache/ml/prompt/runs/q08.default.v1.dev.v2.jsonl",
+    "run_sha256": "e72bac2077ee3395",
+    "producer": "ee0a7097398c",
+    "model_file": "Qwen3.5-0.8B-Q4_0.gguf",
+    "prompt_eval_pass": {
+     "raw": 0.2347,
+     "guarded": 0.3367
+    }
+   },
+   "test.v2": {
+    "raw": {
+     "n": 66,
+     "pass": 0.2424,
+     "em": 0.1061,
+     "nwer": 0.2157,
+     "nwer_raw": 0.2286,
+     "answer_rate": 0.0,
+     "injection_success": 0.0,
+     "noop_exact": 1.0,
+     "entity_recall": 0.4846,
+     "distractor_insertion": null,
+     "empty_ok": 0.0,
+     "wrong_language": 0.1613
+    },
+    "guarded": {
+     "n": 66,
+     "pass": 0.3182,
+     "em": 0.1667,
+     "nwer": 0.2058,
+     "nwer_raw": 0.2286,
+     "answer_rate": 0.0,
+     "injection_success": 0.0,
+     "noop_exact": 1.0,
+     "entity_recall": 0.5154,
+     "distractor_insertion": null,
+     "empty_ok": 1.0,
+     "wrong_language": 0.129
+    },
+    "lost": 0,
+    "pass_cases": {
+     "raw": 16,
+     "guarded": 21
+    },
+    "run_file": ".cache/ml/prompt/runs/q08.default.v1.test.v2.jsonl",
+    "run_sha256": "09e9c376b1811799",
+    "producer": "ee0a7097398c",
+    "model_file": "Qwen3.5-0.8B-Q4_0.gguf",
+    "prompt_eval_pass": {
+     "raw": 0.2424,
+     "guarded": 0.3182
+    }
+   }
+  }
+ }
+}
