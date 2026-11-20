@@ -277,6 +277,11 @@ binder timeouts scaled by `debugTimeoutScale` in debug only, `FakeEnginesSwitch`
 process mode, the switch applies at the next start), `Replacements.resolver` / `capture`, the ladder's 1,500 ms budget
 inside the 2 s DELIVERY timer, `MurmurTestRunner` in both scripts, `AppContainer.start()` start-up work (probe at
 `:main` start).
+- Integration fix (ADR-090 item 8): `real-log-privacy` failed on the merged tree: `AppTabs.history` searched rows with
+  `By.descContains(<start of the transcript>)`, and UiDevice logs every selector under the app's uid. Your runs had the
+  same lines; the check missed them because `grep … | grep -q` under `pipefail` reads the SIGPIPE as no match. Now the
+  rows are compared in code (`shown`, `scrollToPrivate`) and the check greps a file (`real.logcat-app.txt`); the ANR
+  check got the same pipefail fix. Keep dictated text out of selectors and log lines in every new e2e test.
 - Integration fix: the switch's sub-line (WP-19's res, en + ru) now says the change applies at the next app start
   (your note to WP-19).
 - Still open, not yours alone: WP-11's JVM test for Down → Up(p2) → Crashed within one dispatch (`watchDeaths` collects
