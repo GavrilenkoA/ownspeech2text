@@ -1,8 +1,10 @@
 # Data card — Murmur cleanup fine-tune (PLAN_V2 stage C, CONTEXT_V2)
 
-Status 2026-11-20: **the full set is generated and assembled** (section 5): 2,997 train + 300 dev + 300 test records
-in `.cache/ml/data/final/` (`python -m ml.train.assemble` output, the `DATA_DIR` of `docs/ml/TRAINING_RUNBOOK.md`),
-built by `make -C ml/data synth` into `.cache/ml/data/synth_v2/`. Code: `ml/data/` (README there), records: shared
+Status 2026-11-20 (second pass): **the full set is rebuilt after the data review and assembled** (section 5):
+3,000 train + 300 dev + 300 test records in `.cache/ml/data/final/` (`python -m ml.train.assemble` output, the
+`DATA_DIR` of `docs/ml/TRAINING_RUNBOOK.md`), built by `make -C ml/data rebuild` into `.cache/ml/data/synth_v3/` from
+the saved teacher answers plus 13 new requests (section 5.2a). The first assembled set (2,997 / 300 / 300, build
+`.cache/ml/data/synth_v2`) is kept as `.cache/ml/data/final_v1/`. Code: `ml/data/` (README there), records: shared
 contract in `ml/common/schema.py`.
 
 ## 1. What one example is
@@ -74,7 +76,7 @@ mixed = Russian with English terms (60 %) or true clause-level code-switching (4
 | ai_addressed | 45 | 5 | 5 | a prompt typed into an AI app is transcribed, not answered | 25 % | 8 % |
 | injection | 120 | 12 | 12 | hostile instruction in the screen text is ignored | 0 | 5 % |
 | continuation | 90 | 9 | 9 | text before the cursor; mid-sentence continuation | 15 % | 0 |
-| asr_artifact | 45 | 4 | 4 | Whisper-style hallucinated tail removed (ru 60 / en 40) | 25 % | 8 % |
+| asr_artifact | 45 | 4 | 4 | Whisper-family hallucinated tail (train and held-out strings disjoint) or a Nemotron stutter loop removed (ru 60 / en 40) | 25 % | 8 % |
 | **total** | **3000** | **300** | **300** | | | |
 
 Apps: `app.category` comes only from the shared `prompts/tones/app_categories.v1.json` (unknown package ->
@@ -109,8 +111,10 @@ font scale 0.9-1.3, keyboard shown on 70 % of screens with a field, UI locale = 
    an English clause) or surname -> disfluencies (only fillers the deployed prompt deletes; each hesitation sound and
    repeat survives with the ASR model's rate, `ml/data/probe/disfluency_render.v1.json`) -> ASR channel of one of
    12 real ASR models (mined style, confusions, deletions, insertions, digits-vs-words; English clauses of
-   code-switched speech simulated as English by recognisers that write Latin) -> hallucinated tail for
-   asr_artifact. Realism guards: a substitution must sound like the word (phonetic similarity >= 0.45 for 4+
+   code-switched speech simulated as English by recognisers that write Latin) -> for asr_artifact a Whisper-family
+   hallucinated tail (any Whisper-family model; train and held-out pools disjoint, every string the project's eval
+   sets use is held-out only) or, for 25 % of Russian/mixed ones, a Nemotron 3.5 stutter loop (`с с с с сентенс`, seen
+   in the real round trip). Realism guards: a substitution must sound like the word (phonetic similarity >= 0.45 for 4+
    letters, >= 0.34 shorter, or a known function-word swap), an insertion must be a function word or filler, a
    generic term garble must match the model's mined habits (no single letters; interior letter drops only for
    models whose manglings show them; Cyrillic-writing models get a phonetic transliteration instead). Retried with
@@ -125,6 +129,27 @@ font scale 0.9-1.3, keyboard shown on 70 % of screens with a field, UI locale = 
    quantization, `EWS` for AWS) is retried with a new seed (`unsupported_term_garble`), because nothing in the input
    says which word was meant; (c) a context-resolution scenario that has a counterpart retries a Latin garble on
    its first three attempts (the pair needs a Cyrillic rendering the no-context target can keep).
+   Second pass (data review, section 5.2a), replacing (b) and (c): **binding rule, mechanical** — a channel-garbled
+   term is written correctly in the target only when it is on screen, the garble is a spelling variant (`docu sign`,
+   `Zero Shot`), or the term is well-known (`build.is_well_known` = `terms.WELL_KNOWN`, `lexicon.KNOWN_TECH`, plain
+   English phrases: exactly the terms that never get a counterpart); for a well-known term a near-identical Latin
+   misspelling, a Cyrillic rendering that sounds like it or a spelled acronym also count. Anything else is retried.
+   **No guessed words** — a channel substitution of one real word (vocabulary of all teacher `spoken` texts and the
+   mined tables) by another (`Would` for `Could`, `Проверю` for `Проверь`, `появилось` for `отвалилось`) that the
+   target undoes with no support on screen is retried (`real_word_guess`); Russian noun/adjective agreement repairs on
+   one stem (`до понедельник` -> `до понедельника`) and English plural/-ed/-ing or homophones pass. **Garbles** of the
+   context term: this recogniser's mined manglings, else another recogniser's mined manglings of the same term, else
+   a Latin misspelling made with the mined sampler's own garbler (`perturb_word`, no generic respelling rules) or the
+   lexicon reading / transliteration; the script follows the recogniser's mined share of Latin misspellings among its
+   term errors (x2 for scenarios without a counterpart, cap 0.8; paired scenarios stay Cyrillic). **Channel style** —
+   per model and language from the real round trip (`ml/data/probe/asr_style.v1.json`, `python -m ml.data.realism
+   measure`): sentence-final mark at the measured rate given that the utterance is punctuated (also after a spoken
+   `вопросительный знак`), first-word drop for the streaming models (Nemotron English: 0.32 above the mid-sentence
+   rate), straight apostrophes; non-term word substitution/deletion rates scaled per (model, language)
+   (`word_noise_scale.v1.json`, refit on built sets, damped, capped at 2x); one recogniser per scenario for every
+   attempt but the last. **Targets** — never spell out a number the transcript has in digits; durations with digits
+   (`ten minutes` -> `10 minutes`, prompt rule 4; `одну минуту` stays); no transliterated or translated Russian
+   word in an address path (`слэш расписание` -> `/raspisanie`); `’` -> `'` in spoken, transcript and target.
 5. **Filters** (deterministic; any doubt rejects): contract/schema, translation or script shift, novel or dropped
    content words, number multiset, length ratio, answers/preambles, commands or correction markers left,
    lists not formatted, distractor or injection in target, continuation repeats or mis-cased, address shape,
@@ -136,25 +161,28 @@ font scale 0.9-1.3, keyboard shown on 70 % of screens with a field, UI locale = 
 7. **Review list**: kept records whose target has a content word found in none of spoken / transcript / screen
    go to `OUT/review.jsonl` for a human pass before training.
 
-## 5. The full set (2026-11-20, `.cache/ml/data/synth_v2` -> `.cache/ml/data/final`)
+## 5. The full set (2026-11-20, `.cache/ml/data/synth_v3` -> `.cache/ml/data/final`)
 
-Commands: `make -C ml/data synth STAGE=teacher` (teacher shards), then `make -C ml/data synth` (build from the shards,
-0 requests), then `python -m ml.train.assemble --out .cache/ml/data/final .cache/ml/data/synth_v2/{train,dev,test}.jsonl`.
-Defaults in `ml/data/Makefile`: N 3000 / DEV 300 / TEST 300, `--mined ml/roundtrip/samples/mined/full`, 5 build workers,
-real screens, the `RESERVE` cells below. Logs: `.cache/ml/data/synth_runs/full_teacher*.log`, `full_build{1..4}.log`.
+Commands: `make -C ml/data synth STAGE=teacher` (teacher shards, resumable), then `make -C ml/data rebuild` (build
+from the shards with `--offline`: never sends a request), then `python -m ml.train.assemble --out .cache/ml/data/final
+.cache/ml/data/synth_v3/{train,dev,test}.jsonl`. Defaults in `ml/data/Makefile`: N 3000 / DEV 300 / TEST 300,
+`--mined ml/roundtrip/samples/mined/full`, 5 build workers at nice 15 in a 24 GB scope, real screens, the `RESERVE`
+layers below, `CTX_CACHE=.cache/ml/data/ctx_cache` (render + OCR result per render spec, 18 MB). First pass:
+`.cache/ml/data/synth_v2` -> `final_v1` (logs `full_teacher*.log`, `full_build{1..4}.log`); second pass after the
+data review: `synth_v3` (logs `fix_full{1..13}.log`, `fix_teacher{3,4,5}.log` in `.cache/ml/data/synth_runs/`).
 
 | stage | measured |
 |---|---|
-| teacher | 686 batches answered (633 primary batches of 6 scenarios + 53 reserve batches), 0 failed; one HTTP 502 retried once, no HTTP 429; 6,705 s + 664 s + 132 s wall at concurrency 2 (about 10.7 s per request, p50 latency 20.5 s); 1.98M input + 0.66M output tokens; 4,087 teacher examples (3,788 primary + 299 reserve scenarios) |
-| reserves | measured yields (scratch builds of the first answers, 0 requests) were below the 1.15 over-generation for a few cells: context_resolution 0.79, counterpart per paired scenario 0.60, near_miss 0.70, injection 0.78. Reserve scenarios (`--reserve`, another seed's plan, sorted after every primary scenario, batched apart so no answered batch changes): train CR 150, near_miss 58, injection 24, list 5, address 6; dev/test CR 15 each, near_miss 6, injection 3, list 1; dev names 4, address 2. 218 final records come from reserves |
-| build | 4,170 scenarios -> 4,014 render + OCR calls; render 1,838 s + OCR 4,819 s CPU; 1,340 s wall with 5 workers at nice 15 in a 24 GB scope. Built four times from the same shards while fixing the generator (section 5.2); each rebuild 0 requests, 20-27 min |
-| yield | 4,105 survivors of build + filters + dedup (`survivors.jsonl`) -> exact counts per (split, category) -> 3,599 (2,999 / 300 / 300) -> `ml.train.assemble` drops 2 train noise transcripts that also occur in dev/test -> **2,997 / 300 / 300** |
-| shortfall | train noise_only 57 of 60 (code-made: 59 survived build + dedup, assembly removed 2 whose transcript also occurs in dev/test; the generator now keeps a noise transcript in one split); every other cell exact |
-| drops (build 4) | OCR rules 188 (near-miss distractor not readable 69, term not readable 56, injection not visible 38, name 20, counterpart term still visible 3, said item on screen 2), counterpart Latin garble 49, ASR not recoverable 30, no garble 23, novel content 20, implausible noise 19, unsupported term garble 17, said term garbled 17, term not in spoken 15, length ratio 9, exact duplicate 7, prompt-echo cap 6, eval contamination 4, others 25 |
-| ctx | 2,982 with screen, 617 without (secure window 199, denylisted app 176, screenshot error 119, OCR empty 123; no password field, ADR-070), 212 without field, 52 re-rendered once; Fold7 cover 1,771 / inner 1,211 screens |
-| apps | messaging 1,016, work_chat 868, email 532, notes 518, search 310, default 248, social 107 |
-| ASR models | all 12: Whisper large-v3-turbo 491, Parakeet TDT 448, Parakeet Ultra 391, Whisper medium 379, Whisper small 292, Nemotron 3.5 267, GigaAM RNNT 231, GigaAM CTC 220, Qwen3-ASR 201, T-one 164, distil 102, Nemotron EN 54; code-made (no_op, near_no_op, noise_only) 359 |
-| checks | `ml.data.recheck` 3,599/3,599 with the current `prompts/render.py`; `ml.common.validate --strict` 0 invalid in every split (ctx against `prompts/context.schema.v2.json`), also after assembly; `ml.data.contam --prompt --data`: 0 records and 0 of 73 prompt phrases near any of 1,185 eval texts (`prompts/eval/sets/*.jsonl` incl. dev/test.v2, v2dense, v2fx, v1 + `smoke_cases*.jsonl`), 4 records dropped at generation for that reason; scenario groups across splits 0; dev/test terms, people, injection strings in train 0; train targets with a char-5-gram near duplicate (Jaccard >= 0.8) in dev/test 0; review list 1 record |
+| teacher | 699 batches answered, 0 failed: 686 of the first pass (633 primary batches of 6 scenarios + 53 reserve batches; 6,705 s + 664 s + 132 s wall at concurrency 2, p50 latency 20.5 s, 1.98M input + 0.66M output tokens) + 13 reserve batches of the second pass (layers 3-5: 8 + 2 + 3 requests, 0 retries, 0 HTTP 429); 4,141 teacher examples |
+| reserves | another seed's plan, sorted after every primary scenario, batched apart so no answered batch changes. Layer 1: train CR 150, near_miss 58, injection 18, list 5; dev/test CR 15 each, near_miss 6, injection 3, list 1. Layer 2: train address 6, injection 6; dev names 4, address 2. Layers 3-5 (second pass, the stricter rules cost yield): train near_miss 16+4, meaningful_filler 5, address 5, injection 3+4+6; dev near_miss 5, context_irrelevant 3; test meaningful_filler 3. 198 final records come from reserves |
+| build | 4,224 scenarios planned, 4,079 render + OCR calls. Cold build (second pass, first rebuild): 1,314 s wall, render 1,858 s + OCR 4,646 s CPU; rebuilds with a warm ctx cache: 10-25 s wall (0 render/OCR). 13 rebuilds of the second pass, all from the same shards |
+| yield | 3,996 built + filtered, 3,985 after dedup (`survivors.jsonl`) -> exact counts per (split, category) -> **3,000 / 300 / 300**; assembly drops nothing |
+| shortfall | none |
+| drops | implausible noise 97, OCR rules 196 (near-miss distractor not readable 73, term not readable 56, injection not visible 42, name 20, counterpart term still visible 3, said item on screen 2), unsupported term garble 69, ASR not recoverable 61, counterpart Latin garble 31 (term in an English clause), real-word guess 27 (6 of them counterparts re-checked on their own screen), novel content 20, garble is an abbreviation 17, term not in spoken 15, said term garbled 11, address slug guess 9, exact duplicate 9, prompt-echo cap 5, others 32; 2 teacher examples dropped by name (section 5.2a, finding 6) |
+| ctx | 2,993 with screen, 607 without (secure window 199, denylisted app 169, screenshot error 119, OCR empty 120; no password field, ADR-070), 219 without field, 54 re-rendered once; Fold7 cover 1,780 / inner 1,213 screens |
+| apps | messaging 1,015, work_chat 875, email 535, notes 515, search 312, default 244, social 104 |
+| ASR models | all 12: Parakeet Ultra 444, Parakeet TDT 411, Whisper medium 408, Whisper large-v3-turbo 404, Whisper small 325, Nemotron 3.5 264, GigaAM RNNT 247, GigaAM CTC 210, T-one 173, Qwen3-ASR 171, distil 103, Nemotron EN 80; code-made (no_op, near_no_op, noise_only) 360 |
+| checks | `ml.data.recheck` 3,600/3,600 with the current `prompts/render.py`; `ml.common.validate --strict` 0 invalid in every split of `synth_v3` and of the assembled `final`; `ml.data.contam --prompt --data`: 0 records and 0 of 73 prompt phrases near any eval text; char-5-gram Jaccard vs the 1,151 eval texts of `prompts/eval` (transcripts, targets): 0 records at >= 0.5; scenario groups across splits 0; dev/test terms, people, injection strings in train 0; train targets near a dev/test target: 6 at 0.5, 2 at 0.6, 0 at >= 0.8; review list 1 record; all 3,000 train records load through `ml/train/render_data.build` with the Qwen3.5 and LFM3 tokenizers, 0 too long, decoded labels = target + end-of-turn for 3,000 / 3,000 |
 
 ### 5.1 Final mix (`.cache/ml/data/final`)
 
@@ -178,29 +206,26 @@ real screens, the `RESERVE` cells below. Logs: `.cache/ml/data/synth_runs/full_t
 | meaningful_filler | 60 | 6 | 6 | 2.0 % |
 | near_no_op | 60 | 6 | 6 | 2.0 % |
 | address | 60 | 6 | 6 | 2.0 % |
-| noise_only | 57 | 6 | 6 | 1.9 % |
+| noise_only | 60 | 6 | 6 | 2.0 % |
 | ai_addressed | 45 | 5 | 5 | 1.5 % |
 | asr_artifact | 45 | 4 | 4 | 1.5 % |
-| **total** | **2,997** | **300** | **300** | |
+| **total** | **3,000** | **300** | **300** | |
 
-Languages: train ru 1,413 (47.1 %) / en 821 (27.4 %) / mixed 763 (25.5 %); dev 141 / 82 / 77; test 149 / 80 / 71.
-Empty targets (noise_only): 57 / 6 / 6.
+Languages: train ru 1,425 (47.5 %) / en 839 (28.0 %) / mixed 736 (24.5 %); dev 143 / 85 / 72; test 150 / 81 / 69.
+Empty targets (noise_only): 60 / 6 / 6.
 
-**Token lengths of rendered examples** (`ml.eval.contract.render_prompt` -> `prompts/render.py`, all 3,597 records,
-tokenizers of the base models; prompt = system + context + transcript up to the assistant header, completion =
-target + end-of-turn):
+**Token lengths** (second pass, `ml/train/render_data.build` on `final/train.jsonl` with the training prompt mix:
+finetuned.v2 95 % (15 % with a preferences block) + default.v4s 5 %; prompt + completion):
 
-| profile | tokenizer | prompt p50 / p90 / p95 / p99 / max | completion p50 / p90 / p99 / max | total p50 / p95 / p99 / max |
-|---|---|---|---|---|
-| finetuned.v2 (95 % of training) | Qwen3.5 | 286 / 372 / 398 / 459 / 547 | 22 / 55 / 109 / 150 | 310 / 443 / 515 / 687 |
-| finetuned.v2 | LFM3 | 295 / 391 / 419 / 486 / 592 | 25 / 67 / 139 / 190 | 322 / 480 / 572 / 761 |
-| default.v4s (5 % mix) | Qwen3.5 | 2,171 / 2,257 / 2,283 / 2,344 / 2,432 | as above | 2,195 / 2,328 / 2,400 / 2,572 |
-| default.v4s | LFM3 | 2,234 / 2,330 / 2,358 / 2,425 / 2,531 | as above | 2,261 / 2,419 / 2,511 / 2,700 |
+| tokenizer | rendered p50 / p90 / p99 / max | mean | completion tokens (train) | `max_len: auto` |
+|---|---|---:|---:|---:|
+| Qwen3.5 | 325 / 457 / 2,282 / 2,417 | 417.6 | 79,070 | 2,432 |
+| LFM3 | 338 / 489 / 2,357 / 2,492 | 434.4 | 92,317 | 2,496 |
 
-Mean total with finetuned.v2: 317 (Qwen3.5) / 332 (LFM3) tokens, below the runbook's 395-token planning figure.
-`max_len: auto` is set by the default.v4s share (longest 2,700 LFM3 tokens -> 2,752); no example exceeds 4,096.
+The long tail is the default.v4s share (141 records); no example exceeds 4,096. (First pass, per profile:
+finetuned.v2 total p50 310 / p99 515 / max 687 with Qwen3.5.)
 
-### 5.2 Quality pass (generator fixed and rebuilt from the shards, no record edited)
+### 5.2 Quality pass of the first pass (generator fixed and rebuilt from the shards, no record edited)
 
 Read: the first teacher answers built early (370 records of two scratch builds) and 106 final records of builds 1-3, stratified over all 21 categories, ru/en/mixed, with and without screen and field; plus a scripted audit of every
 final record (`rule_errors` of `ml.data.recheck` on the OCR lines and the rendered block, pool terms written in the
@@ -241,6 +266,28 @@ teacher (`Гриндата точка ру` -> `greendata.ru`), inherently ambig
 backticks the user did not dictate (seen once); the screen generator's notification-permission dialog can cover
 the content OCR needs (seen in one dropped near-miss example, `distractor_not_readable`).
 
+### 5.2a Second pass: the seven findings of the independent data review (2026-11-20)
+
+The review (`.cache/progress/resume/ml_verify-data.json`) found no blocker and seven minor findings. Each is fixed by
+a generator rule and a rebuild from the saved teacher answers; new teacher requests (13) were spent only on reserve
+scenarios for cells the stricter rules left short. Numbers: `python -m ml.data.realism audit` on train (`F1`..`F7`
+keys) and the reviewer's own scripts (`.cache/ml/review_data/*.py`), before = `final_v1`, after = `final`.
+
+| # | finding | rule (code) | before | after |
+|---|---|---|---|---|
+| 1 | target turns a Cyrillic rendering of a non-well-known term into Latin with no screen support (Traefik `трефик` fixed, counterparts keep `трэфик`) | binding rule made mechanical: the transcript's rendering is kept unless the term is on screen, a spelling variant, or well-known (= no counterpart); retried otherwise (`term_restore_ok`, `is_well_known`) | reviewer `terms.py`: 26 Cyrillic non-well-known fixes, 84 non-well-known fixes, 229 records with an unsupported term fix, 8 terms both fixed without screen and kept in a counterpart (Traefik Cyrillic; Parquet, Selectel, TestFlight, YouTrack, guardrails, pytest, zero-shot Latin) | 3 "Cyrillic" (well-known terms the script counts by the full token: `Gpo-часов` for GPU-часов, `Prкриую` for PR-кривую, `вифи` for wi-fi), 7 non-well-known fixes (spelling variants: `Swift UI`, `top K`, `few shot`, `Cross Fit`), 170 records, **0 conflicting terms**; generator audit (`F1`): 0 Cyrillic non-well-known fixes, 0 conflicts |
+| 2 | channel swaps a word for another real word and the target restores the spoken one without support (`Would`/`Could`, `появилось`/`отвалилось`) | `real_word_guess`: retry when the substitute is a real word (all teacher `spoken` texts + mined words) of another lemma and the spoken word is not on screen; noun/adjective agreement and English plural/-ed/-ing/homophones pass | reviewer `subs.py`: 90 real-word restorations in 81 records; generator rule: 62 records | 44 in 42 records, agreement repairs on one stem (`ответа`/`ответы`, `холодильника`/`холодильнике`, `requests`/`request`); generator rule: 0 (a counterpart is re-checked on its own re-rendered screen) |
+| 3 | term garbles skewed: Latin misspellings rare in ru/mixed, 65 % from the hand-written lexicon, 24 generic `respell` garbles | garbles from this model's mined manglings, then other models' mined manglings of the term, then the sampler's own garbler; script at the model's measured Latin share (x2 for unpaired scenarios, cap 0.8; pairs stay Cyrillic); CR selection takes only as many paired parents as counterparts needed | CR garble sources lexicon 203 / mined 103 / respell 21 / split 3; unpaired ru/mixed CR Latin 31 of 77; all ru/mixed garbles Latin 5.8 % | lexicon 65 / mined 109 / mined by another model 115 / sampler garbler 40 / split 1 / respell 0; unpaired ru/mixed CR Latin 31 of 55 (56 %); all ru/mixed garbles 6.5 % (210 counterpart pairs are Cyrillic by design) |
+| 4 | non-term word noise lighter than real (synthetic/real word-miss ratio 0.6-0.9, Nemotron 0.40-0.42, Qwen3-ASR ru 0.51); Nemotron streaming drops the first word | per (model, language) factor on the mined substitution/deletion rates, fitted on built sets (`realism calibrate`, damped, cap 2); first-word drop at the measured excess rate; one recogniser per scenario across retries | ratio median 0.77, range 0.40-1.28, 11 of 29 cells within 0.8-1.2; Nemotron 3.5 en 0.40, Nemotron EN 0.42 | median 0.89, range 0.42-1.16, 17 of 29 within 0.8-1.2; Nemotron 3.5 en 0.95 / ru 1.00 / mixed 1.00, Nemotron EN 0.61; still low: Qwen3-ASR ru 0.42, Whisper medium 0.52-0.57, distil 0.64 (their extra substitutions are real words or unrecoverable, so the guards of findings 2 and recoverability remove them) |
+| 5 | final punctuation not per model (Nemotron en ends with a mark in 31 % vs 0 % real; Whisper/Parakeet/Qwen3-ASR 81-94 % vs 97-100 %); 62 curly apostrophes | model's measured end-mark rate given punctuation (also after spoken commands); `’` -> `'` | mean abs. difference real vs synthetic end-mark rate 0.092 over 29 (model, language) cells, max 0.31, 5 cells within 0.05; 75 transcripts with `’` | mean 0.018, max 0.14 (Nemotron 3.5 ru 0.48 vs 0.34), 26 of 29 within 0.05; 0 |
+| 6 | targets spell out a digit the transcript has (`10 minutes` -> `ten minutes`); en `N minutes/hours` mixed; odd records | retry when a transcript digit is a word in the target (`digits_spelled_out`, also a filter); durations to digits (`digit_durations`); `sc-6a9f1251f168` (SRE in a grocery order) and `sc-af6c2f4d893a` (`ritmfit.ru/raspisanie`) dropped by name; Russian words in address paths rejected (9 examples) | 3 reversions; en `N minutes/hours/days...` words 9 / digits 29 | 0 reversions; words 0 / digits 36 |
+| 7 | every asr_artifact from Whisper large-v3-turbo, 10 tail strings shared by train and dev/test | Whisper-family model drawn at random (incl. distil for English), 25 % of Russian/mixed asr_artifact get the Nemotron 3.5 stutter loop seen in the round trip; train and held-out tail pools disjoint, the four strings the project's eval sets use held-out only; noise_only tails from the split's pool | models: large-v3-turbo 53; train tail strings seen in dev/test: 7 | large-v3-turbo 21, small 13, medium 10, distil 4, Nemotron 3.5 loop 5; 0 shared strings (14 train / 4 dev / 4 test distinct) |
+
+Not available in the round trip: real hallucinated tails. Its 10,605 hypotheses contain no subtitle tail (TTS clips have
+no silence); the only real artifacts are 12 foreign-script outputs (Qwen3-ASR, Nemotron 3.5; the whole utterance
+becomes Ukrainian/Czech-like text, no recoverable target), one stutter loop (used); empty outputs appear only in the disfluency probe (2 of 724). The tail
+strings are well-known Whisper hallucinations from public reports.
+
 ### 5.3 Proof runs (2026-11-18/19)
 
 Four proof runs of 216 teacher scenarios each (`proof_v4` .. `proof_v7`, 143 requests) tuned the generator before the
@@ -263,7 +310,7 @@ another valid word (`сохранить -> сравнить`, `приходят 
 restores a function word the ASR deleted (`you like` -> `If you like`); one target capitalises a place name the
 speaker said in lowercase (`Design Museum` in a search query).
 
-Committed sample: `ml/data/samples/synth_v2.sample.jsonl` (200 train records of the full set, all 21 categories).
+Committed sample: `ml/data/samples/synth_v2.sample.jsonl` (200 train records of the second-pass set `synth_v3`, all 21 categories; file name kept for the Makefile target).
 
 ## 6. Public datasets (secondary, frozen; converters in `ml/data/public/`)
 
@@ -305,3 +352,15 @@ Licences re-checked on the Hugging Face API on 2026-11-18. Counts are from the c
 - **Teacher style**: one teacher model writes all targets; register and topics are steered by the planner, but
   phrasing diversity is limited to what one model produces at low effort.
 - **Counterpart targets keep Cyrillic garbles** of non-well-known terms ("лама цэпэпэ" for llama.cpp) by design.
+- **Well-known terms are an exception to CONTEXT_V2's binding rule** (deviation pending the owner's acceptance):
+  a target writes `Docker` for `докир` or `Confluence` for `Confloence` without screen support when the term is in
+  `terms.WELL_KNOWN` / `lexicon.KNOWN_TECH` or a plain English phrase (`is_well_known`), the same set that never gets a
+  no-context counterpart, so no pair contradicts it. Every other term keeps the transcript's rendering unless the
+  screen shows it.
+- **Latin misspellings of hard terms in Russian speech stay rarer than in real data** (6.5 % of ru/mixed context
+  garbles vs 17-44 % of real term errors per model, 2 % for T-one): the 210 counterpart pairs need a Cyrillic rendering. The 55
+  unpaired ru/mixed context-resolution records carry 31 Latin misspellings.
+- **Language-model decoders stay less noisy than real** (Qwen3-ASR Russian 0.42, Whisper medium 0.52-0.57 of the
+  real non-term word-miss rate): their substitutions are real words, which the no-guessing guard retries, and the
+  heaviest transcripts are unrecoverable. The ratios are measured on 3,000 records with a few dozen misses per cell
+  (refit noise of about +-15 %).

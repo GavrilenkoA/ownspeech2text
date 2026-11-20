@@ -371,6 +371,9 @@ def aggregate(rows: list[dict]) -> dict:
     jdrift = [r.get("judge_drift") for r in rows if r.get("judge_drift") is not None]
     out = {
         "n": len(rows),
+        # prompt-eval pass flag (prompts/eval/score.py score_case, added by ml/eval/scoring.py): the number the
+        # stock baselines of docs/ml/PROMPT_EVAL.md are quoted in
+        "pass": _rate(r.get("pass") for r in rows),
         "exact": _rate(r["exact"] for r in rows),
         "em": _rate(r["em"] for r in rows),
         "nwer": round(sum(r["wer_edits"] for r in rows) / ref_w, 4) if ref_w else None,  # corpus-level
@@ -411,12 +414,14 @@ def aggregate(rows: list[dict]) -> dict:
 
 
 def summarize(rows: list[dict]) -> dict:
-    by_lang, by_cat, by_src = defaultdict(list), defaultdict(list), defaultdict(list)
+    by_lang, by_cat, by_src, by_set = defaultdict(list), defaultdict(list), defaultdict(list), defaultdict(list)
     for r in rows:
         by_lang[r["lang"]].append(r)
         by_cat[r["category"]].append(r)
         by_src[r.get("ctx_source", "legacy")].append(r)
+        by_set[r.get("set", "all")].append(r)
     return {"overall": aggregate(rows),
+            "by_set": {k: aggregate(v) for k, v in sorted(by_set.items())},
             "by_lang": {k: aggregate(v) for k, v in sorted(by_lang.items())},
             "by_category": {k: aggregate(v) for k, v in sorted(by_cat.items())},
             "by_ctx_source": {k: aggregate(v) for k, v in sorted(by_src.items())}}

@@ -3,7 +3,9 @@ REPO := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/../..)
 # the real screen path (ml.screens + ml.ocr) needs the OCR venv; the generator itself is stdlib-only
 PY    ?= $(REPO)/.cache/ml/ocr/venv/bin/python
 PYPUB ?= $(REPO)/.cache/ml/data/venv/bin/python
-OUT   ?= $(REPO)/.cache/ml/data/synth_v2
+OUT   ?= $(REPO)/.cache/ml/data/synth_v3
+# render + OCR results per render spec: a rebuild that changes only the channel or the filters skips them
+CTX_CACHE ?= $(REPO)/.cache/ml/data/ctx_cache
 N     ?= 3000
 DEV   ?= 300
 TEST  ?= 300
@@ -16,10 +18,10 @@ STAGE ?= all
 # extra scenarios for cells that fall short (measured yields, docs/ml/DATA_CARD.md), in ";"-separated layers (a later
 # layer never changes an answered batch); keep the same value for every
 # command of one run, or the reserve scenarios drop out of the build
-RESERVE ?= train/context_resolution=150,train/near_miss=58,train/injection=18,train/list=5,dev/context_resolution=15,dev/near_miss=6,dev/injection=3,dev/list=1,test/context_resolution=15,test/near_miss=6,test/injection=3,test/list=1;train/address=6,train/injection=6,dev/context_names=4,dev/address=2
+RESERVE ?= train/context_resolution=150,train/near_miss=58,train/injection=18,train/list=5,dev/context_resolution=15,dev/near_miss=6,dev/injection=3,dev/list=1,test/context_resolution=15,test/near_miss=6,test/injection=3,test/list=1;train/address=6,train/injection=6,dev/context_names=4,dev/address=2;train/near_miss=16,train/meaningful_filler=5,train/address=5,train/injection=3,dev/near_miss=5,test/meaningful_filler=3;train/injection=4;train/near_miss=4,train/injection=6,dev/context_irrelevant=3
 MINED_ARG := $(if $(MINED),--mined $(MINED),)
 
-.PHONY: venv test stub proof synth recheck sample public validate contam disfl-probe
+.PHONY: venv test stub proof synth rebuild recheck sample public validate contam disfl-probe realism-measure realism-calibrate audit
 
 venv:   # secondary venv for the public converters (pyarrow) and tests
 	uv venv -q -p 3.13 $(REPO)/.cache/ml/data/venv && uv pip install -q -p $(PYPUB) -r $(REPO)/ml/data/requirements.txt
@@ -40,7 +42,27 @@ proof:
 # THE full set: ~633 teacher requests (see docs/ml/DATA_CARD.md for the measured wall time)
 synth:
 	cd $(REPO) && tools/with-teacher $(HEAVY) $(PY) -m ml.data.generate --out $(OUT) --n $(N) --dev $(DEV) --test $(TEST) \
-	    --workers $(WORKERS) --screens real --stage $(STAGE) $(if $(RESERVE),--reserve '$(RESERVE)',) $(MINED_ARG)
+	    --workers $(WORKERS) --screens real --stage $(STAGE) $(if $(RESERVE),--reserve '$(RESERVE)',) $(MINED_ARG) \
+	    --ctx-cache $(CTX_CACHE)
+
+# rebuild OUT from its answered teacher shards (never sends a request; ~2 min with a warm CTX_CACHE, ~22 min cold)
+rebuild:
+	cd $(REPO) && $(HEAVY) $(PY) -m ml.data.generate --out $(OUT) --n $(N) --dev $(DEV) --test $(TEST) \
+	    --workers $(WORKERS) --screens real --offline $(if $(RESERVE),--reserve '$(RESERVE)',) $(MINED_ARG) \
+	    --ctx-cache $(CTX_CACHE)
+
+# real round trip -> per-model style table (final marks, first-word drops, word miss): ml/data/probe/asr_style.v1.json
+realism-measure:
+	cd $(REPO) && $(PY) -m ml.data.realism measure
+
+# refit the per-(model, language) word-noise factors on a built set: ml/data/probe/word_noise_scale.v1.json
+realism-calibrate:
+	cd $(REPO) && $(PY) -m ml.data.realism calibrate --data $(OUT)
+
+# the data-review numbers (terms without screen support, guessed words, garble scripts, noise, punctuation, numbers,
+# artifact strings) of a built set
+audit:
+	cd $(REPO) && $(PY) -m ml.data.realism audit --data $(OUT)
 
 # after any prompts/render.py change: re-apply the CONTEXT_V2 rules to the stored set (no OCR, no teacher)
 recheck:

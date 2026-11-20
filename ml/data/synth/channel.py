@@ -37,6 +37,8 @@ from ml.data.synth import asr_noise as AN
 
 PROBE_DIR = Path(__file__).resolve().parents[1] / "probe"
 RENDER_FILE = PROBE_DIR / "disfluency_render.v1.json"
+STYLE_FILE = PROBE_DIR / "asr_style.v1.json"           # ml.data.realism measure (real round trip, clean channel)
+SCALE_FILE = PROBE_DIR / "word_noise_scale.v1.json"    # ml.data.realism calibrate
 # Insertions a decoder plausibly makes: function words and fillers (noise.py's own fallback vocabulary)
 INS_OK_EXTRA = {"и", "а", "в", "ну", "вот", "это", "the", "a", "and", "uh", "to", "it", "i", "у", "с", "к", "о", "я",
                 "да", "но", "же", "ли", "an", "in", "on", "of", "is", "that", "so", "um"}
@@ -142,6 +144,20 @@ class Channel:
         self.mined_dir = Path(mined_dir) if self.nm is not None else None
         self._habits = _term_habits(str(self.mined_dir / "term_manglings.jsonl")) if self.nm is not None else {}
         self._render = _render_table()
+        self._style = _json_table(str(STYLE_FILE)).get("models", {})
+        if self.nm is not None:
+            _install_word_scale(self.nm, _json_table(str(SCALE_FILE)).get("factors", {}))
+        self._real_words = None
+
+    def real_words(self) -> set[str]:
+        """Real words of the mined tables (reference words, and the words language-model decoders put in)."""
+        if self._real_words is None:
+            self._real_words = {T.norm_word(w) for ws in (self.nm._words.values() if self.nm is not None else [])
+                                for w in ws}
+        return self._real_words
+
+    def style(self, model: str, lang: str) -> dict:
+        return (self._style.get(model) or {}).get(lang) or {}
 
     # ------------------------------------------------------------------ per-model habits
     def habits(self, model: str, lang: str) -> dict:
@@ -186,6 +202,15 @@ class Channel:
                 out.append(m)
         return out
 
+    def has_model(self, hint: str, lang: str) -> bool:
+        return any(hint in m for m in self.models(lang))
+
+    def pick_family(self, lang: str, r: random.Random, hints: tuple[str, ...]) -> str:
+        """A random recogniser of the named families that serves this language (asr_artifact: every Whisper-family
+        model, not always the first one)."""
+        ms = [m for m in self.models(lang) if any(h in m for h in hints)]
+        return r.choice(ms) if ms else self.pick_model(lang, r)
+
     def pick_model(self, lang: str, r: random.Random, prefer: str | None = None, switch: bool = False) -> str:
         ms = self.models(lang)
         if switch:  # true code-switching: only recognisers that write the English clause in English
@@ -229,12 +254,51 @@ class Channel:
                 text = " ".join(dig)
                 ev.append("digits")
         nterms = [{"term": t["text"], "category": t.get("category", "")} for t in terms]
+        text, dropped = self._edge_drop(text, model, lang, r)
+        if dropped:
+            ev.append(f"del:{dropped}")
         segs = _lang_runs(text) if lang == "mixed" and self.can_switch(model) else [(text, lang)]
         if len(segs) == 1:
             sim = self.nm.simulate(text, model, nterms, "mixed" if lang == "mixed" else lang, seed=seed,
                                    severity=severity)
-            return sim.hypothesis, ev + list(sim.events)
-        return self._simulate_segments(segs, model, nterms, seed, severity, ev)
+            hyp, evs = sim.hypothesis, ev + list(sim.events)
+        else:
+            hyp, evs = self._simulate_segments(segs, model, nterms, seed, severity, ev)
+        return self._final_style(hyp, spoken, model, lang, evs, r), evs
+
+    def _edge_drop(self, text: str, model: str, lang: str, r: random.Random) -> tuple[str, str | None]:
+        """Streaming recognisers lose the first word far more often than any other (real round trip: Nemotron
+        streaming English 41-44 % vs 5 % for the rest). The excess rate of the measured table; whether the example
+        stays recoverable is the build's recoverability check."""
+        p = float(self.style(model, lang).get("first_word_drop") or 0.0)
+        ws = text.split(" ")
+        if p <= 0 or len(ws) < 4 or r.random() >= p:
+            return text, None
+        first = re.sub(r"^\W+|\W+$", "", ws[0])
+        if not first or re.search(r"\d", first):
+            return text, None
+        return " ".join(ws[1:]), first
+
+    def _final_style(self, hyp: str, spoken: str, model: str, lang: str, events: list[str], r: random.Random) -> str:
+        """The recogniser's own sentence-final mark at its measured rate (given that it punctuates this utterance at
+        all), also after a spoken command ('...вопросительный знак.'), and straight apostrophes only (0 curly ones
+        in 10,605 real hypotheses)."""
+        hyp = hyp.replace("’", "'")
+        st = self.style(model, lang)
+        if not hyp or not st or any(e.startswith("tail:") or e in ("empty", "foreign_script") for e in events):
+            return hyp
+        if "style:no_punct" in events:  # this utterance came out without any punctuation (the model's own rate)
+            return hyp
+        p_end = float(st.get("end_given_punct", 1.0))
+        has_end = hyp.rstrip()[-1:] in ".!?…"
+        if r.random() < p_end:
+            if not has_end:
+                hyp = hyp.rstrip(" ,;:") + ("?" if spoken.rstrip()[-1:] == "?" else ".")
+                events.append("style:final_mark")
+        elif has_end:
+            hyp = re.sub(r"[.!?…]+$", "", hyp.rstrip())
+            events.append("style:no_final_mark")
+        return hyp
 
     def _simulate_segments(self, segs, model, nterms, seed, severity, ev):
         """Code-switched text: each language run simulated in its own language; one style for the whole text."""
@@ -315,6 +379,51 @@ class Channel:
             hyp = hyp[:hits[0].start()] + reading + hyp[hits[0].end():]
             ev[ev.index(e)] = f"term:{term}->{reading}:translit_repair"
         return hyp, ev, rest
+
+
+@lru_cache(maxsize=8)
+def _json_table(path: str) -> dict:
+    try:
+        return json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def _install_word_scale(nm, factors: dict) -> None:
+    """Scale the mined non-term word substitution / deletion rates per (model, language) (ml.data.realism calibrate:
+    the synthetic transcripts missed fewer words than the real ones, 0.4-0.9 of the real rate). noise.py is read-only
+    here, so the instance's rate lookup is wrapped: base rates via _word_rates, word-specific counts via _conf."""
+    if not factors or getattr(nm, "_word_scale", None) is not None:
+        return
+    nm._word_scale = factors
+    base_rates, base_sim = nm._word_rates, nm.simulate
+    scaled_conf: dict = {}
+    state = {"f": 1.0}
+
+    def word_rates(model, lang):
+        ps, pd, pi, near = base_rates(model, lang)
+        f = state["f"]
+        return ps * f, pd * f, pi, near
+
+    def simulate(text, asr_model, terms=None, lang=None, seed=0, severity=1.0):
+        f = float((factors.get(asr_model) or {}).get(lang or "", 1.0))
+        if f == 1.0:
+            return base_sim(text, asr_model, terms, lang, seed=seed, severity=severity)
+        key = (asr_model, f)
+        if key not in scaled_conf:
+            scaled_conf[key] = {w: [(hk, c * f) for hk, c in lst] for w, lst in nm._conf.get(asr_model, {}).items()}
+        orig = nm._conf.get(asr_model)
+        nm._conf[asr_model] = scaled_conf[key]
+        state["f"] = f
+        try:
+            return base_sim(text, asr_model, terms, lang, seed=seed, severity=severity)
+        finally:
+            state["f"] = 1.0
+            if orig is not None:
+                nm._conf[asr_model] = orig
+
+    nm._word_rates = word_rates
+    nm.simulate = simulate
 
 
 def _pair_words(a: str, b: str) -> list[tuple[str, str]]:

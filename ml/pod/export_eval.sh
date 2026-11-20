@@ -3,20 +3,21 @@
 # llama.cpp CUDA on the pod (greedy). Idempotent: every eval dir with a report.json is skipped.
 #   1. stock baselines (B2), only with STOCK_ON_POD=1 (default: they run free on the dev server CPU in
 #      ml/pod/after_pod.sh, the vendor GGUFs are already there): vendor Q4_0 GGUFs with the
-#      prompt profiles the app ships for stock models (default.v4, default.v4s) and the short fine-tune
+#      prompt profile the app ships for stock models (default.v1, ADR-085) and the short fine-tune
 #      prompt; every report also holds the after-guard (prompts/guard.py) measurement, which is what
 #      the app inserts for a stock model; STOCK_OURS=1 adds the stock weights
 #      through OUR conversion (plain Q4_0: isolates the fine-tuning effect from vendor imatrix/QAD)
 #   2. finalists = best run per base model on the dev Q4_0 eval (ml.train.select):
-#      BF16 GGUF on dev (-> measured quantisation loss), Q4_0 on the test sets, Q4_0 with the long
-#      default prompt (robustness to prompt edits), model card + catalog entry
+#      BF16 GGUF on dev (-> measured quantisation loss), Q4_0 on the test sets, Q4_0 with the stock
+#      default.v1 prompt (robustness: the prompt a user gets when switching back), model card + catalog entry
 #   3. LEGACY=1 only: finalists' Q4_0 on the v1-context sets (dev.v1 + test.v1), labelled "legacy", in a
 #      separate leaderboard table; never used by select.py, the gates or the cards
-#   4. leaderboard over everything
+#   4. leaderboard over everything + vs_stock.md (ml.eval.baseline table): every report per eval set
+#      (dev.v2, test.v2, the dataset's dev/test) next to the frozen stock numbers (pass raw / guarded)
 # Budget: every eval is checked against MAX_GPU_HOURS before it starts (ml/pod/env.sh budget_check).
 # The judge (teacher, dev server) and the CPU ship-gate eval run on the dev server afterwards:
 # ml/pod/after_pod.sh. Env: EVAL_DEV, EVAL_TEST, PROFILES (stock-model profiles, default
-# "default.v4 default.v4s", the first one is the card's comparison), HF_OWNER (for the card's repo id).
+# "default.v1", the first one is the card's comparison), HF_OWNER (for the card's repo id).
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 source ml/pod/env.sh
@@ -26,7 +27,7 @@ SMOKE="$MURMUR_DATA/smoke.v2.test.jsonl"
 read -r -a DEV <<<"${EVAL_DEV:-$MURMUR_DATA/dev.jsonl prompts/eval/sets/dev.v2.jsonl $SMOKE}"
 read -r -a TEST <<<"${EVAL_TEST:-$MURMUR_DATA/test.jsonl prompts/eval/sets/test.v2.jsonl}"
 read -r -a LEGACY_SETS <<<"${EVAL_LEGACY:-prompts/eval/sets/dev.v1.jsonl prompts/eval/sets/test.v1.jsonl}"
-PROFILES="${PROFILES:-default.v4 default.v4s}"
+PROFILES="${PROFILES:-default.v1}"
 FT_SYSTEM="${FT_SYSTEM:-finetuned.v2}"   # = prompt.system of ml/train/configs/base.yaml (stock models with the FT prompt)
 STOCK_P="${PROFILES%% *}"
 
@@ -95,4 +96,5 @@ sort -u -o "$MURMUR_RUNS/finalists.txt" "$MURMUR_RUNS/finalists.txt" 2>/dev/null
 
 # ---- 4. leaderboard
 "$PY" -m ml.eval.leaderboard "$MURMUR_EVAL/stock" "$MURMUR_RUNS" --out "$MURMUR_EVAL/leaderboard.md"
+"$PY" -m ml.eval.baseline table "$MURMUR_EVAL/stock" "$MURMUR_RUNS" --out "$MURMUR_EVAL/vs_stock.md" >/dev/null
 log "export_eval finished; leaderboard: $MURMUR_EVAL/leaderboard.md"

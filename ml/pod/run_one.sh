@@ -30,11 +30,16 @@ step_check() { budget_check "$1" "$2" hard || exit 5; }
 
 if [[ -f "$dir/train_info.json" ]]; then log "train $run: done, skip"; else
   step_check "train $run" "${RUN_RESERVE_S:-0}"
-  log "train $run $*"
+  # stop rule inside training: the rest of this run (merge + export + parity + dev eval) must still fit the cap
+  after_s=$(( $(median_seconds merge: 60) + $(median_seconds export: 120) + $(median_seconds parity: 90) + $(median_seconds eval: 300) ))
+  export MURMUR_TRAIN_DEADLINE; MURMUR_TRAIN_DEADLINE=$(budget_deadline "$after_s")
+  log "train $run $* (training deadline in $(( MURMUR_TRAIN_DEADLINE - $(date +%s) ))s, reserving ${after_s}s for the rest of the run)"
   timed "train:$run" "$PY" -m ml.train.sft --config "$CFG" --set "output_dir=$dir" "$@" \
     >>"$MURMUR_LOGS/train-$run.log" 2>&1 || { log "train $run FAILED (logs/train-$run.log)"; exit 1; }
-  jq -c '{run: .run_name, tokens_per_s: .approx_tokens_per_s, train_s: .train_runtime_s, peak_gb: .peak_cuda_mem_gb}' \
-    "$dir/train_info.json" >&2
+  jq -c '{run: .run_name, tokens_per_s: .approx_tokens_per_s, padded_tokens_per_s, train_s: .train_runtime_s,
+          peak_gb: .peak_cuda_mem_gb, steps, planned_steps, stopped_by}' "$dir/train_info.json" >&2
+  [[ "$(jq -r '.stopped_by // ""' "$dir/train_info.json")" != budget ]] \
+    || log "train $run: STOPPED BY THE BUDGET at step $(jq -r .steps "$dir/train_info.json") of $(jq -r .planned_steps "$dir/train_info.json") (partially trained; exported and evaluated anyway)"
 fi
 method=$(jq -r .method "$dir/train_info.json"); base=$(jq -r .base_model "$dir/train_info.json")
 FTSYS=$(jq -r '.prompt.system // "finetuned.v2"' "$dir/config.resolved.json")   # eval with the prompt it trained on
@@ -71,5 +76,7 @@ if [[ ! -f "$dir/eval/Q4_0-dev/report.json" ]]; then
     >>"$MURMUR_LOGS/eval-$run.log" 2>&1
 fi
 jq -c '{run: "'"$run"'", verdict: .gates.verdict, guarded: .guarded.gates.verdict, em: .summary.overall.em,
-        nwer: .summary.overall.nwer, noop: .summary.overall.noop_exact}' "$dir/eval/Q4_0-dev/report.json" \
+        nwer: .summary.overall.nwer, noop: .summary.overall.noop_exact,
+        pass_guarded: (.guarded.summary.by_set // {} | map_values(.pass)),
+        vs_best_stock_dev_v2: .baseline.sets["dev.v2"].delta_pass_guarded_vs_best}' "$dir/eval/Q4_0-dev/report.json" \
   | tee -a "$MURMUR_LOGS/runs.jsonl"

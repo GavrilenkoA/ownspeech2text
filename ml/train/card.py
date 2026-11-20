@@ -82,7 +82,11 @@ def main(argv=None) -> int:
         "eval": {"set": rep["info"]["data"], "n": o["n"], "verdict": rep["gates"]["verdict"], "em": o["em"],
                  "nwer": o["nwer"], "noop_exact": o["noop_exact"], "answer_rate": o["answer_rate"],
                  "injection_success": o["injection_success"], "entity_recall": o["entity_recall"],
-                 "guarded_verdict": (rep.get("guarded") or {}).get("gates", {}).get("verdict")},
+                 "guarded_verdict": (rep.get("guarded") or {}).get("gates", {}).get("verdict"),
+                 "pass_guarded_by_set": {k: v.get("pass") for k, v in
+                                         (((rep.get("guarded") or {}).get("summary") or {}).get("by_set") or {}).items()},
+                 "vs_best_stock_pass_guarded": {k: v.get("delta_pass_guarded_vs_best") for k, v in
+                                                ((rep.get("baseline") or {}).get("sets") or {}).items()}},
         "training": {"method": info.get("method"), "steps": info.get("steps"), "run_name": info.get("run_name")},
     }
     (run / "gguf/catalog_entry.json").write_text(json.dumps(entry, indent=1, ensure_ascii=False))
@@ -116,6 +120,9 @@ def main(argv=None) -> int:
     if vs_stock_guarded:
         md += [f"## Versus the stock model (`{stock['info'].get('system')}`), both after prompts/guard.py", "",
                compare.to_markdown(vs_stock_guarded), ""]
+    if rep.get("baseline"):
+        from ml.eval import baseline
+        md += [baseline.to_markdown(rep["baseline"], label=a.name), ""]
     md += ["## Limitations", "", "* Host-side latency in the tables is not phone latency; use the app's Benchmark.",
            "* Evaluated on synthetic + hand-written sets; real-dictation (E5) results are listed only when measured."]
     (run / "gguf/README.md").write_text("\n".join(md) + "\n", encoding="utf-8")

@@ -169,13 +169,21 @@ def run(a) -> dict:
     layers = sorted({sc.get("reserve") or 0 for sc in teach})
     jobs = interleave([j for li in layers for j in make_jobs([sc for sc in teach if (sc.get("reserve") or 0) == li], a.batch)],
                       {sc["sid"]: sc for sc in teach})
-    st_t = TC.run_sharded(jobs, teacher, out / "teacher", "gen", shard_size=a.shard_size,
-                          concurrency=a.concurrency, max_retries=a.max_retries)
+    offline = getattr(a, "offline", False)
+    if offline:  # rebuild from the answered shards only: no request is ever sent, unanswered jobs are reported
+        answered = TC.load_results(out / "teacher", "gen")
+        st_t = {"jobs": len(jobs), "ok": sum(j["id"] in answered for j in jobs), "offline": True,
+                "unanswered": sum(j["id"] not in answered for j in jobs), "http_requests": 0, "wall_s": 0.0}
+    else:
+        st_t = TC.run_sharded(jobs, teacher, out / "teacher", "gen", shard_size=a.shard_size,
+                              concurrency=a.concurrency, max_retries=a.max_retries)
     ex, bad = examples_from(TC.load_results(out / "teacher", "gen"), jobs)
     # one top-up pass for scenarios a batch dropped or a failed job lost
     missing = [sc for sc in teach if sc["sid"] not in ex]
     st_top = None
-    if missing and not st_t.get("quota_stop") and a.topup:
+    if missing and offline:
+        ex.update(examples_from(TC.load_results(out / "teacher", "topup"), make_jobs(missing, a.batch, prefix="topup"))[0])
+    elif missing and not st_t.get("quota_stop") and a.topup:
         tjobs = make_jobs(missing, a.batch, prefix="topup")
         st_top = TC.run_sharded(tjobs, teacher, out / "teacher", "topup", shard_size=a.shard_size,
                                 concurrency=a.concurrency, max_retries=a.max_retries)
@@ -200,12 +208,18 @@ def run(a) -> dict:
             reasons["no_teacher_example"] += 1
             continue
         todo.append((sc, ex.get(sc["sid"])))
+    if getattr(a, "sample", 0):  # scratch build of the answered shards: K scenarios round-robin over (category, split)
+        keep = {sc["sid"] for sc in stratified_limit([t[0] for t in todo], a.sample)}
+        todo = [t for t in todo if t[0]["sid"] in keep]
     backend_info, timing = _backend_probe(a.screens)
     if backend_info["backend"] == "fixture" and not a.limit and a.n >= 1000 and not a.allow_fixture:
         raise SystemExit("refusing a full-size run with the fixture screen backend (no OCR): wait for "
                          "ml/screens/READY + ml/ocr/READY or pass --allow-fixture")
     tb = time.time()
-    results = _build_all(todo, a, teacher.name)
+    # every word the teacher had users say: with the channel's real words, the vocabulary that tells a real-word
+    # substitution ('Would' for 'Could') from a misspelling (build.real_word_guess)
+    vocab = sorted({w for e in ex.values() for w in T.norm_words(e.get("spoken") or "")})
+    results = _build_all(todo, a, teacher.name, vocab)
     build_wall = time.time() - tb
     for sc, (built, err, tm) in zip([t[0] for t in todo], results):
         for k, v in tm.items():
@@ -263,7 +277,7 @@ def run(a) -> dict:
         reasons["dedup:prompt_echo_cap"] += 1
     # every survivor before the exact-count cut (selection can be redone without a rebuild)
     write_jsonl(out / "survivors.jsonl", recs)
-    final, short = select_exact(recs, tgt_counts, by_sid, keep_all=bool(a.limit))
+    final, short = select_exact(recs, tgt_counts, by_sid, keep_all=bool(a.limit or getattr(a, "sample", 0)))
     leak = F.leakage(final)
     for split in ("train", "dev", "test"):
         write_jsonl(out / f"{split}.jsonl", [r for r in final if r["split"] == split])
@@ -327,8 +341,9 @@ def cap_prompt_echo(recs: list[dict], by_sid: dict) -> tuple[list[dict], list[di
 
 def select_exact(recs: list[dict], tgt_counts: dict, by_sid: dict, keep_all: bool = False) -> tuple[list[dict], dict]:
     """Exact counts per (split, category): first survivors in plan order (primary scenarios before reserves).
-    A counterpart is useless without its context-resolution parent, so context_resolution prefers parents whose
-    counterpart survived, and counterparts are drawn only from the selected parents (a parent stays useful alone)."""
+    A counterpart is useless without its context-resolution parent, so context_resolution first takes as many
+    parents with a surviving counterpart as the counterpart cell needs, then unpaired scenarios; counterparts are
+    drawn only from the selected parents (a parent stays useful alone)."""
     idx = lambda r: by_sid[r["meta"]["scenario"]]["index"]  # noqa: E731
     with_cp = {r["meta"]["counterpart_of"] for r in recs if r["category"] == "context_counterpart"}
     by_cell = defaultdict(list)
@@ -342,7 +357,13 @@ def select_exact(recs: list[dict], tgt_counts: dict, by_sid: dict, keep_all: boo
             c = cc[cat]
             cell = by_cell.get((split, cat), [])
             if cat == "context_resolution":
-                cell = sorted(cell, key=lambda r: (r["id"] not in with_cp, idx(r)))
+                # as many parents with a surviving counterpart as the counterpart cell needs, then the scenarios
+                # planned without a counterpart (a surplus paired parent is one more Cyrillic garble; the unpaired
+                # ones carry the recognisers' Latin misspellings), plan order inside each group
+                paired = sorted((r for r in cell if r["id"] in with_cp), key=idx)[:cc.get("context_counterpart", 0)]
+                ids = {r["id"] for r in paired}
+                cell = paired + sorted((r for r in cell if r["id"] not in ids),
+                                       key=lambda r: (bool(by_sid[r["meta"]["scenario"]].get("counterpart")), idx(r)))
             elif cat == "context_counterpart":
                 cell = sorted((r for r in cell if r["meta"]["counterpart_of"] in chosen), key=idx)
             else:
@@ -395,8 +416,9 @@ def asr_disfluency(final: list[dict], channel: Channel) -> dict:
 _W: dict = {}
 
 
-def _winit(mined, screens):
+def _winit(mined, screens, vocab=()):
     import os
+    B.set_vocab(vocab)
     for v in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "MURMUR_OCR_THREADS"):
         os.environ.setdefault(v, "1")
     _W["channel"] = Channel(mined)
@@ -407,6 +429,7 @@ def _build_one(job):
     sc, e, teacher_name = job
     ch, be = _W["channel"], _W["backend"]
     t0, c0, r0, o0 = be.timing["build_ctx_s"], be.timing["calls"], be.timing["render_s"], be.timing["ocr_s"]
+    h0 = be.timing.get("cache_hits", 0)
     t = time.time()
     try:
         if sc["category"] == "noise_only":
@@ -419,10 +442,11 @@ def _build_one(job):
     tot = time.time() - t
     ocr = be.timing["build_ctx_s"] - t0
     return built, err, {"screen_build_ctx_s": ocr, "screen_calls": be.timing["calls"] - c0, "code_s": tot - ocr,
-                        "render_s": be.timing["render_s"] - r0, "ocr_s": be.timing["ocr_s"] - o0}
+                        "render_s": be.timing["render_s"] - r0, "ocr_s": be.timing["ocr_s"] - o0,
+                        "screen_cache_hits": be.timing.get("cache_hits", 0) - h0}
 
 
-def _build_all(todo, a, teacher_name):
+def _build_all(todo, a, teacher_name, vocab=()):
     jobs = [(sc, e, teacher_name) for sc, e in todo]
     t0, out = time.time(), []
 
@@ -430,13 +454,13 @@ def _build_all(todo, a, teacher_name):
         if len(out) % 100 == 0 or len(out) == len(jobs):
             print(f"[build] {len(out)}/{len(jobs)} scenarios {time.time() - t0:.0f}s", file=sys.stderr, flush=True)
     if a.workers <= 1:
-        _winit(a.mined, a.screens)
+        _winit(a.mined, a.screens, vocab)
         for j in jobs:
             out.append(_build_one(j))
             tick()
         return out
     import multiprocessing as mp
-    with mp.get_context("spawn").Pool(a.workers, initializer=_winit, initargs=(a.mined, a.screens)) as pool:
+    with mp.get_context("spawn").Pool(a.workers, initializer=_winit, initargs=(a.mined, a.screens, vocab)) as pool:
         for res in pool.imap(_build_one, jobs, chunksize=2):  # ordered, streamed for progress
             out.append(res)
             tick()
@@ -507,7 +531,16 @@ def main(argv=None) -> int:
                     "(another seed's plan; used only after every primary survivor)")
     ap.add_argument("--stage", default="all", choices=["all", "teacher"],
                     help="teacher = stop after the (resumable) teacher shards; all = build the set as well")
+    ap.add_argument("--offline", action="store_true", help="build from the answered teacher shards only (never sends "
+                    "a request; unanswered jobs are reported)")
+    ap.add_argument("--sample", type=int, default=0, help="scratch build: only K answered scenarios, round-robin over "
+                    "(category, split); job ids unchanged")
+    ap.add_argument("--ctx-cache", default=None, help="directory caching render + OCR results per render spec "
+                    "(rebuilds that change only the channel or the filters skip render + OCR)")
     a = ap.parse_args(argv)
+    if a.ctx_cache:
+        import os
+        os.environ["MURMUR_CTX_CACHE"] = str(Path(a.ctx_cache).resolve())
     if a.concurrency is None:
         a.concurrency = TC.TeacherConfig().concurrency if a.teacher != "stub" else 4
     st = run(a)

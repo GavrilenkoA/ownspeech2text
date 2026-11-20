@@ -60,7 +60,9 @@ def _numberish(w: str) -> bool:
 
 ADDRESS_RE = re.compile(r"^(?:[\w.+-]+@[\w-]+(?:\.[\w-]+)+|(?:https?://)?(?:www\.)?[\w-]+(?:\.[\w-]+)+(?:/[\w./?=&%#-]*)?)$")
 TAIL_MARKERS = ["субтитры", "продолжение следует", "thanks for watching", "amara.org", "подписывайтесь", "dimatorzok",
-                "редактор субтитров", "спасибо за просмотр"]
+                "редактор субтитров", "спасибо за просмотр", "thank you for watching", "castingwords",
+                "like and subscribe", "subscribe to my channel", "next video", "следующем видео",
+                "ставьте лайки"]
 _LIST_MARK = re.compile(r"(?m)^\s*\d+[.)]\s+")
 
 
@@ -142,6 +144,9 @@ def check(rec: dict) -> list[str]:
             out.append("number_mismatch")
         if T.spelled_numbers_over(tgt, 10, None if lang == "mixed" else lang):
             out.append("number_words_in_target")
+        from ml.data.synth.build import digits_spelled_out
+        if cat not in ("no_op", "near_no_op") and digits_spelled_out(tr, tgt, lang):
+            out.append("digit_spelled_out")  # the transcript has the digit, the target writes the word
     # length ratio (words)
     nt_w, ns_w = len(T.words(tgt)), max(1, len(T.words(spoken)))
     lo, hi = {"self_correction": (0.25, 1.2), "list": (0.4, 1.3), "formatting_commands": (0.4, 1.3),

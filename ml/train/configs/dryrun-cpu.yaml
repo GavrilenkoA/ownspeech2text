@@ -13,7 +13,7 @@ data:
   dev: []
 prompt: {default_share: 0.1, preferences_share: 0.25}
 train:
-  max_len: auto:3072      # 10 % of examples use the default.v4s profile (~2.2K tokens)
+  max_len: auto:3072      # 10 % of examples use the stock default.v1 profile (~1.3K tokens)
   epochs: 1
   max_steps: 3
   batch_size: 1

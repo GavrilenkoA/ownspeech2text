@@ -2,7 +2,7 @@
 
 The prompt is rendered by ml.eval.contract.render_prompt -> prompts/render.py, never stored.
 Per example (deterministic in (seed, id)):
-  * system prompt / profile: `default_system` (default.v4s, the stock-model profile with shots) with
+  * system prompt / profile: `default_system` (default.v1, the shipped stock-model profile, ADR-085) with
     probability default_share, else `system` (finetuned.v2); any prompts/profiles/<name> works;
   * preferences: meta.preferences if the example has them (its target depends on them), else with
     probability preferences_share a random target-neutral entry of the preferences pool;
@@ -13,6 +13,9 @@ Examples longer than max_len are dropped, never truncated (a truncated target te
 max_len "auto" (or "auto:<cap>", default cap 4096) is derived from the really rendered examples:
 the longest one rounded up to a multiple of 64, capped. OCR contexts (ctx v2) are longer and
 noisier than v1, so a fixed number chosen on v1 data would silently drop or over-pad them.
+max_len is only a drop filter and the bound of the longest batch: batches are padded to their own
+longest example (ml/train/sft.py Collator) and grouped by length, so the few long stock-profile
+examples do not pad the rest (`padding_stats` measures it; data_stats.json records it per run).
 """
 from __future__ import annotations
 
@@ -30,7 +33,7 @@ IGNORE = -100
 @dataclass
 class PromptMix:
     system: str = "finetuned.v2"
-    default_system: str = "default.v4s"
+    default_system: str = "default.v1"
     default_share: float = 0.05
     preferences_share: float = 0.15
     preferences_pool: str | None = None
@@ -98,6 +101,20 @@ def length_stats(lengths: list[int]) -> dict:
         return {}
     q = lambda f: xs[min(len(xs) - 1, int(f * len(xs)))]  # noqa: E731
     return {"p50": q(0.5), "p90": q(0.9), "p99": q(0.99), "max": xs[-1], "mean": round(sum(xs) / len(xs), 1)}
+
+
+def padding_stats(lengths: list[int], order: list[int], batch: int, multiple_of: int = 8) -> dict:
+    """Real vs padded tokens when `order` (sampler output) is cut into batches of `batch` and each batch
+    is right-padded to its longest member rounded up to `multiple_of` (the Collator's rule)."""
+    real = padded = 0
+    for i in range(0, len(order), batch):
+        b = [lengths[j] for j in order[i:i + batch]]
+        if not b:
+            continue
+        n = -(-max(b) // multiple_of) * multiple_of
+        real += sum(b)
+        padded += n * len(b)
+    return {"real_tokens": real, "padded_tokens": padded, "efficiency": round(real / padded, 4) if padded else None}
 
 
 def build(sources: list[dict], split: str, tok, template: str, mix: PromptMix, max_len,

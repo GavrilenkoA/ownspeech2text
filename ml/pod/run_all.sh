@@ -1,14 +1,13 @@
 #!/usr/bin/env bash
-# Pod entry point. PLAN_V2: the pod is STOPPED between sessions, so the stages are split by session:
-#   session 1 (probe):  STAGES="bootstrap probe"        then stop the pod; dev server mines errors and
-#                                                       generates the ~3K synthetic set with the teacher
-#   session 2 (train):  STAGES="bootstrap train eval"   after push_code.sh WITH_DATA=1; then stop
+# Pod entry point. The training session (docs/ml/TRAINING_RUNBOOK.md section 1, one session since the final
+# data exists): STAGES="bootstrap train eval" after push_code.sh WITH_DATA=1, then sync_results.sh and stop.
+# (STAGES="bootstrap probe" is the round-trip probe stage of the earlier two-session plan.)
 # Every stage is idempotent: after any failure or stop, fix the cause and re-run the same command.
 # Run inside tmux so an SSH drop does not kill it:
 #   tmux new -s murmur "STAGES='bootstrap train eval' bash ml/pod/run_all.sh 2>&1 | tee -a /workspace/logs/run_all.log"
 # Budget guard (ml/pod/env.sh budget_check): billed pod time since the container started, summed over
 # sessions and persisted on the volume, is checked before each stage here AND before every run, step
-# and eval inside the stages; MAX_GPU_HOURS (default 5, the owner's hard cap) is never crossed by
+# and eval inside the stages; MAX_GPU_HOURS (default 4, the owner's hard cap) is never crossed by
 # starting new work, TARGET_GPU_HOURS (default 3) gates the optional runs.
 set -euo pipefail
 cd "$(dirname "$0")/../.."

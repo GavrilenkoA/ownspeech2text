@@ -85,3 +85,45 @@ def test_rescore_and_judge_cli_on_synced_dir(tmp_path):
     o = rep["summary"]["overall"]
     assert o["em"] == 1.0 and o["judge_n"] == 4 and rep["info"]["model_sha256"] == "ab" * 32
     assert rep["gates"]["ship_measurement"] is True and rep["info"]["label"] == "x Q4_0"
+
+
+def test_report_has_pass_by_set_and_stock_comparison(tmp_path):
+    """--rescore on two files (dev.v2 + a dataset-style dev file): `pass` (prompts/eval/score.py), a
+    per-file `by_set` breakdown, and the comparison with the frozen stock baselines on dev.v2. An oracle
+    (output := target) passes every dev.v2 case, raw and guarded, and beats the best stock model."""
+    from ml.eval import baseline
+    v2 = contract.REPO / "prompts/eval/sets/dev.v2.jsonl"
+    own = tmp_path / "data/dev.jsonl"
+    rows = [smoke_to_contract.convert(json.loads(l), "dev") for l in
+            (contract.REPO / "prompts/eval/smoke_cases.v2.jsonl").read_text(encoding="utf-8").splitlines()[:5]]
+    for r in rows:
+        r["id"] = "own-" + r["id"]
+    contract.write_jsonl(own, rows)
+    ev = tmp_path / "ev"
+    ev.mkdir()
+    data = contract.load([v2, own])
+    contract.write_jsonl(ev / "predictions.jsonl", [{"id": r["id"], "out": r["target"]} for r in data])
+    (ev / "report.json").write_text(json.dumps({"info": {
+        "model": "/workspace/runs/x/gguf/x-Q4_0.gguf", "data": [str(v2), str(own)], "split": None,
+        "system": "finetuned.v2", "template": "qwen3.5", "backend": "gguf", "label": "oracle"}}))
+    assert run_eval.main(["--rescore", str(ev)]) == 0
+    rep = json.loads((ev / "report.json").read_text())
+    by_set = rep["summary"]["by_set"]
+    assert set(by_set) == {"dev.v2", "dev"} and by_set["dev.v2"]["n"] == 98 and by_set["dev"]["n"] == 5
+    assert by_set["dev.v2"]["pass"] == 1.0 and rep["guarded"]["summary"]["by_set"]["dev.v2"]["pass"] == 1.0
+    cmp = rep["baseline"]["sets"]["dev.v2"]
+    assert cmp["best_stock"] == "Qwen3.5-2B" and cmp["stock"]["Qwen3.5-2B"]["guarded"]["pass"] == 0.5714
+    assert cmp["delta_pass_guarded_vs_best"] == round(1.0 - 0.5714, 4)
+    assert "Versus the stock models" in (ev / "report.md").read_text()
+    md = baseline.table([str(tmp_path)])
+    assert "### dev.v2" in md and "stock Qwen3.5-2B" in md and "| oracle |" in md
+
+
+def test_frozen_baselines_match_prompt_eval_doc():
+    """docs/ml/PROMPT_EVAL.md 0.1: pass after the guard, dev.v2 / test.v2 (cases out of 98 / 66)."""
+    from ml.eval import baseline
+    b = baseline.load()
+    want = {"Qwen3.5-2B": (56, 33), "LFM3-1.7B": (36, 21), "Qwen3.5-0.8B": (33, 21)}
+    for m, (d, t) in want.items():
+        assert b["models"][m]["dev.v2"]["pass_cases"]["guarded"] == d
+        assert b["models"][m]["test.v2"]["pass_cases"]["guarded"] == t

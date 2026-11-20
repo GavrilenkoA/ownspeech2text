@@ -27,7 +27,7 @@ read -r -a B <<<"${PHASE_B-q08-lora q2-lora}"
 # Qwen3.5-0.8B ~0.6x and Qwen3.5-2B ~1.3x of LFM3-1.7B (params, with fla kernels); full FT ~2.5x.
 declare -A RUN_COST=([lfm3-r16]=1.0 [lfm3-r64]=1.1 [lfm3-r16-lr5e-4]=1.0 [lfm3-r16-e5]=1.67 [lfm3-dora-r16]=1.3
                      [q08-lora]=0.6 [q2-lora]=1.3 [full-fallback]=2.5)
-ANCHOR_DEFAULT_S="${ANCHOR_DEFAULT_S:-1620}"  # [A] before the anchor ran: 27 min (REQUEST.md time budget)
+ANCHOR_DEFAULT_S="${ANCHOR_DEFAULT_S:-1260}"  # [A] before the anchor ran: 21 min (REQUEST.md time budget, 20 % MFU)
 FINALIST_RESERVE_S="${FINALIST_RESERVE_S:-1800}"  # [A] export_eval.sh after the matrix: 3 finalists x 3 evals + cards (30 min)
 
 # ---- preflight
