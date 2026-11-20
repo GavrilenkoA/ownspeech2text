@@ -291,3 +291,12 @@ inside the 2 s DELIVERY timer, `MurmurTestRunner` in both scripts, `AppContainer
   stored `AppRef.label`; `tools/emulator/boot.sh` has no guest-memory switch (not needed: the inner AVD already has 4 GB).
 - After WP-21 merges: rerun the DC8 dry run and the `real` suite on the inner AVD (the `:asr` probe gains the ort-qnn
   runtime keys and the catalog moves to 2026-11-20.3).
+
+## Integration notes (integration pass 8; ADR-092 in DECISIONS)
+
+Merged on `integration/wave1` in this pass: main 1dd1848 (ML training) and WP-21 (`wp/wp-21` d518381). Nothing is in
+work any more. Changes in your files: `tools/e2e/check_release_apk.sh` also fails on `libonnxruntime_providers_qnn.so`
+(WP-21's QNN plugin EP) without `-Pmurmur.qnn`, and `--control` requires it with the flag. DEVICE_CHECKLIST: DC4 gained
+WP-21's rows (26 golden pages per stage, `det_unit`, GigaAM vs CPU, NPU load ms and memory), DC8 the probe duration and
+`probe_retry`, DC9 the `det_unit` of an adopted NPU OCR run, and the legal list the plugin EP. The catalog is
+2026-11-20.3. The `real` suite and the DC8 dry run were rerun on the inner AVD in this pass (see the pass-8 notes).

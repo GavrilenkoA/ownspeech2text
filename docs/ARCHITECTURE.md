@@ -1,6 +1,6 @@
 # Murmur architecture
 
-Version 2.3 · 2026-11-20 (wave-1 integration passes 1-5, wave-2 integration pass 6, wave-3 integration pass 7: ADR-064..091) · Owner: architect. Binding for all work packages (`docs/wp/`). Owner decisions D1-D12 are
+Version 2.4 · 2026-11-20 (wave-1 integration passes 1-5, wave-2 integration pass 6, wave-3 integration passes 7-8: ADR-064..092) · Owner: architect. Binding for all work packages (`docs/wp/`). Owner decisions D1-D12 are
 quoted verbatim at the top of `docs/DECISIONS.md`; conflicts and their evidence are ADR-nnn there; review findings and
 their resolution are under "Review responses" there. Everything that only the phone can prove: `docs/DEVICE_CHECKLIST.md`
 (steps DC1-DC10).
@@ -158,6 +158,11 @@ to be replaced by a measurement).
   `-Pmurmur.qnn=true` (then only `libQnnHtp`, `libQnnSystem`, `libQnnHtpV79Stub`, `libQnnHtpV79Skel`);
   `libggml-htp-*.so` is excluded from the APK unless `-Pmurmur.htp=true` (`app/build.gradle.kts`; without it the
   `:llm` probe reports no HTP0). The DC8 device build sets both; such APKs are local and never redistributed.
+  The same `-Pmurmur.qnn=true` also packages Qualcomm's ONNX Runtime QNN plugin EP
+  (`com.qualcomm.qti:onnxruntime-android-qnn:2.7.0`, only `libonnxruntime_providers_qnn.so`, WP-21), loaded at run
+  time through `OrtEnvironment.registerExecutionProviderLibrary`; both Qualcomm AARs stay literal coordinates inside
+  the flag block of `infer/asr/build.gradle.kts`, not version-catalog entries (ADR-092). `check_release_apk.sh
+  --control` proves the release APK has neither without the flag.
 - Debug APK today: ~70 MB (ORT for two ABIs dominates). Release (arm64 only, with llama + sherpa + QNN) [I] ≈ 60-70 MB.
 
 ---
@@ -585,6 +590,13 @@ feeds `DeviceProfile`. `ensure()` never throws: a failed probe yields `DevicePro
 onboarding's pack sizes call `ensure()`. `AppContainer.start()` also calls it at every `:main` start (`:main` starts
 after the first unlock and after an update), so the probe runs then and not inside the first press: on the first
 launch per app version `:asr` and `:llm` start for a few seconds and idle out (ADR-090). On the emulator: soc null, units {CPU}.
+A `cpuOnly` fallback is never cached in the file and is retried: the first `ensure()` at least 5 min after it probes
+again within 10 s (log `probe_retry`), so a probe that failed at boot cannot keep a long-lived `:main` on CPU only
+(ADR-092). The `:asr` probe adds the ORT QNN plugin EP keys (`RuntimeKeys.qnnEp`: `ort-qnn/ppocr-det`,
+`ort-qnn/ppocr-rec`, `ort-qnn/gigaam-ctc`) only when the plugin is packaged, registers with an EP device and the QNN
+probe found the HTP (facts `qnnep.stage` = ok | no-libs | register | no-device, `qnnep.version`); in every build
+without `-Pmurmur.qnn=true` the NPU artifacts of these keys are `RUNTIME_NOT_SHIPPED` (hub: "Not supported in this
+version") and Auto never picks them.
 
 ### 8.5 Download, verify, install, prepare (WP-13; lifted from the platform spike's UIDT job)
 
@@ -669,7 +681,14 @@ two-pane reading order. Parity: post-processing fed with `golden/*.json stages.r
 full pipeline on the x86_64 emulator within the README tolerances (same line count, boxes ±2 px, ≥ 98 % identical
 texts, CER ≤ 0.5 % on the rest, conf ±0.02). Runtime ORT 1.32 default CPU EP (no XNNPACK: segfault on the recogniser,
 asr-ocr A7) behind the `OcrHandler` seam in `:asr`. NPU OCR (ORT QNN plugin EP) is prepared by WP-21 and adopted
-only if device step **DC4** shows a clear win.
+only if device step **DC4** shows a clear win at the README tolerance (ADR-059, ADR-092): on the x86_64 HTP simulator
+both fp16 stages fail it (detector on the NPU: 15 of 26 pages out, mostly 3-7 px boxes; both stages: 17 of 26 out,
+92.4 % identical lines), so it is off and stays off unless the phone disagrees. The QNN detector runs exact-shape
+contexts only (960×416, 960×864 and rotations) and the artifact's own CPU `det.onnx` for every other window shape
+(log line `det_unit=npu|cpu`); `LoadInfo.deviceName` is `QNN` (both stages on the HTP), `QNN+CPU` (one stage) or
+`cpu`. A superseded frame stops inside its model call (`OcrFrameRunner`, `RunOptions.setTerminate`). GigaAM v3 CTC
+on the HTP (`ort-qnn/gigaam-ctc`, 20 s windows fed by the `Segmenter`, `deviceName` `qnn-ep`) is within 1 pp WER of
+ORT CPU on the simulator; it too waits for DC4.
 
 ### 9.4 ctx v2 → prompt (WP-08, WP-04)
 
@@ -900,7 +919,9 @@ All of these are steps in `docs/DEVICE_CHECKLIST.md` with the script, the expect
 2. QNN 2.52 loading sherpa's QAIRT-2.40 SM8750 binaries on the real HTP, Parakeet/Nemotron NPU latency and accuracy
    vs CPU int8, QNN + ggml-hexagon sessions coexisting on the cDSP, `ADSP_LIBRARY_PATH` with `useLegacyPackaging`
    (DC3, DC8).
-3. OCR CPU vs QNN times on arm64; XNNPACK behaviour on arm64 (DC4).
+3. OCR CPU vs QNN times on arm64; XNNPACK behaviour on arm64; the QNN plugin EP 2.7.0 loading the host-compiled
+   QAIRT 2.52 contexts, NPU OCR/GigaAM accuracy vs the simulator, their load time inside the 15 s `loadAsr`/`loadOcr`
+   budget and their memory (DC4, `tools/device/ort_qnn_smoke.sh`).
 4. Real microphone samples (the emulator cannot be fed), Samsung FGS/while-in-use handling, Bluetooth headsets (DC5).
 5. One UI: restricted-settings dialog for adb/file installs, Auto Blocker, battery "Unrestricted" path, Samsung
    Keyboard composing behaviour vs `commitText`, real Telegram/Samsung apps insertion (DC6, DC10).

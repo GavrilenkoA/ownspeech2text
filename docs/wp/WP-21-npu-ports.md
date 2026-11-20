@@ -157,3 +157,21 @@ tree (`git merge-tree`); the overlap files of pass 6 (`catalog.json`, `build_cat
   tools/device/murmur_app_smoke.sh`; NPU rows are SKIPPED on the emulator, DC4 covers them on the phone.
 - Catalog: still 2026-11-20.2 on integration; the pass-5 rule for your catalog merge stands (rebuild with network checks,
   bump to "2026-11-20.3").
+
+## Integration notes (integration pass 8; ADR-092 in DECISIONS)
+
+Merged on `integration/wave1` in this pass: main 1dd1848 (ML training) and your branch (`wp/wp-21` d518381). Every
+wave-1..3 package is now merged. All your contract, cross-package and dependency changes are accepted as ADR-092
+(runtime keys and probe, `AsrEngineHost`/`AsrService`, `OcrConfigParityTest`, `deviceName` values, the two Qualcomm AARs
+as literal coordinates inside the `-Pmurmur.qnn` block, the desktop ORT test jar).
+- Catalog: the conflict was the `generated` line only; `CATALOG_VERSION` is now "2026-11-20.3", rebuilt by
+  `build_catalog.py` with network checks; against integration's .2 only your three NPU rows and the version lines differ.
+- The NPU artifacts stay on the placeholder host and unselectable (`RUNTIME_NOT_SHIPPED` in every build without the
+  flag; the hub copy "Not supported in this version" is kept). Hosting, licence and adoption are OWNER_QUESTIONS 17-19.
+- `OcrStats` gets no unit field now (your note to WP-14); the `det_unit` log field is enough while NPU OCR is off.
+- Integration fixes around you: `DeviceProfileProber` retries a `cpuOnly` fallback after 5 min (pass-7 R3: a slow
+  first probe with the QNN EP registration inside the 2 s PROBE call must not keep `:main` on CPU only);
+  `check_release_apk.sh` also checks `libonnxruntime_providers_qnn.so` (absent without the flag, present with it in
+  `--control`). DC4/DC8/DC9 carry your device notes as one-liners.
+- The `*SimulatorTest` suites stay outside the gate (they need the x86_64 HTP simulator and the contexts outside the
+  repo, about 1 h each); keep `.cache/spikes/wp-21/ctx` until the owner hosts the files.

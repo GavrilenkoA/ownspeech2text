@@ -3,7 +3,9 @@
 Collected from the work-package reports at integration. Each item: the question in plain words, what the architect
 recommends, and whether it blocks anything. Answer in any order; "go with the recommendation" is a valid answer.
 
-Updated: integration pass 7 (2026-11-20; wave 3 of WP-20 merged: the app runs on the real engines end to end, the
+Updated: integration pass 8 (2026-11-20; WP-21 merged: the NPU versions of screen reading and GigaAM, prepared and
+switched off). Pass 8 added three open questions (17-19, under "NPU ports") and two architect decisions under
+"Pass 8". Before: integration pass 7 (2026-11-20; wave 3 of WP-20 merged: the app runs on the real engines end to end, the
 debug test modes and the insertion timing fix). Pass 7 added no open question from the packages; question 16 (ML data,
 publishing) moved here from a note at the end of the file, and three architect decisions are under "Pass 7".
 Before: integration pass 6 (2026-11-20; wave 2 merged: the app shell, onboarding, History, Dashboard, Models and
@@ -44,6 +46,39 @@ no open question: its two owner items were decided or done there.
    a private HF repo at most). Training itself goes ahead.
    **Blocks:** only publishing the dataset or the fine-tuned models (and with it question 1's public download source).
    Nothing in the app or the training run.
+
+## NPU ports (WP-21)
+
+17. **Where should the compiled NPU files for screen reading and GigaAM be hosted?** (WP-21) Five files, about 530 MB
+   in total (screen-reading detector 10.7 MB and recogniser 52.5 MB, GigaAM 466.5 MB plus two small files), compiled
+   on this server for the Fold7's chip. The catalog lists them with their checksums, but at a placeholder address
+   (`owner-hosting-pending/npu-contexts`), so no build can download them and the app never offers them.
+   *Recommendation:* upload them to the same Hugging Face repo you own for question 1 (Hermes holds the token), at a
+   fixed revision `qairt-2.52.0-r1`, from `.cache/spikes/wp-21/ctx` exactly as built (the compile is not bit-for-bit
+   repeatable, so keep that folder until then). Then one constant in `core/catalog/tools/build_catalog.py` changes and
+   the catalog is rebuilt; the rebuild checks every file's size and checksum. Compiling on the phone instead would add
+   about 90 MB to the app and is not built.
+   **Blocks:** downloading the NPU versions inside the app, which only matters if question 19 adopts one. The phone
+   check DC4 does not need hosting (its script pushes the files over USB).
+18. **Licence of Qualcomm's NPU libraries.** (WP-21, ADR-005/006/048) The ONNX Runtime QNN plugin
+   (`com.qualcomm.qti:onnxruntime-android-qnn` 2.7.0) says MIT in its package description, but it only works together
+   with Qualcomm's QNN runtime (`com.qualcomm.qti:qnn-runtime` 2.52.0), whose licence text (export clause) nobody has
+   read yet. This is the same open licence item as in "Still open from architecture v2" below, now covering one more
+   library.
+   *Recommendation:* read the QNN runtime terms (or have a lawyer read them) before any build with the NPU libraries
+   leaves your own phone; until then those builds (`-Pmurmur.qnn=true`) stay local, and the release build contains no
+   QNN library at all (checked by `tools/e2e/check_release_apk.sh --control` at every integration).
+   **Blocks:** shipping any NPU speech or screen-reading library to anyone else. Nothing on your own phone.
+19. **Switch on NPU screen reading or NPU GigaAM after the phone check?** (WP-21, ADR-059) On the server's NPU
+   simulator, screen reading on the NPU does not meet the accuracy bar: with only the detector on the NPU, 15 of 26 test
+   pages are off (mostly text boxes shifted by 3-7 pixels; 3 pages merge or shift lines); with both stages on the NPU,
+   17 of 26 pages are off and 92.4 % of lines are identical (the bar is 98 %). The recogniser alone keeps 577 of 578
+   lines but its confidence drifts by 0.026 (the bar is 0.02). GigaAM on the NPU is within 1 point of the CPU word error
+   rate (5.8 % vs 6.3 % on the same 20 s windows; the unpadded CPU model gets 4.9 %).
+   *Recommendation:* keep both off (they are off now). Run DC4 on the phone; switch a part on only if its DC4 row meets
+   the accuracy bar and is clearly faster. For screen reading that probably means "stay on CPU". A "recogniser only on
+   the NPU" path with the small confidence drift is acceptable only if you (and the ML owner, for the OCR tolerance) say so.
+   **Blocks:** nothing now. Needs DC4 on the phone.
 
 ## Product behaviour
 
@@ -185,10 +220,18 @@ Pass 7 (wave 3, the finished app):
 - In the debug build, the Settings switch "Use fake engines" takes effect the next time the app starts, and it does not
   exist in the release build (ADR-090). Blocks nothing.
 
+Pass 8 (WP-21, the NPU ports):
+- The NPU versions of screen reading and GigaAM are in the catalog but cannot be chosen or downloaded in any normal
+  build: the hub shows them as "Not supported in this version" (the build does not contain the NPU library), and
+  "Auto" never picks them (ADR-092). Blocks nothing.
+- If the app's first check of the phone's NPU and CPU fails (for example right after a reboot), the app no longer stays
+  on the CPU until the next restart: it checks again 5 minutes later, the next time it needs the answer (ADR-092).
+  Blocks nothing; the check's duration is recorded in DC8.
+
 ## Still open from architecture v2 (unchanged, listed for completeness)
 
 - **Licences** (blocks shipping any NPU library; DC8 APKs stay local until then): Hexagon SDK Community Edition
-  redistribution of `libggml-htp-v79.so`; the `qnn-runtime` licence (export clause). See `docs/DEVICE_CHECKLIST.md`.
+  redistribution of `libggml-htp-v79.so`; the `qnn-runtime` licence (export clause), see question 18. See `docs/DEVICE_CHECKLIST.md`.
 - **"NPU for all models"** is not met in v1 (VAD and T-one stay CPU; OCR and GigaAM NPU after DC4): sign-off needed
   (ADR-059).
 - Metrics kept 90 days independent of history retention (ADR-035).
