@@ -1,7 +1,7 @@
 {
  "schema": 1,
  "catalogVersion": "2026-11-20.3",
- "generated": "2026-11-20 by core/catalog/tools/build_catalog.py (network-verified); 5 NPU context files pending host, not verified (sha256 from native/qnn-contexts/manifest.json)",
+ "generated": "2026-11-20 by core/catalog/tools/build_catalog.py (network-verified)",
  "defaults": {
   "asr": {
    "ru+en": "parakeet-tdt-0.6b-v3",
@@ -502,31 +502,31 @@
      "files": [
       {
        "name": "gigaam_ctc_20s.onnx",
-       "url": "https://huggingface.co/owner-hosting-pending/npu-contexts/resolve/qairt-2.52.0-r1/gigaam-v3-e2e-ctc--qnn-sm8750-20s/gigaam_ctc_20s.onnx",
+       "url": "https://huggingface.co/satoshiNakomoroReal/npu-contexts/resolve/qairt-2.52.0-r1/gigaam-v3-e2e-ctc--qnn-sm8750-20s/gigaam_ctc_20s.onnx",
        "bytes": 949,
        "sha256": "70497199684cf722f681c78181c469f606e3a9c551f8eba4539e35577a8e3549",
        "source": "huggingface",
-       "repo": "owner-hosting-pending/npu-contexts",
+       "repo": "satoshiNakomoroReal/npu-contexts",
        "revision": "qairt-2.52.0-r1",
        "path": "gigaam-v3-e2e-ctc--qnn-sm8750-20s/gigaam_ctc_20s.onnx"
       },
       {
        "name": "gigaam_ctc_20s_qnn.bin",
-       "url": "https://huggingface.co/owner-hosting-pending/npu-contexts/resolve/qairt-2.52.0-r1/gigaam-v3-e2e-ctc--qnn-sm8750-20s/gigaam_ctc_20s_qnn.bin",
+       "url": "https://huggingface.co/satoshiNakomoroReal/npu-contexts/resolve/qairt-2.52.0-r1/gigaam-v3-e2e-ctc--qnn-sm8750-20s/gigaam_ctc_20s_qnn.bin",
        "bytes": 466452480,
        "sha256": "22941ae9b35d36ac9961e967aabb707eeb0eda29144456932e8cf8e3d95b642a",
        "source": "huggingface",
-       "repo": "owner-hosting-pending/npu-contexts",
+       "repo": "satoshiNakomoroReal/npu-contexts",
        "revision": "qairt-2.52.0-r1",
        "path": "gigaam-v3-e2e-ctc--qnn-sm8750-20s/gigaam_ctc_20s_qnn.bin"
       },
       {
        "name": "vocab.txt",
-       "url": "https://huggingface.co/owner-hosting-pending/npu-contexts/resolve/qairt-2.52.0-r1/gigaam-v3-e2e-ctc--qnn-sm8750-20s/vocab.txt",
+       "url": "https://huggingface.co/satoshiNakomoroReal/npu-contexts/resolve/qairt-2.52.0-r1/gigaam-v3-e2e-ctc--qnn-sm8750-20s/vocab.txt",
        "bytes": 2007,
        "sha256": "142de7570b3de5b3035ce111a89c228e80e6085273731d944093ddf24fa539cd",
        "source": "huggingface",
-       "repo": "owner-hosting-pending/npu-contexts",
+       "repo": "satoshiNakomoroReal/npu-contexts",
        "revision": "qairt-2.52.0-r1",
        "path": "gigaam-v3-e2e-ctc--qnn-sm8750-20s/vocab.txt"
       }
@@ -1888,11 +1888,11 @@
      "files": [
       {
        "name": "det_contexts.zip",
-       "url": "https://huggingface.co/owner-hosting-pending/npu-contexts/resolve/qairt-2.52.0-r1/pp-ocrv6-tiny-det--qnn-sm8750/det_contexts.zip",
+       "url": "https://huggingface.co/satoshiNakomoroReal/npu-contexts/resolve/qairt-2.52.0-r1/pp-ocrv6-tiny-det--qnn-sm8750/det_contexts.zip",
        "bytes": 10720059,
        "sha256": "5a1fbf039762017d3407e4887dcd10675d8523a2a59ef2acc8cdf5ac3f17ad32",
        "source": "huggingface",
-       "repo": "owner-hosting-pending/npu-contexts",
+       "repo": "satoshiNakomoroReal/npu-contexts",
        "revision": "qairt-2.52.0-r1",
        "path": "pp-ocrv6-tiny-det--qnn-sm8750/det_contexts.zip",
        "archive": "zip"
@@ -2000,11 +2000,11 @@
      "files": [
       {
        "name": "rec_contexts.zip",
-       "url": "https://huggingface.co/owner-hosting-pending/npu-contexts/resolve/qairt-2.52.0-r1/pp-ocrv5-cyrillic-mobile-rec--qnn-sm8750/rec_contexts.zip",
+       "url": "https://huggingface.co/satoshiNakomoroReal/npu-contexts/resolve/qairt-2.52.0-r1/pp-ocrv5-cyrillic-mobile-rec--qnn-sm8750/rec_contexts.zip",
        "bytes": 52500807,
        "sha256": "3203f2d35ad07289c5222543eb93942b9586f7c227ebe43054066bed61c7cf60",
        "source": "huggingface",
-       "repo": "owner-hosting-pending/npu-contexts",
+       "repo": "satoshiNakomoroReal/npu-contexts",
        "revision": "qairt-2.52.0-r1",
        "path": "pp-ocrv5-cyrillic-mobile-rec--qnn-sm8750/rec_contexts.zip",
        "archive": "zip"

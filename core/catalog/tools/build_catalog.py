@@ -140,14 +140,13 @@ def gh_file(repo: str, tag: str, path: str, bytes_: int, sha256: str, archive: s
 # WP-21: the ORT QNN plugin EP artifacts are our own host compiles (native/qnn-contexts/compile.sh, QAIRT 2.52 via
 # onnxruntime-qnn 2.8.0, SM8750). Their bytes and sha256 come from the committed build manifest; QNN compiles are not
 # bit-reproducible, so the pinned files are exactly the ones that build wrote (and the simulator suite checked).
-# Hosting is an owner decision (docs/OWNER_QUESTIONS.md, WP-21): NPU_CTX_REPO is a neutral placeholder until the owner
-# names the HF repo (the product name stays out of it, ADR-036), so the URLs answer 404 and the files are listed as
-# "pending host" in the catalog's generated line. With the owner's answer: upload the files at that revision, set the
-# repo here and rebuild (the network run then checks size and sha256 of each). No shipped build offers these downloads:
+# Hosting is the owner's HF repo (docs/OWNER_QUESTIONS.md, WP-21 answered 2026-11-20): the files are uploaded by
+# tools/models/publish_npu_contexts.sh at the tagged revision named below, so the URLs answer and the network run
+# checks size and sha256 of each. No shipped build offers these downloads without a -Pmurmur.qnn=true build:
 # the ort-qnn runtimes are reported only by a -Pmurmur.qnn=true build whose QNN EP registered (RuntimeKeys.qnnEp,
 # ADR-048/059).
 QNN_CTX_MANIFEST = json.loads((REPO / "native/qnn-contexts/manifest.json").read_text(encoding="utf-8"))
-NPU_CTX_REPO = "owner-hosting-pending/npu-contexts"
+NPU_CTX_REPO = "satoshiNakomoroReal/npu-contexts"
 NPU_CTX_REVISION = "qairt-2.52.0-r1"
 # NPU context files whose host did not answer (network run) or that were not checked (--offline): not verified.
 NPU_CTX_PENDING: list[str] = []

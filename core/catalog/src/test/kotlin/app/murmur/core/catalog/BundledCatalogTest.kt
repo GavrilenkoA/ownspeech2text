@@ -19,13 +19,15 @@ class BundledCatalogTest {
     }
 
     @Test
-    fun filesOnThePendingNpuHostAreOnlyOnRuntimesNoBuildImplements() {
-        // ADR-093 (pass-8 verification m2): the placeholder namespace of the NPU context files is a public HF name that
-        // anyone could register. Its files stay sha256-pinned and only on the ort-qnn runtimes, which are never in
+    fun npuContextFilesComeFromTheOwnersRepoAndStayPinned() {
+        // OWNER_QUESTIONS 17 answered 2026-11-20: the compiled contexts live in the owner's public HF repo, at a tagged
+        // revision, sha256-pinned per file. They stay on the ort-qnn runtimes only, which are never in
         // RuntimeKeys.implemented: RUNTIME_NOT_SHIPPED in every build without -Pmurmur.qnn, never picked by Auto.
-        val pending = catalog.models.flatMap { m -> m.artifacts.flatMap { a -> a.files.filter { it.repo == NPU_PENDING_REPO }.map { a to it } } }
-        for ((a, f) in pending) {
-            assertTrue("${a.id}: ${a.runtime}", a.runtime in RuntimeKeys.qnnEp && a.runtime !in RuntimeKeys.implemented)
+        val npu = catalog.models.flatMap { m -> m.artifacts.filter { it.runtime in RuntimeKeys.qnnEp }.flatMap { a -> a.files.map { a to it } } }
+        assertTrue("the catalog carries no NPU context files", npu.isNotEmpty())
+        for ((a, f) in npu) {
+            assertEquals("${a.id}/${f.name}", NPU_CTX_REPO, f.repo)
+            assertTrue("${a.id}: ${a.runtime}", a.runtime !in RuntimeKeys.implemented)
             assertTrue("${a.id}/${f.name}", f.sha256.matches(Regex("[0-9a-f]{64}")) && f.bytes > 0)
         }
     }
@@ -155,5 +157,5 @@ class BundledCatalogTest {
     }
 }
 
-/** build_catalog.py NPU_CTX_REPO until OWNER_QUESTIONS 17 is answered. */
-private const val NPU_PENDING_REPO = "owner-hosting-pending/npu-contexts"
+/** build_catalog.py NPU_CTX_REPO (OWNER_QUESTIONS 17 answered 2026-11-20). */
+private const val NPU_CTX_REPO = "satoshiNakomoroReal/npu-contexts"
