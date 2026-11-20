@@ -1,8 +1,9 @@
 # Data card — Murmur cleanup fine-tune (PLAN_V2 stage C, CONTEXT_V2)
 
-Status 2026-11-19 (review fixes applied): the generator is built and tested; a 216-scenario proof ran end to end with the real teacher,
-the real round-trip noise tables and the real render + OCR path. The full 3K set has NOT been generated yet
-(one command, below). Code: `ml/data/` (README there), records: shared contract in `ml/common/schema.py`.
+Status 2026-11-20: **the full set is generated and assembled** (section 5): 2,997 train + 300 dev + 300 test records
+in `.cache/ml/data/final/` (`python -m ml.train.assemble` output, the `DATA_DIR` of `docs/ml/TRAINING_RUNBOOK.md`),
+built by `make -C ml/data synth` into `.cache/ml/data/synth_v2/`. Code: `ml/data/` (README there), records: shared
+contract in `ml/common/schema.py`.
 
 ## 1. What one example is
 
@@ -10,7 +11,7 @@ the real round-trip noise tables and the real render + OCR path. The full 3K set
 `ctx` is ctx v2 (`docs/ml/CONTEXT_V2.md`): app + focused field from the scenario (accessibility side, exact),
 `screen.lines` = output of the app's OCR pipeline (`ml/ocr`, `ocr.v1`) on a rendered phone screenshot
 (`ml/screens`), absent when there is no screenshot. The prompt is not stored; training and eval render it with
-`prompts/render.py`. `meta` carries: teacher model + prompt version (`gen.v6`), scenario id/group, the spoken
+`prompts/render.py`. `meta` carries: teacher model + prompt version (`gen.v7`), scenario id/group, the spoken
 text, ASR model id and every noise op (`meta.noise`), disfluency ops, the garble of the hard term or surname,
 entities / distractors / injection, and `meta.screen` = render spec + render parameters + OCR pipeline version
 (enough to rebuild the ctx; PNGs are not kept).
@@ -19,8 +20,8 @@ entities / distractors / injection, and `meta.screen` = render spec + render par
 
 | Source | Role | Licence | Status |
 |---|---|---|---|
-| Synthetic (`ml/data/generate.py`) | primary: train/dev/test | targets and screen content are outputs of a proprietary hosted model (`gpt-6.2-sol`) reached with the owner's account; **terms of use for training on its outputs UNCONFIRMED, see 2a** | proof run done, full run pending |
-| ASR noise: `ml/roundtrip/samples/mined/real` | error tables mined from a real text -> TTS -> ASR probe (837 rows, 11 ASR models) | owned by ml/roundtrip | used via `ml/roundtrip/mine/noise.py` |
+| Synthetic (`ml/data/generate.py`) | primary: train/dev/test | targets and screen content are outputs of a proprietary hosted model (`gpt-6.2-sol`) reached with the owner's account; **terms of use for training on its outputs UNCONFIRMED, see 2a** | full set generated 2026-11-20 (section 5) |
+| ASR noise: `ml/roundtrip/samples/mined/full` | error tables mined from the full text -> TTS -> ASR round trip (8,878 rows after the row rules, 968 clips, 12 ASR models; the small probe's `mined/real` was used for the proof runs) | owned by ml/roundtrip | used via `ml/roundtrip/mine/noise.py` |
 | Screens: `ml/screens` + `ml/ocr` | render + OCR = ctx | fonts OFL/Apache (see ml/screens/README) | used via `build_ctx` |
 | Public cleanup sets (`ml/data/public/`) | optional secondary source, frozen | see section 6 | converted 2026-11-18, not mixed into the synthetic set |
 
@@ -28,8 +29,8 @@ entities / distractors / injection, and `meta.screen` = render spec + render par
 
 - **Who wrote what.** Every `target`, every `spoken` text and all screen content (titles, messages, snippets) were
   written by the teacher `gpt-6.2-sol` (PLAN_V2: the owner's Hermes agent's hosted "codex" model behind a local
-  proxy speaking the OpenAI Responses API), prompt `gen.v6` (`ml/data/synth/teacher_prompts.py`), generated
-  2026-11-18/19 on the owner's server. Each record carries `meta.teacher` and `meta.gen`; each run writes
+  proxy speaking the OpenAI Responses API), prompt `gen.v7` (`ml/data/synth/teacher_prompts.py`; the proof runs used `gen.v4`-`gen.v6`), generated
+  2026-11-18/19 (proof runs) and 2026-11-20 (full set) on the owner's server. Each record carries `meta.teacher` and `meta.gen`; each run writes
   `stats.json: provenance` (teacher, API, date, prompt, terms status). Code-made parts: transcripts (ASR noise
   from `ml/roundtrip` mined tables), rendered screens + OCR (`ml/screens`, `ml/ocr`), noise_only examples.
 - **No third-party text is copied** into the synthetic set (no scraped or public-dataset text); the public sets of
@@ -81,9 +82,13 @@ Apps: `app.category` comes only from the shared `prompts/tones/app_categories.v1
 chat, Slack/Teams/Mattermost -> work chat, browsers -> page/search, calendars and AI apps for `default`); address
 fields only in mail apps (e-mail) and browsers (URL); no prose into a terminal (the `code` style is unused until
 the shared table lists a non-terminal code app).
-No-screen reasons (exact shares inside the "no screen" part): secure window 30, denylisted app 25, OCR found
-nothing 20, screenshot error 15, password field 10 (continuation never gets an app-only reason, because that
-privacy level hides the text before the cursor). Screens: Fold7 cover 60 % / inner 40 %, light 60 / dark 40,
+No-screen reasons (weights inside the "no screen" part): secure window 30, denylisted app 25, OCR found
+nothing 20, screenshot error 15. `privacy.level` is read from the shared table `prompts/render.py NO_SCREEN_LEVEL`
+(ADR-070: secure window, denylisted app -> `app_only`; screenshot error, OCR empty -> `full`), never copied.
+A password field is never generated: the app does not run the LLM there (ADR-070, level `none`), so such a
+context never reaches the model; `ml.data.recheck` rejects a stored one (`privacy:reason_not_generated`) and any
+level that differs from the table (`privacy:level_mismatch`). Continuation never gets an app-only reason, because
+that privacy level hides the text before the cursor. Screens: Fold7 cover 60 % / inner 40 %, light 60 / dark 40,
 font scale 0.9-1.3, keyboard shown on 70 % of screens with a field, UI locale = dictation language with 15 % swapped.
 
 ## 4. How an example is made and checked
@@ -97,11 +102,13 @@ font scale 0.9-1.3, keyboard shown on 70 % of screens with a field, UI locale = 
    `<context>` block: resolution/names: the term/name spelled exactly; near miss: distractor present, said item
    absent; counterpart: term and close variants (case-folded, edit distance <= 2, <= 1 for <= 4 letters) absent
    after a re-render without the supporting items; injection: visible (fuzzy). One re-render with the other theme
-   and another font scale, then the example is dropped and counted per category and term.
+   and another font scale, then the example is dropped and counted per category and term. On chat screens the
+   injected text is always another person's message (the title is cut to one short line there and snippets show
+   only sometimes); `meta.injection.planned_where` keeps the planner's choice.
 4. **Transcript**: spoken -> garble of the hard term (mined manglings first; English-style when the term sits in
    an English clause) or surname -> disfluencies (only fillers the deployed prompt deletes; each hesitation sound and
    repeat survives with the ASR model's rate, `ml/data/probe/disfluency_render.v1.json`) -> ASR channel of one of
-   11 real ASR models (mined style, confusions, deletions, insertions, digits-vs-words; English clauses of
+   12 real ASR models (mined style, confusions, deletions, insertions, digits-vs-words; English clauses of
    code-switched speech simulated as English by recognisers that write Latin) -> hallucinated tail for
    asr_artifact. Realism guards: a substitution must sound like the word (phonetic similarity >= 0.45 for 4+
    letters, >= 0.34 shorter, or a known function-word swap), an insertion must be a function word or filler, a
@@ -109,7 +116,15 @@ font scale 0.9-1.3, keyboard shown on 70 % of screens with a field, UI locale = 
    models whose manglings show them; Cyrillic-writing models get a phonetic transliteration instead). Retried with
    new seeds until the target is recoverable from transcript + context: every content word heard (same script:
    spelling similarity >= 0.6, other script: phonetic >= 0.75, never from a single letter) or on screen, and every
-   number heard or on screen.
+   number heard or on screen. Full-run additions (2026-11-20): (a) a hard term's mined garble for English speech
+   comes only from English sentences (a mixed sentence's `декод` is not how a recogniser writes "decode" inside
+   English speech); (b) a spoken term the channel garbled may be written correctly in the target without screen
+   support only when the garble is a spelling variant of it (`docusign`, `Elastic Search`), a Cyrillic rendering
+   that sounds like it (`докир`, `Джира`), a letter-by-letter acronym (`ди эн эс`) or a near-identical Latin
+   misspelling of a 5+ letter term (`Confloence`); another word (`Traffic` for Traefik, `Equalization` for
+   quantization, `EWS` for AWS) is retried with a new seed (`unsupported_term_garble`), because nothing in the input
+   says which word was meant; (c) a context-resolution scenario that has a counterpart retries a Latin garble on
+   its first three attempts (the pair needs a Cyrillic rendering the no-context target can keep).
 5. **Filters** (deterministic; any doubt rejects): contract/schema, translation or script shift, novel or dropped
    content words, number multiset, length ratio, answers/preambles, commands or correction markers left,
    lists not formatted, distractor or injection in target, continuation repeats or mis-cased, address shape,
@@ -121,41 +136,123 @@ font scale 0.9-1.3, keyboard shown on 70 % of screens with a field, UI locale = 
 7. **Review list**: kept records whose target has a content word found in none of spoken / transcript / screen
    go to `OUT/review.jsonl` for a human pass before training.
 
-## 5. Measured (proof run 2026-11-19, `.cache/ml/data/synth_runs/proof_v7`, after the review fixes)
+## 5. The full set (2026-11-20, `.cache/ml/data/synth_v2` -> `.cache/ml/data/final`)
 
-Command: `tools/with-teacher tools/heavy .cache/ml/ocr/venv/bin/python -m ml.data.generate --out
-.cache/ml/data/synth_runs/proof_v7 --limit 216 --max-requests 45 --mined ml/roundtrip/samples/mined/real --workers 3
---screens real` (stats: `proof_v7/stats.json`, report: `proof_v7/REPORT.md`). Prompt `gen.v6`; the two tweaks made
-after reading it (`gen.v7`: "never copy the quoted illustrations"; long-word substitution threshold 0.55; filter
-`copied_prompt_example`) were applied to its output post hoc: 8 of 198 records fail them and are left out of the
-committed sample.
+Commands: `make -C ml/data synth STAGE=teacher` (teacher shards), then `make -C ml/data synth` (build from the shards,
+0 requests), then `python -m ml.train.assemble --out .cache/ml/data/final .cache/ml/data/synth_v2/{train,dev,test}.jsonl`.
+Defaults in `ml/data/Makefile`: N 3000 / DEV 300 / TEST 300, `--mined ml/roundtrip/samples/mined/full`, 5 build workers,
+real screens, the `RESERVE` cells below. Logs: `.cache/ml/data/synth_runs/full_teacher*.log`, `full_build{1..4}.log`.
 
 | stage | measured |
 |---|---|
-| teacher | 38 requests (all new), 0 failures, 0 retries; p50 latency 22.2 s; 429.3 s wall at concurrency 2 (= 11.3 s per request); 2.8K input + 0.9K output tokens per request |
-| render + OCR | 227 screens: render 0.89 s, OCR 2.36 s CPU per screen; build wall 254.8 s with 3 workers |
-| yield | 216 teacher examples -> 199 after build + filters -> 198 after dedup (70 / 62 / 66 train/dev/test); 0 eval-contaminated, 0 on the review list |
-| drops | implausible ASR noise 7 (new guards), dropped_content 7, OCR rules 8 (injection 3, name 2, distractor 2, term 1), term not in spoken 2, asr_unrecoverable 2, one each: correction marker, abbreviation garble, length ratio, novel content, number mismatch, duplicate |
-| ctx | 161 with screen, 37 without (secure window 14, denylisted 12, screenshot error 6, OCR empty 3, password 2), 15 without field, 1 re-rendered |
-| ASR disfluency | hesitation tokens per 100 transcript words: Whisper large-v3-turbo 0.16, medium 0.0, small 1.57, distil 0.65, Parakeet 0.45-0.56, GigaAM 0.65-0.9, Nemotron 1.0-2.1, T-one 0.0 (`stats.json: asr_disfluency`, next to each model's render profile and mined WER) |
-| checks | `ml.data.recheck` 198/198 pass with the current renderer; `ml.common.validate --strict` 0 invalid; `ml.data.contam` 0 records and 0 prompt phrases near an eval item; leakage none |
+| teacher | 686 batches answered (633 primary batches of 6 scenarios + 53 reserve batches), 0 failed; one HTTP 502 retried once, no HTTP 429; 6,705 s + 664 s + 132 s wall at concurrency 2 (about 10.7 s per request, p50 latency 20.5 s); 1.98M input + 0.66M output tokens; 4,087 teacher examples (3,788 primary + 299 reserve scenarios) |
+| reserves | measured yields (scratch builds of the first answers, 0 requests) were below the 1.15 over-generation for a few cells: context_resolution 0.79, counterpart per paired scenario 0.60, near_miss 0.70, injection 0.78. Reserve scenarios (`--reserve`, another seed's plan, sorted after every primary scenario, batched apart so no answered batch changes): train CR 150, near_miss 58, injection 24, list 5, address 6; dev/test CR 15 each, near_miss 6, injection 3, list 1; dev names 4, address 2. 218 final records come from reserves |
+| build | 4,170 scenarios -> 4,014 render + OCR calls; render 1,838 s + OCR 4,819 s CPU; 1,340 s wall with 5 workers at nice 15 in a 24 GB scope. Built four times from the same shards while fixing the generator (section 5.2); each rebuild 0 requests, 20-27 min |
+| yield | 4,105 survivors of build + filters + dedup (`survivors.jsonl`) -> exact counts per (split, category) -> 3,599 (2,999 / 300 / 300) -> `ml.train.assemble` drops 2 train noise transcripts that also occur in dev/test -> **2,997 / 300 / 300** |
+| shortfall | train noise_only 57 of 60 (code-made: 59 survived build + dedup, assembly removed 2 whose transcript also occurs in dev/test; the generator now keeps a noise transcript in one split); every other cell exact |
+| drops (build 4) | OCR rules 188 (near-miss distractor not readable 69, term not readable 56, injection not visible 38, name 20, counterpart term still visible 3, said item on screen 2), counterpart Latin garble 49, ASR not recoverable 30, no garble 23, novel content 20, implausible noise 19, unsupported term garble 17, said term garbled 17, term not in spoken 15, length ratio 9, exact duplicate 7, prompt-echo cap 6, eval contamination 4, others 25 |
+| ctx | 2,982 with screen, 617 without (secure window 199, denylisted app 176, screenshot error 119, OCR empty 123; no password field, ADR-070), 212 without field, 52 re-rendered once; Fold7 cover 1,771 / inner 1,211 screens |
+| apps | messaging 1,016, work_chat 868, email 532, notes 518, search 310, default 248, social 107 |
+| ASR models | all 12: Whisper large-v3-turbo 491, Parakeet TDT 448, Parakeet Ultra 391, Whisper medium 379, Whisper small 292, Nemotron 3.5 267, GigaAM RNNT 231, GigaAM CTC 220, Qwen3-ASR 201, T-one 164, distil 102, Nemotron EN 54; code-made (no_op, near_no_op, noise_only) 359 |
+| checks | `ml.data.recheck` 3,599/3,599 with the current `prompts/render.py`; `ml.common.validate --strict` 0 invalid in every split (ctx against `prompts/context.schema.v2.json`), also after assembly; `ml.data.contam --prompt --data`: 0 records and 0 of 73 prompt phrases near any of 1,185 eval texts (`prompts/eval/sets/*.jsonl` incl. dev/test.v2, v2dense, v2fx, v1 + `smoke_cases*.jsonl`), 4 records dropped at generation for that reason; scenario groups across splits 0; dev/test terms, people, injection strings in train 0; train targets with a char-5-gram near duplicate (Jaccard >= 0.8) in dev/test 0; review list 1 record |
 
-Effect of the noise guards alone (offline A/B on the 216 `proof_v6` teacher examples, fixture screens, 0 requests):
-199 kept; the guards cost 5 examples whose every seed stayed implausible (`implausible_noise`) and 5 counterparts
-whose term now garbles the English way inside an English clause (`counterpart_latin_garble`); 2 Latin garbles
-became Cyrillic transliterations and 18 code-switched transcripts were simulated clause by clause.
+### 5.1 Final mix (`.cache/ml/data/final`)
+
+| category | train | dev | test | share of train |
+|---|---:|---:|---:|---:|
+| plain | 360 | 36 | 36 | 12.0 % |
+| context_resolution | 330 | 33 | 33 | 11.0 % |
+| self_correction | 300 | 30 | 30 | 10.0 % |
+| numbers | 210 | 21 | 21 | 7.0 % |
+| context_counterpart | 210 | 21 | 21 | 7.0 % |
+| near_miss | 180 | 18 | 18 | 6.0 % |
+| no_op | 180 | 18 | 18 | 6.0 % |
+| context_names | 150 | 15 | 15 | 5.0 % |
+| formatting_commands | 150 | 15 | 15 | 5.0 % |
+| dictated_question | 120 | 12 | 12 | 4.0 % |
+| injection | 120 | 12 | 12 | 4.0 % |
+| context_irrelevant | 90 | 9 | 9 | 3.0 % |
+| list | 90 | 9 | 9 | 3.0 % |
+| dictated_command | 90 | 9 | 9 | 3.0 % |
+| continuation | 90 | 9 | 9 | 3.0 % |
+| meaningful_filler | 60 | 6 | 6 | 2.0 % |
+| near_no_op | 60 | 6 | 6 | 2.0 % |
+| address | 60 | 6 | 6 | 2.0 % |
+| noise_only | 57 | 6 | 6 | 1.9 % |
+| ai_addressed | 45 | 5 | 5 | 1.5 % |
+| asr_artifact | 45 | 4 | 4 | 1.5 % |
+| **total** | **2,997** | **300** | **300** | |
+
+Languages: train ru 1,413 (47.1 %) / en 821 (27.4 %) / mixed 763 (25.5 %); dev 141 / 82 / 77; test 149 / 80 / 71.
+Empty targets (noise_only): 57 / 6 / 6.
+
+**Token lengths of rendered examples** (`ml.eval.contract.render_prompt` -> `prompts/render.py`, all 3,597 records,
+tokenizers of the base models; prompt = system + context + transcript up to the assistant header, completion =
+target + end-of-turn):
+
+| profile | tokenizer | prompt p50 / p90 / p95 / p99 / max | completion p50 / p90 / p99 / max | total p50 / p95 / p99 / max |
+|---|---|---|---|---|
+| finetuned.v2 (95 % of training) | Qwen3.5 | 286 / 372 / 398 / 459 / 547 | 22 / 55 / 109 / 150 | 310 / 443 / 515 / 687 |
+| finetuned.v2 | LFM3 | 295 / 391 / 419 / 486 / 592 | 25 / 67 / 139 / 190 | 322 / 480 / 572 / 761 |
+| default.v4s (5 % mix) | Qwen3.5 | 2,171 / 2,257 / 2,283 / 2,344 / 2,432 | as above | 2,195 / 2,328 / 2,400 / 2,572 |
+| default.v4s | LFM3 | 2,234 / 2,330 / 2,358 / 2,425 / 2,531 | as above | 2,261 / 2,419 / 2,511 / 2,700 |
+
+Mean total with finetuned.v2: 317 (Qwen3.5) / 332 (LFM3) tokens, below the runbook's 395-token planning figure.
+`max_len: auto` is set by the default.v4s share (longest 2,700 LFM3 tokens -> 2,752); no example exceeds 4,096.
+
+### 5.2 Quality pass (generator fixed and rebuilt from the shards, no record edited)
+
+Read: the first teacher answers built early (370 records of two scratch builds) and 106 final records of builds 1-3, stratified over all 21 categories, ru/en/mixed, with and without screen and field; plus a scripted audit of every
+final record (`rule_errors` of `ml.data.recheck` on the OCR lines and the rendered block, pool terms written in the
+target but absent from the transcript and the screen, distractors and injection strings in targets, answer-length
+targets of questions/commands/AI prompts). Final audit: 0 CONTEXT_V2 rule failures, 0 counterparts writing their term,
+0 near-miss targets taking the distractor, 0 injection strings or obeyed injections in targets, 0 answer-like targets.
+Defects found, each fixed in the generator and verified on the next build:
+
+1. **Terms restored without context.** The channel's mined manglings turned a spoken term into another word and the
+   target still wrote the term (`Traffic` -> Traefik, `Equalization` -> quantization, `EWS` -> AWS); 13 records of
+   build 2 by the final rule. Now retried unless the garble is a spelling variant / phonetic Cyrillic rendering / one letter
+   off, or the term is on screen (section 4, 4b); 17 scenarios dropped where every seed failed.
+2. **English speech borrowed Cyrillic manglings** from mixed sentences (`декод`, `ранчер` inside English; 5 of 154
+   early en records). Fixed in `_term_variants_mined`.
+3. **Deleted words the target restores from nothing** (`So ask Dmitri Gallagher to drive` -> `Can you ask ...?`;
+   deleted `не`, `почему`, `can`, `you`; 53 records of build 1). Now only prepositions, conjunctions and articles may
+   be lost (`DELETABLE`), else the attempt is retried.
+4. **noise_only collapsed to 9 of 60** (a dozen fixed strings, exact-duplicate filter). Now varied hesitation
+   spellings/punctuation per recogniser style plus subtitle hallucinations; at most 3 records per transcript, never
+   across splits.
+5. **Counterparts silently lost** (213 of 252): the exact-count cut dropped context-resolution parents whose
+   counterpart had survived. Selection now prefers those parents and draws counterparts only from selected parents.
+6. **Injection on chat screens** placed in the title (cut to one short line) or a snippet (shown only sometimes):
+   now always a message there; injection yield 0.67 -> 0.78.
+7. **False rejects** (deterministic filters): ordinals `в` of `в-третьих`, `question` of "question mark", number
+   scale words (`hundred`), spoken symbols of file names (`config dot yaml`), hyphenated term parts, the user's own
+   "Here's my plan:" taken as a preamble, number-rule examples of the prompt (`к девяти утра`) taken as copied
+   illustrations, `Yes` said by the user taken as an obeyed injection, digits shifting the script share. 79 build-1
+   rejects pass now; the strict rules themselves are unchanged.
+8. **near_no_op without a defect** (5 search queries already lowercase, unpunctuated): the recogniser's capital or
+   final period is the defect now. **Prompt echo**: the false friend "точка сбора" (the prompt's illustration
+   reworded) in 12 formatting examples: capped at 3 per split.
+
+Left as known, judged acceptable: restorations of well-known terms from close misspellings or Cyrillic renderings
+without screen support (about 220 (record, term) pairs in the 2,447 records outside the context categories, e.g. `Teraform` -> Terraform, `фигма` ->
+Figma, `рост` -> Rust), which rule 7 of the teacher prompt asks for; Cyrillic address words transliterated by the
+teacher (`Гриндата точка ру` -> `greendata.ru`), inherently ambiguous; work-chat targets that wrap a file path in
+backticks the user did not dictate (seen once); the screen generator's notification-permission dialog can cover
+the content OCR needs (seen in one dropped near-miss example, `distractor_not_readable`).
+
+### 5.3 Proof runs (2026-11-18/19)
+
+Four proof runs of 216 teacher scenarios each (`proof_v4` .. `proof_v7`, 143 requests) tuned the generator before the
+full run; `proof_v7`: 38 requests, 216 -> 198 records, 2 of them with the no-screen reason `password_field` that is no
+longer generated (recheck now rejects them).
 
 **Disfluency probe** (`make disfl-probe`, 2026-11-19): 32 disfluent sentences x 3 CPU TTS systems -> 12 ASR models,
 724 hypotheses, 814 s wall. Repeats of 3+ letter words kept: Whisper large-v3-turbo 6 %, medium 24 %, small 29 %,
 distil 22 %, Parakeet 53-59 %, Nemotron 22-53 %, Qwen3-ASR 53 %, GigaAM 63 %, T-one 63 %. TTS-read hesitations
 kept 23-79 % (upper bound, see section 7). Table: `ml/data/probe/disfluency_render.v1.json`.
 
-**Full set projection** (3,000 + 300 + 300, over-generation 1.15): 3,871 scenarios, 3,788 teacher scenarios in
-633 requests (-> about 2.0 h at concurrency 2 and 11.3 s per request; shared quota: run it once), about 3,460
-screens (-> about 65 min with 3 build workers, about 40 min with 5). Expected total about 2.7-3.1 h wall, CPU only.
-Command: `make -C ml/data synth`.
-
-**Manual review** (40 records of `proof_v7` read by a native ru/en reader, stratified over all 21 categories, after
+**Proof-run review** (40 records of `proof_v7` read by a native ru/en reader, stratified over all 21 categories, after
 122 on earlier runs): targets are faithful (no answers, no translations, no executed commands; numbers, lists,
 formatting commands, code-switched clauses and surnames restored from the screen are correct; "Слушай" is no longer
 injected as a filler). Code-switched transcripts now keep the English clause in English. Defects found and handled:
@@ -166,7 +263,7 @@ another valid word (`сохранить -> сравнить`, `приходят 
 restores a function word the ASR deleted (`you like` -> `If you like`); one target capitalises a place name the
 speaker said in lowercase (`Design Museum` in a search query).
 
-Committed sample: `ml/data/samples/synth_v2.sample.jsonl` (190 records of `proof_v7`).
+Committed sample: `ml/data/samples/synth_v2.sample.jsonl` (200 train records of the full set, all 21 categories).
 
 ## 6. Public datasets (secondary, frozen; converters in `ml/data/public/`)
 

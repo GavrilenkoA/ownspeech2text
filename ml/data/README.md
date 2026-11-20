@@ -14,7 +14,8 @@ Owner of `ml/data/`, `ml/common/`, `docs/ml/DATA_CARD.md`. Binding: `docs/ml/PLA
    returns screen content + `spoken` (clean verbatim words, numbers in words) + `target`. Code adds disfluencies,
    the ASR channel and hallucinated tails, so every noise op is known and recorded in `meta`.
 3. **ASR noise = the round-trip team's mined tables** (`ml/roundtrip/mine/noise.py` behind `synth/channel.py`,
-   `--mined DIR`; real tables: `ml/roundtrip/samples/mined/real`, 11 ASR models). Fallback: built-in simulator
+   `--mined DIR`; full-run tables: `ml/roundtrip/samples/mined/full`, 12 ASR models, 8,878 rows; the small probe's
+   `ml/roundtrip/samples/mined/real` is kept for the proof runs). Fallback: built-in simulator
    (`synth/asr_noise.py`). `meta.noise.source` says which one produced each transcript. Realism guards on top
    (`Channel.implausible` / `repair_terms`, review 2026-11-19): substitutions that do not sound like the word
    (`по -> девять`, `стенде -> съем`) and inserted content words (`папы`) are retried with another seed; generic
@@ -61,7 +62,7 @@ Owner of `ml/data/`, `ml/common/`, `docs/ml/DATA_CARD.md`. Binding: `docs/ml/PLA
 | `synth/screen.py` | render specs, real / fixture backends, OCR-line rule checks |
 | `synth/screen_fixture.py` | layout-only stand-in (tests; refused for full-size runs) |
 | `synth/terms.py`, `synth/lexicon.py` | hard-term pool (`ml/roundtrip/probe/terms.jsonl`), near-miss finder, people |
-| `synth/teacher_prompts.py` | batch prompt + strict JSON schema (`gen.v6`) |
+| `synth/teacher_prompts.py` | batch prompt + strict JSON schema (`gen.v7`) |
 | `synth/teacher.py` | Responses / chat client: retries, Retry-After, request cap, resumable shards |
 | `synth/stub_teacher.py` | offline stub with the same interface |
 | `synth/build.py` | ctx v2, term garbling, surname misspelling, counterparts, recoverability check |
@@ -81,12 +82,15 @@ from `ml/screens`). The generator itself is stdlib-only, so the same interpreter
 
 ```bash
 PY=.cache/ml/ocr/venv/bin/python
-$PY -m pytest -q ml/data/tests                       # 46 tests (the real-OCR one is skipped without READY files)
+$PY -m pytest -q ml/data/tests                       # 54 tests (the real-OCR one is skipped without READY files)
 make -C ml/data stub                                 # offline end-to-end run: stub teacher, fixture screens
-# THE full set (~633 teacher requests; see docs/ml/DATA_CARD.md for measured wall time)
-tools/with-teacher tools/heavy $PY -m ml.data.generate --out .cache/ml/data/synth_v2 \
-    --n 3000 --dev 300 --test 300 --mined ml/roundtrip/samples/mined/real --workers 5 --screens real
-# rerunning the same command resumes (finished teacher batches are never re-requested)
+# THE full set (686 teacher requests incl. reserves, ~2 h; build ~30 min with 5 workers; docs/ml/DATA_CARD.md)
+make -C ml/data synth STAGE=teacher                  # teacher shards only (resumable; requests in category-interleaved order)
+make -C ml/data synth                                # build from the shards (0 requests when they are complete)
+#   = tools/with-teacher env MURMUR_MEM=24G tools/heavy nice -n 15 $PY -m ml.data.generate --out .cache/ml/data/synth_v2 \
+#     --n 3000 --dev 300 --test 300 --mined ml/roundtrip/samples/mined/full --workers 5 --screens real --reserve "$RESERVE"
+# rerunning the same command resumes (an answered batch is never re-requested, whatever shard holds it);
+# --reserve 'split/cat=k,...;...' adds scenarios of another seed for cells that fall short, one ';' layer per extension
 $PY -m ml.data.recheck --run .cache/ml/data/synth_v2  # after any prompts/render.py change
 ```
 

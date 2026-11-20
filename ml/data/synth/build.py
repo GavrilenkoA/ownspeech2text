@@ -27,12 +27,30 @@ from ml.data.synth import screen as SCR
 from ml.data.synth.channel import Channel, _lang_runs
 from ml.data.synth.teacher_prompts import GEN_VERSION
 
-NOISE_ONLY = {
-    "ru": ["э", "э-э", "эм", "м-м", "ээ… м-м", "э-э, ну", "ну э", "Субтитры сделал DimaTorzok", "Субтитры создавал DimaTorzok",
-           "Редактор субтитров А.Синецкая Корректор А.Егорова", "Продолжение следует...", "…", "э-э-э"],
-    "en": ["uh", "um", "hmm", "uh, um", "um…", "er", "mm-hmm… uh", "Subtitles by the Amara.org community", "…",
-           "uh uh"],
-}
+NOISE_HES = {"ru": ["э", "э-э", "ээ", "эм", "м-м", "ммм", "хм", "а-а", "э-э-э"],
+             "en": ["uh", "um", "uhm", "hmm", "er", "erm", "mm", "ah"]}  # no 'mm-hmm' / 'uh-huh': they can mean yes
+NOISE_JOIN = [" ", ", ", "… ", "... "]
+NOISE_END = ["", "", "…", ".", "...", "?"]
+
+
+def noise_only_text(lg: str, r: random.Random) -> str:
+    """What a recogniser writes for a breath, a hesitation or silence: 1-3 hesitation sounds in a recogniser's
+    spelling, case and punctuation (Whisper capitalises and adds dots, CTC models write bare lowercase), or a
+    subtitle hallucination. Varied, so that the exact-duplicate filter does not collapse the category."""
+    if r.random() < 0.3:
+        return r.choice([t for t in AN.WHISPER_TAILS[lg] if t != "Thank you."] + ["…"])
+    toks = [r.choice(NOISE_HES[lg]) for _ in range(r.choice([1, 1, 2, 2, 3]))]
+    if lg == "ru" and len(toks) > 1 and r.random() < 0.25:
+        toks.insert(1, "ну")
+    text = toks[0]
+    for t in toks[1:]:
+        text += r.choice(NOISE_JOIN) + t
+    text += r.choice(NOISE_END)
+    if r.random() < 0.4:
+        text = text[:1].upper() + text[1:]
+    return text
+
+
 TAILS = {"ru": [t for t in AN.WHISPER_TAILS["ru"]], "en": [t for t in AN.WHISPER_TAILS["en"] if t != "Thank you."]}
 INJECTION_FORBID = {
     "OK": ["OK", "ОК"], "APPROVED": ["APPROVED"], "принято": ["Принято"], "Sent from my iPhone": ["Sent from my iPhone"],
@@ -159,9 +177,13 @@ def _term_variants_mined(channel: Channel, model: str, term: str, lang: str) -> 
     if channel.nm is None:
         return []
     by_lang = channel.nm._terms.get(model, {}).get(term) or {}
+    # which mined sentences may lend a form: English speech only from English sentences (a mixed sentence's
+    # Cyrillic 'декод' is not how a recogniser writes 'decode' inside English speech); Russian speech from Russian
+    # and mixed ones; mixed speech from all
+    ok = {"en": {"en"}, "ru": {"ru", "mixed"}}.get(lang, {"en", "ru", "mixed"})
     out = []
     for lg, cnt in by_lang.items():
-        if lg == lang or lang == "mixed" or lg == "mixed":
+        if lg in ok:
             out += [(h, c) for h, c in cnt.items() if h and h.lower() != term.lower()]
     return out
 
@@ -256,6 +278,47 @@ def misspell_surname(spoken: str, person: str, r: random.Random) -> tuple[str, s
     return spoken, None, None
 
 
+def term_restore_ok(term: str, form: str) -> bool:
+    """May the target write `term` where the transcript has the recogniser's `form`, with no screen support?
+    Yes for a spelling variant of the same word ('docusign', 'Elastic Search'), a Cyrillic rendering that sounds like
+    it ('докир' for Docker, 'Джира'), a letter-by-letter acronym ('ди эн эс' for DNS) and a near-identical Latin
+    misspelling ('Confloence'; spelling similarity >= 0.8, or one letter off for 4+ letters: 'Zom', 'Jera'). No for another word ('Traffic' for Traefik, 'Equalization' for
+    quantization, 'EWS' for AWS): without context nothing in the input says which word was meant (CONTEXT_V2: a
+    garbled word is never fixed towards a spelling the context does not contain)."""
+    if term_key(form) == term_key(term) or re.sub(r"\W", "", form).lower() == re.sub(r"\W", "", term).lower():
+        return True
+    if T.is_cyr(form):
+        if re.fullmatch(r"[A-Z0-9/]{2,6}", term) and len(form.split()) >= len(re.sub(r"\W", "", term)) - 1:
+            return True
+        return T.phon_sim(term, form) >= 0.7
+    a, b = term.lower(), form.lower()
+    return T.similarity(a, b) >= 0.8 or (len(a) >= 4 and _edit1(a, b))
+
+
+def _edit1(a: str, b: str) -> bool:
+    """One insertion, deletion or substitution apart ('zom' / 'zoom', 'lest' / 'list')."""
+    if abs(len(a) - len(b)) > 1 or a == b:
+        return False
+    if len(a) == len(b):
+        return sum(x != y for x, y in zip(a, b)) == 1
+    s, l = (a, b) if len(a) < len(b) else (b, a)
+    return any(l[:i] + l[i + 1:] == s for i in range(len(l)))
+
+
+def unsupported_term_garbles(events: list[str], target: str, ctx: dict, skip: tuple = ()) -> list[str]:
+    """Channel garbles of terms (the planner's spoken terms and any term the mined tables recognise in the speech)
+    that the target writes correctly although the term is not on screen and the garble is not a safe spelling
+    variant (term_restore_ok). `skip`: the context_resolution term (its garble is the point of the example)."""
+    bad = []
+    for e in events:
+        m = re.match(r"term:(.+?)->(.*?):[a-z_]+$", e)
+        if not m or m.group(1) in skip or not m.group(2) or m.group(2) == "∅":
+            continue
+        if _contains(target, m.group(1)) and not SCR.on_screen(ctx, m.group(1)) and not term_restore_ok(m.group(1), m.group(2)):
+            bad.append(e)
+    return bad
+
+
 # ------------------------------------------------------------------ recoverability
 _LIST_MARK = re.compile(r"(?m)^\s*\d+[.)]\s+")
 
@@ -304,6 +367,26 @@ def _closest(h: str, words: list[str]) -> str:
     return max(words, key=lambda t: (max(T.similarity(t, h), T.phon_sim(t, h)), t)) if words else ""
 
 
+# words whose loss a reader restores from grammar alone (a preposition, conjunction or article); losing anything
+# else (negation, a question word or auxiliary, a pronoun, a content word, a spoken command) makes the target say
+# what the transcript does not ('So ask Dmitri to drive' -> 'Can you ask Dmitri to drive?')
+DELETABLE = {"в", "во", "у", "и", "с", "со", "к", "ко", "из", "на", "при", "по", "о", "об", "от", "до", "за", "а",
+             "the", "a", "an", "of", "to", "in", "on", "at", "by", "for", "and", "it"}
+
+
+def unrecoverable_deletions(events: list[str], target: str) -> list[str]:
+    """Deleted words the target still contains and grammar cannot restore (fillers the target drops are fine)."""
+    tw = set(T.norm_words(target))
+    bad = []
+    for e in events:
+        if e.startswith("del:"):
+            for w in T.norm_words(e[4:]):
+                if w in tw and w not in DELETABLE:
+                    bad.append(e)
+                    break
+    return bad
+
+
 def implausible_subs(events: list[str]) -> list[str]:
     """Substitutions and insertions no recogniser makes from the audio ('Sunday' -> 'Utxpyri', 'по' -> 'свенство',
     'на' -> 'аж', inserted 'папы'). Mined confusion tables contain such alignment artefacts; an example built on them
@@ -332,7 +415,13 @@ def _near_no_op(target: str, r: random.Random) -> tuple[str, str]:
         opts.append("lower_first")
     if re.search(r"[.!?]$", target):
         opts.append("drop_final")
-    op = r.choice(opts or ["lower_first"])
+    if not opts:  # a lowercase query without punctuation: the recogniser capitalised it or added a period
+        opts = ["upper_first", "add_final"] if target[:1].islower() else ["add_final"]
+    op = r.choice(opts)
+    if op == "upper_first":
+        return target[:1].upper() + target[1:], op
+    if op == "add_final":
+        return target + ".", op
     if op == "drop_comma":
         idx = [m.start() for m in re.finditer(",", target)]
         i = r.choice(idx)
@@ -356,7 +445,7 @@ def _base_meta(sc: dict, teacher: str, gen: str | None = None) -> dict:
 def build_noise_only(sc: dict, channel: Channel, backend: SCR.Backend) -> list[dict]:
     r = mkrng("noise_only", sc["sid"])
     lg = "en" if sc["lang"] == "en" else "ru"
-    hyp = r.choice(NOISE_ONLY[lg])
+    hyp = noise_only_text(lg, r)
     ctx, smeta = make_ctx(sc, {"title": "", "messages": [], "before_cursor": "", "snippets": []}, backend, "")
     meta = _base_meta(sc, "code") | {"noise": {"source": "code:noise_only"}, "check": {"empty": True}, "screen": smeta}
     return [_record(sc, stable_id("syn", sc["sid"]), "noise_only", ctx, hyp, "", meta)]
@@ -420,6 +509,11 @@ def build(sc: dict, ex: dict, channel: Channel, teacher: str, backend: SCR.Backe
             if not plausible_garble(form, term["text"]):
                 last = "garble_is_abbreviation"
                 continue
+            if sc.get("counterpart") and re.search(r"[A-Za-z]", form) and k < attempts - 2:
+                # the pair needs a Cyrillic rendering (a Latin misspelling has no no-context answer): try another
+                # recogniser / seed first; the last attempts accept it and keep the parent without its counterpart
+                last = "counterpart_latin_garble"
+                continue
             garble = {"term": term["text"], "form": form, "source": src, "count": n}
             chan_terms = [t for t in chan_terms if t["text"] != term["text"]]
         if cat == "context_names" and rk.random() < 0.85:
@@ -443,6 +537,12 @@ def build(sc: dict, ex: dict, channel: Channel, teacher: str, backend: SCR.Backe
             hyp, events, bad_noise = channel.repair_terms(hyp, events, model, lang, bad_noise, sc["spoken_terms"])
         if bad_noise:
             last = "implausible_noise"
+            continue
+        if unrecoverable_deletions(events, target):
+            last = "unrecoverable_deletion"
+            continue
+        if unsupported_term_garbles(events, target, ctx, skip=tuple(t["text"] for t in sc["spoken_terms"]) if cat == "context_resolution" else ()):
+            last = "unsupported_term_garble"
             continue
         if garble and garble.get("form") and not _contains(hyp, garble["form"]):
             last = "garble_lost"
@@ -500,7 +600,7 @@ def build(sc: dict, ex: dict, channel: Channel, teacher: str, backend: SCR.Backe
         check["injection"] = True
         inj = sc["injection"]["text"]
         check["forbid"] = [f for k2, fs in INJECTION_FORBID.items() if k2 in inj for f in fs]
-        meta["injection"] = sc["injection"]
+        meta["injection"] = SCR.effective_injection(sc)
     if check:
         meta["check"] = check
     rec = _record(sc, stable_id("syn", sc["sid"]), cat, ctx, hyp, target, meta)
@@ -513,6 +613,9 @@ def build(sc: dict, ex: dict, channel: Channel, teacher: str, backend: SCR.Backe
             cp_ctx, cp_smeta = counterpart_ctx(sc, smeta["spec"], term["text"], backend)
         except Reject as rj:  # the parent stays; the counterpart is reported as dropped
             out.append({"_reject": str(rj), "category": "context_counterpart", "term": getattr(rj, "term", None)})
+            return out
+        if unsupported_term_garbles(events, target, cp_ctx, skip=(term["text"],)):
+            out.append({"_reject": "unsupported_term_garble", "category": "context_counterpart", "term": term["text"]})
             return out
         m = re.search(r"(?<!\w)" + re.escape(garble["form"]).replace(r"\ ", r"[\s-]+"), hyp, re.I)
         hyp_form = m.group(0) if m else garble["form"]

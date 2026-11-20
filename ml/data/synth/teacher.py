@@ -255,9 +255,11 @@ def _read_shard(path: Path) -> dict[str, dict]:
 
 def run_sharded(jobs: list[dict], teacher, out_dir, stage: str, shard_size: int = 50, concurrency: int = 2,
                 max_retries: int = 5, log=sys.stderr) -> dict:
-    """Run jobs into resumable shards (jobs are assigned to shards by position: keep the job list deterministic)."""
+    """Run jobs into resumable shards. A job already answered in ANY shard of this stage is never re-requested
+    (job ids hash the request text), so the job order may change between runs."""
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
+    answered = load_results(out, stage)
     st = {"jobs": len(jobs), "ok": 0, "failed": 0, "resumed": 0, "requests_ok": 0, "input_tokens": 0,
           "output_tokens": 0, "reasoning_tokens": 0, "latency_s": [], "quota_stop": False}
     t0 = time.time()
@@ -265,8 +267,7 @@ def run_sharded(jobs: list[dict], teacher, out_dir, stage: str, shard_size: int 
     for s in range(0, len(jobs), shard_size):
         shard = out / f"{stage}-{s // shard_size:05d}.jsonl"
         chunk = jobs[s:s + shard_size]
-        finished = _read_shard(shard)
-        todo = [j for j in chunk if j["id"] not in finished]
+        todo = [j for j in chunk if j["id"] not in answered]
         n_res = len(chunk) - len(todo)
         st["ok"] += n_res
         st["resumed"] += n_res

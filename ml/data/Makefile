@@ -8,7 +8,15 @@ N     ?= 3000
 DEV   ?= 300
 TEST  ?= 300
 WORKERS ?= 5
-MINED ?= $(REPO)/ml/roundtrip/samples/mined/real
+MINED ?= $(REPO)/ml/roundtrip/samples/mined/full
+# shared server: heavy jobs in a memory-capped scope at low priority
+MEM   ?= 24G
+HEAVY := env MURMUR_MEM=$(MEM) $(REPO)/tools/heavy nice -n 15
+STAGE ?= all
+# extra scenarios for cells that fall short (measured yields, docs/ml/DATA_CARD.md), in ";"-separated layers (a later
+# layer never changes an answered batch); keep the same value for every
+# command of one run, or the reserve scenarios drop out of the build
+RESERVE ?= train/context_resolution=150,train/near_miss=58,train/injection=18,train/list=5,dev/context_resolution=15,dev/near_miss=6,dev/injection=3,dev/list=1,test/context_resolution=15,test/near_miss=6,test/injection=3,test/list=1;train/address=6,train/injection=6,dev/context_names=4,dev/address=2
 MINED_ARG := $(if $(MINED),--mined $(MINED),)
 
 .PHONY: venv test stub proof synth recheck sample public validate contam disfl-probe
@@ -26,13 +34,13 @@ stub:
 
 # 216 teacher scenarios, real teacher + real render/OCR (38 requests, measured ~7 min teacher + ~6 min build)
 proof:
-	cd $(REPO) && tools/with-teacher tools/heavy $(PY) -m ml.data.generate --out $(REPO)/.cache/ml/data/synth_runs/proof \
+	cd $(REPO) && tools/with-teacher $(HEAVY) $(PY) -m ml.data.generate --out $(REPO)/.cache/ml/data/synth_runs/proof \
 	    --limit 216 --max-requests 45 --workers 3 --screens real $(MINED_ARG)
 
 # THE full set: ~633 teacher requests (see docs/ml/DATA_CARD.md for the measured wall time)
 synth:
-	cd $(REPO) && tools/with-teacher tools/heavy $(PY) -m ml.data.generate --out $(OUT) --n $(N) --dev $(DEV) --test $(TEST) \
-	    --workers $(WORKERS) --screens real $(MINED_ARG)
+	cd $(REPO) && tools/with-teacher $(HEAVY) $(PY) -m ml.data.generate --out $(OUT) --n $(N) --dev $(DEV) --test $(TEST) \
+	    --workers $(WORKERS) --screens real --stage $(STAGE) $(if $(RESERVE),--reserve '$(RESERVE)',) $(MINED_ARG)
 
 # after any prompts/render.py change: re-apply the CONTEXT_V2 rules to the stored set (no OCR, no teacher)
 recheck:
@@ -43,7 +51,7 @@ sample:
 	cd $(REPO) && $(PY) -m ml.data.make_sample --run $(RUN) --out ml/data/samples/synth_v2.sample.jsonl --n 200
 
 public:
-	cd $(REPO) && tools/heavy $(PYPUB) -m ml.data.public.convert --out $(REPO)/.cache/ml/data/public_out
+	cd $(REPO) && $(HEAVY) $(PYPUB) -m ml.data.public.convert --out $(REPO)/.cache/ml/data/public_out
 
 validate:
 	cd $(REPO) && for f in $(OUT)/train.jsonl $(OUT)/dev.jsonl $(OUT)/test.jsonl; do $(PY) -m ml.common.validate --strict $$f || exit 1; done
