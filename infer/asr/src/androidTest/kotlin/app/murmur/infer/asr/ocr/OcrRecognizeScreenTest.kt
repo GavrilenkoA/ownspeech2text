@@ -250,18 +250,22 @@ class OcrRecognizeScreenTest {
     }
 
     /** Open file descriptors of the :asr process (same uid as this test). */
-    private fun asrFds(): Int {
+    private fun asrFds(): Int = asrFdTargets().size
+
+    /** :asr's descriptors, number -> what they point at. */
+    private fun asrFdTargets(): Map<String, String> {
         val am = context.getSystemService(ActivityManager::class.java)
         val pid = am.runningAppProcesses.single { it.processName == context.packageName + ":asr" }.pid
-        return File("/proc/$pid/fd").list()!!.size
+        return File("/proc/$pid/fd").list()!!.associateWith { runCatching { android.system.Os.readlink("/proc/$pid/fd/$it") }.getOrDefault("?") }
     }
 
     /**
      * Newest frame wins: three frames of the slowest bundled page. The second and third are sent back to back while the
-     * first is running (a quarter into its page): the first stops at its next model call, the second is still queued
-     * and is answered at once, both `OcrFailed("superseded")`; the third gives the page's normal result and waits
-     * behind the first for at most one model call, not for the rest of its page.
-     * No SharedMemory or descriptor stays open in :asr.
+     * first is running (a quarter into its page): the first stops in its model call (RunOptions terminate, WP-21) or at
+     * the next one, the second is still queued and is answered at once, both `OcrFailed("superseded")`; the third gives
+     * the page's normal result and waits behind the first for at most one model call, not for the rest of its page.
+     * No SharedMemory or descriptor stays open in :asr. (The stop inside a model call is timed on the JVM against real
+     * ORT calls: OcrFrameRunnerTest.)
      */
     @Test
     fun aNewerFrameSupersedesTheOlderOnes() {
@@ -271,7 +275,8 @@ class OcrRecognizeScreenTest {
         val (w, h, argb) = decode(page.png())
         val (alone, _) = recognize(w, h, argb, g.exclude)
         val full = InferApi.decode(ScreenText.serializer(), alone.result!!)
-        val fdsBefore = asrFds()
+        settledAsrFds()
+        val fdsBefore = asrFdTargets().entries.map { it.toPair() }.toSet()
 
         val exclude = InferApi.encode(ListSerializer(Rect.serializer()), g.exclude)
         val frames = List(3) { frame(argb) }
@@ -279,11 +284,14 @@ class OcrRecognizeScreenTest {
         var sentLast = 0L
         try {
             frames.forEachIndexed { i, shm ->
-                if (i == 1) SystemClock.sleep((full.stats!!.totalMs / 4).toLong())
+                if (i == 1) {
+                    SystemClock.sleep((full.stats!!.totalMs / 4).toLong())
+                    // checked before the newer frame goes out: that frame now also stops the model call in flight
+                    assertEquals("the first frame was still running", 1L, replies[0].latch.count)
+                }
                 sentLast = SystemClock.elapsedRealtime()
                 service.recognizeScreen(shm, w, h, exclude, replies[i].cb)
             }
-            assertEquals("the first frame was still running", 1L, replies[0].latch.count)
             replies.forEach { it.await(120) }
         } finally {
             frames.forEach { it.close() }
@@ -300,7 +308,23 @@ class OcrRecognizeScreenTest {
             replies[0].at - sentLast, waited, full.stats!!.totalMs, full.stats!!.detMs))
         assertTrue("the queued frame is answered before the newest one", replies[1].at <= replies[2].at)
         assertTrue("newest waited $waited ms (page alone ${full.stats!!.totalMs} ms)", waited < full.stats!!.totalMs / 2)
-        assertEquals("fds in :asr", fdsBefore, asrFds())
+        // no descriptor (number and target) that was not open before stays open: no frame's SharedMemory, nothing else.
+        // One may close meanwhile (the runtime closes an early /dev/null descriptor of its own at some point).
+        settledAsrFds()
+        val fdsAfter = asrFdTargets().entries.map { it.toPair() }.toSet()
+        assertEquals("descriptors opened in :asr and still open (closed meanwhile: ${fdsBefore - fdsAfter})", emptySet<Pair<String, String>>(), fdsAfter - fdsBefore)
+    }
+
+    /** The :asr descriptor count once it holds still for 300 ms (binder and log descriptors come and go briefly). */
+    private fun settledAsrFds(): Int {
+        var last = asrFds()
+        repeat(20) {
+            SystemClock.sleep(300)
+            val now = asrFds()
+            if (now == last) return now
+            last = now
+        }
+        return last
     }
 
     companion object {

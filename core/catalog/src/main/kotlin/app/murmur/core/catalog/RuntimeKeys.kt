@@ -22,6 +22,12 @@ object RuntimeKeys {
     const val ORT_PPOCR_DET = "ort/ppocr-det"
     const val ORT_PPOCR_REC = "ort/ppocr-rec"
     const val ORT_SILERO_VAD = "ort/silero-vad-v5"
+    // ONNX Runtime 1.32 + Qualcomm's QNN plugin EP (com.qualcomm.qti:onnxruntime-android-qnn 2.7.0, WP-21): EPContext
+    // models over host-compiled SM8750 context binaries, HTP only (no CPU EP fallback). Reported by the :asr probe only
+    // when the plugin registered and offers its EP device (-Pmurmur.qnn=true builds, ADR-048); off by default (ADR-059).
+    const val ORT_QNN_PPOCR_DET = "ort-qnn/ppocr-det"
+    const val ORT_QNN_PPOCR_REC = "ort-qnn/ppocr-rec"
+    const val ORT_QNN_GIGAAM_CTC = "ort-qnn/gigaam-ctc"               // GigaAM v3 e2e CTC, 20 s window
     // Listed in the catalog, not implemented (no runner / runtime not shipped): hub shows "Not supported".
     const val LITERT_NPU = "litert/npu"
     const val LITERT_LM_GPU = "litert-lm/gpu"
@@ -30,8 +36,11 @@ object RuntimeKeys {
     val known: Set<String> = setOf(
         SHERPA_OFFLINE_TRANSDUCER, SHERPA_OFFLINE_CTC, SHERPA_OFFLINE_WHISPER, SHERPA_OFFLINE_QWEN3_ASR,
         SHERPA_ONLINE_TRANSDUCER, SHERPA_ONLINE_TONE, LLAMA_GGUF, ORT_PPOCR_DET, ORT_PPOCR_REC, ORT_SILERO_VAD,
-        LITERT_NPU, LITERT_LM_GPU, QNN_AIHUB_WHISPER,
+        ORT_QNN_PPOCR_DET, ORT_QNN_PPOCR_REC, ORT_QNN_GIGAAM_CTC, LITERT_NPU, LITERT_LM_GPU, QNN_AIHUB_WHISPER,
     )
+
+    /** The QNN plugin EP keys: never in [implemented] (a probe must have seen the EP register). */
+    val qnnEp: Set<String> = setOf(ORT_QNN_PPOCR_DET, ORT_QNN_PPOCR_REC, ORT_QNN_GIGAAM_CTC)
 
     /**
      * Keys this build's inference processes implement (sherpa-onnx, llama.cpp, ONNX Runtime). Used as the runtime
@@ -43,21 +52,21 @@ object RuntimeKeys {
     )
 
     /** Batch ASR runtimes are fed VAD pause-cut segments (D4), so they need the VAD model installed. */
-    fun isBatchAsr(runtime: String): Boolean = runtime.startsWith("sherpa/offline-")
+    fun isBatchAsr(runtime: String): Boolean = runtime.startsWith("sherpa/offline-") || runtime == ORT_QNN_GIGAAM_CTC
 
     /** Which inference process hosts a runtime (ADR-005: QNN users in :asr, ggml-hexagon alone in :llm). */
     fun process(runtime: String): InferProcess? = when {
-        runtime.startsWith("sherpa/") || runtime.startsWith("ort/") -> InferProcess.ASR
+        runtime.startsWith("sherpa/") || runtime.startsWith("ort/") || runtime.startsWith("ort-qnn/") -> InferProcess.ASR
         runtime == LLAMA_GGUF -> InferProcess.LLM
         else -> null
     }
 
     fun kindOf(runtime: String): ModelKind? = when (runtime) {
         LLAMA_GGUF -> ModelKind.LLM
-        ORT_PPOCR_DET -> ModelKind.OCR_DET
-        ORT_PPOCR_REC -> ModelKind.OCR_REC
+        ORT_PPOCR_DET, ORT_QNN_PPOCR_DET -> ModelKind.OCR_DET
+        ORT_PPOCR_REC, ORT_QNN_PPOCR_REC -> ModelKind.OCR_REC
         ORT_SILERO_VAD -> ModelKind.VAD
-        LITERT_LM_GPU, LITERT_NPU, QNN_AIHUB_WHISPER -> ModelKind.ASR
+        LITERT_LM_GPU, LITERT_NPU, QNN_AIHUB_WHISPER, ORT_QNN_GIGAAM_CTC -> ModelKind.ASR
         else -> if (runtime.startsWith("sherpa/")) ModelKind.ASR else null
     }
 }

@@ -1,0 +1,472 @@
+{
+ "artifacts": {
+  "pp-ocrv6-tiny-det@qnn-sm8750": {
+   "artifact": "pp-ocrv6-tiny-det@qnn-sm8750",
+   "source": {
+    "file": ".cache/models/pp-ocrv6-tiny-det@onnx/det.onnx",
+    "sha256": "193bab7a04fca699a6c82e6abb5b81bdb28177f0abd4062552b04908dafb19f8"
+   },
+   "graphs": [
+    {
+     "graph": "det_h960_w416",
+     "input": [
+      1,
+      3,
+      960,
+      416
+     ],
+     "compile_s": 1.8,
+     "bins": [
+      "det_h960_w416_qnn.bin"
+     ]
+    },
+    {
+     "graph": "det_h416_w960",
+     "input": [
+      1,
+      3,
+      416,
+      960
+     ],
+     "compile_s": 1.0,
+     "bins": [
+      "det_h416_w960_qnn.bin"
+     ]
+    },
+    {
+     "graph": "det_h960_w864",
+     "input": [
+      1,
+      3,
+      960,
+      864
+     ],
+     "compile_s": 2.3,
+     "bins": [
+      "det_h960_w864_qnn.bin"
+     ]
+    },
+    {
+     "graph": "det_h864_w960",
+     "input": [
+      1,
+      3,
+      864,
+      960
+     ],
+     "compile_s": 1.8,
+     "bins": [
+      "det_h864_w960_qnn.bin"
+     ]
+    },
+    {
+     "graph": "det_h960_w960",
+     "input": [
+      1,
+      3,
+      960,
+      960
+     ],
+     "compile_s": 2.1,
+     "bins": [
+      "det_h960_w960_qnn.bin"
+     ]
+    }
+   ],
+   "layout": {
+    "model": "det.onnx",
+    "ctx.h960w416": "det_h960_w416.onnx",
+    "ctx.h416w960": "det_h416_w960.onnx",
+    "ctx.h960w864": "det_h960_w864.onnx",
+    "ctx.h864w960": "det_h864_w960.onnx",
+    "ctx.h960w960": "det_h960_w960.onnx"
+   },
+   "files": [
+    {
+     "name": "det.onnx",
+     "bytes": 1780590,
+     "sha256": "193bab7a04fca699a6c82e6abb5b81bdb28177f0abd4062552b04908dafb19f8"
+    },
+    {
+     "name": "det_h416_w960.onnx",
+     "bytes": 921,
+     "sha256": "ab0a11a1a39b001e81e3eb6b48d8b8895f8a2defd3087d8284a8b6e3e70b8c27"
+    },
+    {
+     "name": "det_h416_w960_qnn.bin",
+     "bytes": 1536000,
+     "sha256": "09a573b4b1279183bb4319feb41c50d3cf344b9f2a9261f396075fab9f59bb5e"
+    },
+    {
+     "name": "det_h864_w960.onnx",
+     "bytes": 923,
+     "sha256": "2fed137bdc5873a3f0192c198c06fdb1f84f945c934b0cf2464aa997e3615c73"
+    },
+    {
+     "name": "det_h864_w960_qnn.bin",
+     "bytes": 1851392,
+     "sha256": "596c3ec135bcecbf80fcfbbccc6c503b68bb36e59e1c4ffa0be70cc105bcec22"
+    },
+    {
+     "name": "det_h960_w416.onnx",
+     "bytes": 921,
+     "sha256": "b94999dae3657db67f59594886ff0b2cf5e5fb8f3620fcb5836cfa9ae38c6fde"
+    },
+    {
+     "name": "det_h960_w416_qnn.bin",
+     "bytes": 1712128,
+     "sha256": "c5c7f8ba081912795f6f2c8b69571b60b4c3f8db17b21fef78249e7988938c04"
+    },
+    {
+     "name": "det_h960_w864.onnx",
+     "bytes": 921,
+     "sha256": "7a08d43c7b34a7e10d13f9869c21c78ccc3d843d633cf705302a22be5e1b5dd9"
+    },
+    {
+     "name": "det_h960_w864_qnn.bin",
+     "bytes": 1900544,
+     "sha256": "f4b9d15ca77d3cc7b17bc1a4e58a457a5301102e37accc930789f9b64d64cfec"
+    },
+    {
+     "name": "det_h960_w960.onnx",
+     "bytes": 923,
+     "sha256": "630cd088e2bbd94a48f03632fce2507df77299081915fcfdcfc6c35e71560bfb"
+    },
+    {
+     "name": "det_h960_w960_qnn.bin",
+     "bytes": 1933312,
+     "sha256": "2c805740daffec7a31a3b7dae53612160a291abe9eed5bac502a6807e6f1c3a9"
+    }
+   ],
+   "archive": {
+    "name": "det_contexts.zip",
+    "bytes": 10720059,
+    "sha256": "5a1fbf039762017d3407e4887dcd10675d8523a2a59ef2acc8cdf5ac3f17ad32"
+   },
+   "total_s": 9.1,
+   "repacked": "2026-11-20: det.onnx (the CPU graph for shapes without a context) added; contexts unchanged"
+  },
+  "pp-ocrv5-cyrillic-mobile-rec@qnn-sm8750": {
+   "artifact": "pp-ocrv5-cyrillic-mobile-rec@qnn-sm8750",
+   "source": {
+    "file": ".cache/models/pp-ocrv5-cyrillic-mobile-rec@onnx/rec.onnx",
+    "sha256": "5371ee1ddaa7983cc62d0818d99e982b6804638c85e4f960d59a574094e172e5"
+   },
+   "graphs": [
+    {
+     "graph": "rec_w320",
+     "input": [
+      1,
+      3,
+      48,
+      320
+     ],
+     "compile_s": 0.8,
+     "bins": [
+      "rec_w320_qnn.bin"
+     ]
+    },
+    {
+     "graph": "rec_w480",
+     "input": [
+      1,
+      3,
+      48,
+      480
+     ],
+     "compile_s": 0.7,
+     "bins": [
+      "rec_w480_qnn.bin"
+     ]
+    },
+    {
+     "graph": "rec_w640",
+     "input": [
+      1,
+      3,
+      48,
+      640
+     ],
+     "compile_s": 0.8,
+     "bins": [
+      "rec_w640_qnn.bin"
+     ]
+    },
+    {
+     "graph": "rec_w800",
+     "input": [
+      1,
+      3,
+      48,
+      800
+     ],
+     "compile_s": 1.1,
+     "bins": [
+      "rec_w800_qnn.bin"
+     ]
+    },
+    {
+     "graph": "rec_w960",
+     "input": [
+      1,
+      3,
+      48,
+      960
+     ],
+     "compile_s": 1.0,
+     "bins": [
+      "rec_w960_qnn.bin"
+     ]
+    },
+    {
+     "graph": "rec_w1280",
+     "input": [
+      1,
+      3,
+      48,
+      1280
+     ],
+     "compile_s": 1.1,
+     "bins": [
+      "rec_w1280_qnn.bin"
+     ]
+    },
+    {
+     "graph": "rec_w1600",
+     "input": [
+      1,
+      3,
+      48,
+      1600
+     ],
+     "compile_s": 1.2,
+     "bins": [
+      "rec_w1600_qnn.bin"
+     ]
+    },
+    {
+     "graph": "rec_w1920",
+     "input": [
+      1,
+      3,
+      48,
+      1920
+     ],
+     "compile_s": 1.9,
+     "bins": [
+      "rec_w1920_qnn.bin"
+     ]
+    },
+    {
+     "graph": "rec_w2560",
+     "input": [
+      1,
+      3,
+      48,
+      2560
+     ],
+     "compile_s": 2.9,
+     "bins": [
+      "rec_w2560_qnn.bin"
+     ]
+    },
+    {
+     "graph": "rec_w3200",
+     "input": [
+      1,
+      3,
+      48,
+      3200
+     ],
+     "compile_s": 3.4,
+     "bins": [
+      "rec_w3200_qnn.bin"
+     ]
+    }
+   ],
+   "layout": {
+    "dict": "rec.yml",
+    "ctx.w320": "rec_w320.onnx",
+    "ctx.w480": "rec_w480.onnx",
+    "ctx.w640": "rec_w640.onnx",
+    "ctx.w800": "rec_w800.onnx",
+    "ctx.w960": "rec_w960.onnx",
+    "ctx.w1280": "rec_w1280.onnx",
+    "ctx.w1600": "rec_w1600.onnx",
+    "ctx.w1920": "rec_w1920.onnx",
+    "ctx.w2560": "rec_w2560.onnx",
+    "ctx.w3200": "rec_w3200.onnx"
+   },
+   "files": [
+    {
+     "name": "rec.yml",
+     "bytes": 6991,
+     "sha256": "5c76cc91fa98410178a09f498db10050d0ec1634a660053d3005ab7be581f501"
+    },
+    {
+     "name": "rec_w1280.onnx",
+     "bytes": 912,
+     "sha256": "d8d5ad4b143132a022a596086434369ecc16813a3eec719e0231c64a81a14cc6"
+    },
+    {
+     "name": "rec_w1280_qnn.bin",
+     "bytes": 5058560,
+     "sha256": "f09e8c8e4c0b54c5a8766bdb1b661ba86cb2f65f095c4e1e8a0ad1ef2c0ddeb0"
+    },
+    {
+     "name": "rec_w1600.onnx",
+     "bytes": 914,
+     "sha256": "9bc74fc90a209c171773e62d81e713af01f5613d44631c7ab1e32609d225ffea"
+    },
+    {
+     "name": "rec_w1600_qnn.bin",
+     "bytes": 5144576,
+     "sha256": "e71148cb81a562e6b535b3891fa7cf6056da5ec4ada6d92bce17e90b22435cb7"
+    },
+    {
+     "name": "rec_w1920.onnx",
+     "bytes": 908,
+     "sha256": "0f05657e357ba9cdf84835f6a6ab9eb2aaf6f7e03c0b203d08347ba45ebde39b"
+    },
+    {
+     "name": "rec_w1920_qnn.bin",
+     "bytes": 5275648,
+     "sha256": "7f10d477859d6a26537ccb7042ce74963c60abd9a00647299501bf560b108c54"
+    },
+    {
+     "name": "rec_w2560.onnx",
+     "bytes": 912,
+     "sha256": "bbe2920e72dce94798292905b41ebc93fc720c6419a1ea667015bea66fd3b0ed"
+    },
+    {
+     "name": "rec_w2560_qnn.bin",
+     "bytes": 6193152,
+     "sha256": "34c464f21405d4c096959064576facd8b010b6caacb1d663f73e71c31fbbc535"
+    },
+    {
+     "name": "rec_w320.onnx",
+     "bytes": 912,
+     "sha256": "0c9feda5291bfa7a8ee8bc00ce637e4a746c8636ba40233a954e23e8d9c4c6df"
+    },
+    {
+     "name": "rec_w3200.onnx",
+     "bytes": 914,
+     "sha256": "797641a2b0a06ff0f157e71360dbb4c24146d52adbc972daa249df62969eeda1"
+    },
+    {
+     "name": "rec_w3200_qnn.bin",
+     "bytes": 6459392,
+     "sha256": "07c15ee3b533e33009b3d9533d719780f07716c2deea33d43af85d10f411a4a2"
+    },
+    {
+     "name": "rec_w320_qnn.bin",
+     "bytes": 4784128,
+     "sha256": "3ac37dbd7d9037ec928c310116157e269d926624dceea4a9539ffcd3a8467f7f"
+    },
+    {
+     "name": "rec_w480.onnx",
+     "bytes": 910,
+     "sha256": "612479701066e2be31bb2bbdfddf681cbaac235a7e31c8faa7d81341ded8c024"
+    },
+    {
+     "name": "rec_w480_qnn.bin",
+     "bytes": 4845568,
+     "sha256": "9a98db6474d2527c61245a4c104c06172dc5c15d0428fb255500d088ba7272c5"
+    },
+    {
+     "name": "rec_w640.onnx",
+     "bytes": 910,
+     "sha256": "f926cdaeadf4d5ca5d7dd1be9c94ed632552a6984b290a6a65e335e6540ee58a"
+    },
+    {
+     "name": "rec_w640_qnn.bin",
+     "bytes": 4861952,
+     "sha256": "3ee55fa7df3c8d33e8f73bf3b730b5902087a81c9f5d17eeeb5ab304e4ecc71c"
+    },
+    {
+     "name": "rec_w800.onnx",
+     "bytes": 912,
+     "sha256": "341d78789fab0aea651ce4ff81d9bf27ed1e2f484c2a0adb520c12a720f63c97"
+    },
+    {
+     "name": "rec_w800_qnn.bin",
+     "bytes": 4935680,
+     "sha256": "e920c7b622826d13daf454f26dc69ca86d7d96dc212bd9495d5518b97accfb9c"
+    },
+    {
+     "name": "rec_w960.onnx",
+     "bytes": 912,
+     "sha256": "940395e6d695dfc815f85977bd760283cb3c634ecfa60e7a52c61ef0a624fd8e"
+    },
+    {
+     "name": "rec_w960_qnn.bin",
+     "bytes": 4923392,
+     "sha256": "9ff402a49fcd3daf9af6898e1a49a3dbfeeb03b3de2a81193bdd23a17ba61918"
+    }
+   ],
+   "archive": {
+    "name": "rec_contexts.zip",
+    "bytes": 52500807,
+    "sha256": "3203f2d35ad07289c5222543eb93942b9586f7c227ebe43054066bed61c7cf60"
+   },
+   "total_s": 15.4
+  },
+  "gigaam-v3-e2e-ctc@qnn-sm8750-20s": {
+   "artifact": "gigaam-v3-e2e-ctc@qnn-sm8750-20s",
+   "source": {
+    "repo": "istupakov/gigaam-v3-onnx",
+    "revision": "322c3b29492673eb7d0b434bfa9dfb8653e34d02",
+    "file": "v3_e2e_ctc.onnx",
+    "sha256": "377701bd33568f4733feec2db5b2dc12544fd09a5a5dfa69ccf55d161f84027a"
+   },
+   "graphs": [
+    {
+     "graph": "gigaam_ctc_20s",
+     "input": {
+      "features": [
+       1,
+       64,
+       2000
+      ],
+      "feature_lengths": [
+       1
+      ]
+     },
+     "compile_s": 60.0,
+     "bins": [
+      "gigaam_ctc_20s_qnn.bin"
+     ]
+    }
+   ],
+   "layout": {
+    "model": "gigaam_ctc_20s.onnx",
+    "vocab": "vocab.txt"
+   },
+   "files": [
+    {
+     "name": "gigaam_ctc_20s.onnx",
+     "bytes": 949,
+     "sha256": "70497199684cf722f681c78181c469f606e3a9c551f8eba4539e35577a8e3549"
+    },
+    {
+     "name": "gigaam_ctc_20s_qnn.bin",
+     "bytes": 466452480,
+     "sha256": "22941ae9b35d36ac9961e967aabb707eeb0eda29144456932e8cf8e3d95b642a"
+    },
+    {
+     "name": "vocab.txt",
+     "bytes": 2007,
+     "sha256": "142de7570b3de5b3035ce111a89c228e80e6085273731d944093ddf24fa539cd"
+    }
+   ],
+   "total_s": 64.8
+  }
+ },
+ "versions": {
+  "onnxruntime": "1.32.0",
+  "onnxruntime_qnn": "2.8.0",
+  "qairt": "2.52.0",
+  "soc": "SM8750",
+  "htp_arch": "79"
+ }
+}

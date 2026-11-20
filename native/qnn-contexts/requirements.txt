@@ -1,0 +1,7 @@
+# Host venv of native/qnn-contexts (Python 3.12; PyPI only, no Qualcomm account). compile.sh installs exactly these.
+onnxruntime==1.32.0
+onnxruntime-qnn==2.8.0
+onnx==1.23.2
+numpy==2.5.5
+# only for gigaam_frontend.py check (the independent GigaAM v3 preprocessor)
+onnx-asr==0.12.0

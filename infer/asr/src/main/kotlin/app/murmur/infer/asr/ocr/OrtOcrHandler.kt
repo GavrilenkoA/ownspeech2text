@@ -10,7 +10,6 @@ import app.murmur.core.engine.LoadSpec
 import app.murmur.core.model.ComputeUnit
 import app.murmur.core.model.ModelKind
 import app.murmur.core.model.MurmurError
-import app.murmur.core.ocr.OcrCancelledException
 import app.murmur.core.ocr.OcrConfig
 import app.murmur.core.ocr.OcrPipeline
 import app.murmur.core.ocr.OcrRunControl
@@ -20,6 +19,8 @@ import app.murmur.core.ocr.ScreenImage
 import app.murmur.core.ocr.ScreenText
 import app.murmur.infer.api.IResultCallback
 import app.murmur.infer.api.InferApi
+import app.murmur.infer.asr.qnnep.QnnEp
+import app.murmur.infer.asr.qnnep.QnnEpException
 import kotlinx.serialization.builtins.ListSerializer
 import java.nio.ByteOrder
 import java.util.Locale
@@ -37,13 +38,17 @@ import java.util.concurrent.atomic.AtomicReference
  *
  * Newest frame wins: a frame is wanted by the dictation that sent it, and the client stops waiting after
  * `ocrBudgetMs`. When a new frame arrives, an older one still queued is answered `OcrFailed("superseded")` at once
- * (its SharedMemory closed), and one that is running stops at its next model call with the same answer, so a late
- * page never delays the next dictation's OCR by more than one model call.
+ * (its SharedMemory closed), and one that is running stops inside its model call (RunOptions terminate, WP-21) with
+ * the same answer, so a late page never delays the next dictation's OCR by more than the step it is in.
  *
  * Timing side channel for the benchmark (WP-14): every reply carries [ScreenText.stats] ([OcrStats]: detector input,
  * det ms, boxes, excluded, rec lines, rec ms, calls, total ms), and the same numbers are logged under [TAG].
  */
-class OrtOcrHandler(private val config: OcrConfig = OcrConfig()) : OcrHandler {
+class OrtOcrHandler(
+    private val config: OcrConfig = OcrConfig(),
+    /** The process's QNN plugin EP, asked only when a stage is an ort-qnn artifact (WP-21). */
+    private val qnn: () -> QnnEp = { throw QnnEpException("no-libs") },
+) : OcrHandler {
     private val thread: ExecutorService = Executors.newSingleThreadExecutor { r -> Thread(r, "murmur-ocr") }
 
     /** Touched only on the OCR thread. */
@@ -64,13 +69,15 @@ class OrtOcrHandler(private val config: OcrConfig = OcrConfig()) : OcrHandler {
         val height: Int,
         val excludeJson: String,
         val cb: IResultCallback,
-    ) : OcrRunControl {
+    ) : OcrRunControl, OcrFrameRunner.Frame {
         private val owned = AtomicBoolean(false)
-        @Volatile var superseded = false
+        @Volatile override var superseded = false
+            private set
         /** The model the run is in, for OutOfMemory(kind); the frame read belongs to the detector stage. */
         @Volatile var stage: ModelKind = ModelKind.OCR_DET
 
-        fun claim() = owned.compareAndSet(false, true)
+        override fun markSuperseded() { superseded = true }
+        override fun claim() = owned.compareAndSet(false, true)
         override fun entering(stage: ModelKind) { this.stage = stage }
         override val cancelled get() = superseded
     }
@@ -78,20 +85,21 @@ class OrtOcrHandler(private val config: OcrConfig = OcrConfig()) : OcrHandler {
     /** The newest frame not yet finished. */
     private val newest = AtomicReference<Frame?>(null)
 
+    /** Stops a superseded frame inside its model call (WP-21). */
+    private val runner = OcrFrameRunner()
+
     override fun load(detSpecJson: String, recSpecJson: String, cb: IResultCallback) {
         submit(cb, oomKind = { ModelKind.OCR_REC }, onRejected = { true }) {
             val t0 = SystemClock.elapsedRealtime()
-            val det = spec(detSpecJson, RuntimeKeys.ORT_PPOCR_DET)
-            val rec = spec(recSpecJson, RuntimeKeys.ORT_PPOCR_REC)
+            val det = spec(detSpecJson, RuntimeKeys.ORT_PPOCR_DET, RuntimeKeys.ORT_QNN_PPOCR_DET)
+            val rec = spec(recSpecJson, RuntimeKeys.ORT_PPOCR_REC, RuntimeKeys.ORT_QNN_PPOCR_REC)
             val current = loaded
             if (current == null || current.det != det || current.rec != rec) {
                 release()
                 val models = try {
-                    OrtOcrModels(det, rec, config)
+                    OrtOcrModels(det, rec, config, qnn)
                 } catch (e: OrtOcrModels.LoadException) {
-                    val error = if (e.cause is OutOfMemoryError) MurmurError.OutOfMemory(e.kind)
-                    else MurmurError.EngineLoadFailed(e.kind, e.cause?.javaClass?.simpleName)
-                    throw Fail(error)
+                    throw Fail(loadError(e))
                 }
                 val pipeline = try {
                     OcrPipeline(config, models)
@@ -106,7 +114,7 @@ class OrtOcrHandler(private val config: OcrConfig = OcrConfig()) : OcrHandler {
             }
             val ms = SystemClock.elapsedRealtime() - t0
             Log.i(TAG, "load ms=$ms")
-            reply(cb, InferApi.encode(LoadInfo.serializer(), LoadInfo(ComputeUnit.CPU, ms, DEVICE_NAME)))
+            reply(cb, InferApi.encode(LoadInfo.serializer(), loadInfo(det.unit, rec.unit, ms)))
         }
     }
 
@@ -128,10 +136,12 @@ class OrtOcrHandler(private val config: OcrConfig = OcrConfig()) : OcrHandler {
         }
     }
 
-    /** A newer frame arrived: [old] is answered now if still queued; if running, it stops at its next model call. */
+    /**
+     * A newer frame arrived: [old] is answered now if still queued; if running, its model call in flight is terminated
+     * and any later call starts terminated ([OrtOcrModels.stopRequested]), so it answers without finishing a call.
+     */
     private fun supersede(old: Frame) {
-        old.superseded = true
-        if (old.claim()) {
+        if (runner.supersede(old)) {
             old.pixels.close()
             Log.i(TAG, "error ocr.failed superseded queued")
             error(old.cb, MurmurError.OcrFailed(SUPERSEDED))
@@ -151,12 +161,16 @@ class OrtOcrHandler(private val config: OcrConfig = OcrConfig()) : OcrHandler {
         } finally {
             frame.pixels.close()
         }
+        val current = loaded ?: throw Fail(MurmurError.OcrFailed("not_loaded"))
+        val detCpu0 = current.models.detectorCpuCalls
         val out = try {
-            pipeline.run(image, frame)
-        } catch (e: OcrCancelledException) {
+            runner.run(current.models, frame) { pipeline.run(image, frame) }
+        } catch (e: OcrFrameRunner.Superseded) {
             throw Fail(MurmurError.OcrFailed(SUPERSEDED))
         }
-        out.stats?.let { Log.i(TAG, timing(it, out.lines.size)) }
+        // the unit the detector really ran on: an NPU detector runs a shape without a context on the CPU
+        val detUnit = if (current.models.detectorCpuCalls > detCpu0) ComputeUnit.CPU else current.det.unit
+        out.stats?.let { Log.i(TAG, timing(it, out.lines.size, detUnit)) }
         reply(frame.cb, InferApi.encode(ScreenText.serializer(), out))
     }
 
@@ -173,14 +187,19 @@ class OrtOcrHandler(private val config: OcrConfig = OcrConfig()) : OcrHandler {
         loaded = null
     }
 
-    private fun spec(json: String, runtime: String): LoadSpec {
+    /** [cpu] runs on the CPU unit only, [npu] (the QNN EP artifact) on the NPU unit only. */
+    private fun spec(json: String, cpu: String, npu: String): LoadSpec {
         val spec = try {
             InferApi.decode(LoadSpec.serializer(), json)
         } catch (e: IllegalArgumentException) {
             throw Fail(MurmurError.Internal("ocr_spec_json"))
         }
-        if (spec.runtime != runtime) throw Fail(MurmurError.EngineRuntimeMissing(spec.runtime))
-        if (spec.unit != ComputeUnit.CPU) throw Fail(MurmurError.UnitUnavailable(spec.unit))
+        val unit = when (spec.runtime) {
+            cpu -> ComputeUnit.CPU
+            npu -> ComputeUnit.NPU
+            else -> throw Fail(MurmurError.EngineRuntimeMissing(spec.runtime))
+        }
+        if (spec.unit != unit) throw Fail(MurmurError.UnitUnavailable(spec.unit))
         return spec
     }
 
@@ -238,16 +257,49 @@ class OrtOcrHandler(private val config: OcrConfig = OcrConfig()) : OcrHandler {
         const val TAG = "MurmurOcr"
         /** LoadInfo.deviceName: ORT's default CPU execution provider. */
         const val DEVICE_NAME = "CPU"
+        /** LoadInfo.deviceName when both stages run on Qualcomm's QNN EP (HTP); "QNN+CPU" when only one does. */
+        const val DEVICE_NAME_QNN = "QNN"
+
+        /** LoadInfo of a pair: NPU when either stage is on the HTP (the pair is benchmarked as the NPU artifact's run). */
+        fun loadInfo(det: ComputeUnit, rec: ComputeUnit, ms: Long): LoadInfo {
+            val npu = listOf(det, rec).count { it == ComputeUnit.NPU }
+            return when (npu) {
+                0 -> LoadInfo(ComputeUnit.CPU, ms, DEVICE_NAME)
+                2 -> LoadInfo(ComputeUnit.NPU, ms, DEVICE_NAME_QNN)
+                else -> LoadInfo(ComputeUnit.NPU, ms, "$DEVICE_NAME_QNN+$DEVICE_NAME")
+            }
+        }
+
+        /**
+         * A failed load: OutOfMemory by stage; no QNN EP in this process (plugin or backend not packaged, the plugin
+         * refused, no EP device) -> UnitUnavailable(NPU); anything else (a context that would not open) ->
+         * EngineLoadFailed(kind) with a code. Both NPU errors judge the unit (LoadFailures.judgesUnit).
+         */
+        fun loadError(e: OrtOcrModels.LoadException): MurmurError {
+            val cause = e.cause
+            return when {
+                cause is OutOfMemoryError -> MurmurError.OutOfMemory(e.kind)
+                cause is QnnEpException && cause.stage in QNN_EP_MISSING -> MurmurError.UnitUnavailable(ComputeUnit.NPU)
+                cause is QnnEpException -> MurmurError.EngineLoadFailed(e.kind, "qnn:${cause.stage}")
+                else -> MurmurError.EngineLoadFailed(e.kind, cause?.javaClass?.simpleName)
+            }
+        }
+
+        private val QNN_EP_MISSING = setOf("no-libs", "register", "no-device")
         /** OcrFailed detail for a frame that a newer one replaced. */
         const val SUPERSEDED = "superseded"
         /** Larger than any phone display (Fold7 inner 1968x2184 = 4.3 MP). */
         private const val MAX_PIXELS = 4096L * 4096L
 
-        /** The benchmark's timing line: numbers only. */
-        fun timing(s: OcrStats, lines: Int): String = String.format(
+        /**
+         * The benchmark's timing line: numbers and codes only. [detUnit] is the unit the detector call ran on for this
+         * frame (CPU when an NPU detector had no context for the window shape), so NPU numbers can be told apart.
+         */
+        fun timing(s: OcrStats, lines: Int, detUnit: ComputeUnit = ComputeUnit.CPU): String = String.format(
             Locale.ROOT,
-            "run det_in=%dx%d det_ms=%.1f boxes=%d excluded=%d rec_lines=%d rec_ms=%.1f rec_ms_per_line=%.1f rec_calls=%d lines=%d total_ms=%.1f",
+            "run det_in=%dx%d det_ms=%.1f boxes=%d excluded=%d rec_lines=%d rec_ms=%.1f rec_ms_per_line=%.1f rec_calls=%d lines=%d total_ms=%.1f det_unit=%s",
             s.detInput[0], s.detInput[1], s.detMs, s.boxes, s.excluded, s.recLines, s.recMs, s.recMsPerLine, s.recCalls, lines, s.totalMs,
+            detUnit.name.lowercase(Locale.ROOT),
         )
     }
 }

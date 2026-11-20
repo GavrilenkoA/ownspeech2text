@@ -27,6 +27,7 @@ import app.murmur.infer.api.InferApi
 import app.murmur.infer.api.InferProcessLifecycle
 import app.murmur.infer.asr.ocr.OcrHandler
 import app.murmur.infer.asr.ocr.OcrHandlers
+import app.murmur.infer.asr.qnnep.QnnEpAndroid
 import com.k2fsa.sherpa.onnx.VersionInfo
 import java.io.File
 
@@ -86,6 +87,12 @@ class AsrService : Service() {
         } else {
             facts["sherpa"] = "missing"
         }
+        // WP-21: the ORT QNN plugin EP runtimes exist only when the plugin registered and offers its EP device, and
+        // only with an HTP behind it (the NPU unit comes from the QNN probe above; ADR-059: off unless packaged).
+        val ep = QnnEpAndroid.ep(applicationInfo.nativeLibraryDir).status
+        facts["qnnep.stage"] = ep.stage
+        ep.epVersion?.let { facts["qnnep.version"] = it }
+        if (ep.available && ComputeUnit.NPU in units) runtimes += RuntimeKeys.qnnEp
         facts["abi"] = android.os.Build.SUPPORTED_ABIS.firstOrNull().orEmpty()
         return ProcessProbe(InferProcess.ASR, runtimes, units, facts)
     }

@@ -1,0 +1,10 @@
+fleurs-ru/ru_00.wav .. ru_11.wav: 12 utterances of read Russian speech (16 kHz mono PCM16), the asr-ocr spike's
+FLEURS ru eval set (docs/research/verify/asr-ocr.md section 3); file ids and reference texts in fleurs-ru/mel_ref.json.
+Source: FLEURS (Google; Conneau et al., 2022), dev split, CC BY 4.0. https://huggingface.co/datasets/google/fleurs
+Unchanged audio.
+
+fleurs-ru/mel_ref.f32.gz, mel_ref.json: GigaAM v3 log-mel features of those clips written by
+native/qnn-contexts/gigaam_frontend.py (the reference of infer/asr qnnep/GigaAmFrontEnd.kt).
+
+gigaam_v3_e2e_ctc_vocab.txt: the CTC vocabulary of istupakov/gigaam-v3-onnx @322c3b29 (v3_e2e_ctc_vocab.txt),
+GigaAM v3 by SberDevices / ai-sage, MIT.
