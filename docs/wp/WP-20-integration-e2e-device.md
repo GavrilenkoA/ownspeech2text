@@ -238,6 +238,12 @@ placeholder left). Still in work: WP-21 and your wave 3. You now take over WP-15
   in memory (also fake engines). `MurmurTestRunner -e murmurFake seeded|fresh|off` writes/deletes the container flag;
   `run_emulator_e2e.sh fake_mode` now removes it before each suite (pass 6). Decide in wave 3 for the fast suite:
   either the engines-only mode gets a fake resolver (integ3's `fakeResolverOrNull`) or the suite seeds installs.
+  ADR-089 (pass-6 verification R1): in the engines-only mode the real `DefaultBenchmarkRunner` runs over FakeEngines,
+  but benchmark records and unit health are in memory and the device profile is cached in
+  `debug-fake-engines-device-profile.json` (`Replacements.engineRecords`); keep this if you add a fake resolver, and
+  assert unit health / benchmark state through `E2e.container`, never by reading the real files. The Settings
+  "Use fake engines" switch (`Settings.debugFakeEngines`) has no consumer yet: wire it to the flag file or remove it.
+  `EnginesOnlyWiringTest` (shell, `-e murmurFake off`) guards the separation.
 - Still yours from `integ3-wiring.diff` (not applied, ADR-087 item 11): `WavFileCapture` when `files/debug-capture.wav`
   exists, with the `CallWatch`/`AndroidAudioModeSource` call injection; `BinderEngines(…, { BinderTimeouts(scale =
   settings.debugTimeoutScale) })`; `debugIgnoreMemoryGate` applied to the real `MemoryGate`. The status notifier hunk is

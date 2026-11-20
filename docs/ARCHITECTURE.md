@@ -773,7 +773,7 @@ choice Default/None/Model, unit preference **per model id**, Wi-Fi only on, idle
 only: fake engines, timeout scale, ignore memory gate. "Edited" = `promptOverride != null`; Reset deletes the override
 (tone per app kept, DESIGN 6.5); an override whose `baseProfile` is not the active profile is shown as "made for an
 older prompt" and not applied. A prompt, preferences, unit or model change triggers `EnginePreparer.invalidatePrefix()`.
-Device profile, unit health and benchmark results are not settings (files / Room). No live-preview setting (ADR-047).
+Device profile, unit health and benchmark results are not settings (files / Room); in the debug fake-engines mode they are kept apart from the real ones (ADR-089). No live-preview setting (ADR-047).
 
 ---
 
