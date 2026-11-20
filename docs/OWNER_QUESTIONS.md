@@ -49,7 +49,10 @@ no open question: its two owner items were decided or done there.
 
 ## NPU ports (WP-21)
 
-17. **Where should the compiled NPU files for screen reading and GigaAM be hosted?** (WP-21) Five files, about 530 MB
+17. **Where should the compiled NPU files for screen reading and GigaAM be hosted?** (WP-21) — **Answered 2026-11-20:**
+   published to `satoshiNakomoroReal/npu-contexts` at the tag `qairt-2.52.0-r1` (507 MB, five files, sha256 verified
+   against `native/qnn-contexts/manifest.json`), catalog regenerated with the network check, no `pending host` left.
+   Details below. Five files, about 530 MB
    in total (screen-reading detector 10.7 MB and recogniser 52.5 MB, GigaAM 466.5 MB plus two small files), compiled
    on this server for the Fold7's chip. The catalog lists them with their checksums, but at a placeholder address
    (`owner-hosting-pending/npu-contexts`), so no normal build offers them (they need the NPU build of question 18).
