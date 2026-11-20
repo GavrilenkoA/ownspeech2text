@@ -49,7 +49,8 @@ done
 TEST_APK="$root/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk"
 TARGET_APK="$root/testapps/target/build/outputs/apk/debug/target-debug.apk"
 PKG=app.murmur
-RUNNER="$PKG.test/androidx.test.runner.AndroidJUnitRunner"
+# MurmurTestRunner = AndroidJUnitRunner + the shell tests' -e murmurFake switch (not passed here: the real container).
+RUNNER="$PKG.test/app.murmur.shell.MurmurTestRunner"
 STEPS=app.murmur.e2e.DeviceSmokeSteps
 DEVICE_DIR=/data/local/tmp/murmur-e2e
 NPU_LIBS=(lib/arm64-v8a/libQnnHtp.so lib/arm64-v8a/libggml-htp-v79.so)

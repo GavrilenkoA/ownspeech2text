@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 # Emulator end-to-end suites of WP-20 (ARCHITECTURE 16; docs/wp/WP-20-integration-e2e-device.md, Deliver 4).
 #
-#   tools/e2e/run_emulator_e2e.sh [--serial emulator-5588] [--suite harness,fast,matrix,events,real,privacy | all]
+#   tools/e2e/run_emulator_e2e.sh [--serial emulator-5588] [--suite harness,wiring,fast,matrix,events,real,bench,privacy | all]
 #                                 [--boot <avd>] [--keep-emulator] [--no-build] [--timeout-scale 8]
 #
 # Suites (each one `am instrument` of the app's androidTest APK, plus host-side checks):
 #   harness  the harness itself: target app logging (its own TargetAppTest), host bridge, fold/rotation/call/shade,
 #            SIGKILL of :asr/:llm, service on/off (EmulatorHarnessTest), PrivacyManifestTest, no app network traffic
+#   wiring   the shell package's container tests on this tree's AppContainer (-e murmurFake off): RealContainerWiringTest
+#            (real modules, real benchmark runner) and EnginesOnlyWiringTest (fake engines keep their records apart)
 #   fast     FastE2eTest on the :testing fake engines (debug fake mode): tap, listen, tap -> text in the target,
 #            history row, bubble Listening -> Polishing -> Inserted; RetryE2eTest: an ASR out-of-memory -> Failed with
 #            the recording -> Retry on the Error pill -> Inserted into the same field, row updated in place. Both AVDs.
@@ -16,8 +18,11 @@
 #            load ends the dictation, and the next one) in an instrumentation run of its own
 #   events-real  the same tests on the real CPU engines (models pushed as for real; kills are SIGKILLs of :asr/:llm).
 #            Every real-engine suite (events-real, real) starts from cleared app data with the models pushed again.
-#   real     RealE2eTest: GigaAM RNN-T + VAD + OCR + Qwen3.5 0.8B on CPU, FLEURS ru clip, then the privacy checks
+#   real     RealE2eTest: GigaAM RNN-T + VAD + OCR + Qwen3.5 0.8B on CPU, FLEURS ru clip (cold, warm) and en clip,
+#            per-stage latency, the idle exit, the four tabs showing the run's data, then the privacy checks
 #            (no app network bytes after the model push, no transcript word in the app's log lines)
+#   bench    BenchmarkOnEmulatorTest (WP-14's entry point): the app's benchmark runner over the pushed GigaAM + Qwen3.5 on
+#            the real :asr / :llm (records valid and saved), and a stop in the middle leaves no :asr process
 #   privacy  PrivacyManifestTest + the network check, without a dictation
 #   all      harness fast matrix events (the real suite needs --boot with the CPU-host emulator; run it on its own)
 #
@@ -51,13 +56,17 @@ done
 [ "$SUITES" = "all" ] && SUITES="harness,fast,matrix,events"
 IFS=',' read -r -a suites <<<"$SUITES"
 for s in "${suites[@]}"; do
-  case "$s" in harness|fast|matrix|events|events-real|real|privacy) ;; *) echo "unknown suite $s" >&2; exit 2 ;; esac
+  case "$s" in harness|wiring|fast|matrix|events|events-real|real|bench|privacy) ;; *) echo "unknown suite $s" >&2; exit 2 ;; esac
 done
 has_suite() { [[ ",$SUITES," == *",$1,"* ]]; }
 
 ADB=("$ANDROID_HOME/platform-tools/adb" -s "$SERIAL")
 PKG=app.murmur
 TARGET_PKG=app.murmur.testtarget
+# The app's androidTest APK declares MurmurTestRunner (AndroidJUnitRunner + the shell tests' -e murmurFake switch; the
+# e2e suites pass no murmurFake and run on the real container); the target's test APK the plain runner.
+APP_RUNNER="$PKG.test/app.murmur.shell.MurmurTestRunner"
+TARGET_RUNNER="$TARGET_PKG.test/androidx.test.runner.AndroidJUnitRunner"
 DEVICE_DIR=/data/local/tmp/murmur-e2e
 APP_APK="$root/app/build/outputs/apk/debug/app-debug.apk"
 TEST_APK="$root/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk"
@@ -90,7 +99,7 @@ if [ -n "$BOOT_AVD" ]; then
   done
   [ "$(free -g | awk '/^Mem:/{print $7}')" -ge 14 ] || die "not enough free memory to boot an emulator"
   port="${SERIAL#emulator-}"
-  cpu_host=0; { has_suite real || has_suite events-real; } && cpu_host=1
+  cpu_host=0; { has_suite real || has_suite events-real || has_suite bench; } && cpu_host=1
   # The brief asks for 4 GB guest RAM for the real suite (-memory 4096); boot.sh has no switch for it yet (toolchain
   # owner), so the AVD's own hw.ramSize applies; the report records MemTotal.
   MURMUR_EMU_READ_ONLY=1 MURMUR_EMU_CPU_HOST=$cpu_host "$root/tools/heavy" "$root/tools/emulator/boot.sh" "$BOOT_AVD" "$port" \
@@ -102,7 +111,7 @@ fi
 # --- build + install ----------------------------------------------------------------------------------------------
 if [ "$BUILD" = 1 ]; then
   gradle_args=(--max-workers=6 :app:assembleDebug :app:assembleDebugAndroidTest :testapps:target:assembleDebug :testapps:target:assembleDebugAndroidTest)
-  { has_suite real || has_suite events-real; } && gradle_args+=("-Pmurmur.nativeLibsDir=$NATIVE_LIBS")
+  { has_suite real || has_suite events-real || has_suite bench; } && gradle_args+=("-Pmurmur.nativeLibsDir=$NATIVE_LIBS")
   log "building: ${gradle_args[*]}"
   "$root/tools/gw" "${gradle_args[@]}" > "$out/build.txt" 2>&1 || { tail -30 "$out/build.txt"; die "build failed"; }
   tail -1 "$out/build.txt"
@@ -190,13 +199,32 @@ result_row() { # suite status detail
   log "$1: $2 ($3)"
 }
 
+# Under this server's load the shared AVDs can show "System UI isn't responding"; that dialog takes the focus from the
+# target app and breaks every UI step. Tap "Wait" (android:id/aerr_wait) whenever it is up (integration runner's helper).
+dismiss_anr() {
+  local i b
+  for i in 1 2 3; do
+    "${ADB[@]}" shell dumpsys window 2>/dev/null | grep -q 'mCurrentFocus=.*Application Not Responding' || return 0
+    "${ADB[@]}" shell uiautomator dump "$DEVICE_DIR/ui.xml" >/dev/null 2>&1
+    b=$("${ADB[@]}" shell cat "$DEVICE_DIR/ui.xml" 2>/dev/null | grep -o 'resource-id="android:id/aerr_wait"[^>]*bounds="\[[0-9]*,[0-9]*\]\[[0-9]*,[0-9]*\]"' | grep -o 'bounds=.*' | grep -o '[0-9]\+' | tr '\n' ' ')
+    if [ -n "$b" ]; then
+      set -- $b; log "ANR dialog: tapping Wait"
+      "${ADB[@]}" shell input tap $(( ($1 + $3) / 2 )) $(( ($2 + $4) / 2 ))
+    else
+      "${ADB[@]}" shell input keyevent KEYCODE_BACK
+    fi
+    sleep 2
+  done
+}
+
 overall=0
-instrument() { # suite runner-pkg class[,class] [extra am args...]
+instrument() { # suite runner-component class[,class] [extra am args...]
   local suite="$1" runner="$2" classes="$3"; shift 3
   local file="$out/$suite.instrument.txt"
+  dismiss_anr
   "${ADB[@]}" logcat -c
   log "$suite: am instrument -e class $classes"
-  "${ADB[@]}" shell am instrument -w -e class "$classes" "$@" "$runner/androidx.test.runner.AndroidJUnitRunner" > "$file" 2>&1
+  "${ADB[@]}" shell am instrument -w -e class "$classes" "$@" "$runner" > "$file" 2>&1
   "${ADB[@]}" logcat -d -v threadtime > "$out/$suite.logcat.txt" 2>&1
   grep -h ' E2E \| E2E-HOST \| TGT ' "$out/$suite.logcat.txt" | grep -v 'text=' > "$out/$suite.e2e-log.txt" || true
   grep -o 'E2E *: report .*' "$out/$suite.logcat.txt" | sed 's/^E2E *: report /- /' >> "$out/reports.md" || true
@@ -213,37 +241,42 @@ instrument() { # suite runner-pkg class[,class] [extra am args...]
 # --- suites -------------------------------------------------------------------------------------------------------
 if has_suite harness; then
   start_bridge
-  instrument harness-target "$TARGET_PKG.test" "app.murmur.testtarget.TargetAppTest"
+  instrument harness-target "$TARGET_RUNNER" "app.murmur.testtarget.TargetAppTest"
   fake_mode off
   before=$(net_bytes)
-  instrument harness "$PKG.test" "app.murmur.e2e.EmulatorHarnessTest,app.murmur.e2e.PrivacyManifestTest" -e e2e.bridge 1
+  instrument harness "$APP_RUNNER" "app.murmur.e2e.EmulatorHarnessTest,app.murmur.e2e.PrivacyManifestTest" -e e2e.bridge 1
   after=$(net_bytes)
   if [ "$after" -eq "$before" ]; then result_row harness-network PASS "app uid $app_uid: $before -> $after bytes"
   else result_row harness-network FAIL "app uid $app_uid: $before -> $after bytes"; overall=1; fi
 fi
 
+if has_suite wiring; then
+  fake_mode off
+  instrument wiring "$APP_RUNNER" "app.murmur.shell.RealContainerWiringTest,app.murmur.shell.EnginesOnlyWiringTest" -e murmurFake off
+fi
+
 if has_suite fast; then
   fake_mode on
-  instrument fast "$PKG.test" "app.murmur.e2e.FastE2eTest,app.murmur.e2e.RetryE2eTest"
+  instrument fast "$APP_RUNNER" "app.murmur.e2e.FastE2eTest,app.murmur.e2e.RetryE2eTest"
 fi
 
 if has_suite matrix; then
   fake_mode on
-  instrument matrix "$PKG.test" "app.murmur.e2e.TargetMatrixE2eTest"
+  instrument matrix "$APP_RUNNER" "app.murmur.e2e.TargetMatrixE2eTest"
 fi
 
 if has_suite events; then
   start_bridge
   fake_mode on
-  instrument events "$PKG.test" "app.murmur.e2e.PlatformEventsE2eTest" -e e2e.bridge 1
+  instrument events "$APP_RUNNER" "app.murmur.e2e.PlatformEventsE2eTest" -e e2e.bridge 1
   # A run of its own: :asr must start cold so that the kill lands in the model load.
-  instrument events-load-death "$PKG.test" "app.murmur.e2e.AsrLoadDeathE2eTest"
+  instrument events-load-death "$APP_RUNNER" "app.murmur.e2e.AsrLoadDeathE2eTest"
 fi
 
 if has_suite privacy; then
   fake_mode off
   before=$(net_bytes)
-  instrument privacy "$PKG.test" "app.murmur.e2e.PrivacyManifestTest"
+  instrument privacy "$APP_RUNNER" "app.murmur.e2e.PrivacyManifestTest"
   after=$(net_bytes)
   if [ "$after" -eq "$before" ]; then result_row privacy-network PASS "app uid $app_uid: $before -> $after bytes"
   else result_row privacy-network FAIL "app uid $app_uid: $before -> $after bytes"; overall=1; fi
@@ -261,10 +294,12 @@ real_world() { # real engines: fresh app data + the pinned models, before EVERY 
   "${ADB[@]}" shell pm grant "$PKG" android.permission.RECORD_AUDIO
   "${ADB[@]}" shell pm grant "$PKG" android.permission.POST_NOTIFICATIONS
   if [ "$clip_ready" = 0 ]; then
-    python3 -I "$root/tools/e2e/fleurs_clip.py" "$out/fleurs" || die "FLEURS clip"
-    "${ADB[@]}" push "$out/fleurs/fleurs-ru.wav" "$DEVICE_DIR/fleurs-ru.wav" >/dev/null
-    "${ADB[@]}" push "$out/fleurs/fleurs-ru.txt" "$DEVICE_DIR/fleurs-ru.txt" >/dev/null
-    "${ADB[@]}" shell chmod 644 "$DEVICE_DIR/fleurs-ru.wav" "$DEVICE_DIR/fleurs-ru.txt"
+    for lang in ru en; do
+      python3 -I "$root/tools/e2e/fleurs_clip.py" "$out/fleurs" "$lang" || die "FLEURS $lang clip"
+      "${ADB[@]}" push "$out/fleurs/fleurs-$lang.wav" "$DEVICE_DIR/fleurs-$lang.wav" >/dev/null
+      "${ADB[@]}" push "$out/fleurs/fleurs-$lang.txt" "$DEVICE_DIR/fleurs-$lang.txt" >/dev/null
+      "${ADB[@]}" shell chmod 644 "$DEVICE_DIR/fleurs-$lang.wav" "$DEVICE_DIR/fleurs-$lang.txt"
+    done
     clip_ready=1
   fi
   python3 -I "$root/tools/e2e/push_models.py" "$SERIAL" "${REAL_ARTIFACTS[@]}" | tee -a "$out/push_models.txt" || die "model push"
@@ -273,21 +308,21 @@ real_world() { # real engines: fresh app data + the pinned models, before EVERY 
 
 if has_suite events-real; then
   real_world
-  instrument events-real "$PKG.test" "app.murmur.e2e.PlatformEventsE2eTest" -e e2e.bridge 1 -e e2e.timeoutScale "$TIMEOUT_SCALE"
+  instrument events-real "$APP_RUNNER" "app.murmur.e2e.PlatformEventsE2eTest" -e e2e.bridge 1 -e e2e.timeoutScale "$TIMEOUT_SCALE"
   real_world
-  instrument events-real-load-death "$PKG.test" "app.murmur.e2e.AsrLoadDeathE2eTest" -e e2e.timeoutScale "$TIMEOUT_SCALE"
+  instrument events-real-load-death "$APP_RUNNER" "app.murmur.e2e.AsrLoadDeathE2eTest" -e e2e.timeoutScale "$TIMEOUT_SCALE"
 fi
 
 if has_suite real; then
   real_world
   before=$(net_bytes)
-  instrument real "$PKG.test" "app.murmur.e2e.RealE2eTest" -e e2e.timeoutScale "$TIMEOUT_SCALE"
+  instrument real "$APP_RUNNER" "app.murmur.e2e.RealE2eTest" -e e2e.timeoutScale "$TIMEOUT_SCALE"
   after=$(net_bytes)
   if [ "$after" -eq "$before" ]; then result_row real-network PASS "app uid $app_uid: $before -> $after bytes after the model push"
   else result_row real-network FAIL "app uid $app_uid: $before -> $after bytes after the model push"; overall=1; fi
   # D9: no app log line may contain the transcript. The target app logs its own field (other uid): excluded by uid.
   "${ADB[@]}" logcat -d -b main,system,crash -v uid > "$out/real.logcat-uid.txt" 2>&1
-  words=$(tr ' ' '\n' < "$out/fleurs/fleurs-ru.txt" | awk 'length($0) >= 5')
+  words=$(cat "$out/fleurs/fleurs-ru.txt" "$out/fleurs/fleurs-en.txt" | tr ' ' '\n' | awk 'length($0) >= 5' | sort -u)
   app_user="u0_a$((app_uid % 100000 - 10000))"
   leaks=0
   for w in $words; do
@@ -298,6 +333,11 @@ if has_suite real; then
   nwords=$(echo "$words" | wc -w)
   if [ "$leaks" -eq 0 ]; then result_row real-log-privacy PASS "0 of $nwords reference words in app log lines"
   else result_row real-log-privacy FAIL "$leaks of $nwords reference words in app log lines"; overall=1; fi
+fi
+
+if has_suite bench; then
+  real_world
+  instrument bench "$APP_RUNNER" "app.murmur.e2e.BenchmarkOnEmulatorTest" -e e2e.timeoutScale "$TIMEOUT_SCALE"
 fi
 
 { echo; echo "## Reported values"; echo; cat "$out/reports.md" 2>/dev/null; } >> "$summary"
