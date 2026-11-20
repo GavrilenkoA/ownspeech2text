@@ -98,7 +98,7 @@ abstract class BinderHost internal constructor(
     protected abstract fun probeJson(binder: IBinder): String
     protected abstract fun memoryJson(binder: IBinder): String
 
-    /** On failure: no runtimes, no units, [FACT_ERROR] = the error code (the device profile then trusts nothing). */
+    /** On failure: no runtimes, no units, [FACT_ERROR] = the error code (the device profile treats it as a failed probe). */
     final override suspend fun probe(): ProcessProbe {
         val r = sync(BinderCall.PROBE) { probeJson(it) }.decode(ProcessProbe.serializer())
         return when (r) {
@@ -213,7 +213,7 @@ abstract class BinderHost internal constructor(
 
     companion object {
         /** [ProcessProbe.facts] key set when the probe itself failed (value = MurmurError.code). */
-        const val FACT_ERROR = "probe.error"
+        const val FACT_ERROR = ProcessProbe.FACT_ERROR
         /** [ProcessMemory] field value when the process could not be asked. */
         const val UNKNOWN = -1L
     }

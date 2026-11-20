@@ -1,6 +1,7 @@
 package app.murmur.data.models
 
 import app.murmur.core.catalog.RuntimeKeys
+import app.murmur.core.engine.InferenceHost
 import app.murmur.core.engine.ProcessProbe
 import app.murmur.core.model.ArtifactId
 import app.murmur.core.model.ComputeUnit.CPU
@@ -9,10 +10,16 @@ import app.murmur.core.model.ComputeUnit.NPU
 import app.murmur.core.model.InferProcess
 import app.murmur.testing.FakeInferenceHost
 import java.io.File
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.currentTime
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -64,41 +71,76 @@ class DeviceProfileProberTest {
     }
 
     @Test
-    fun aCpuOnlyFallbackIsProbedAgainOnceTheRetryIsDue() = runBlocking {
-        // ADR-092: a probe that failed at :main start (boot, a slow first QNN EP registration) must not keep a
-        // long-lived :main on CPU only; the first ensure() after retryAfterMs probes again, nothing earlier.
-        var now = 1_000L
+    fun aCpuOnlyFallbackIsRetriedOnItsOwnAndEnsureNeverProbesWhileAProfileIsHeld() = runTest {
+        // ADR-092/093: a probe that failed at :main start (boot, a slow first QNN EP registration) must not keep a
+        // long-lived :main on CPU only, and the retry never runs inside ensure() (a press resolves models with it).
         val asr = FakeInferenceHost(InferProcess.ASR, units = setOf(NPU, CPU)).also { it.crashOnConnect = 1 }
         val llm = FakeInferenceHost(InferProcess.LLM)
-        val prober = DeviceProfileProber(cache, "1.0+1", asr, llm, base, retryAfterMs = 60_000, clock = { now })
+        val prober = DeviceProfileProber(cache, "1.0+1", asr, llm, base, retryAfterMs = 60_000,
+            retryScope = backgroundScope, retryContext = EmptyCoroutineContext)
         assertEquals(setOf(CPU), prober.ensure().availableUnits)
         val connects = asr.connects
-        now += 59_999
-        assertEquals(setOf(CPU), prober.ensure().availableUnits)
+        advanceTimeBy(59_999); runCurrent()
         assertEquals("no probe before the retry is due", connects, asr.connects)
+        assertEquals(setOf(CPU), prober.ensure().availableUnits)
+        assertEquals("ensure() returns the held fallback without probing", connects, asr.connects)
         assertFalse(cache.exists())
-        now += 1
-        assertEquals(setOf(NPU, CPU), prober.ensure().availableUnits)
+        advanceTimeBy(1); runCurrent()
         assertEquals(connects + 1, asr.connects)
+        assertEquals(setOf(NPU, CPU), prober.profile.value!!.availableUnits)
+        assertEquals(setOf(NPU, CPU), prober.ensure().availableUnits)
         assertTrue(cache.isFile)
         // A probed profile is final for the process: no more probes, however much time passes.
-        now += 10 * 60_000
-        assertEquals(setOf(NPU, CPU), prober.ensure().availableUnits)
+        assertNull(prober.pendingRetry)
+        advanceTimeBy(10 * 60 * 60_000L); runCurrent()
         assertEquals(connects + 1, asr.connects)
     }
 
     @Test
-    fun aRetryThatFailsAgainWaitsAnotherFullInterval() = runBlocking {
-        var now = 0L
-        val asr = FakeInferenceHost(InferProcess.ASR, units = setOf(NPU, CPU)).also { it.crashOnConnect = 2 }
-        val prober = DeviceProfileProber(cache, "1.0+1", asr, FakeInferenceHost(InferProcess.LLM), base, retryAfterMs = 1_000, clock = { now })
-        assertEquals(setOf(CPU), prober.ensure().availableUnits)
-        now = 1_000
-        assertEquals(setOf(CPU), prober.ensure().availableUnits)   // retry 1 fails
-        now = 1_999
-        assertEquals(setOf(CPU), prober.ensure().availableUnits)   // not due: counted from the failed retry
-        now = 2_000
-        assertEquals(setOf(NPU, CPU), prober.ensure().availableUnits)
+    fun aFailedRetryDoublesTheWaitUpToTheMaximum() = runTest {
+        val asr = FakeInferenceHost(InferProcess.ASR, units = setOf(NPU, CPU)).also { it.crashOnConnect = 4 }
+        val prober = DeviceProfileProber(cache, "1.0+1", asr, FakeInferenceHost(InferProcess.LLM), base,
+            retryAfterMs = 1_000, retryMaxMs = 3_000, retryScope = backgroundScope, retryContext = EmptyCoroutineContext)
+        assertEquals(setOf(CPU), prober.ensure().availableUnits)            // t = 0: fails
+        val probedAt = mutableListOf<Long>()
+        var seen = asr.connects
+        repeat(4) {
+            while (asr.connects == seen) { advanceTimeBy(1); runCurrent() }
+            seen = asr.connects
+            probedAt += currentTime
+        }
+        // 1 s, then 2 s, then 3 s (capped), then 3 s: the fourth retry succeeds.
+        assertEquals(listOf(1_000L, 3_000L, 6_000L, 9_000L), probedAt)
+        assertEquals(setOf(NPU, CPU), prober.profile.value!!.availableUnits)
+        assertNull(prober.pendingRetry)
+    }
+
+    @Test
+    fun aProbeCallThatTimedOutIsAFailedProbeNotAProfileWithoutItsRuntimes() = runTest {
+        // BinderHost.probe() answers a PROBE timeout (2 s, e.g. a slow first QNN EP registration) with no runtimes and
+        // FACT_ERROR. Merged and cached, that read as "this phone has no ASR runtime" until the next app version.
+        val asr = object : InferenceHost by FakeInferenceHost(InferProcess.ASR) {
+            override suspend fun probe() = ProcessProbe(InferProcess.ASR, emptySet(), emptySet(), mapOf(ProcessProbe.FACT_ERROR to "timeout"))
+        }
+        val prober = DeviceProfileProber(cache, "1.0+1", asr, FakeInferenceHost(InferProcess.LLM), base,
+            retryScope = backgroundScope, retryContext = EmptyCoroutineContext)
+        val p = prober.ensure()
+        assertEquals(setOf(CPU), p.availableUnits)
+        assertEquals(RuntimeKeys.implemented, p.supportedRuntimes)
+        assertFalse(cache.exists())
+        assertTrue("a retry is scheduled", prober.pendingRetry?.isActive == true)
+    }
+
+    @Test
+    fun onlyAProcessTheProbeStartedGetsTheShortIdleExit() = runTest {
+        // ADR-086/093: a process that is already up (a dictation, preparation, a warm keep) keeps its own idle timer.
+        val asr = FakeInferenceHost(InferProcess.ASR).also { it.connect(); it.scheduleIdleExit(400_000) }
+        val llm = FakeInferenceHost(InferProcess.LLM)
+        val released = mutableListOf<InferProcess>()
+        DeviceProfileProber(cache, "1.0+1", asr, llm, base, releaseAfterProbe = { released += it.process; it.scheduleIdleExit(5_000) }).ensure()
+        assertEquals(listOf(InferProcess.LLM), released)
+        assertEquals(400_000L, asr.idleExitMs)
+        assertEquals(DeviceProfileProber.IDLE_AFTER_PROBE_MS, llm.idleExitMs)
     }
 }
 

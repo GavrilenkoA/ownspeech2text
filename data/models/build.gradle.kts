@@ -14,4 +14,5 @@ dependencies {
     implementation(libs.androidx.room.runtime)   // MurmurDatabase's supertype, for RoomCustomModelStore(db)
     implementation(libs.commons.compress)
     testImplementation(project(":testing"))
+    testImplementation(libs.kotlinx.coroutines.test)   // ADR-093: the device-profile retry on virtual time
 }

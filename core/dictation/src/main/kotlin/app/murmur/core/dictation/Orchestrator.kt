@@ -247,6 +247,24 @@ class DictationOrchestrator(
         }
     }
 
+    /**
+     * Work on the inference processes that is not a dictation (ADR-093: the device-profile retry probe). It runs in the
+     * background slot like preparation (ARCHITECTURE 5.4): never during a dictation, one at a time; a press cancels it
+     * and it runs again after the dictation. It loads nothing, so a cancelled run keeps the keeper's loaded models.
+     */
+    suspend fun whenNoDictation(block: suspend () -> Unit) {
+        background(resume = true, forgetOnCancel = false) { block() }
+    }
+
+    /**
+     * The idle exit after a device probe of a process the probe started (D5: a probe does not keep a process alive).
+     * The orchestrator owns both idle timers (ADR-086 session hold, the Done re-arm), so the probe's short exit goes
+     * through the event loop and applies only while no dictation runs; during one, the session hold stands (ADR-093).
+     */
+    fun releaseAfterProbe(host: InferenceHost, ms: Long) {
+        inbox.trySend { if (!dictationRunning()) host.scheduleIdleExit(ms) }
+    }
+
     // ================================================================ event loop
 
     private fun post(e: DictationEvent) {
@@ -948,9 +966,10 @@ class DictationOrchestrator(
 
     /**
      * Runs [block] while no dictation runs, one at a time. A press cancels it (ARCHITECTURE 5.4); with [resume] it runs
-     * again after the dictation, otherwise null is returned.
+     * again after the dictation, otherwise null is returned. A cancelled block may have been half-way through a load, so
+     * the keeper forgets what it knew loaded, unless [forgetOnCancel] is false (a block that loads nothing).
      */
-    private suspend fun <T> background(resume: Boolean, block: suspend () -> T): T? {
+    private suspend fun <T> background(resume: Boolean, forgetOnCancel: Boolean = true, block: suspend () -> T): T? {
         while (true) {
             state.first { it is DictationState.Idle || it is DictationState.Done }
             val result: Bg<T> = backgroundLock.withLock {
@@ -965,7 +984,7 @@ class DictationOrchestrator(
                 } finally {
                     withContext(NonCancellable + serial) {
                         if (backgroundJob === job) backgroundJob = null
-                        if (job.isCancelled) { keeper.forget(InferProcess.ASR); keeper.forget(InferProcess.LLM) }
+                        if (job.isCancelled && forgetOnCancel) { keeper.forget(InferProcess.ASR); keeper.forget(InferProcess.LLM) }
                     }
                 }
             }

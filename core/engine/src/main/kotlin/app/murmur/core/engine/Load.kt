@@ -61,6 +61,12 @@ data class ProcessProbe(
 ) {
     companion object {
         const val FACT_NATIVE_BUILD = "native.build"
+        /**
+         * Set (value = MurmurError.code) when asking the process failed (bind, timeout, death, bad reply): such a probe
+         * reports nothing, and the device profile treats it as a failed probe, never as "this process supports nothing"
+         * (ADR-093).
+         */
+        const val FACT_ERROR = "probe.error"
     }
 }
 

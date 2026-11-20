@@ -39,6 +39,7 @@ import app.murmur.data.db.DbModule
 import app.murmur.data.db.Retention
 import app.murmur.data.models.DefaultCatalogRepository
 import app.murmur.data.models.DefaultDeviceProfileRepository
+import app.murmur.data.models.DeviceProfileProber
 import app.murmur.data.models.DefaultInstalledModelsRepository
 import app.murmur.data.models.DefaultModelResolver
 import app.murmur.data.models.FileUnitHealthRepository
@@ -133,7 +134,16 @@ class AppContainer(private val context: Context) {
     /** The stored benchmarks' prefill speed scales the prefix-prefill timeout (ADR-071); watched from [start]. */
     private val prefillSpeeds by lazy { StoredPrefillSpeeds(benchmarks, appScope) }
     /** The only owner of the probe (WP-13, ARCHITECTURE 8.4); never throws (CPU-only profile on failure). */
-    val deviceProfile: DeviceProfileRepository by lazy { fake?.device ?: engineRecords?.device ?: DefaultDeviceProfileRepository(context, engines.asrHost, engines.llmHost) }
+    val deviceProfile: DeviceProfileRepository by lazy {
+        fake?.device ?: engineRecords?.device ?: DefaultDeviceProfileRepository(
+            context, engines.asrHost, engines.llmHost,
+            // ADR-093: a cpuOnly fallback is retried outside dictations (the background slot; a press preempts it), and
+            // the short idle exit after a probe never replaces a dictation's hold (ADR-086).
+            retryScope = appScope,
+            runRetry = { orchestrator.whenNoDictation(it) },
+            releaseAfterProbe = { orchestrator.releaseAfterProbe(it, DeviceProfileProber.IDLE_AFTER_PROBE_MS) },
+        )
+    }
     val unitHealth: UnitHealthRepository by lazy { fake?.unitHealth ?: engineRecords?.unitHealth ?: FileUnitHealthRepository(ModelsModule.storage(context), ModelsModule.appVersion(context)) }
     /** The production resolver; kept as its own type for the benchmark runner's specs (ADR-080, `resolver.benchSpecs`). */
     private val resolver by lazy { DefaultModelResolver(catalog, installed, deviceProfile, unitHealth, benchmarks) { ModelsModule.storage(context).dir(it).path } }

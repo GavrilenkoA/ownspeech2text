@@ -336,6 +336,22 @@ class OrchestratorFlowTest {
         h.assertNoInternalErrors()
     }
 
+    @Test fun theIdleExitAfterAProbeAppliesOnlyWhileNoDictationRuns() = runTest {
+        // ADR-093: a device probe's short exit must never replace the ADR-086 session hold.
+        val h = harness()
+        h.o.releaseAfterProbe(h.w.engines.llmHost, 5_000); h.scope.testScheduler.runCurrent()
+        assertEquals(5_000L, h.w.engines.llmHost.idleExitMs)
+        h.at(h.now + 1_000); h.tap(); h.scope.testScheduler.runCurrent()
+        val hold = h.w.engines.llmHost.idleExitMs!!
+        assertTrue("hold $hold", hold > 300_000L)
+        h.o.releaseAfterProbe(h.w.engines.llmHost, 5_000); h.scope.testScheduler.runCurrent()
+        assertEquals(hold, h.w.engines.llmHost.idleExitMs)
+        h.at(h.now + 3_000); h.tap()
+        h.scope.testScheduler.advanceUntilIdle()
+        assertEquals(60_000L, h.w.engines.llmHost.idleExitMs)
+        h.assertNoInternalErrors()
+    }
+
     @Test fun tapDuringArmingAfter300msStopsRightAfterTheMicStarts() = runTest {
         val h = harness { audio.startDelayMs = 500 }
         h.at(0); h.tap()

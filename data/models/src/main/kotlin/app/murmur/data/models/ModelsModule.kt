@@ -26,6 +26,12 @@ class DefaultDeviceProfileRepository(
     appVersion: String = ModelsModule.appVersion(context),
     /** Where the probed profile is cached; the debug fake-engines mode passes its own file (ADR-089). */
     cacheFile: File = File(context.noBackupFilesDir, "device-profile.json"),
+    /** Retries of a cpuOnly fallback wait here (the application scope); null = no retries. See [DeviceProfileProber]. */
+    retryScope: CoroutineScope? = null,
+    /** How one retry runs: AppContainer passes the orchestrator's background slot (ADR-093). */
+    runRetry: suspend (suspend () -> Unit) -> Unit = { it() },
+    /** The idle exit of a process the probe started: AppContainer routes it through the orchestrator (ADR-093). */
+    releaseAfterProbe: (InferenceHost) -> Unit = { it.scheduleIdleExit(DeviceProfileProber.IDLE_AFTER_PROBE_MS) },
 ) : DeviceProfileRepository {
     private val prober = DeviceProfileProber(
         cacheFile = cacheFile,
@@ -41,6 +47,9 @@ class DefaultDeviceProfileRepository(
             )
         },
         log = AndroidDlLog,
+        retryScope = retryScope,
+        runRetry = runRetry,
+        releaseAfterProbe = releaseAfterProbe,
     )
     override val profile: StateFlow<DeviceProfile?> = prober.profile
     override suspend fun ensure(): DeviceProfile = prober.ensure()

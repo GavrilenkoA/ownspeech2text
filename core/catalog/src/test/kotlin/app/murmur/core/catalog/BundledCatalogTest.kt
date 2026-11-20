@@ -19,6 +19,18 @@ class BundledCatalogTest {
     }
 
     @Test
+    fun filesOnThePendingNpuHostAreOnlyOnRuntimesNoBuildImplements() {
+        // ADR-093 (pass-8 verification m2): the placeholder namespace of the NPU context files is a public HF name that
+        // anyone could register. Its files stay sha256-pinned and only on the ort-qnn runtimes, which are never in
+        // RuntimeKeys.implemented: RUNTIME_NOT_SHIPPED in every build without -Pmurmur.qnn, never picked by Auto.
+        val pending = catalog.models.flatMap { m -> m.artifacts.flatMap { a -> a.files.filter { it.repo == NPU_PENDING_REPO }.map { a to it } } }
+        for ((a, f) in pending) {
+            assertTrue("${a.id}: ${a.runtime}", a.runtime in RuntimeKeys.qnnEp && a.runtime !in RuntimeKeys.implemented)
+            assertTrue("${a.id}/${f.name}", f.sha256.matches(Regex("[0-9a-f]{64}")) && f.bytes > 0)
+        }
+    }
+
+    @Test
     fun ownerRequestedFamiliesAreListed() {
         // docs/BRIEF.md "Model hub": Whisper (sizes), Parakeet, GigaAM, T-one, Qwen3-ASR, LFM2.5, LFM3, Qwen3.5, fine-tunes, None.
         val families = catalog.models.map { it.family }.toSet()
@@ -142,3 +154,6 @@ class BundledCatalogTest {
             assertTrue("${a.id}/$u", MemoryEstimate.mb(m, a, u) > 0 && a.memoryMb[u] != null)
     }
 }
+
+/** build_catalog.py NPU_CTX_REPO until OWNER_QUESTIONS 17 is answered. */
+private const val NPU_PENDING_REPO = "owner-hosting-pending/npu-contexts"
