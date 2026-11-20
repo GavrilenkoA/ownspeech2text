@@ -340,6 +340,11 @@ class DeviceSmokeSteps : DictationTest() {
         val stopAt = SystemClock.uptimeMillis()
         val done = rec.awaitDone(300_000)
         val doneAt = SystemClock.uptimeMillis()
+        // ADR-090 item 4: with forced short timers no ladder rung may insert after the result (text under a Copied pill,
+        // or a second insert). The field is read at Done and again once any rung would have ended.
+        val fieldAtDone = if (case.timeoutScale != null) TargetApp.lastText() else null
+        if (case.timeoutScale != null) SystemClock.sleep(LATE_INSERT_SETTLE_MS)
+        val fieldSettled = if (case.timeoutScale != null) TargetApp.lastText() else null
         if (case.timeoutScale != null) runBlocking { c.settings.update { it.copy(debugTimeoutScale = scaleBefore) } }
         if (case.edit) runBlocking { c.settings.update { it.copy(preferences = preferencesBefore) } }
         E2e.note("dc8 done case=${case.name}")
@@ -374,6 +379,10 @@ class DeviceSmokeSteps : DictationTest() {
                 put("llmArtifact", r.cleanup?.model?.artifactId?.value ?: JSONObject.NULL)
             }
             put("insertedText", TargetApp.lastText() ?: JSONObject.NULL)
+            if (case.timeoutScale != null) {
+                put("fieldTextAtDone", fieldAtDone ?: JSONObject.NULL); put("fieldTextSettled", fieldSettled ?: JSONObject.NULL)
+                put("lateInsertSettleMs", LATE_INSERT_SETTLE_MS)
+            }
             put("memAvailableBeforeMb", memBefore); put("memAvailableAtDoneMb", memAvailableMb())
             val failedUnits = JSONArray()
             for (id in c.installed.states.value.keys) for (u in ComputeUnit.entries) if (c.unitHealth.failed(id, u)) failedUnits.put("${id.value}:${u.name}")
@@ -486,5 +495,7 @@ class DeviceSmokeSteps : DictationTest() {
         const val CAPTURE_PROBE_MS = 1_500L
         const val CAPTURE_PROBE_SESSION = 9_000_000L
         const val ASR_PROBE_FINISH_TIMEOUT_MS = 30_000L
+        /** Longer than the whole insertion ladder (1.5 s budget) plus a slow binder read: any late rung has landed. */
+        const val LATE_INSERT_SETTLE_MS = 2_500L
     }
 }

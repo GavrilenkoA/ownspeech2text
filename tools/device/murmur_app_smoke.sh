@@ -15,8 +15,8 @@
 #   ru10 (≈10 s Russian), en10 (≈10 s English), mixed60 (≈60 s mixed), cold3 (first dictation after 70 s idle, 3 s),
 #   edit10 (right after a prompt edit: a sentence added to "My preferences", restored afterwards; the report asserts the
 #   cache prefix's sha256 changed), npu10 (LLM pinned to NPU while :asr holds its QNN context),
-#   tmo10 (timeouts forced short, debugTimeoutScale 0.1: the dictation must still end, and the client's
-#   "process still alive ... killing" lines are counted),
+#   tmo10 (timeouts forced short, debugTimeoutScale 0.1: the dictation must still end, nothing is inserted after the
+#   result, no unit is marked failed, and the client's "process still alive ... killing" lines are counted),
 # then checks that :asr and :llm exit within 70 s and MemAvailable comes back, then presses once more and cancels while
 # :asr is still being bound or loaded (:asr must be gone idleUnloadSec + 2 s later). It also runs WP-04's prompt/guard
 # goldens on ART (core/prompt/tools/run_on_art.sh, when this tree has it) and records mic start times, the history codec
@@ -124,6 +124,15 @@ for c in cases:
         check(c, "forced timeouts: the dictation ended (no hang)", None if mode == "skeleton" else d.get("outcome") is not None,
               {"outcome": d.get("outcome"), "cleanup": d.get("cleanupOutcome"), "skip": d.get("skipReason"), "error": d.get("error"),
                "timeoutScale": d.get("timeoutScale"), "clientKills": logs.get("clientKills")})
+        # ADR-090 item 4: no ladder rung inserts after the result (text under Copied, or a second insert later).
+        at_done, settled = d.get("fieldTextAtDone"), d.get("fieldTextSettled")
+        check(c, "forced timeouts: nothing inserted after the result", None if mode == "skeleton" else
+              ("fieldTextSettled" in d and settled == at_done and (d.get("outcome") != "Copied" or not (at_done or "").strip())),
+              {"outcome": d.get("outcome"), "insertMethod": d.get("insertMethod"), "changedAfterDone": settled != at_done,
+               "settleMs": d.get("lateInsertSettleMs")})
+        # ADR-090 item 2: debug binder timeouts are never scaled below 1, so a forced-timeout run marks no unit failed.
+        check(c, "forced timeouts: no failed unit in unit health", None if mode == "skeleton" else not d.get("unitHealthFailed"),
+              d.get("unitHealthFailed"))
         continue
     # The pipeline check: the text was inserted and the cleanup model ran to a guard verdict. "accept" and "fallback:*"
     # (the guard kept the raw text: a judgement of the model's output, recorded for the owner) both pass; "skipped:*"

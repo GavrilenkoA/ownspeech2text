@@ -1,6 +1,6 @@
 # Murmur architecture
 
-Version 2.3 · 2026-11-20 (wave-1 integration passes 1-5, wave-2 integration pass 6, wave-3 integration pass 7: ADR-064..090) · Owner: architect. Binding for all work packages (`docs/wp/`). Owner decisions D1-D12 are
+Version 2.3 · 2026-11-20 (wave-1 integration passes 1-5, wave-2 integration pass 6, wave-3 integration pass 7: ADR-064..091) · Owner: architect. Binding for all work packages (`docs/wp/`). Owner decisions D1-D12 are
 quoted verbatim at the top of `docs/DECISIONS.md`; conflicts and their evidence are ADR-nnn there; review findings and
 their resolution are under "Review responses" there. Everything that only the phone can prove: `docs/DEVICE_CHECKLIST.md`
 (steps DC1-DC10).
@@ -239,7 +239,8 @@ D11). Binder transactions stay far below 1 MB (largest: prompt prefix ≈ 12 KB 
 through a parcel: `:main` copies the `ARGB_8888` bitmap into `SharedMemory`, `setProtect(PROT_READ)`, passes the
 fd, closes its copy after the callback. Clients bind with `bindContext()` = the accessibility service when connected,
 else the application. The client reads its `BinderTimeouts` at every call: debug builds multiply every timeout by
-`Settings.debugTimeoutScale` (emulator CPU engines), release builds always use scale 1. The prefill speed `pp` of
+`Settings.debugTimeoutScale` (emulator CPU engines) but never by less than 1 (`binderScale`, ADR-091: a binder timeout
+is a process death and a load timeout marks the unit failed), release builds always use scale 1. The prefill speed `pp` of
 `prefixMs` comes from the stored benchmarks (`StoredPrefillSpeeds` in `:app`, `BenchScores.llmSpeed`, ADR-071): one hot
 copy of the records per catalog LLM artifact, watched from app start, so the binder path never blocks (ADR-090).
 
@@ -727,8 +728,9 @@ used by the resolver.
    `commitText` that returned true but is not verified yet gets a grace read (400 ms); an unreadable field after a
    true commit is never escalated (Copied). The whole ladder runs inside one budget of 1,500 ms from its first read
    (`LADDER_BUDGET_MS`; a rung waits at most 600 ms and leaves 250 ms for each later rung), so it ends 500 ms before
-   the DELIVERY timer (2 s); the deliver job is not cancelled by that timer, so a shorter DELIVERY timeout must cancel
-   it (ADR-086 item 5, ADR-090).
+   the DELIVERY timer (2 s). That timer is `DictationConfig.deliveryTimerMs()`: scaled like the others but never
+   below `deliveryMinMs` = 1,900 ms (ladder budget + 400 ms), because the deliver job is not cancelled by it and
+   still writes the history row (ADR-086 item 5, ADR-090, ADR-091; `TimeoutFloorsTest`).
 6. All fail → `CopiedOnly(InsertRejected)`. DB write failures never block delivery (text is already out).
 7. IN_APP: `InAppTarget.insert(text)`; no clipboard, no history.
 

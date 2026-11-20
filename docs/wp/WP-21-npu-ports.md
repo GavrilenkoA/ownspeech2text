@@ -147,9 +147,10 @@ tree (`git merge-tree`); the overlap files of pass 6 (`catalog.json`, `build_cat
   probe of a new app version runs right after app start (`:asr` and `:llm` start for a few seconds and idle out), not in
   the first press. A probe that lists the QNN OCR / GigaAM runtime keys must not need a loaded model; a unit that only
   shows after a real session load stays "unknown" until then (pass-5 note unchanged).
-- **Binder timeouts (ADR-090 item 2):** read per call; debug builds scale them by `debugTimeoutScale`, release by 1. An
-  NPU load or context compile on the phone has the plain 15 s `loadAsr` / `loadOcr` budget: if a cold QNN context
-  build takes longer, say so in your report (do not lengthen it inside `:asr`).
+- **Binder timeouts (ADR-090 item 2, ADR-091):** read per call; debug builds scale them by `debugTimeoutScale` but never
+  below 1, release by 1. An NPU load or context compile on the phone has the plain 15 s `loadAsr` / `loadOcr` budget,
+  also under DC8's tmo10 (scale 0.1): if a cold QNN context build takes longer, say so in your report (do not
+  lengthen it inside `:asr`).
 - **E2e and DC8 dry run:** `tools/e2e/run_emulator_e2e.sh` (suites harness, wiring, fast, matrix, events, events-real,
   real, bench) runs the app's tests under `app.murmur.shell.MurmurTestRunner`; your own `:infer:asr` instrumented tests
   keep `AndroidJUnitRunner`. Your merge pass reruns `real` on the inner AVD and `NONINTERACTIVE=1
