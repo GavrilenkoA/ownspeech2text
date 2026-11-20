@@ -67,14 +67,9 @@ if step llama "$MARK_VOL"; then
   LD_LIBRARY_PATH="$LLAMA_BIN_CUDA" "$LLAMA_BIN_CUDA/llama-server" --version 2>&1 | tail -2
   touch "$MARK_VOL/llama"
 fi
-# The CUDA 12.8 release build must see the 5090 (sm_120); if it does not, every pod eval falls back
-# to the CPU build (slower, still correct) instead of failing mid-matrix. env.sh reads the marker.
-if LD_LIBRARY_PATH="$LLAMA_BIN_CUDA" "$LLAMA_BIN_CUDA/llama-server" --list-devices 2>&1 | grep -q CUDA0; then
-  rm -f "$MARK_VOL/llama-cpu-fallback"; log "llama.cpp CUDA build sees the GPU"
-else
-  touch "$MARK_VOL/llama-cpu-fallback"
-  log "WARNING: llama.cpp CUDA build lists no CUDA device; pod evals use the CPU build ($LLAMA_BIN_CPU)"
-fi
+# (whether the CUDA build really computes on this GPU is decided by the kernel smoke test, step 6b)
+LD_LIBRARY_PATH="$W/llama/cuda/llama-$LLAMA_TAG" "$W/llama/cuda/llama-$LLAMA_TAG/llama-server" --list-devices 2>&1 \
+  | grep CUDA0 || log "WARNING: the CUDA 12.8 llama.cpp build lists no CUDA device (step 6b tries the fallbacks)"
 
 # ---- 5. training venv: torch 2.15.0 (CUDA 13.2, PyPI default) + pinned stack + GPU kernels
 if step venv-train "$MARK_VOL"; then
@@ -115,12 +110,19 @@ if step selftest "$MARK_VOL"; then
   touch "$MARK_VOL/selftest"
 fi
 
-# ---- 7. base weights (public repos; ~9.8 GB for all three) into $HF_HOME on the volume
+# ---- 6b. llama.cpp GPU KERNEL SMOKE TEST, on every start: ml/pod/kernel_smoke.sh (phase A prepares the smoke
+# models, retried once; a failure there is its own error, exit 7, with no build tested and no fallback build tried;
+# phase B tests the CUDA 12.8 build, then CUDA 13.5, then a source build; none passes -> llama-cpu-fallback).
+bash ml/pod/kernel_smoke.sh
+
+# ---- 7. base weights (public repos; ~9.8 GB for all three) into $HF_HOME on the volume, each at the commit
+# pinned in ml/train/configs/base.yaml (base_revisions; TRAINING_RUNBOOK 0.1). sft/merge load the same commit.
 MODELS="${MODELS-LiquidAI/LFM3-1.7B Qwen/Qwen3.5-0.8B Qwen/Qwen3.5-2B}"   # MODELS="" (probe session): none
 for m in $MODELS; do
-  key="weights-$(echo "$m" | tr '/' '_')"
+  rev=$("$VENV_TRAIN/bin/python" -m ml.train.config revision "$m")   # refuses a repo without a pinned commit
+  key="weights-$(echo "$m" | tr '/' '_')-${rev:0:12}"
   if step "$key" "$MARK_VOL"; then
-    "$VENV_TRAIN/bin/python" -c "from huggingface_hub import snapshot_download as s; print(s('$m'))"
+    "$VENV_TRAIN/bin/python" -c "from huggingface_hub import snapshot_download as s; print(s('$m', revision='$rev'))"
     touch "$MARK_VOL/$key"
   fi
 done

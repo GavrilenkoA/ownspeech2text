@@ -5,7 +5,10 @@ one `method:` switch, on shared-contract JSONL rendered with prompts/render.py a
   python -m ml.train.sft --config ml/train/configs/q08-lora.yaml [--set train.max_steps=5 ...]
 
 Writes OUTPUT_DIR/{checkpoint-*/, final/, data_stats.json, train_info.json}. Re-running the same
-command resumes from the newest checkpoint (train.resume: true). final/ is either a PEFT adapter
+command resumes from the newest checkpoint (train.resume: true), except after a divergence: then
+OUTPUT_DIR/DIVERGED.json (step, reason) makes every re-run refuse at once (exit 4, no training) until
+FORCE_RETRAIN=1, which archives the marker, drops the checkpoints and trains from scratch (a resume would
+restore the old optimizer and lr schedule and, for a deterministic cause, diverge again). final/ is either a PEFT adapter
 (lora/dora; merge with ml.train.merge) or a full HF model in bf16, with tokenizer and the
 official chat template, ready for ml.train.export.
 """
@@ -92,8 +95,13 @@ class StopRules:
         rest of the run - merge, export, parity, dev eval - would still end inside MAX_GPU_HOURS).
         Past it, training stops after the current optimizer step, saves and finishes normally
         (train_info.json: stopped_by = "budget"), so the run still gets exported and evaluated.
-      * divergence: a logged training loss that is NaN/inf stops at once (stopped_by = "diverged");
-        sft exits 4 without writing train_info.json, so the run is reported as failed."""
+      * divergence: a NaN/inf training loss stops the run at the end of the optimizer step in which it
+        appeared (stopped_by = "diverged"), without saving a checkpoint of the diverged weights; sft writes
+        OUTPUT_DIR/DIVERGED.json (step, reason) instead of train_info.json and exits 4, so the run is reported
+        as failed and is not trained again by a re-run (diverged_gate). The check sees the RAW loss of
+        every micro-batch (MurmurTrainer.compute_loss -> watch_loss), not the logged one: HF Trainer's
+        logging_nan_inf_filter replaces a non-finite step loss before logging, and logs come only every
+        logging_steps. As a second net, a non-finite logged loss / grad_norm / eval_loss also stops."""
 
     def __init__(self, deadline: float | None):
         from transformers import TrainerCallback
@@ -102,6 +110,11 @@ class StopRules:
 
         class _CB(TrainerCallback):
             def on_step_end(self, args, state, control, **kw):
+                bad = rules._nonfinite
+                rules._nonfinite = None
+                if bad is not None and bool(bad):  # one host sync per optimizer step
+                    rules._diverged(f"non-finite training loss in step {state.global_step}", control)
+                    return control
                 if rules.deadline and time.time() > rules.deadline and not rules.stopped_by:
                     rules.stopped_by = "budget"
                     print(f"STOP budget: deadline passed at step {state.global_step}", flush=True)
@@ -110,19 +123,32 @@ class StopRules:
                 return control
 
             def on_log(self, args, state, control, logs=None, **kw):
-                loss = (logs or {}).get("loss")
-                if loss is not None and not math.isfinite(float(loss)):
-                    rules.stopped_by = "diverged"
-                    print(f"STOP diverged: loss {loss} at step {state.global_step}", flush=True)
-                    control.should_training_stop = True
+                for k in ("loss", "grad_norm", "eval_loss"):
+                    v = (logs or {}).get(k)
+                    if v is not None and not math.isfinite(float(v)):
+                        rules._diverged(f"logged {k} {v} at step {state.global_step}", control)
+                        break
                 return control
 
-        self.deadline, self.stopped_by, self.callback = deadline, None, _CB()
+        self.deadline, self.stopped_by, self.callback, self._nonfinite = deadline, None, _CB(), None
+        self.reason = None
+
+    def watch_loss(self, loss) -> None:
+        """Record whether this micro-batch's loss is finite, without a host sync (read at step end)."""
+        bad = ~torch.isfinite(loss.detach()).all()
+        self._nonfinite = bad if self._nonfinite is None else (self._nonfinite | bad)
+
+    def _diverged(self, why: str, control) -> None:
+        self.stopped_by, self.reason = "diverged", why
+        print(f"STOP diverged: {why}", flush=True)
+        control.should_training_stop = True
+        control.should_save = False      # never checkpoint diverged weights (DIVERGED.json blocks a plain re-run)
+        control.should_evaluate = False
 
 
-def detect_template(base: str) -> str:
+def detect_template(base: str, revision: str | None = None) -> str:
     from transformers import AutoConfig
-    mt = AutoConfig.from_pretrained(base).model_type
+    mt = AutoConfig.from_pretrained(base, revision=revision).model_type
     return contract.MODEL_TYPE_TO_TEMPLATE[mt]
 
 
@@ -146,7 +172,7 @@ def load_model(cfg: dict):
     attn = cfg["train"].get("attn_implementation")
     if attn:
         kw["attn_implementation"] = attn
-    model = AutoModelForCausalLM.from_pretrained(cfg["base_model"], **kw)
+    model = AutoModelForCausalLM.from_pretrained(cfg["base_model"], revision=cfglib.base_revision(cfg), **kw)
     model.config.use_cache = False
     method = cfg["method"]
     if method in ("lora", "dora"):
@@ -166,6 +192,28 @@ def load_model(cfg: dict):
     n_all = sum(p.numel() for p in model.parameters())
     n_tr = sum(p.numel() for p in model.parameters() if p.requires_grad)
     return model, {"params_total": n_all, "params_trainable": n_tr}
+
+
+DIVERGED = "DIVERGED.json"
+
+
+def diverged_gate(out: Path, force: bool) -> dict | None:
+    """The DIVERGED.json marker of an earlier diverged training in `out`, if it must block this one (None: train).
+    With `force` (FORCE_RETRAIN=1) the marker is kept as DIVERGED.<utc>.json and the checkpoints are dropped,
+    so the run trains from scratch with whatever the config / overrides now say."""
+    m = out / DIVERGED
+    if not m.exists():
+        return None
+    try:
+        info = json.loads(m.read_text())
+    except (OSError, ValueError) as e:
+        info = {"reason": f"unreadable marker: {e}"}
+    if not force:
+        return info
+    m.rename(out / f"DIVERGED.{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}.json")
+    for ck in out.glob("checkpoint-*"):
+        shutil.rmtree(ck, ignore_errors=True)
+    return None
 
 
 def last_checkpoint(out: Path) -> str | None:
@@ -188,7 +236,8 @@ def save_final(model, tok, cfg: dict, out: Path) -> Path:
         model.to(torch.bfloat16).save_pretrained(final, safe_serialization=True)
     tok.save_pretrained(final)
     base = Path(cfg["base_model"])
-    src = base if base.is_dir() else Path(snapshot_download(cfg["base_model"], allow_patterns=list(COPY_FILES)))
+    src = base if base.is_dir() else Path(snapshot_download(cfg["base_model"], revision=cfglib.base_revision(cfg),
+                                                            allow_patterns=list(COPY_FILES)))
     for name in COPY_FILES:  # official template wins over whatever the tokenizer serialised
         if (src / name).exists():
             shutil.copy2(src / name, final / name)
@@ -208,11 +257,20 @@ def main(argv=None) -> int:
     out = Path(cfg["output_dir"])
     out.mkdir(parents=True, exist_ok=True)
     tr = cfg["train"]
+    if not a.prepare_only:
+        prev = diverged_gate(out, os.environ.get("FORCE_RETRAIN") == "1")
+        if prev is not None:
+            print(f"STOP diverged earlier (step {prev.get('step')}: {prev.get('reason')}); not trained again. "
+                  f"FORCE_RETRAIN=1 retrains from scratch ({out / DIVERGED})", flush=True)
+            print(json.dumps({"run_name": cfg.get("run_name"), "stopped_by": "diverged_earlier",
+                              "step": prev.get("step")}), flush=True)
+            return 4
     set_seed(int(tr.get("seed", 42)))
     if tr.get("threads"):
         torch.set_num_threads(int(tr["threads"]))
-    tok = AutoTokenizer.from_pretrained(cfg["base_model"])
-    template = cfg.get("template") or detect_template(cfg["base_model"])
+    revision = cfglib.base_revision(cfg)  # pinned Hub commit (None for a local dir); refuses an unpinned Hub base
+    tok = AutoTokenizer.from_pretrained(cfg["base_model"], revision=revision)
+    template = cfg.get("template") or detect_template(cfg["base_model"], revision)
     mix = PromptMix(**cfg.get("prompt", {}))
     t0 = time.time()
     train_f, tinfo = build(cfg["data"]["train"], "train", tok, template, mix, tr.get("max_len", "auto"),
@@ -251,6 +309,8 @@ def main(argv=None) -> int:
     model, pinfo = load_model(cfg)
     print(json.dumps(pinfo))
     _, autocast_bf16 = precision(cfg)
+    dl = os.environ.get("MURMUR_TRAIN_DEADLINE")
+    rules = StopRules(float(dl) if dl else None)
     args = TrainingArguments(
         output_dir=str(out), per_device_train_batch_size=bs, per_device_eval_batch_size=bs,
         gradient_accumulation_steps=ga, learning_rate=float(tr["lr"]),
@@ -266,12 +326,17 @@ def main(argv=None) -> int:
         report_to=tr.get("report_to", "none"), seed=int(tr.get("seed", 42)), remove_unused_columns=False,
         dataloader_num_workers=int(tr.get("workers", 0)), use_cpu=not torch.cuda.is_available(),
         torch_compile=bool(tr.get("torch_compile", False)), save_only_model=bool(tr.get("save_only_model", False)),
-        use_liger_kernel=bool(tr.get("liger", False)), prediction_loss_only=True)
+        use_liger_kernel=bool(tr.get("liger", False)), prediction_loss_only=True,
+        # log the real loss: the default filter replaces a NaN/inf step loss with the running mean, which hid
+        # divergence from the stop rule (StopRules watches the raw loss anyway; this keeps the log honest)
+        logging_nan_inf_filter=False)
 
     class MurmurTrainer(Trainer):
         def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):
             loss, out, scaled = completion_loss(model, inputs, num_items_in_batch)
             self.loss_is_scaled_for_ga = scaled  # read by training_step right after this call
+            if model.training:
+                rules.watch_loss(loss)       # divergence stop rule on the raw micro-batch loss
             return (loss, out) if return_outputs else loss
 
         def _get_train_sampler(self, train_dataset=None):
@@ -280,8 +345,6 @@ def main(argv=None) -> int:
             return LengthGroupedSampler(bs * ga, lengths=lengths, generator=g)
 
     pad_id = tok.pad_token_id if tok.pad_token_id is not None else tok.convert_tokens_to_ids(contract.TEMPLATES[template])
-    dl = os.environ.get("MURMUR_TRAIN_DEADLINE")
-    rules = StopRules(float(dl) if dl else None)
     trainer = MurmurTrainer(model=model, args=args,
                             data_collator=Collator(pad_id, fixed_len=max_len if padding == "max_len" else None),
                             train_dataset=FeatDataset(train_f), eval_dataset=FeatDataset(dev_f) if dev_f else None,
@@ -295,15 +358,19 @@ def main(argv=None) -> int:
     res = trainer.train(resume_from_checkpoint=resume)
     train_s = time.time() - t1
     if rules.stopped_by == "diverged":
-        print(json.dumps({"run_name": cfg.get("run_name"), "stopped_by": "diverged",
-                          "step": trainer.state.global_step}), flush=True)
+        marker = {"run_name": cfg.get("run_name"), "stopped_by": "diverged", "step": trainer.state.global_step,
+                  "reason": rules.reason, "resumed_from": resume, "last_good_checkpoint": last_checkpoint(out),
+                  "utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+        (out / DIVERGED).write_text(json.dumps(marker, indent=1, ensure_ascii=False))
+        print(json.dumps({k: marker[k] for k in ("run_name", "stopped_by", "step")}), flush=True)
         return 4
     final = save_final(trainer.model, tok, cfg, out)
     steps = trainer.state.global_step
     seqs = steps * bs * ga * max(1, args.world_size)
     mean_len = sum(lengths) / len(lengths)
     info = {
-        "run_name": cfg.get("run_name"), "method": cfg["method"], "base_model": cfg["base_model"], "template": template,
+        "run_name": cfg.get("run_name"), "method": cfg["method"], "base_model": cfg["base_model"],
+        "base_revision": revision, "template": template,
         **pinfo, "steps": steps, "train_runtime_s": round(train_s, 1), "train_loss": res.training_loss,
         "approx_tokens_per_s": round(seqs * mean_len / train_s, 1) if train_s else None,
         "eval_loss": next((h["eval_loss"] for h in reversed(trainer.state.log_history) if "eval_loss" in h), None),

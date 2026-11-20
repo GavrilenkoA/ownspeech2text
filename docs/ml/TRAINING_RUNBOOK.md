@@ -1,6 +1,8 @@
 # Murmur — training, export and evaluation runbook (PLAN_V2)
 
-Date: 2026-11-18, review fixes 2026-11-19, turnkey pod plan on the final data 2026-11-20. Binding plan: `docs/ml/PLAN_V2.md` (1–5K synthetic examples, teacher on the dev
+Date: 2026-11-18, review fixes 2026-11-19, turnkey pod plan on the final data 2026-11-20, second review fixes
+2026-11-20 (divergence stop, budget tail, llama.cpp kernel smoke test, pinned base revisions; numbers from the current final),
+final review minors 2026-11-20 (DIVERGED.json marker, smoke-model preparation separated from the build test). Binding plan: `docs/ml/PLAN_V2.md` (1–5K synthetic examples, teacher on the dev
 server, one RTX 5090 for 2–3 GPU-hours, hard cap 4 h, LoRA first). Code: `ml/train`, `ml/eval`, `ml/pod` (overview in
 `ml/README.md`). GPU request: `ml/pod/REQUEST.md`.
 Legend: **[V]** verified here (command, file or source given), **[I]** design choice, **[A]** assumed.
@@ -14,6 +16,14 @@ Legend: **[V]** verified here (command, file or source given), **[I]** design ch
    | LFM3-1.7B | `LiquidAI/LFM3-1.7B` (rev `1da06bec6a81`) | 3.46 GB | LFM Open License v1.0 (`research/lfm3_LICENSE`): Apache-2.0-style grant, **commercial use licensed only while the user's legal entity has annual revenue < US$10M** (s.1 "Threshold", s.5); redistributing a derivative requires a copy of the licence (4a) and notices on modified files (4b) | `<\|startoftext\|><\|im_start\|>…<\|im_start\|>assistant\n<think></think>`; reasoning is **on by default**, off with `enable_thinking=False` (card: "can be inconsistent", so we train with it off) |
    | Qwen3.5-0.8B | `Qwen/Qwen3.5-0.8B` (rev `2fc06364715b`) | 1.75 GB | Apache-2.0: ship LICENSE, mark changes | `<\|im_start\|>assistant\n<think>\n\n</think>\n\n`; off unless `enable_thinking=true` |
    | Qwen3.5-2B | `Qwen/Qwen3.5-2B` (rev `15852e8c1636`) | 4.55 GB | Apache-2.0 | identical `chat_template.jinja` to 0.8B [V cmp] |
+
+   These revisions are **pinned**: `ml/train/configs/base.yaml` `base_revisions` holds the full commit shas
+   (`1da06bec6a819da10b54c67e5c90972b46d81871`, `2fc06364715b967f1860aea9cf38778875588b17`,
+   `15852e8c16360a2fea060d615a32b45270f8a8fc`), and `sft.py` (tokenizer, config, weights, template files),
+   `merge.py`, `bootstrap.sh` (`snapshot_download`) and `export_eval.sh` (`STOCK_OURS`) load exactly them; a Hub base
+   without an entry is refused, a local directory needs none (`ml/train/tests/test_base_revision.py`). Checked
+   upstream 2026-11-20 with the public HF API (`/api/models/<repo>/revision/<sha>` resolves, `config.json` at the
+   sha returns 200; all three are still the current `main`) [V].
 
    Qwen3.5 checkpoints are `Qwen3_5ForConditionalGeneration` (vision encoder + MTP head); `AutoModelForCausalLM`
    loads the text model only (752M params for 0.8B) [V]. LFM3: `Lfm3ForCausalLM`, hybrid short-conv +
@@ -59,8 +69,8 @@ Legend: **[V]** verified here (command, file or source given), **[I]** design ch
    prompt a fine-tune most likely receives besides its own (a user who switches the prompt back, an app build
    that has not picked up the catalog's prompt). It replaces `default.v4s` (no longer the default, still selectable):
    the runbook's rule was "the stock profile a user can actually select", and that is now v1. Side effect: v1 has no
-   shot turns (~1.25-1.3K tokens rendered vs ~2.2K), so the mean rendered length drops from 419 to 374 tokens
-   (Qwen3.5) and max_len from 2,496 to 1,536 on the final set [M, section 2.1]. The eval of a run always uses the
+   shot turns (~1.25-1.3K tokens rendered vs ~2.2K), so the mean rendered length drops from 418 to 373 tokens
+   (Qwen3.5) and max_len from 2,432 to 1,472 (Qwen3.5) / 2,496 to 1,536 (LFM3) on the final set [M, section 2.1]. The eval of a run always uses the
    `prompt.system` it trained with (read from its `config.resolved.json`), and the card / catalog entry record it,
    so the app must send `finetuned.v2` to these models (the Kotlin renderer needs that file). Stock baselines use
    what the app ships for stock models: profile `default.v1` + `prompts/guard.py`.
@@ -77,7 +87,7 @@ Legend: **[V]** verified here (command, file or source given), **[I]** design ch
 
 ## 1. Turnkey sequence (one pod session, 2026-11-20)
 
-The round-trip probe already ran and the final data exists (`.cache/ml/data/final`: train 2,997 / dev 300 /
+The round-trip probe already ran and the final data exists (`.cache/ml/data/final`: train 3,000 / dev 300 /
 test 300, `docs/ml/DATA_CARD.md`), so the pod is used **once**, for training and evaluation only. Everything
 else (stock baselines, judge, CPU ship gates, cards, upload) runs on the dev server without a GPU. Every step
 is idempotent: after an SSH drop, a crash or a stop, re-run the same command.
@@ -86,9 +96,9 @@ Before the pod (dev server, no GPU):
 
 ```
 cd /home/private/projects/murmur
-make -C ml/train test                                   # 86 unit tests, 30-100 s
+make -C ml/train test                                   # 105 unit tests (ml/eval + ml/train), ~30-60 s
 bash .cache/ml/train/podsim-real/simulate.sh            # optional: the whole sequence below on CPU with tiny
-                                                        # models on the real data (section 4.2), ~15 min
+                                                        # models on the real data (section 4.2), ~25 min
 ```
 
 Request the pod with `ml/pod/REQUEST.md` (name `alexm-training`, 1x RTX 5090, 80 GB volume, no secrets). Then:
@@ -102,13 +112,17 @@ S="ssh -p $POD_PORT -i $POD_KEY -o StrictHostKeyChecking=accept-new $POD"
 WITH_DATA=1 DATA_DIR=.cache/ml/data/final bash ml/pod/push_code.sh
 
 # 2. bootstrap (driver >= 580 check, uv + Python, llama.cpp CPU + CUDA, venv, fla sm_120 kernel test,
-#    self-test, 9.8 GB base weights; ~12 min; re-run after an SSH drop)
+#    self-test, llama.cpp GPU kernel smoke test vs CPU (step 6b, section 3.2), 9.8 GB base weights at the pinned
+#    revisions; ~14 min; re-run after an SSH drop). Check: grep 'kernel smoke' /workspace/logs/pod.log
+#    must say PASS; otherwise section 3.2 (the matrix would refuse to start, rc 6). Exit 7 = the smoke MODEL could
+#    not be downloaded/converted (retried once; not a CUDA problem, no build tested): fix, re-run bootstrap.
 $S 'mkdir -p /workspace/logs && cd /workspace/murmur && bash ml/pod/bootstrap.sh 2>&1 | tee -a /workspace/logs/bootstrap.log | tail -20'
 
-# 3. the matrix + finalist evals, detached in tmux (~1.7-2.4 h; budget guard inside)
+# 3. the matrix + finalist evals, detached in tmux (~1.7-2.4 h; budget guard inside: the scripts end by
+#    4 h - 15 min at the latest, BUDGET_TAIL_S, so steps 4 and 5 always fit inside the 4 h cap)
 $S "tmux new -d -s murmur 'cd /workspace/murmur && STAGES=\"bootstrap train eval\" bash ml/pod/run_all.sh \
     >>/workspace/logs/run_all.log 2>&1; echo EXIT \$? >>/workspace/logs/run_all.log'"
-#    poll every ~10 min (short, non-blocking):
+#    poll every ~5 min (short, non-blocking; the 15 min tail covers one poll interval + sync + stop):
 $S 'tail -3 /workspace/logs/pod.log; cat /workspace/logs/anchor.jsonl /workspace/logs/runs.jsonl 2>/dev/null; grep EXIT /workspace/logs/run_all.log'
 
 # 4. when run_all.log says EXIT: pull reports, logs and the finalists' Q4_0 GGUFs (~3 GB, ~3 min)
@@ -127,7 +141,15 @@ tools/with-teacher .cache/ml/train/venv/bin/python -m ml.train.upload_hf --run .
 ```
 
 Exit codes of `run_all.sh`: 0 done; 5 budget refused a stage/run (results so far are complete and synced as
-usual); 6 preflight (fla kernel or CUDA llama.cpp missing: fix, or `PHASE_B=""` / `ALLOW_*`, re-run); 2 no data.
+usual); 6 preflight (fla kernel, no CUDA llama.cpp build passed the kernel smoke test, or the smoke model was never
+prepared: fix, or `PHASE_B=""` / `ALLOW_*`, re-run); 7 bootstrap could not prepare the kernel smoke model (section
+3.2); 2 no data. A run whose training loss turns NaN/inf stops at the end of that optimizer step
+(`train-<run>.log`: `STOP diverged`), sft writes `runs/<run>/DIVERGED.json` (step, reason) and exits 4, the run is
+logged as DIVERGED (failed) and the matrix continues. Re-running `run_all.sh` / `train_matrix.sh` / `run_one.sh`
+then skips that run with a log line (`select` never picks it) instead of resuming from its last good checkpoint
+into the same divergence; after fixing its config (e.g. a lower `train.lr`), `FORCE_RETRAIN=1` trains it again
+from scratch (the marker is kept as `DIVERGED.<utc>.json`, the checkpoints are dropped: a resume would restore the
+old optimizer and lr schedule). To resume from the last good checkpoint instead, delete `DIVERGED.json` by hand.
 If LoRA misses the gates: `FULL=1 PHASE_A="" PHASE_B="" STAGES="train eval"` in the same session if the budget
 allows (+53 min [A]), otherwise in a second session (the volume keeps everything; the budget file sums sessions).
 The stock baselines on the dataset's own dev/test (dev.v2/test.v2 are frozen in `ml/eval/baselines/`) can be
@@ -137,13 +159,17 @@ produced before or during the pod session, free, on the dev server CPU (~1-1.5 h
 `.cache/ml/train/pod-results/eval/stock/` and run it again (a finished report is never recomputed).
 
 Time and stop rules: `ml/pod/REQUEST.md` ("Time budget", "Stop rules"); budget defaults `MAX_GPU_HOURS=4`
-(owner cap) and `TARGET_GPU_HOURS=3`.
+(owner cap), `TARGET_GPU_HOURS=3` and `BUDGET_TAIL_S=900`: both limits are applied 15 min early, so the last step the
+scripts start ends by 3 h 45 (hard) / 2 h 45 (target) and the operator's poll (≤ 5 min), `WITH_GGUF=1
+sync_results.sh` (~3 GB, ~3 min) and the stop still land inside the cap (`test_budget_tail_keeps_sync_and_stop_inside_cap`).
+`run_all.sh` ends with the seconds left until the cap.
 
 ## 2. Run matrix (one GPU, sequential)
 
 Same data, same prompt mix (finetuned.v2; 5 % default.v1; 15 % random preferences block), max_len auto
-(longest rendered example rounded up to 64, cap 4096; 1,536 on the final set, nothing dropped), length-grouped
-batches with per-batch padding (section 2.1), batch 16 (188 steps per epoch at 2,997 examples), cosine, warmup 5 %, β2 0.95, alpha = 2r, dropout 0.05,
+(longest rendered example rounded up to 64, cap 4096; 1,472 for Qwen3.5 / 1,536 for LFM3 on the final set, nothing
+dropped), length-grouped batches with per-batch padding (section 2.1), batch 16 (188 steps per epoch at 3,000
+examples, 564 for 3 epochs), cosine, warmup 5 %, β2 0.95, alpha = 2r, dropout 0.05,
 all linear layers except `lm_head`. Selection on the **Q4_0 GGUF dev eval** (the shipping artifact):
 fewest failed gates, then EM, N-WER, no-op exactness, fewer trainable parameters (`ml/train/select.py`).
 
@@ -158,17 +184,17 @@ fewest failed gates, then EM, N-WER, no-op exactness, fewer trainable parameters
 | B | 6 | `q2-lora` + winner's r/α/lr/epochs | Qwen3.5-2B | LoRA | ← A | ← A | ← A | quality option | 27 / 44 |
 | fallback | (`FULL=1`) | `full-fallback` | LFM3-1.7B (embeddings frozen) | full FT | — | 1e-5 | 3 | does full FT fix what LoRA misses? | 53 / 85 |
 
-Per-run minutes = train + merge + GGUF + parity + Q4_0 dev eval, from the anchor estimate (3.69M padded tokens
+Per-run minutes = train + merge + GGUF + parity + Q4_0 dev eval, from the anchor estimate (3.68M padded tokens
 per 3-epoch LFM3 run [M] at 4.8K tokens/s = 20 % MFU of the 5090's 209.5 dense BF16 TFLOP/s, worst case 10 %;
 see `ml/pod/REQUEST.md`) times the cost factors in `ml/pod/train_matrix.sh` (`RUN_COST`) [A]. On the pod the
 anchor runs first and alone; its measured time replaces the estimate, `train_matrix.sh` prints the projection of
 every remaining run, and each optional run ("A opt.", DoRA, full FT) starts only if its projection plus all
-mandatory work still ahead (phase B + 30 min of finalist evals) fits `TARGET_GPU_HOURS` (3 h). At plan speed
+mandatory work still ahead (phase B + 30 min of finalist evals) fits `TARGET_GPU_HOURS` (3 h) minus the 15 min tail. At plan speed
 `lfm3-r64` and `lfm3-r16-lr5e-4` fit and `lfm3-r16-e5` does not; at half speed no optional run fits. To force a
 particular sweep, set `PHASE_A="lfm3-r16 lfm3-r16-e5"` (order = priority). Data-limited check (PLAN_V2 "scale only if eval says so"): if `lfm3-r16-e5` beats `lfm3-r16` while dev
 loss still falls, the set is too small for the task → generate more (up to 5K) rather than add epochs.
 
-### 2.1 Sequence length and batching [M 2026-11-20, real final data, real tokenizers]
+### 2.1 Sequence length and batching [M 2026-11-20, current final data (3,000 train / 300 dev), real tokenizers]
 
 `max_len` never pads anything: the Collator pads each batch to its own longest row (rounded up to 8) and the
 train sampler is `LengthGroupedSampler` (megabatches of 50 batches sorted by length, longest batch first so an
@@ -177,23 +203,28 @@ OOM shows at step 1). `max_len` is only the drop filter and the bound of that lo
 
 | mix (finetuned.v2 + 15 % prefs +) | tokenizer | mean | p99 | max -> max_len auto | dropped | padding efficiency grouped / random / fixed max_len |
 |---|---|---:|---:|---:|---:|---|
-| 5 % default.v4s (before) | Qwen3.5 | 419 | 2,272 | 2,436 -> 2,496 | 0 | 0.93 / 0.29 / 0.17 |
-| 5 % default.v4s (before) | LFM3 | 436 | 2,352 | 2,511 -> 2,560 | 0 | 0.93 / 0.29 / 0.17 |
-| **5 % default.v1 (now)** | Qwen3.5 | **374** | 1,318 | 1,482 -> **1,536** | **0** | **0.95** / 0.41 / 0.24 |
-| **5 % default.v1 (now)** | LFM3 | **390** | 1,364 | 1,523 -> **1,536** | **0** | **0.95** / 0.41 / 0.25 |
-| 10 % default.v1 | LFM3 | 435 | 1,404 | 1,544 -> 1,600 | 0 | 0.96 / 0.38 / 0.27 |
-| finetuned.v2 only | LFM3 | 346 | 597 | 761 -> 768 | 0 | 0.97 / 0.66 / 0.45 |
+| 5 % default.v4s (before) | Qwen3.5 | 418 | 2,282 | 2,417 -> 2,432 | 0 | 0.93 / 0.29 / 0.17 |
+| 5 % default.v4s (before) | LFM3 | 434 | 2,357 | 2,492 -> 2,496 | 0 | 0.93 / 0.29 / 0.17 |
+| **5 % default.v1 (now)** | Qwen3.5 | **373** | 1,328 | 1,463 -> **1,472** | **0** | **0.95** / 0.41 / 0.25 |
+| **5 % default.v1 (now)** | LFM3 | **388** | 1,369 | 1,504 -> **1,536** | **0** | **0.95** / 0.41 / 0.25 |
+| 10 % default.v1 | Qwen3.5 | 417 | 1,365 | 1,477 -> 1,536 | 0 | 0.95 / 0.37 / 0.27 |
+| 10 % default.v1 | LFM3 | 433 | 1,410 | 1,541 -> 1,600 | 0 | 0.95 / 0.37 / 0.27 |
+| finetuned.v2 only | Qwen3.5 | 329 | 536 | 687 -> 704 | 0 | 0.97 / 0.70 / 0.47 |
+| finetuned.v2 only | LFM3 | 343 | 580 | 760 -> 768 | 0 | 0.97 / 0.69 / 0.45 |
 
-finetuned.v2 rows alone: 99 % under 548 (Qwen3.5) / 597 (LFM3) tokens. No cap: any cap below ~1.3K would drop
-exactly the stock-prompt rows (140 of 2,997) and so remove the robustness mix, and above it nothing is dropped;
-with length grouping the long rows cost only their own tokens. Real tokens per epoch 1.12M (Qwen3.5) / 1.17M
-(LFM3), padded 1.18M / 1.23M; completion (loss) tokens 82K / 96K. The dev split (300) is evaluated sorted by
-length (eval loss every 100 steps; in file order every batch holding one of the 15 stock-profile rows
-would be padded to ~1.3K).
+Source: `python -m ml.train.sft --config ml/train/configs/base.yaml --prepare-only --set base_model=<local tokenizer
+dir> [prompt.default_share=… | prompt.default_system=default.v4s]` with `MURMUR_DATA=.cache/ml/data/final`
+(`data_stats.json`; the same figures the independent review measured: 3,000 examples, 141 default.v1 rows, max
+1,463 / 1,504 -> 1,472 / 1,536, 0 dropped). finetuned.v2 rows alone: 99 % under 536 (Qwen3.5) / 580 (LFM3) tokens.
+No cap: any cap below ~1.3K would drop exactly the stock-prompt rows (141 of 3,000) and so remove the robustness
+mix, and above it nothing is dropped; with length grouping the long rows cost only their own tokens. Real tokens
+per epoch 1.12M (Qwen3.5) / 1.16M (LFM3), padded 1.18M / 1.23M; completion (loss) tokens 79K / 92K. The dev split
+(300, of which 13 render with default.v1) is evaluated sorted by length (eval loss every 100 steps; in file order
+every batch holding one of the stock-profile rows would be padded to ~1.3K).
 
 Proof that padding changes only the cost [V]: `test_padding_does_not_change_the_loss` (tiny random LFM3 and
 Qwen3.5 models from the real configs: dynamic padding, padding to 128 and each example alone give the same
-completion loss, atol 1e-5) and a training A/B on the real final data (tiny LFM3, LoRA r8, dropout 0 so dropout
+completion loss, atol 1e-5) and a training A/B on the earlier final_v1 data (tiny LFM3, LoRA r8, dropout 0 so dropout
 masks do not depend on the padded shape, 6 steps of 16, same length-grouped order; scratch log `padab/`):
 step losses and grad norms identical to the logged precision (11.83, 11.83, 11.82, 11.82, 11.82, 11.80;
 grad norm 0.8427 / 0.8203 / 0.5771 / 0.6545 / 0.6605 / 0.76 in both), train loss 11.8188507 vs 11.8188508,
@@ -289,6 +320,57 @@ short prompt, 2B / LFM3-1.7B 4-9 s per item with the long default prompt (`.cach
 ~420-item dev eval is then ~10-40 min, and a session has ~10 evals: this is why `train_matrix.sh` aborts
 when the CUDA llama.cpp build is unusable instead of silently falling back.
 
+### 3.2 llama.cpp CUDA build: kernel smoke test and fallback (bootstrap step 6b)
+
+`llama-server --list-devices` listing `CUDA0` proves only that the CUDA runtime sees the card; no kernel runs. A
+build without device code for the 5090 (sm_120), a failing or slow PTX JIT, or a wrong kernel would surface only
+at the anchor's parity (rc 3) or eval, after its ~20 min of training. So bootstrap runs `ml/train/llama_smoke.py`
+on every pod start (a restarted pod can land on another host and driver): it converts the real base weights
+(pinned revisions; Qwen3.5-0.8B and LFM3-1.7B, the two architectures' kernels: Gated DeltaNet + attention,
+short conv + sliding-window attention) to Q4_0 once (cached on the volume), decodes 4 fixed, strongly determined
+prompts (counting, weekdays, letters, Russian months; 16 tokens each, greedy) with `-ngl 99 --device CUDA0` and
+with the CPU build, and requires: the server starts, its log says every layer was offloaded, start + all prompts
+take < 120 s, and every prompt agrees with the CPU build (identical, or a common prefix of >= 16 characters).
+Results: `/workspace/llama/smoke/<build>-<model>.json`, log `/workspace/logs/llama-smoke.log`, server logs one per
+build (`<smoke gguf>.<build>.gpu.log`). The step is `ml/pod/kernel_smoke.sh`, in two phases:
+
+* **A. prepare the smoke models** (download at the pinned revision + Q4_0 conversion with the CPU build; no build
+  under test involved; `llama_smoke --prepare-only`, `prepare-<model>.json`). A failure is retried once (after
+  `LLAMA_SMOKE_RETRY_S`, 20 s); a second failure is reported as its own error ("smoke model ... could not be
+  prepared ... NOT a CUDA build problem"), writes the marker `llama-smoke-unprepared`, tests no build, fetches and
+  compiles no fallback, and bootstrap exits 7; `train_matrix.sh` refuses while the marker exists (rc 6,
+  `ALLOW_UNTESTED_LLAMA=1` overrides). Typical causes: Hub outage / rate limit, full volume, a converter that
+  rejects the architecture. Fix and re-run bootstrap (a passing phase A removes the marker). `llama_smoke` reports
+  any such failure as `PREP_FAIL` (exit 3), never as a build `FAIL` (exit 1).
+* **B. test the builds** on the prepared models: only a decode mismatch, a crash, a timeout or a partial offload of
+  a built smoke model counts against a build and moves on to the next fallback below.
+
+[V here] On the dev server (CPU build standing in for the GPU one): real Qwen3.5-0.8B, GGUF build 16.5 s, decode
+2.5 s, PASS with identical texts (" 13, 14, 15, 16,", " Friday, Saturday, Sunday…", " K, L, M, …",
+" май, июль, …"); with `--require-gpu` the CPU build fails as a GPU build without the device must ("invalid device:
+CUDA0", FAIL rc 1); a build that dies like a missing kernel image ("no kernel image is available") fails
+(`test_llama_smoke.py`). [V source] The release CUDA 12.8 build sets no `CMAKE_CUDA_ARCHITECTURES`
+(`.github/workflows/release.yml`), and the default list for CUDA >= 12.8 (`ggml/src/ggml-cuda/CMakeLists.txt`)
+includes `120a-real`, i.e. sm_120 device code, so no JIT is needed. [UNVERIFIABLE here] that it runs on the pod.
+
+Fallback chain, automatic, first PASS wins; the chosen dir goes to `/workspace/.bootstrap/llama-cuda-bin`, which
+`env.sh` reads for every later stage:
+
+| # | candidate | extra time [A] |
+|---:|---|---:|
+| 1 | release `llama-b12503-bin-ubuntu-cuda-12.8-x64` (+ cudart), downloaded in step 4 | ~1-3 min (smoke, first start), ~30 s on a restart |
+| 2 | release `…-cuda-13.5-x64` (+ cudart 13.5) of the same tag, both listed on the b12503 release [V GitHub API] | ~1 min download (~670 MB) + 30 s smoke; relies on the driver's CUDA 13.x minor-version compatibility |
+| 3 | source build of b12503 for sm_120 only (`cmake -DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=120a-real -DGGML_NATIVE=OFF -DLLAMA_BUILD_TESTS=OFF -DLLAMA_OPENSSL=OFF`, targets `llama-server llama-quantize`; configure line checked here without CUDA) | ~10-15 min with all cores; needs `nvcc` >= 12.8 in the image (devel images have it; `LLAMA_SRC_BUILD=0` skips); log `/workspace/logs/llama-build.log` |
+| 4 | none passes: marker `llama-cpu-fallback`; `train_matrix.sh` refuses to start (rc 6) | — |
+
+At 4 the choice is the operator's: fix the image (e.g. a CUDA 13 devel image, then re-run bootstrap; delete
+`/workspace/llama/build-cuda` to rebuild), or `ALLOW_CPU_EVAL=1` to train on the GPU and evaluate on the pod's CPU
+(~10-40 min per ~420-item dev eval, ~10 evals: does not fit the 4 h cap with the full matrix; use it only with
+`PHASE_A="lfm3-r16" PHASE_B="q08-lora"` and `EVAL_DEV` = the dataset's dev split: 2 runs x (parity + dev eval) +
+2 finalists x 3 evals at ~10-40 min each = ~1.5-5 h of CPU eval, so expect the budget guard to skip the later
+finalist evals; the ship evals run on the dev server CPU anyway, `after_pod.sh`, free). `CUDA_CACHE_PATH` is on the
+volume, so a PTX JIT, if any build needs one, is paid once.
+
 ## 4. CPU dry run (what was proven without a GPU) [V]
 
 Host: shared x86_64 dev server, CPU only, 6 threads, `tools/heavy` scopes; other agents' jobs ran at the
@@ -349,6 +431,16 @@ Other code paths, also run here [V]:
   catalog entry, leaderboard with guarded columns and a separate legacy table) EXIT 0 in 321 s on 2-item sets;
   the whole `STAGES="train eval"` again: 2 s (all skipped); `/workspace/.budget/sessions.tsv` held 4 sessions.
   The host had load average 40-70 from other users' jobs during this run (see section 5 on CPU threads).
+* **Divergence stop rule through the real Trainer** (2026-11-20 review fix): HF Trainer's default
+  `logging_nan_inf_filter` replaces a NaN/inf step loss before it is logged, so the old `on_log` rule never saw it.
+  Now `MurmurTrainer.compute_loss` hands every raw micro-batch loss to `StopRules.watch_loss` (no host sync; one
+  check per optimizer step), the run stops at the end of the step in which the loss became non-finite, saves no
+  checkpoint of the diverged weights, and sft exits 4; the filter is off and `on_log` also stops on a non-finite
+  loss / grad_norm / eval_loss. `test_nan_loss_stops_the_real_trainer_at_once_with_exit_4` runs `ml.train.sft` in a
+  separate process (tiny random LFM3, CPU, the base.yaml TrainingArguments with logging_steps 10) with the loss
+  turned NaN from the 3rd micro-batch: exit 4 at step 3, no `train_info.json` / `final/`, only `checkpoint-2` kept.
+  Negative control, same injection through the previous `sft.py` (d141429; `.cache/ml/train/boot6b/nan_old_vs_new.py`): exit 0 after all 12 steps, finite
+  `train_loss` 7.20, `stopped_by` null, i.e. the diverged run would have been exported and evaluated.
 * **Teacher backend + judge** (Responses API through `tools/with-teacher`): 3 smoke cases answered and judged
   (`.cache/ml/train/eval/teacher-smoke3/judge.jsonl`, 6 requests).
 * **ctx v2 integration** (`ml/ocr/READY`, `ml/screens/READY` both present at 22:50): `python -m ml.eval.v2_cases
@@ -395,23 +487,38 @@ What it shows: on the real screen the Murmur bubble cut "Grafana" to "Grai"; bot
 exactly the invented-term failure CONTEXT_V2 forbids. Qwen3.5-2B translated the English half of the code-switch
 case into Russian; all models output "э"/"Э" for noise-only input; 0.8B mostly returns the transcript untouched.
 
-### 4.2 Turnkey rehearsal on the REAL final data (2026-11-20) [V]
+### 4.2 Turnkey rehearsal on the CURRENT final data (re-run 2026-11-20 after the final review's three minor fixes) [V]
 
-`.cache/ml/train/podsim-real/simulate.sh` (log `sim.log`, step times `times.txt`; host load average 14-29 from
-other users' jobs): the exact command sequence of section 1 on CPU, with tiny random-weight models built from the
-real LFM3-1.7B / Qwen3.5-0.8B / Qwen3.5-2B configs + tokenizers, the **real configs** (`lfm3-r16`, `lfm3-r64`,
-`q08-lora`, `q2-lora`; only `base_model` and the step budget overridden: 2 steps of 4) and the real final data
-(2,997 / 300 / 300). A fake `ssh` runs the remote side locally into a "pod volume"; the CPU llama.cpp build
-stands in for the CUDA one.
+`.cache/ml/train/podsim-real/simulate.sh` (log `sim.log`, step times `times.txt`; the earlier run on final_v1 is
+kept as `sim-final_v1.log`): the exact command sequence of section 1 on CPU, with tiny random-weight models built
+from the real LFM3-1.7B / Qwen3.5-0.8B / Qwen3.5-2B configs + tokenizers, the **real configs** (`lfm3-r16`,
+`lfm3-r64`, `q08-lora`, `q2-lora`; only `base_model` and the step budget overridden: 2 steps of 4) and the current
+final data (**3,000 / 300 / 300**). A fake `ssh` runs the remote side locally into a "pod volume"; the CPU llama.cpp
+build stands in for the CUDA one. Everything after the push runs from the pushed copy, as on the pod.
 
 | step | result |
 |---|---|
-| `push_code.sh WITH_DATA=1 DATA_DIR=.cache/ml/data/final` | code + data on the volume, 0 s; everything after runs from the pushed copy |
-| pod self-test (bootstrap step 6) from the pushed copy | 73 passed, 13 skipped (need the local tokenizer dirs), 12 s |
-| `run_all.sh STAGES="train eval"` | EXIT 0, 876 s: every run rendered all 2,997 rows with the real tokenizer (max_len 1,536, 0 dropped, 140 default.v1 rows, padding efficiency 0.97 at batch 4), trained, merged (5 s), exported BF16 + Q4_0 (5-14 s), parity (10-15 s), Q4_0 dev eval on 6 dataset dev + 4 dev.v2 cases (11-15 s, report `by_set` {dev, dev.v2}, `baseline` vs the frozen stock numbers); `lfm3-r64` parity FAIL (random weights: near-tied logits diverge after 10-60 characters; real weights pass, section 4) -> not evaluated, matrix continued (the failure path); select -> `lfm3-r16` + its overrides to phase B; finalists one per base; BF16 dev, Q4_0 test (6 + 4), Q4_0 dev with `default.v1`; cards; leaderboard; `vs_stock.md` |
-| same command again | 37 s, nothing recomputed |
-| budget | billed 943 s recorded in `.budget/sessions.tsv`; training deadline exported per run ("deadline in 13800 s, reserving 570 s") |
-| `after_pod.sh` (sync with the finalists' Q4_0 GGUFs, CPU ship eval, judge on 2 items per eval dir through `tools/with-teacher`, stock `default.v1` on the dataset test, cards, leaderboard, `vs_stock.md`) | EXIT 0, 560 s; 12 judge requests; catalog entries carry `pass_guarded_by_set` and `vs_best_stock_pass_guarded`; the card's stock comparison uses the common set only (`set:test`) because the stock models ran on the dataset test alone |
+| `push_code.sh WITH_DATA=1 DATA_DIR=.cache/ml/data/final` | code + data on the volume, 1 s |
+| pod self-test (bootstrap step 6) from the pushed copy | 98 passed, 15 skipped (need the local tokenizer dirs / llama.cpp build), 7 s |
+| bootstrap step 6b commands (`ml.train.llama_smoke` on tiny LFM3 and tiny Qwen3.5-0.8B, CPU build as the "GPU" build, no `--require-gpu`) | phase A `--prepare-only`: PREPARED both, GGUF build 4.6 / 7.8 s; phase B: PASS both, 4/4 prompts agree, prepared GGUF reused (build 0.0 s), 2 s each, one server log per build (`*.sim.gpu.log`) |
+| a smoke model that cannot be converted (`config.json` = `{}`) | `PREP_FAIL`, rc 3 ("could not prepare the smoke GGUF (not a GPU build problem): ... unsupported model_type"), not a build `FAIL` |
+| `run_all.sh STAGES="train eval"` | EXIT 0, 300 s: every run rendered all **3,000** rows with the real tokenizer (max_len **1,536** LFM3 / **1,472** Qwen3.5, 0 dropped, **141** default.v1 rows, padding efficiency 0.97 at batch 4), trained, merged, exported BF16 + Q4_0, parity, Q4_0 dev eval on 6 dataset dev + 4 dev.v2 cases (`by_set` {dev, dev.v2}, `baseline` vs the frozen stock numbers); `lfm3-r64` parity FAIL (random weights; real weights pass, section 4) -> not evaluated, matrix continued (the failure path); anchor projections printed; select -> `lfm3-r16` + its overrides to phase B; finalists one per base; BF16 dev, Q4_0 test (6 + 4), Q4_0 dev with `default.v1`; cards; leaderboard; `vs_stock.md`; every budget line reads "of 13500s (hard, 900s kept for sync + stop)" and the last line "billed pod time so far: 330s; 14070s left until the 4 h cap for WITH_GGUF=1 sync_results.sh (~3 min) and the stop" |
+| same command again | 8 s, nothing recomputed |
+| divergence: the real `lfm3-r16` config with `train.lr` 1e30 (no injection; the real Trainer) through `run_one.sh` | `STOP diverged: non-finite training loss in step 3`, rc 4, log "train lfm3-boom DIVERGED (step 3: ...)", `DIVERGED.json` {step 3, reason, last_good_checkpoint checkpoint-2}; no `train_info.json` / `final/` |
+| `run_one.sh lfm3-boom` again, then `train_matrix.sh` with `PHASE_A="lfm3-r16 lfm3-r64 lfm3-boom"` | rc 4 "DIVERGED in an earlier attempt ...; skipped, not resumed"; matrix: "skip lfm3-boom: its training DIVERGED ...", select "skip lfm3-boom", winner still `lfm3-r16`, `selection-phaseA.json` `skipped` lists it, rc 1; `timings.jsonl` holds ONE training attempt of it |
+| budget | training deadline exported per run ("deadline in 12900 s, reserving 570 s" = 4 h - 900 s tail - billed - rest of run) |
+| `after_pod.sh` (sync with the finalists' Q4_0 GGUFs, CPU ship eval, judge on 2 items per eval dir through `tools/with-teacher`, stock `default.v1` on the dataset test, cards, leaderboard, `vs_stock.md`) | EXIT 0, 154 s; 3 Q4_0 GGUFs synced; 6 eval dirs judged 2/2; catalog entries carry `pass_guarded_by_set`, `vs_best_stock_pass_guarded` and `base_revision` (null here: local tiny bases) |
+
+The kernel smoke fallback chain itself (bootstrap step 6b, run verbatim against fake builds,
+`.cache/ml/train/boot6b/harness.sh A|B`): CUDA 12.8 build dying with "no kernel image is available" + working 13.5 stand-in -> the 13.5
+dir is written to `.bootstrap/llama-cuda-bin` and the next stage's `env.sh` uses it (`-ngl 99`); every build broken
+and no `nvcc` -> "source build skipped", marker `llama-cpu-fallback`, `train_matrix.sh` exits 6 at preflight.
+Since the final review the step is `ml/pod/kernel_smoke.sh`; `test_llama_smoke.py` runs it with a stand-in
+`llama_smoke` and stub `curl` / `nvcc` / `cmake`: a smoke model that never prepares -> 2 attempts, exit 7, marker
+`llama-smoke-unprepared`, no build tested, no `curl` / `nvcc` / `cmake` call, no `llama-cpu-fallback`; prepared on the
+retry -> CUDA 12.8 PASS; prepared but every build mismatching -> the 13.5 download is attempted and
+`llama-cpu-fallback` is written. `test_pod_diverged.py`: the preflight refuses on `llama-smoke-unprepared` (rc 6)
+unless `ALLOW_UNTESTED_LLAMA=1`, and run_one / train_matrix skip a diverged run until `FORCE_RETRAIN=1`.
 
 Quality numbers of the tiny models are meaningless (random weights); this proves that every step of the pipeline
 runs on the real data shape, file names and set breakdown, not the recipe.
@@ -424,8 +531,12 @@ runs on the real data shape, file names and set breakdown, not the recipe.
 * Memory: the longest batch is 16 x 1,536 tokens (length grouping puts it first, so an OOM shows at step 1, not
   after an hour). Not measured on a GPU; if it OOMs, `--set train.batch_size=8 train.grad_accum=2` (same
   effective batch) in the run's config.
-* The pod self-test skips the 13 tests that need the local tokenizer/config dirs (`.cache/ml/train/models`,
-  not pushed): padding invariance and completion loss are proven on the dev server only.
+* The pod self-test skips the 15 tests that need the local tokenizer/config dirs or llama.cpp build
+  (`.cache/ml/train/models`, not pushed): padding invariance, completion loss, the Trainer-level NaN stop and the
+  tiny-model kernel smoke are proven on the dev server only.
+* The llama.cpp kernel smoke test (section 3.2) and its fallbacks 2-3 have run only with the CPU build standing in
+  for the GPU one; the real sm_120 run, the CUDA 13.5 build's driver compatibility and the source-build time are
+  [UNVERIFIABLE here] until the pod's `/workspace/llama/smoke/*.json` exist.
 * A budget stop inside training leaves the cosine schedule unfinished; the run is still exported and
   evaluated (`stopped_by: budget` in `train_info.json` and the log) and should be read as under-trained.
 * flash-linear-attention 0.6.0 with torch 2.15.0 / Triton on sm_120 is unverified; bootstrap runs its

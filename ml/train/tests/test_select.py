@@ -38,3 +38,23 @@ def test_overrides_parse_back_with_config_loader():
     cfg = config.apply_overrides({}, select.overrides({"method": "dora", "lora": {"r": 64, "alpha": 128},
                                                        "train": {"lr": 0.0002, "epochs": 5}}))
     assert cfg == {"method": "dora", "lora": {"r": 64, "alpha": 128}, "train": {"lr": 0.0002, "epochs": 5}}
+
+
+def test_diverged_run_is_never_selected(tmp_path, capsys):
+    """A run with DIVERGED.json (ml/train/sft.py) is skipped even with the best eval on disk, and named."""
+    _run(tmp_path, "good", em=0.70, nwer=0.12, fails=1, r=16, lr=2e-4)
+    _run(tmp_path, "boom", em=0.99, nwer=0.01, fails=0, r=64, lr=5e-3)
+    (tmp_path / "boom/DIVERGED.json").write_text(json.dumps({"step": 37, "reason": "non-finite training loss"}))
+    out = tmp_path / "sel.json"
+    assert select.main(["boom", "good", "--runs-dir", str(tmp_path), "--json", str(out)]) == 0
+    cap = capsys.readouterr()
+    assert cap.out.splitlines()[0] == "good"
+    assert "skip boom: training diverged (step 37" in cap.err
+    sel = json.loads(out.read_text())
+    assert [x["run"] for x in sel["ranking"]] == ["good"]
+    assert sel["skipped"] == [{"run": "boom", "why": "diverged", "step": 37, "reason": "non-finite training loss"}]
+    try:
+        select.main(["boom", "--runs-dir", str(tmp_path)])
+        raise AssertionError("expected SystemExit")
+    except SystemExit as e:
+        assert "1 diverged" in str(e)

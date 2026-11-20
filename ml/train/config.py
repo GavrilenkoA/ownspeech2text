@@ -55,3 +55,33 @@ def apply_overrides(cfg: dict, items: list[str]) -> dict:
 
 def resolve(path: str | Path, overrides: list[str] | None = None) -> dict:
     return _expand(apply_overrides(load(path), overrides or []))
+
+
+DEFAULT_CONFIG = Path(__file__).resolve().parent / "configs" / "base.yaml"
+
+
+def base_revision(cfg: dict, base: str | None = None) -> str | None:
+    """The Hub commit to load `base` (default cfg["base_model"]) at: an explicit `base_revision`, else the
+    `base_revisions` table entry for that repo id. A local directory needs none (None). A Hub repo id without
+    a pinned revision is an error: the pod must never train on whatever the vendor pushed last."""
+    base = base or cfg["base_model"]
+    if Path(base).is_dir():
+        return None
+    rev = cfg.get("base_revision") or (cfg.get("base_revisions") or {}).get(base)
+    if not rev:
+        raise SystemExit(f"no pinned revision for {base!r}: add it to base_revisions in ml/train/configs/base.yaml "
+                         "(full commit sha from the HF API) or pass --set base_revision=<sha>")
+    return str(rev)
+
+
+def pinned_revisions(path: str | Path = DEFAULT_CONFIG) -> dict[str, str]:
+    """repo id -> commit sha table of base.yaml (used by ml/pod/bootstrap.sh and export_eval.sh)."""
+    return dict(load(path).get("base_revisions") or {})
+
+
+if __name__ == "__main__":  # `python -m ml.train.config revision REPO` -> prints the pinned sha (bootstrap.sh)
+    import sys
+    if len(sys.argv) == 3 and sys.argv[1] == "revision":
+        print(base_revision({"base_revisions": pinned_revisions()}, sys.argv[2]))
+    else:
+        raise SystemExit("usage: python -m ml.train.config revision REPO_ID")

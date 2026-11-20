@@ -12,7 +12,11 @@
 #      smoke v2; v1-context sets are legacy and never used for selection), QUANTS (default Q4_0),
 #      KEEP_MERGED=1, CONFIG_DIR (default ml/train/configs), PARITY_N (default 24, 0 = skip),
 #      PARITY_MIN_AGREE (default 0.8; only the random-weight local simulation lowers it),
-#      RUN_RESERVE_S (projected seconds of the whole run, from train_matrix.sh; budget check).
+#      RUN_RESERVE_S (projected seconds of the whole run, from train_matrix.sh; budget check),
+#      FORCE_RETRAIN=1 (train a run again that diverged earlier, from scratch; see below).
+# Exit: 0 done, 1 failed, 2 no config, 3 parity FAIL, 4 training diverged (now or in an earlier attempt:
+#      $MURMUR_RUNS/RUN/DIVERGED.json holds step + reason; a re-run skips the run instead of resuming from the
+#      last good checkpoint into the same divergence, until FORCE_RETRAIN=1), 5 budget.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 source ml/pod/env.sh
@@ -28,14 +32,24 @@ QUANTS="${QUANTS:-Q4_0}"
 PARITY_N="${PARITY_N:-24}"
 step_check() { budget_check "$1" "$2" hard || exit 5; }
 
+diverged_why() { jq -r '"step \(.step // "?"): \(.reason // "?")"' "$dir/DIVERGED.json" 2>/dev/null || echo "unreadable marker"; }
 if [[ -f "$dir/train_info.json" ]]; then log "train $run: done, skip"; else
+  if [[ -f "$dir/DIVERGED.json" && "${FORCE_RETRAIN:-}" != 1 ]]; then
+    log "train $run: DIVERGED in an earlier attempt ($(diverged_why)); skipped, not resumed. Fix the config, then FORCE_RETRAIN=1 retrains it from scratch"
+    exit 4
+  fi
   step_check "train $run" "${RUN_RESERVE_S:-0}"
   # stop rule inside training: the rest of this run (merge + export + parity + dev eval) must still fit the cap
   after_s=$(( $(median_seconds merge: 60) + $(median_seconds export: 120) + $(median_seconds parity: 90) + $(median_seconds eval: 300) ))
   export MURMUR_TRAIN_DEADLINE; MURMUR_TRAIN_DEADLINE=$(budget_deadline "$after_s")
   log "train $run $* (training deadline in $(( MURMUR_TRAIN_DEADLINE - $(date +%s) ))s, reserving ${after_s}s for the rest of the run)"
-  timed "train:$run" "$PY" -m ml.train.sft --config "$CFG" --set "output_dir=$dir" "$@" \
-    >>"$MURMUR_LOGS/train-$run.log" 2>&1 || { log "train $run FAILED (logs/train-$run.log)"; exit 1; }
+  rc=0; timed "train:$run" "$PY" -m ml.train.sft --config "$CFG" --set "output_dir=$dir" "$@" \
+    >>"$MURMUR_LOGS/train-$run.log" 2>&1 || rc=$?
+  if (( rc == 4 )) && [[ -f "$dir/DIVERGED.json" ]]; then
+    log "train $run DIVERGED ($(diverged_why); $dir/DIVERGED.json, logs/train-$run.log): not exported or evaluated; re-runs skip it until FORCE_RETRAIN=1"
+    exit 4
+  fi
+  (( rc == 0 )) || { log "train $run FAILED (rc $rc, logs/train-$run.log)"; exit 1; }
   jq -c '{run: .run_name, tokens_per_s: .approx_tokens_per_s, padded_tokens_per_s, train_s: .train_runtime_s,
           peak_gb: .peak_cuda_mem_gb, steps, planned_steps, stopped_by}' "$dir/train_info.json" >&2
   [[ "$(jq -r '.stopped_by // ""' "$dir/train_info.json")" != budget ]] \

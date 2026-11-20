@@ -5,6 +5,8 @@ overrides for the next phase (PLAN_V2: LFM3 sweep first, then Qwen3.5 0.8B / 2B 
 Ranking (ties broken left to right), on the overall dev summary of the Q4_0 file = the artifact that ships:
   1. fewest FAILed ship gates (NO_DATA does not count)   2. highest EM   3. lowest N-WER
   4. highest no-op exactness                            5. fewer trainable parameters (cheaper)
+A run whose training diverged (RUN/DIVERGED.json, ml/train/sft.py) is never a candidate, even if an eval of an
+earlier attempt is still on disk; it is listed under "skipped" in --json and named on stderr.
 
   python -m ml.train.select --runs-dir $MURMUR_RUNS --eval Q4_0-dev lfm3-r16 lfm3-r64 ...  [--json out]
 prints the winner on line 1 and the overrides on line 2, e.g.
@@ -15,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
 CARRY = (("method",), ("lora", "r"), ("lora", "alpha"), ("lora", "dropout"), ("train", "lr"), ("train", "epochs"))
@@ -27,9 +30,25 @@ def key(rep: dict, params: int | None) -> tuple:
             -(o.get("noop_exact") or 0.0), params or 0)
 
 
-def candidates(runs_dir: Path, runs: list[str], eval_name: str) -> list[dict]:
+def diverged(runs_dir: Path, r: str) -> dict | None:
+    p = runs_dir / r / "DIVERGED.json"
+    if not p.exists():
+        return None
+    try:
+        return json.loads(p.read_text())
+    except (OSError, ValueError):
+        return {"reason": "unreadable DIVERGED.json"}
+
+
+def candidates(runs_dir: Path, runs: list[str], eval_name: str, skipped: list | None = None) -> list[dict]:
     out = []
     for r in runs:
+        d = diverged(runs_dir, r)
+        if d is not None:
+            print(f"select: skip {r}: training diverged (step {d.get('step')}: {d.get('reason')})", file=sys.stderr)
+            if skipped is not None:
+                skipped.append({"run": r, "why": "diverged", "step": d.get("step"), "reason": d.get("reason")})
+            continue
         rep_p = runs_dir / r / "eval" / eval_name / "report.json"
         cfg_p = runs_dir / r / "config.resolved.json"
         if not rep_p.exists() or not cfg_p.exists():
@@ -61,14 +80,15 @@ def main(argv=None) -> int:
     ap.add_argument("--eval", default="Q4_0-dev", help="eval sub-directory name under RUN/eval/")
     ap.add_argument("--json")
     a = ap.parse_args(argv)
-    cs = candidates(Path(a.runs_dir), a.runs, a.eval)
+    skipped: list = []
+    cs = candidates(Path(a.runs_dir), a.runs, a.eval, skipped)
     if not cs:
-        raise SystemExit(f"no evaluated runs among {a.runs}")
+        raise SystemExit(f"no evaluated runs among {a.runs}" + (f" ({len(skipped)} diverged)" if skipped else ""))
     best = cs[0]
     if a.json:
         Path(a.json).write_text(json.dumps({"winner": best["run"], "overrides": overrides(best["cfg"]),
                                             "ranking": [{k: c[k] for k in ("run", "key", "overall", "verdict")}
-                                                        for c in cs]}, indent=1))
+                                                        for c in cs], "skipped": skipped}, indent=1))
     print(best["run"])
     print(" ".join(overrides(best["cfg"])))
     return 0

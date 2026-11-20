@@ -68,7 +68,7 @@ def main(argv=None) -> int:
     entry = {
         "id": a.name, "family": "finetune", "display_name": a.name.replace("-", " "), "role": "finetune",
         "status": "candidate" if rep["gates"]["verdict"] != "PASS" else "available",
-        "base_repo": info.get("base_model"), "params": info.get("params_total"),
+        "base_repo": info.get("base_model"), "base_revision": info.get("base_revision"), "params": info.get("params_total"),
         "languages": ["ru", "en"], "license": {"id": lic["id"], "commercial": lic["commercial"]},
         "context_length": 4096, "template_id": TEMPLATE_IDS[tpl], "runtime_format": "gguf",
         "min_llama_cpp": man.get("llama_cpp_build"),
@@ -99,7 +99,8 @@ def main(argv=None) -> int:
         f"# {a.name}", "",
         "On-device dictation post-processor for the Murmur Android app: turns a raw ru/en speech-to-text "
         "transcript plus screen context into the text the speaker meant to type. Not a chat model.", "",
-        f"* Base: `{info.get('base_model')}`; method: **{info.get('method')}**; steps: {info.get('steps')}",
+        f"* Base: `{info.get('base_model')}`"
+        + (f" at commit `{info['base_revision']}`" if info.get("base_revision") else "") + f"; method: **{info.get('method')}**; steps: {info.get('steps')}",
         f"* File: `{f['path']}` ({f['bytes']:,} bytes, sha256 `{f['sha256']}`), llama.cpp `{man.get('llama_cpp_build')}`",
         f"* Prompt: system = `prompts/system/{sysname}.md` (+ optional preferences block), user = `Style:` line + "
         "`<context>` + `<transcript>` exactly as `prompts/render.py` builds it; thinking disabled "

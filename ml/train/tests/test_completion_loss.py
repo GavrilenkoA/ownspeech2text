@@ -2,6 +2,7 @@
 random models built from the real LFM3 and Qwen3.5 configs (needs the local config/tokenizer dirs)."""
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 
@@ -81,6 +82,82 @@ def test_stop_rules_budget_and_divergence():
     r = StopRules(time.time() + 3600)
     c = r.callback.on_step_end(None, st, TrainerControl())
     assert not c.should_training_stop and r.stopped_by is None
-    c = r.callback.on_log(None, st, TrainerControl(), logs={"loss": float("nan")})
-    assert c.should_training_stop and r.stopped_by == "diverged"
+    # raw micro-batch losses: one non-finite one in the accumulation window stops at step end, without a save
+    r.watch_loss(torch.tensor(1.5)); r.watch_loss(torch.tensor(float("inf"))); r.watch_loss(torch.tensor(0.7))
+    ctl = TrainerControl(should_save=True)
+    c = r.callback.on_step_end(None, st, ctl)
+    assert c.should_training_stop and not c.should_save and r.stopped_by == "diverged"
+    r = StopRules(None)
+    r.watch_loss(torch.tensor(2.0))
+    assert not r.callback.on_step_end(None, st, TrainerControl()).should_training_stop and r.stopped_by is None
+    for key in ("loss", "grad_norm", "eval_loss"):      # second net: anything non-finite in the logs
+        r = StopRules(None)
+        c = r.callback.on_log(None, st, TrainerControl(), logs={key: float("nan")})
+        assert c.should_training_stop and r.stopped_by == "diverged", key
     assert not StopRules(None).callback.on_step_end(None, st, TrainerControl()).should_training_stop
+
+
+def test_nan_loss_stops_the_real_trainer_at_once_with_exit_4(tmp_path):
+    """End to end through the REAL ml.train.sft main (HF Trainer, MurmurTrainer, TrainingArguments as on the pod,
+    logging_steps 10): a tiny random LFM3 model on CPU whose training loss turns NaN at the 3rd micro-batch must
+    stop at step 3 (not at logging step 10, and not run to max_steps, which is what HF's logging_nan_inf_filter
+    made happen before), exit 4, write no train_info.json / final/, and keep no checkpoint of the diverged
+    weights. A separate process, so the exit code is the real one run_one.sh sees."""
+    import subprocess
+    import sys
+    data = contract.REPO / ".cache/ml/train/data/smoke.train.jsonl"
+    if not (DIRS["lfm3"] / "config.json").exists() or not data.exists():
+        pytest.skip("needs the local LFM3 config/tokenizer dir and the smoke data (make -C ml/train smoke-data)")
+    from ml.train.tiny_chain import tiny_model
+    base = tiny_model("lfm3", DIRS["lfm3"], tmp_path / "base")
+    out = tmp_path / "run"
+    argv = ["--config", str(contract.REPO / "ml/train/configs/base.yaml"), "--set", f"base_model={base}",
+            f"output_dir={out}", f"data.train=[{{path: {data}}}]", "data.dev=[]", "train.max_steps=12",
+            "train.batch_size=2", "train.grad_accum=1", "train.logging_steps=10", "train.save_steps=2",
+            "train.threads=2", "train.workers=0", "train.optim=adamw_torch", "train.gradient_checkpointing=false",
+            "prompt.default_share=0", "lora.r=4", "lora.alpha=8"]
+    code = f"""
+import ml.train.sft as s
+orig, n = s.completion_loss, [0]
+def nan_from_third(model, inputs, num_items_in_batch=None):
+    loss, out, scaled = orig(model, inputs, num_items_in_batch)
+    if model.training:
+        n[0] += 1
+        if n[0] >= 3:
+            loss = loss * float("nan")
+    return loss, out, scaled
+s.completion_loss = nan_from_third
+raise SystemExit(s.main({argv!r}))
+"""
+    env = {**os.environ, "PYTHONPATH": str(contract.REPO), "TOKENIZERS_PARALLELISM": "false"}
+    r = subprocess.run([sys.executable, "-c", code], cwd=contract.REPO, env=env, capture_output=True, text=True,
+                       timeout=900)
+    assert r.returncode == 4, r.stdout[-3000:] + r.stderr[-3000:]
+    assert "STOP diverged: non-finite training loss in step 3" in r.stdout, r.stdout[-3000:]
+    assert '"stopped_by": "diverged", "step": 3' in r.stdout
+    assert not (out / "train_info.json").exists() and not (out / "final").exists()
+    assert sorted(p.name for p in out.glob("checkpoint-*")) == ["checkpoint-2"]   # last good one, none after it
+    # the marker a re-run (run_one.sh / train_matrix.sh after the operator restarts them) sees
+    mk = json.loads((out / "DIVERGED.json").read_text())
+    assert mk["step"] == 3 and "non-finite training loss in step 3" in mk["reason"], mk
+    assert mk["last_good_checkpoint"].endswith("checkpoint-2"), mk
+    # a plain re-run must NOT resume from checkpoint-2 into the same divergence: exit 4 before any training
+    r2 = subprocess.run([sys.executable, "-m", "ml.train.sft", *argv], cwd=contract.REPO, env=env, capture_output=True,
+                        text=True, timeout=900)
+    assert r2.returncode == 4, r2.stdout[-3000:] + r2.stderr[-3000:]
+    assert "STOP diverged earlier (step 3" in r2.stdout and "resuming from" not in r2.stdout, r2.stdout[-3000:]
+    assert (out / "DIVERGED.json").exists() and (out / "checkpoint-2").exists()
+
+
+def test_diverged_gate_blocks_until_force_retrain(tmp_path):
+    from ml.train.sft import DIVERGED, diverged_gate
+    assert diverged_gate(tmp_path, force=False) is None            # never diverged: train
+    (tmp_path / "checkpoint-4").mkdir()
+    (tmp_path / DIVERGED).write_text(json.dumps({"step": 5, "reason": "non-finite training loss in step 5"}))
+    assert diverged_gate(tmp_path, force=False)["step"] == 5         # blocked, nothing touched
+    assert (tmp_path / DIVERGED).exists() and (tmp_path / "checkpoint-4").exists()
+    (tmp_path / DIVERGED).write_text("{broken")
+    assert "unreadable" in diverged_gate(tmp_path, force=False)["reason"]
+    assert diverged_gate(tmp_path, force=True) is None               # FORCE_RETRAIN=1: from scratch
+    assert not (tmp_path / DIVERGED).exists() and not (tmp_path / "checkpoint-4").exists()
+    assert len(list(tmp_path.glob("DIVERGED.*.json"))) == 1          # history kept, not a marker any more

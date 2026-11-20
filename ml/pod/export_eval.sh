@@ -59,7 +59,8 @@ fi
 for base in ${STOCK_OURS:+LiquidAI/LFM3-1.7B Qwen/Qwen3.5-0.8B Qwen/Qwen3.5-2B}; do
   sname="stock-$(basename "$base" | tr '[:upper:]' '[:lower:]')"; sdir="$W/stock/$sname"
   if [[ ! -f "$sdir/manifest.json" ]]; then
-    snap=$("$PY" -c "from huggingface_hub import snapshot_download as s; print(s('$base'))")
+    rev=$("$PY" -m ml.train.config revision "$base")   # pinned commit (ml/train/configs/base.yaml base_revisions)
+    snap=$("$PY" -c "from huggingface_hub import snapshot_download as s; print(s('$base', revision='$rev'))")
     timed "export:$sname" "$PY" -m ml.train.export --hf "$snap" --name "$sname" --out "$sdir" --quants Q4_0 \
       >>"$MURMUR_LOGS/export-$sname.log" 2>&1
   fi

@@ -52,4 +52,52 @@ def test_budget_deadline_and_default_cap(tmp_path):
     r = sh(tmp_path, "echo $MAX_GPU_HOURS; budget_deadline 600", MURMUR_SESSION_START=start)
     cap, dl = r.stdout.split()
     assert cap == "4"
-    assert abs(int(dl) - (now + 4 * 3600 - 3900 - 600)) <= 5, r
+    assert abs(int(dl) - (now + 4 * 3600 - 900 - 3900 - 600)) <= 5, r   # 900 s default tail kept back
+
+
+# What happens after the scripts end, in seconds (REQUEST.md "Time budget", TRAINING_RUNBOOK section 1 step 3-5):
+POLL_S, SYNC_GGUF_S, STOP_S = 300, 180, 60   # operator polls every ~5 min; WITH_GGUF=1 sync ~3 GB ~3 min; stop ~1 min
+
+
+def test_budget_tail_keeps_sync_and_stop_inside_cap(tmp_path):
+    """The hard cap keeps BUDGET_TAIL_S (default 900 s) back: the last step that may start ends at 4 h - 15 min at
+    the latest, so the operator's next poll, the final WITH_GGUF=1 sync and the stop still end inside 4 h."""
+    now = int(time.time())
+    start = now - (3 * 3600 + 1800 - 300)   # 3 h 30 min billed incl. the 300 s session overhead
+    tail = int(sh(tmp_path, "echo $BUDGET_TAIL_S").stdout)
+    assert tail == 900 and tail >= POLL_S + SYNC_GGUF_S + STOP_S + 300   # + 5 min slack (slow link, slow stop)
+    lim = int(sh(tmp_path, "budget_limit hard").stdout)
+    assert lim == 4 * 3600 - tail and int(sh(tmp_path, "budget_limit target").stdout) == 3 * 3600 - tail
+    # used ~12,600 s: an 890 s step ends just inside 13,500 = 4 h - tail -> allowed; 960 s would end past it -> refused
+    ok = sh(tmp_path, "budget_check last-eval 890 hard", MURMUR_SESSION_START=start)
+    assert ok.returncode == 0, ok.stderr
+    late = sh(tmp_path, "budget_check last-eval 960 hard", MURMUR_SESSION_START=start)
+    assert late.returncode == 5 and "kept for sync + stop" in late.stderr
+    # worst case: the allowed step ends at the limit, then poll + sync + stop must still end inside the cap
+    assert lim + POLL_S + SYNC_GGUF_S + STOP_S <= 4 * 3600
+    # without the tail (old behaviour) the same 960 s step would have started and left 0 s for the sync
+    assert sh(tmp_path, "budget_check last-eval 960 hard", MURMUR_SESSION_START=start, BUDGET_TAIL_S=0).returncode == 0
+    # the training deadline honours the tail as well
+    dl = int(sh(tmp_path, "budget_deadline 0", MURMUR_SESSION_START=start).stdout)
+    assert abs(dl - (now + lim - 12600)) <= 5
+
+
+# as on a fresh pod shell (the Makefile exports MURMUR_LLAMA_BIN for local runs; empty = unset for env.sh)
+CLEAN = {"MURMUR_LLAMA_BIN": "", "MURMUR_LLAMA_NGL": "", "_MURMUR_LLAMA_BIN_AUTO": "", "_MURMUR_LLAMA_NGL_AUTO": ""}
+
+
+def test_llama_bin_follows_bootstrap_markers_in_nested_stages(tmp_path):
+    """run_all.sh sources env.sh BEFORE bootstrap writes its markers; the stages it starts afterwards source env.sh
+    again and must pick the build the kernel smoke test chose (or the CPU fallback), not the inherited value.
+    An explicit MURMUR_LLAMA_BIN is kept."""
+    mark = tmp_path / ".bootstrap"
+    r = sh(tmp_path, f"""echo $MURMUR_LLAMA_BIN $MURMUR_LLAMA_NGL
+        echo /alt/cuda13.5 > {mark}/llama-cuda-bin; source {ENV_SH}; echo $MURMUR_LLAMA_BIN $MURMUR_LLAMA_NGL
+        rm {mark}/llama-cuda-bin; touch {mark}/llama-cpu-fallback; source {ENV_SH}; echo $MURMUR_LLAMA_BIN $MURMUR_LLAMA_NGL""",
+           **CLEAN)
+    first, alt, cpu = r.stdout.splitlines()
+    assert first == f"{tmp_path}/llama/cuda/llama-b12503 99", r
+    assert alt == "/alt/cuda13.5 99" and cpu == f"{tmp_path}/llama/cpu/llama-b12503 0"
+    kept = sh(tmp_path, f"touch {mark}/llama-cpu-fallback; source {ENV_SH}; echo $MURMUR_LLAMA_BIN",
+              **{**CLEAN, "MURMUR_LLAMA_BIN": "/explicit"})
+    assert kept.stdout.split()[-1] == "/explicit"

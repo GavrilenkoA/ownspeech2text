@@ -2,8 +2,9 @@
 # PLAN_V2 run matrix on ONE GPU, sequential, idempotent (finished steps are skipped; re-run after a
 # crash or a pod stop and it continues where it stopped).
 #   preflight  abort if a Qwen3.5 run is planned and flash-linear-attention is missing (slow PyTorch
-#              path would eat the budget) or if the llama.cpp CUDA build fell back to CPU
-#              (ALLOW_SLOW_QWEN=1 / ALLOW_CPU_EVAL=1 override after a conscious decision)
+#              path would eat the budget), if no llama.cpp CUDA build passed bootstrap's kernel smoke test, or if
+#              bootstrap could not even prepare the smoke model (marker llama-smoke-unprepared)
+#              (ALLOW_SLOW_QWEN=1 / ALLOW_CPU_EVAL=1 / ALLOW_UNTESTED_LLAMA=1 override after a conscious decision)
 #   anchor     the first phase-A run (lfm3-r16) alone; prints its MEASURED tokens/s and step times and
 #              projects every remaining run from them (RUN_COST factors below are assumptions [A])
 #   Phase A    the other LFM3 LoRA sweep runs: OPTIONAL, each starts only if its projection fits
@@ -14,6 +15,8 @@
 #   bash ml/pod/train_matrix.sh
 #   PHASE_A="lfm3-r16" PHASE_B="q08-lora" bash ml/pod/train_matrix.sh     # a cheaper subset
 #   DORA=1 adds lfm3-dora-r16 to phase A; FULL=1 runs full-fallback after phase B.
+# A run whose training diverged (runs/RUN/DIVERGED.json, written by ml/train/sft.py) is skipped and counted as
+# failed on every re-run (ml.train.select ignores it); FORCE_RETRAIN=1 trains it again from scratch.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 source ml/pod/env.sh
@@ -37,9 +40,15 @@ if (( qwen )) && [[ -f "$MARK_VOL/fla-missing" && -z "${ALLOW_SLOW_QWEN:-}" ]]; 
   log "  fix the fla install (bootstrap.sh), or PHASE_B=\"\" for LFM3 only, or ALLOW_SLOW_QWEN=1 to accept the slow path"
   exit 6
 fi
+if [[ -f "$MARK_VOL/llama-smoke-unprepared" && -z "${ALLOW_UNTESTED_LLAMA:-}" ]]; then
+  log "preflight: bootstrap could not prepare the llama.cpp kernel smoke model ($(<"$MARK_VOL/llama-smoke-unprepared")), so"
+  log "  no llama.cpp build was tested on this GPU: abort. Fix it and re-run bootstrap.sh ($W/llama/smoke/prepare-*.json,"
+  log "  TRAINING_RUNBOOK.md 3.2), or ALLOW_UNTESTED_LLAMA=1 to evaluate with the untested build"
+  exit 6
+fi
 if [[ -f "$MARK_VOL/llama-cpu-fallback" && -z "${ALLOW_CPU_EVAL:-}" ]]; then
-  log "preflight: the llama.cpp CUDA build does not see the GPU; evals would run on the pod CPU: abort."
-  log "  fix it (bootstrap.sh step 4) or ALLOW_CPU_EVAL=1 (see TRAINING_RUNBOOK.md 'CPU eval fallback' timing)"
+  log "preflight: no llama.cpp CUDA build passed bootstrap's GPU kernel smoke test; evals would run on the pod CPU: abort."
+  log "  see $W/llama/smoke/*.json and TRAINING_RUNBOOK.md 3.2 (fix the image and re-run bootstrap.sh, or ALLOW_CPU_EVAL=1)"
   exit 6
 fi
 
@@ -51,11 +60,17 @@ anchor_s() { local s; s=$(run_seconds "${A[0]:-lfm3-r16}"); (( s > 0 )) && echo 
 proj() { awk -v a="$(anchor_s)" -v f="${RUN_COST[$1]:-1.5}" 'BEGIN{print int(a*f)}'; }
 # mandatory work still ahead (phase B runs not finished + the finalist evals): an OPTIONAL run must fit the
 # target together with it, so sweep extras can never push phase B past TARGET_GPU_HOURS
-rest_s() { local t=$FINALIST_RESERVE_S r; for r in "${B[@]}"; do
-  [[ -f "$MURMUR_RUNS/$r/eval/Q4_0-dev/report.json" ]] || t=$(( t + $(proj "$r") )); done; echo "$t"; }
+diverged_skip() { [[ -f "$MURMUR_RUNS/$1/DIVERGED.json" && ! -f "$MURMUR_RUNS/$1/train_info.json" && "${FORCE_RETRAIN:-}" != 1 ]]; }
+rest_s() { local t=$FINALIST_RESERVE_S r; for r in "${B[@]}"; do   # (a diverged phase-B run will be skipped: no cost)
+  [[ -f "$MURMUR_RUNS/$r/eval/Q4_0-dev/report.json" ]] || diverged_skip "$r" || t=$(( t + $(proj "$r") )); done; echo "$t"; }
 do_run() {  # $1 run  $2 hard|target  rest: overrides
   local r=$1 kind=$2; shift 2
   if [[ -f "$MURMUR_RUNS/$r/eval/Q4_0-dev/report.json" ]]; then bash ml/pod/run_one.sh "$r" "$@"; return; fi
+  if diverged_skip "$r"; then
+    log "skip $r: its training DIVERGED in an earlier attempt ($(jq -r '"step \(.step // "?"): \(.reason // "?")"' \
+      "$MURMUR_RUNS/$r/DIVERGED.json" 2>/dev/null || echo "unreadable marker")); FORCE_RETRAIN=1 retrains it from scratch"
+    return 4
+  fi
   local p; p=$(proj "$r")
   if [[ "$kind" == target ]]; then budget_check "optional run $r (+ mandatory rest $(rest_s)s)" $(( p + $(rest_s) )) target || return 5
   else budget_check "run $r" "$p" hard || return 5; fi
