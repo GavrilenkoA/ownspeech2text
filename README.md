@@ -59,9 +59,18 @@ export ANDROID_HOME=$HOME/.local/share/android-sdk
 ./gradlew assembleDebug testDebugUnitTest
 ```
 
-Prebuilt native libraries (llama.cpp, sherpa-onnx, QNN probe) are produced by the scripts in
-`native/` and are not committed; without them the Gradle build still succeeds and the app
-reports the engine runtime as missing. Model weights are never committed.
+The speech and correction engines are native libraries built from source and not committed, so
+an APK made without them installs but cannot dictate:
+
+```bash
+JOBS=$(nproc) native/sherpa/build-android.sh all
+NO_HEAVY=1 JOBS=$(nproc) native/llama/build_android.sh cpu-arm64 cpu-x86_64
+./gradlew assembleDebug          # picks up .cache/native/jniLibs
+tools/e2e/check_apk_engines.sh app/build/outputs/apk/debug/app-debug.apk
+```
+
+CI does the same before it builds (`native-libs` job, cached) and fails the build when an APK
+is missing an engine library. Model weights are never committed.
 
 The release build excludes Qualcomm NPU libraries; device builds can opt in with
 `-Pmurmur.qnn=true -Pmurmur.htp=true` under the licences named in `docs/DECISIONS.md`.
