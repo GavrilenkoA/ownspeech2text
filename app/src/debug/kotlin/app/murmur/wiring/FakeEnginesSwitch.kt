@@ -14,7 +14,7 @@ import kotlinx.coroutines.flow.map
  * The file decides the mode of a process: the engines, the resolver and the engine-derived stores are chosen when the
  * container is built and cannot change under a running orchestrator. So [run] first makes the switch show the mode this
  * process runs in ([runningOnFakes]), and from then on writes every change of the switch to the file ([writeFlag]),
- * which applies at the next start of the app. Release builds never run this (DebugWiring's release variant).
+ * which applies at the next start of the app. Debug source set only: release builds do not contain it.
  */
 class FakeEnginesSwitch(
     private val runningOnFakes: Boolean,

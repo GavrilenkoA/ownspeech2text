@@ -100,8 +100,9 @@ if [ -n "$BOOT_AVD" ]; then
   [ "$(free -g | awk '/^Mem:/{print $7}')" -ge 14 ] || die "not enough free memory to boot an emulator"
   port="${SERIAL#emulator-}"
   cpu_host=0; { has_suite real || has_suite events-real || has_suite bench; } && cpu_host=1
-  # The brief asks for 4 GB guest RAM for the real suite (-memory 4096); boot.sh has no switch for it yet (toolchain
-  # owner), so the AVD's own hw.ramSize applies; the report records MemTotal.
+  # The brief asks for 4 GB guest RAM for the real suite (-memory 4096). boot.sh passes no memory switch, but the
+  # emulator raises murmur_fold7_inner to 4096 MB itself ("Increasing RAM size to 4096MB", MemTotal ~4,013,812 kB);
+  # murmur_fold7_cover stays at its 3 GB. The report records MemTotal of every run.
   MURMUR_EMU_READ_ONLY=1 MURMUR_EMU_CPU_HOST=$cpu_host "$root/tools/heavy" "$root/tools/emulator/boot.sh" "$BOOT_AVD" "$port" \
     || die "emulator boot failed"
   booted=1
@@ -132,13 +133,16 @@ done
 
 # --- facts --------------------------------------------------------------------------------------------------------
 app_uid="$("${ADB[@]}" shell cmd package list packages -U "$PKG" | sed -n "s/^package:$PKG uid:\([0-9]*\).*/\1/p" | tr -d '\r')"
+mem_kb="$("${ADB[@]}" shell cat /proc/meminfo | awk '/MemTotal/{print $2}' | tr -d '\r')"
+# A 4096 MB guest shows ~4,013,000 kB (the kernel keeps a little); 3 GB AVDs show ~3,048,000 kB.
+if [ "${mem_kb:-0}" -ge 3900000 ]; then guest4g=yes; else guest4g=no; fi
 {
   echo "# Emulator end-to-end run"
   echo
   echo "- serial: $SERIAL ($("${ADB[@]}" shell getprop ro.product.model | tr -d '\r'), SDK $("${ADB[@]}" shell getprop ro.build.version.sdk | tr -d '\r'))"
   echo "- avd: $("${ADB[@]}" emu avd name 2>/dev/null | head -1 | tr -d '\r')"
   echo "- wm size: $("${ADB[@]}" shell wm size | tr -d '\r' | paste -sd ' ')"
-  echo "- MemTotal: $("${ADB[@]}" shell cat /proc/meminfo | awk '/MemTotal/{print $2" kB"}')"
+  echo "- MemTotal: ${mem_kb} kB (4 GB guest, as the brief asks for the real suite: $guest4g)"
   echo "- cpu: $("${ADB[@]}" shell cat /proc/cpuinfo | grep -m1 'model name' | cut -d: -f2- | tr -d '\r')"
   echo "- app uid: $app_uid; commit: $(git -C "$root" rev-parse --short HEAD)$(git -C "$root" diff --quiet || echo ' (+ local changes)')"
   echo "- suites: $SUITES"
