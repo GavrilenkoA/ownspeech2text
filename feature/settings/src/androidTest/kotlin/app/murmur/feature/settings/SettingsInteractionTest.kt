@@ -120,7 +120,7 @@ class SettingsInteractionTest {
         rule.onNodeWithTag(SettingsTags.PREFS_FIELD).performTextReplacement("Write ё.")
         rule.onNodeWithTag(SettingsTags.PROMPT_SAVE).performClick()
         rule.waitForIdle()
-        assertEquals(PromptOverride("Write numbers as digits.", "default.v4"), w.settings.settings.value.promptOverride)
+        assertEquals(PromptOverride("Write numbers as digits.", "default.v1"), w.settings.settings.value.promptOverride)
         assertEquals("Write ё.", w.settings.settings.value.preferences)
         assertEquals(false, subScreenReports.last())
         rule.onNodeWithText("Edited").assertIsDisplayed()
@@ -158,7 +158,7 @@ class SettingsInteractionTest {
 
     @Test
     fun resetAsksThenRestoresTheDefaultAndKeepsTones() {
-        val w = start(Settings(promptOverride = PromptOverride("Mine", "default.v4"), tonePerApp = mapOf(SettingsFixtures.TELEGRAM to Tone.FORMAL)))
+        val w = start(Settings(promptOverride = PromptOverride("Mine", "default.v1"), tonePerApp = mapOf(SettingsFixtures.TELEGRAM to Tone.FORMAL)))
         category(SettingsCategory.CLEANUP)
         row("prompt")
         rule.onNodeWithTag(SettingsTags.PROMPT_RESET).performClick()
@@ -171,7 +171,7 @@ class SettingsInteractionTest {
         rule.waitForIdle()
         assertNull(w.settings.settings.value.promptOverride)
         assertEquals(mapOf(SettingsFixtures.TELEGRAM to Tone.FORMAL), w.settings.settings.value.tonePerApp)
-        val profile = w.prompts.profile("default.v4")
+        val profile = w.prompts.profile("default.v1")
         assertEquals(PromptEditState.DEFAULT, PromptEditRules.editState(profile, w.settings.settings.value.promptOverride?.baseProfile))
     }
 

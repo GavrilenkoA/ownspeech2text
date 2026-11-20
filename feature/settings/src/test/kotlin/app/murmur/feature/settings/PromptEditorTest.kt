@@ -28,7 +28,7 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class PromptEditorTest {
     private val prompts = ClasspathPromptAssets()
-    private val shippedV4 = prompts.systemPrompt("default.v4").trimEnd('\n')
+    private val shippedV1 = prompts.systemPrompt("default.v1").trimEnd('\n')
     private val fineTune = CleanupChoice.Model(ModelId("murmur-cleanup-qwen3.5-0.8b"))
 
     private suspend fun TestScope.open(settings: Settings = Settings()): Pair<SettingsFixtures.World, PromptEditor> {
@@ -51,8 +51,8 @@ class PromptEditorTest {
     fun opensWithTheShippedPromptOfTheActiveProfile() = runTest {
         val (_, e) = open()
         val ui = e.ui.value
-        assertEquals("default.v4", ui.profile.name)
-        assertEquals(shippedV4, ui.text)
+        assertEquals("default.v1", ui.profile.name)
+        assertEquals(shippedV1, ui.text)
         assertTrue(ui.editable)
         assertEquals(PromptNotice.NONE, ui.notice)
         assertFalse(ui.dirty)
@@ -71,7 +71,7 @@ class PromptEditorTest {
         assertEquals(emptyList<String>(), problems("a".repeat(PromptEditRules.MAX_SYSTEM_CHARS)))
         assertEquals(listOf("markup"), problems(SettingsFixtures.PROTOTYPE_PROMPT_MARKUP))
         assertEquals(listOf("markup"), problems("Hello <think>"))
-        assertEquals("the shipped text names <context> and is valid", emptyList<String>(), problems(shippedV4))
+        assertEquals("the shipped text names <context> and is valid", emptyList<String>(), problems(shippedV1))
         e.setText("")
         assertFalse(e.save())
         assertNull("nothing written", w.settings.settings.value.promptOverride)
@@ -89,15 +89,15 @@ class PromptEditorTest {
     @Test
     fun editedMeansTheStoredTextDiffersFromTheShippedOne() = runTest {
         val (w, e) = open()
-        e.setText("$shippedV4\n11. Always write ё.")
+        e.setText("$shippedV1\n11. Always write ё.")
         assertTrue(e.ui.value.dirty)
         assertTrue(e.ui.value.canReset)
         assertTrue(e.save())
-        assertEquals(PromptOverride("$shippedV4\n11. Always write ё.", "default.v4"), w.settings.settings.value.promptOverride)
+        assertEquals(PromptOverride("$shippedV1\n11. Always write ё.", "default.v1"), w.settings.settings.value.promptOverride)
         assertEquals(PromptEditState.EDITED, rowState(w))
         assertFalse(e.ui.value.dirty)
         // Typing the shipped text back (CRLF and a trailing newline are the same text to the renderer) is Default.
-        e.setText(shippedV4.replace("\n", "\r\n") + "\r\n")
+        e.setText(shippedV1.replace("\n", "\r\n") + "\r\n")
         assertTrue(e.save())
         assertNull(w.settings.settings.value.promptOverride)
         assertEquals(PromptEditState.DEFAULT, rowState(w))
@@ -106,7 +106,7 @@ class PromptEditorTest {
     @Test
     fun resetRemovesTheEditAndKeepsTonesAndPreferences() = runTest {
         val start = Settings(
-            promptOverride = PromptOverride("My own rules", "default.v4"),
+            promptOverride = PromptOverride("My own rules", "default.v1"),
             preferences = "Write ё.",
             tonePerApp = mapOf(SettingsFixtures.TELEGRAM to Tone.FORMAL),
             defaultTone = Tone.CASUAL,
@@ -120,7 +120,7 @@ class PromptEditorTest {
         assertEquals("Write ё.", s.preferences)
         assertEquals(mapOf(SettingsFixtures.TELEGRAM to Tone.FORMAL), s.tonePerApp)
         assertEquals(Tone.CASUAL, s.defaultTone)
-        assertEquals(shippedV4, e.ui.value.text)
+        assertEquals(shippedV1, e.ui.value.text)
         assertFalse(e.ui.value.canReset)
         assertFalse(e.ui.value.dirty)
         assertEquals(PromptEditState.DEFAULT, rowState(w))
@@ -148,31 +148,31 @@ class PromptEditorTest {
 
     @Test
     fun anEditForAnOlderPromptShowsTheNoticeWithResetAndKeepEditing() = runTest {
-        val (w, e) = open(Settings(promptOverride = PromptOverride("Rules for v3", "default.v3")))
+        val (w, e) = open(Settings(promptOverride = PromptOverride("Rules for v4", "default.v4")))
         assertEquals(PromptEditState.MADE_FOR_OLDER_PROMPT, rowState(w))
         assertEquals(PromptNotice.OLDER_PROMPT, e.ui.value.notice)
-        assertEquals("Keep editing continues the user's text", "Rules for v3", e.ui.value.text)
+        assertEquals("Keep editing continues the user's text", "Rules for v4", e.ui.value.text)
         assertTrue(e.ui.value.canReset)
         e.keepEditing()
         assertEquals(PromptNotice.NONE, e.ui.value.notice)
-        e.setText("Rules for v4")
+        e.setText("Rules for v1")
         assertTrue(e.save())
-        assertEquals(PromptOverride("Rules for v4", "default.v4"), w.settings.settings.value.promptOverride)
+        assertEquals(PromptOverride("Rules for v1", "default.v1"), w.settings.settings.value.promptOverride)
         assertEquals(PromptEditState.EDITED, rowState(w))
     }
 
     @Test
     fun resetFromTheOlderPromptNotice() = runTest {
-        val (w, e) = open(Settings(promptOverride = PromptOverride("Rules for v3", "default.v3")))
+        val (w, e) = open(Settings(promptOverride = PromptOverride("Rules for v4", "default.v4")))
         e.reset()
         assertNull(w.settings.settings.value.promptOverride)
         assertEquals(PromptNotice.NONE, e.ui.value.notice)
-        assertEquals(shippedV4, e.ui.value.text)
+        assertEquals(shippedV1, e.ui.value.text)
     }
 
     @Test
     fun onAFineTuneAStoredEditIsKeptWithoutReset() = runTest {
-        val edit = PromptOverride("Rules for stock", "default.v4")
+        val edit = PromptOverride("Rules for stock", "default.v1")
         val (w, e) = open(Settings(cleanup = fineTune, promptOverride = edit))
         assertEquals(PromptNotice.FINE_TUNE_EDIT_KEPT, e.ui.value.notice)
         assertFalse(e.ui.value.editable)
@@ -193,7 +193,7 @@ class PromptEditorTest {
         assertNull("nothing saved by Try it", w.settings.settings.value.promptOverride)
         assertEquals("Saved prefs", w.settings.settings.value.preferences)
         // The shipped text is passed as "no override"; empty preferences as null.
-        e.setText(shippedV4)
+        e.setText(shippedV1)
         e.setPreferences(" ")
         e.runTry(PromptEditor.SAMPLE)
         assertEquals(Triple(PromptEditor.SAMPLE, null, null), w.tryCalls.last())

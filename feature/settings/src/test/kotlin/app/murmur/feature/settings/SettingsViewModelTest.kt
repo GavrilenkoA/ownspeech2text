@@ -242,14 +242,14 @@ class SettingsViewModelTest {
         val w = SettingsFixtures.world()
         val vm = vm(w)
         fun state() = vm.ui.value.prompt!!
-        assertEquals("default.v4", state().profile.name)
+        assertEquals("default.v1", state().profile.name)
         assertEquals(PromptEditState.DEFAULT, state().state)
-        w.settings.edit { it.copy(promptOverride = PromptOverride("My rules", "default.v4")) }
+        w.settings.edit { it.copy(promptOverride = PromptOverride("My rules", "default.v1")) }
         assertEquals(PromptEditState.EDITED, state().state)
         assertEquals("the preview shows the edit", "My rules", state().previewText)
-        w.settings.edit { it.copy(promptOverride = PromptOverride("My rules", "default.v3")) }
+        w.settings.edit { it.copy(promptOverride = PromptOverride("My rules", "default.v4")) }
         assertEquals(PromptEditState.MADE_FOR_OLDER_PROMPT, state().state)
-        assertTrue(state().previewText.startsWith("You are the dictation editor"))
+        assertTrue(state().previewText.startsWith("You are a dictation editor"))
         // A fine-tune as the cleanup model: its own prompt, not editable.
         w.settings.edit { it.copy(cleanup = CleanupChoice.Model(ModelId("murmur-cleanup-qwen3.5-2b")), promptOverride = null) }
         assertEquals("finetuned.v1", state().profile.name)
@@ -257,16 +257,16 @@ class SettingsViewModelTest {
         assertEquals(PromptEditState.NOT_EDITABLE, state().state)
         // Cleanup None: the prompt of the catalog default (what applies when a model is used again).
         w.settings.edit { it.copy(cleanup = CleanupChoice.None) }
-        assertEquals("default.v4", state().profile.name)
+        assertEquals("default.v1", state().profile.name)
     }
 
     @Test
     fun activeProfileComesFromTheChosenModelElseTheCatalogDefault() = runTest {
         val catalog = app.murmur.testing.FakeCatalogRepository().catalog.value
-        assertEquals("default.v4", SettingsViewModel.activeProfileName(Settings(), catalog))
+        assertEquals("default.v1", SettingsViewModel.activeProfileName(Settings(), catalog))
         assertEquals("finetuned.v1", SettingsViewModel.activeProfileName(Settings(cleanup = CleanupChoice.Model(ModelId("murmur-cleanup-lfm3-1.7b"))), catalog))
-        assertEquals("default.v4", SettingsViewModel.activeProfileName(Settings(cleanup = CleanupChoice.Model(ModelId("qwen3.5-0.8b"))), catalog))
-        assertEquals("unknown model -> catalog default", "default.v4", SettingsViewModel.activeProfileName(Settings(cleanup = CleanupChoice.Model(ModelId("gone"))), catalog))
+        assertEquals("default.v1", SettingsViewModel.activeProfileName(Settings(cleanup = CleanupChoice.Model(ModelId("qwen3.5-0.8b"))), catalog))
+        assertEquals("unknown model -> catalog default", "default.v1", SettingsViewModel.activeProfileName(Settings(cleanup = CleanupChoice.Model(ModelId("gone"))), catalog))
         assertNull(SettingsViewModel.activeProfileName(Settings(), catalog.copy(defaults = catalog.defaults.copy(llm = null))))
     }
 
@@ -276,7 +276,7 @@ class SettingsViewModelTest {
         assertTrue(vm.openPrompt())
         assertEquals(SubScreen.PROMPT, vm.sub.value)
         assertEquals(SettingsCategory.CLEANUP, vm.category.value)
-        assertEquals("default.v4", vm.promptEditor.value!!.profile.name)
+        assertEquals("default.v1", vm.promptEditor.value!!.profile.name)
         vm.closeSub()
         assertNull(vm.sub.value)
         assertNull(vm.promptEditor.value)
