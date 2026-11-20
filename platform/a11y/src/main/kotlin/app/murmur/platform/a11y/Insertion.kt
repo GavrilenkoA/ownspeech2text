@@ -30,11 +30,21 @@ data class LadderResult(val method: InsertMethod?, val attempts: List<LadderAtte
  * commitText -> ACTION_PASTE -> ACTION_SET_TEXT; after each, read back the text before the caret and accept the first
  * method whose result is verified. Before a later step the field is read again: if an earlier step landed late (an
  * async commit), that step wins and nothing is inserted twice.
+ *
+ * A commitText that returned true is a commit the IME accepted; it reaches the field asynchronously, and under load the
+ * text before the caret can show it later than [verifyTimeoutMs] (WP-20's emulator runs: COMMIT_TEXT landed, the read
+ * lagged past 600 ms, PASTE inserted the text a second time). So after a true but unverified commit the field is read
+ * again for [commitGraceMs] (ADR-086 item 5): COMMIT_TEXT is accepted as soon as the text before the caret grew by the
+ * inserted text ([grew]) or otherwise ends with it ([verified]); the ladder escalates to ACTION_PASTE only when the field
+ * stays readable and the text never showed up. An unreadable field after a true commit is never escalated: the result
+ * is "not inserted" and the orchestrator leaves the text on the clipboard (Copied), because a second method could only
+ * be checked by reading the same field.
  */
 class InsertionLadder(
     private val now: () -> Long,
     private val verifyTimeoutMs: Long = VERIFY_TIMEOUT_MS,
     private val pollMs: Long = POLL_MS,
+    private val commitGraceMs: Long = COMMIT_GRACE_MS,
 ) {
     suspend fun run(field: LadderField, text: String): LadderResult {
         val attempts = mutableListOf<LadderAttempt>()
@@ -53,10 +63,35 @@ class InsertionLadder(
             val t0 = now()
             val called = runCatching { action(text) }.getOrDefault(false)
             val ok = called && awaitVerified(field, original, text, window)
-            attempts += LadderAttempt(method, called, ok, now() - t0)
-            if (ok) return LadderResult(method, attempts)
+            if (ok) {
+                attempts += LadderAttempt(method, called, true, now() - t0)
+                return LadderResult(method, attempts)
+            }
+            if (method == InsertMethod.COMMIT_TEXT && called) {
+                val late = awaitLateCommit(field, original, text, window)
+                attempts += LadderAttempt(method, called = true, verified = late == LateCommit.LANDED, ms = now() - t0)
+                when (late) {
+                    LateCommit.LANDED -> return LadderResult(method, attempts)
+                    LateCommit.UNREADABLE -> return LadderResult(null, attempts)
+                    LateCommit.ABSENT -> continue
+                }
+            }
+            attempts += LadderAttempt(method, called, false, now() - t0)
         }
         return LadderResult(null, attempts)
+    }
+
+    private enum class LateCommit { LANDED, UNREADABLE, ABSENT }
+
+    /** ADR-086 item 5: the grace period after a true, unverified commitText. */
+    private suspend fun awaitLateCommit(field: LadderField, original: String?, text: String, window: Int): LateCommit {
+        val deadline = now() + commitGraceMs
+        while (true) {
+            val after = field.beforeCursor(window) ?: return LateCommit.UNREADABLE
+            if (grew(original, after, text, window) || verified(original, after, text)) return LateCommit.LANDED
+            if (now() >= deadline) return LateCommit.ABSENT
+            delay(pollMs)
+        }
     }
 
     private suspend fun awaitVerified(field: LadderField, original: String?, text: String, window: Int): Boolean {
@@ -71,6 +106,11 @@ class InsertionLadder(
     companion object {
         /** Long enough for an async commit or a WebView paste to arrive (spike read back after 150 ms). */
         const val VERIFY_TIMEOUT_MS = 600L
+        /**
+         * The extra wait for a true commitText (ADR-086 item 5). Window + grace (1.4 s) leave the paste rung its own 600 ms
+         * verify window inside the orchestrator's 2 s delivery timeout (DictationConfig.deliveryTimeoutMs).
+         */
+        const val COMMIT_GRACE_MS = 800L
         const val POLL_MS = 50L
         /** Only the tail of a long text is compared: bounded binder payload, same certainty. */
         const val COMPARE_TAIL = 256
@@ -87,6 +127,15 @@ class InsertionLadder(
             val a = norm(after)
             if (!a.endsWith(norm(text).takeLast(COMPARE_TAIL))) return false
             return before == null || norm(before) != a
+        }
+
+        /**
+         * The text before the caret is exactly what it was plus [text]: [after] equals the last [window] characters of
+         * [before] + [text] ([before] and [after] are both read with [window]). False when either read failed.
+         */
+        fun grew(before: String?, after: String?, text: String, window: Int): Boolean {
+            if (before == null || after == null || text.isEmpty()) return false
+            return norm(after) == norm(before + text).takeLast(window)
         }
 
         private fun norm(s: String) = s.replace(' ', ' ')

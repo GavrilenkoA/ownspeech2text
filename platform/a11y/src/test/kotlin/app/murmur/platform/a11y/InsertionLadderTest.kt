@@ -93,13 +93,82 @@ class InsertionLadderTest {
     @Test
     fun aLateCommitIsAcceptedAndNeverInsertedTwice() = runTest {
         // The commit becomes visible only after the verify window (1 original read + 13 polls over 600 ms), at the
-        // re-check right before the paste rung: the paste must not run.
+        // first read of the grace period: the paste must not run, and the attempt is logged as verified (late).
         val f = FakeField(this, commit = Rung.LANDS_ON_LATER_READ, landOnRead = 15)
         val r = ladder().run(f, "once")
         assertEquals(InsertMethod.COMMIT_TEXT, r.method)
         assertEquals(listOf(InsertMethod.COMMIT_TEXT), f.calls)
         assertEquals("once", f.text)
-        assertEquals(listOf(false), r.attempts.map { it.verified })
+        assertEquals(listOf(true), r.attempts.map { it.verified })
+    }
+
+    /**
+     * ADR-086 item 5, the emulator finding: the IME accepted the commit, the field showed it only ~1 s later (past the
+     * 600 ms window), and the old ladder pasted the text a second time. Now the grace period accepts COMMIT_TEXT.
+     */
+    @Test
+    fun aCommitThatShowsUpAfterTheVerifyWindowIsAcceptedInTheGracePeriodNotPastedAgain() = runTest {
+        val f = FakeField(this, text = "Note: ", commit = Rung.LANDS_LATE, lateMs = 1_000)
+        val r = ladder().run(f, "buy milk")
+        assertEquals(InsertMethod.COMMIT_TEXT, r.method)
+        assertEquals(listOf(InsertMethod.COMMIT_TEXT), f.calls)
+        assertEquals("Note: buy milk", f.text)
+        val a = r.attempts.single()
+        assertTrue("verified late", a.verified)
+        assertTrue("accepted when it landed (${a.ms} ms)", a.ms in 1_000..1_100)
+    }
+
+    @Test
+    fun anUnreadableFieldAfterATrueCommitIsNeverEscalated() = runTest {
+        // The commit was accepted but nothing can read the field: a paste could only double the text, so the ladder
+        // stops (the orchestrator then reports Copied, the text is on the clipboard).
+        val f = FakeField(this, text = "abc", readable = false)
+        val r = ladder().run(f, "x")
+        assertNull(r.method)
+        assertEquals(listOf(InsertMethod.COMMIT_TEXT), f.calls)
+        assertEquals("abcx", f.text)
+        assertEquals(listOf(true to false), r.attempts.map { it.called to it.verified })
+    }
+
+    @Test
+    fun aTrueCommitThatNeverLandsEscalatesToPasteAfterTheGracePeriod() = runTest {
+        val f = FakeField(this, text = "a", commit = Rung.REPORTS_OK_BUT_NOTHING)
+        val r = ladder().run(f, "b")
+        assertEquals(InsertMethod.PASTE, r.method)
+        assertEquals(listOf(InsertMethod.COMMIT_TEXT, InsertMethod.PASTE), f.calls)
+        assertEquals("ab", f.text)
+        val commit = r.attempts.first()
+        assertTrue(
+            "the commit got the window and the grace period (${commit.ms} ms)",
+            commit.ms >= InsertionLadder.VERIFY_TIMEOUT_MS + InsertionLadder.COMMIT_GRACE_MS,
+        )
+        // Window + grace + a paste window fit the orchestrator's 2 s delivery timeout.
+        assertTrue(InsertionLadder.VERIFY_TIMEOUT_MS * 2 + InsertionLadder.COMMIT_GRACE_MS <= app.murmur.core.dictation.DictationConfig().deliveryTimeoutMs)
+    }
+
+    @Test
+    fun aFalseCommitGoesStraightToPaste() = runTest {
+        // commitText false = the IME has no connection: no grace period (nothing can arrive later).
+        val f = FakeField(this, commit = Rung.UNAVAILABLE)
+        val r = ladder().run(f, "y")
+        assertEquals(InsertMethod.PASTE, r.method)
+        assertEquals(0L, r.attempts.first().ms)
+    }
+
+    @Test
+    fun grewMeansTheOldTextPlusTheInsertion() {
+        val w = InsertionLadder.readWindow("there")
+        assertTrue(InsertionLadder.grew(before = "Hi ", after = "Hi there", text = "there", window = w))
+        assertFalse(InsertionLadder.grew(before = "Hi ", after = "Hi therethere", text = "there", window = w)) // inserted twice
+        assertFalse(InsertionLadder.grew(before = "Hi ", after = "Hi ", text = "there", window = w))
+        assertFalse(InsertionLadder.grew(before = null, after = "there", text = "there", window = w))
+        assertFalse(InsertionLadder.grew(before = "Hi ", after = null, text = "there", window = w))
+        // Both reads are capped at the window: a long field compares the window-long tails.
+        val old = "x".repeat(500)
+        val text = "конец"
+        val win = InsertionLadder.readWindow(text)
+        assertTrue(InsertionLadder.grew(old.takeLast(win), (old + text).takeLast(win), text, win))
+        assertTrue(InsertionLadder.grew(before = "a\u00a0", after = "a b", text = "b", window = w)) // nbsp as a space
     }
 
     @Test
