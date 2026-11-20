@@ -22,7 +22,7 @@ primary source on the date given, **[A]** assumed, re-measured from `/workspace/
 > * Container disk: **30 GB** (apt packages, Triton/compile caches, temp files).
 > * Volume: **80 GB at `/workspace`** (code, data, Python env, base weights, runs, results).
 > * Ports: **SSH only** (TCP 22, exposed). No HTTP ports; nothing on the pod listens publicly.
-> * SSH: add the public key in **`/home/private/projects/murmur/.cache/ml/train/pod-ssh/murmur_pod_ed25519.pub`**
+> * SSH: add the public key in **`~/projects/murmur/.cache/ml/train/pod-ssh/murmur_pod_ed25519.pub`**
 >   on the dev server (dedicated key, comment `murmur-pod`:
 >   `ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICToVEta4rbX5bWcYjWxRnT3KXilXBT4E3442wEaoTsH murmur-pod`),
 >   and return `user@host` and the SSH port.

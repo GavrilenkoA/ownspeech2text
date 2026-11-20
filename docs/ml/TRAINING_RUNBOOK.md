@@ -95,7 +95,7 @@ is idempotent: after an SSH drop, a crash or a stop, re-run the same command.
 Before the pod (dev server, no GPU):
 
 ```
-cd /home/private/projects/murmur
+cd ~/projects/murmur
 make -C ml/train test                                   # 105 unit tests (ml/eval + ml/train), ~30-60 s
 bash .cache/ml/train/podsim-real/simulate.sh            # optional: the whole sequence below on CPU with tiny
                                                         # models on the real data (section 4.2), ~25 min
@@ -105,7 +105,7 @@ Request the pod with `ml/pod/REQUEST.md` (name `alexm-training`, 1x RTX 5090, 80
 
 ```
 export POD=root@<host> POD_PORT=<port>
-export POD_KEY=/home/private/projects/murmur/.cache/ml/train/pod-ssh/murmur_pod_ed25519
+export POD_KEY=~/projects/murmur/.cache/ml/train/pod-ssh/murmur_pod_ed25519
 S="ssh -p $POD_PORT -i $POD_KEY -o StrictHostKeyChecking=accept-new $POD"
 
 # 1. code + data to the volume (rsync, < 1 min)

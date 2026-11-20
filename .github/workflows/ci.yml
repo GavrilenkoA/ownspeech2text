@@ -1,0 +1,107 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GRADLE_OPTS: -Dorg.gradle.jvmargs=-Xmx3g -Dorg.gradle.daemon=false
+
+jobs:
+  unit-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Install Android SDK components
+        run: |
+          export ANDROID_HOME="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          SDKMANAGER="$(ls -d "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager | tail -1)"
+          yes | "$SDKMANAGER" --licenses > /dev/null
+          "$SDKMANAGER" --install "platforms;android-37.2" "build-tools;37.0.0" "platform-tools"
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Fetch model assets used by the host tests
+        run: python3 tools/models/fetch pp-ocrv6-tiny-det@onnx pp-ocrv5-cyrillic-mobile-rec@onnx
+      - name: Unit tests
+        env:
+          MURMUR_OCR_PARITY: off
+        run: ./gradlew testDebugUnitTest --stacktrace
+      - name: Publish test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-reports
+          path: "**/build/test-results/testDebugUnitTest/**"
+          if-no-files-found: ignore
+          retention-days: 7
+
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Install Android SDK components
+        run: |
+          export ANDROID_HOME="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          SDKMANAGER="$(ls -d "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager | tail -1)"
+          yes | "$SDKMANAGER" --licenses > /dev/null
+          "$SDKMANAGER" --install "platforms;android-37.2" "build-tools;37.0.0" "platform-tools"
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Assemble debug and release
+        run: ./gradlew assembleDebug assembleRelease --stacktrace
+      - name: Check release APK contents
+        run: bash tools/e2e/check_release_apk.sh --no-build
+      - name: Upload APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: apks
+          path: |
+            app/build/outputs/apk/debug/*.apk
+            app/build/outputs/apk/release/*.apk
+          if-no-files-found: ignore
+          retention-days: 7
+
+  release-apk:
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Install Android SDK components
+        run: |
+          export ANDROID_HOME="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          SDKMANAGER="$(ls -d "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager | tail -1)"
+          yes | "$SDKMANAGER" --licenses > /dev/null
+          "$SDKMANAGER" --install "platforms;android-37.2" "build-tools;37.0.0" "platform-tools"
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Assemble release
+        run: ./gradlew assembleRelease --stacktrace
+      - name: Attach APK to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: app/build/outputs/apk/release/*.apk
+          fail_on_unmatched_files: true

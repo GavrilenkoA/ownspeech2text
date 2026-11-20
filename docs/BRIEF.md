@@ -65,7 +65,7 @@ Rules:
 - (orchestrator note) No physical Fold7 is attached to the build server. `adb devices` is empty.
   Anything that can only be validated on the device must be flagged explicitly.
 - (orchestrator note) Build server: x86_64 Linux, 16 cores, 121 GB RAM, no GPU, ~85 GB free disk,
-  JDK 21, Android SDK at `/home/private/.local/share/android-sdk`. The server is shared with other
+  JDK 21, Android SDK at `$ANDROID_HOME`. The server is shared with other
   users and running services — do not disturb anything outside this project.
 - A Hermes agent lives on the same server. It holds the owner's Hugging Face Pro token and can start
   RunPod GPU pods (H100 / H200 / 5090). Requests to Hermes go through the orchestrator only.

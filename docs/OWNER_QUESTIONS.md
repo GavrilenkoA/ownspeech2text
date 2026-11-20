@@ -137,11 +137,11 @@ no open question: its two owner items were decided or done there.
    available", the snackbar after deleting several entries, the stacked action bar at very large text, the list
    snackbar for a failed Retry/Re-polish ("Telegram: Couldn't re-polish. The text is unchanged.") and the
    Final/Original/Changes control that scrolls sideways with a fading edge at 200 % text
-   (`/home/private/projects/murmur/.cache/spikes/wp-16/`);
+   (`~/projects/murmur/.cache/spikes/wp-16/`);
    Dashboard: the error state, the screen with real fixture data and the typing-speed sheet
-   (`/home/private/projects/murmur/.cache/spikes/wp-17/final2/{cover,inner}/`);
+   (`~/projects/murmur/.cache/spikes/wp-17/final2/{cover,inner}/`);
    Models: the download of a pinned unit or of the CPU version while it runs, and the loading skeletons shown until the
-   phone's capabilities are known (`/home/private/projects/murmur/.cache/spikes/wp-18/`, `no-frame/`).
+   phone's capabilities are known (`~/projects/murmur/.cache/spikes/wp-18/`, `no-frame/`).
    *Recommendation:* review when convenient; what you see ships unless you send changes.
    Blocks nothing.
 15. **The Dashboard frames' sample numbers do not add up.** (WP-17, design owner) "9 % of words changed" next to

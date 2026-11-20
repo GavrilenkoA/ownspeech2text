@@ -7,7 +7,7 @@
 set -euo pipefail
 serial=${1:?usage: push-test-models.sh <serial> [artifactId ...]}; shift
 pkg=app.murmur.infer.asr.test
-adb="${ANDROID_HOME:-/home/private/.local/share/android-sdk}/platform-tools/adb"
+adb="${ANDROID_HOME:-$ANDROID_HOME}/platform-tools/adb"
 here=$(cd "$(dirname "$0")" && pwd)
 common=$(git -C "$here" rev-parse --path-format=absolute --git-common-dir)
 models=${MURMUR_MODELS:-$(dirname "$common")/.cache/models}

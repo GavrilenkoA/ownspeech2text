@@ -48,7 +48,7 @@ root=$(cd "$(dirname "$0")/../.." && pwd)
 work=${2:-$root/.cache/native/build/sherpa}
 libs=${MURMUR_NATIVE_LIBS_DIR:-$root/.cache/native/jniLibs}
 
-SDK=${ANDROID_HOME:-/home/private/.local/share/android-sdk}
+SDK=${ANDROID_HOME:-$ANDROID_HOME}
 export ANDROID_NDK=${ANDROID_NDK:-$SDK/ndk/30.0.16248370}
 READELF=$ANDROID_NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-readelf
 STRINGS=$ANDROID_NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strings
