@@ -136,3 +136,23 @@ Merged on `integration/wave1` in this pass: WP-15..19 (all wave-2 UI). Still in 
 - Catalog: still 2026-11-20.2 on integration (unchanged in this pass); the pass-5 rule for your catalog merge stands
   (rebuild with network checks, bump to "2026-11-20.3"). WP-18 asks the catalog owner for a dialect-count field
   (OWNER_QUESTIONS 12); if it lands, it is a schema change: not yours unless the owner says so.
+
+## Integration notes (wave-3 integration pass 7; ADR-090 in DECISIONS)
+
+Merged on `integration/wave1` in this pass: WP-20's wave 3 (final app wiring) and main's ML data commits. Still in work:
+WP-21 (you). Nothing in your owned paths changed, and `wp/wp-21` (6eb1dba) still merges without conflicts with the new
+tree (`git merge-tree`); the overlap files of pass 6 (`catalog.json`, `build_catalog.py`, `AsrService.kt`,
+`RuntimeKeys.kt`) were not touched in this pass. What changed around you:
+- **Probe moment (ADR-090 item 6):** `AppContainer.start()` calls `deviceProfile.ensure()` at every `:main` start, so the
+  probe of a new app version runs right after app start (`:asr` and `:llm` start for a few seconds and idle out), not in
+  the first press. A probe that lists the QNN OCR / GigaAM runtime keys must not need a loaded model; a unit that only
+  shows after a real session load stays "unknown" until then (pass-5 note unchanged).
+- **Binder timeouts (ADR-090 item 2):** read per call; debug builds scale them by `debugTimeoutScale`, release by 1. An
+  NPU load or context compile on the phone has the plain 15 s `loadAsr` / `loadOcr` budget: if a cold QNN context
+  build takes longer, say so in your report (do not lengthen it inside `:asr`).
+- **E2e and DC8 dry run:** `tools/e2e/run_emulator_e2e.sh` (suites harness, wiring, fast, matrix, events, events-real,
+  real, bench) runs the app's tests under `app.murmur.shell.MurmurTestRunner`; your own `:infer:asr` instrumented tests
+  keep `AndroidJUnitRunner`. Your merge pass reruns `real` on the inner AVD and `NONINTERACTIVE=1
+  tools/device/murmur_app_smoke.sh`; NPU rows are SKIPPED on the emulator, DC4 covers them on the phone.
+- Catalog: still 2026-11-20.2 on integration; the pass-5 rule for your catalog merge stands (rebuild with network checks,
+  bump to "2026-11-20.3").

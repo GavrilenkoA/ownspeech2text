@@ -1,6 +1,6 @@
 # Murmur architecture
 
-Version 2.2 · 2026-11-20 (wave-1 integration passes 1-5, wave-2 integration pass 6: ADR-064..088) · Owner: architect. Binding for all work packages (`docs/wp/`). Owner decisions D1-D12 are
+Version 2.3 · 2026-11-20 (wave-1 integration passes 1-5, wave-2 integration pass 6, wave-3 integration pass 7: ADR-064..090) · Owner: architect. Binding for all work packages (`docs/wp/`). Owner decisions D1-D12 are
 quoted verbatim at the top of `docs/DECISIONS.md`; conflicts and their evidence are ADR-nnn there; review findings and
 their resolution are under "Review responses" there. Everything that only the phone can prove: `docs/DEVICE_CHECKLIST.md`
 (steps DC1-DC10).
@@ -238,7 +238,10 @@ load or prefill (ADR-083). Text is a `String` over binder (UTF-16 parcel, emoji-
 D11). Binder transactions stay far below 1 MB (largest: prompt prefix ≈ 12 KB of text). The 17 MB frame never goes
 through a parcel: `:main` copies the `ARGB_8888` bitmap into `SharedMemory`, `setProtect(PROT_READ)`, passes the
 fd, closes its copy after the callback. Clients bind with `bindContext()` = the accessibility service when connected,
-else the application. Debug builds multiply every timeout by `Settings.debugTimeoutScale` (emulator CPU engines).
+else the application. The client reads its `BinderTimeouts` at every call: debug builds multiply every timeout by
+`Settings.debugTimeoutScale` (emulator CPU engines), release builds always use scale 1. The prefill speed `pp` of
+`prefixMs` comes from the stored benchmarks (`StoredPrefillSpeeds` in `:app`, `BenchScores.llmSpeed`, ADR-071): one hot
+copy of the records per catalog LLM artifact, watched from app start, so the binder path never blocks (ADR-090).
 
 **PCM path.** The capture thread in `:main` writes each 20 ms frame to (a) the session's pipe (`ParcelFileDescriptor
 .createPipe()`, write end in `:main`), (b) the history `AudioWriter` (file named by `AudioKey` = creation time +
@@ -578,7 +581,9 @@ error, another format or another prefix text deletes the file and rebuilds it, A
 on `reprobe()`): implemented runtime keys, units that really initialised (QNN HTP backend created; ggml HTP0 /
 GPUOpenCL registered), facts (SoC, HTP arch, QNN build, CPU variant, `native.build`). Cached in noBackupFilesDir;
 feeds `DeviceProfile`. `ensure()` never throws: a failed probe yields `DeviceProfile.cpuOnly`. The resolver and
-onboarding's pack sizes call `ensure()`. On the emulator: soc null, units {CPU}.
+onboarding's pack sizes call `ensure()`. `AppContainer.start()` also calls it at every `:main` start (`:main` starts
+after the first unlock and after an update), so the probe runs then and not inside the first press: on the first
+launch per app version `:asr` and `:llm` start for a few seconds and idle out (ADR-090). On the emulator: soc null, units {CPU}.
 
 ### 8.5 Download, verify, install, prepare (WP-13; lifted from the platform spike's UIDT job)
 
@@ -718,7 +723,12 @@ used by the resolver.
 4. Join with `JoinPolicy` (leading space rules) against the current `before_cursor`.
 5. Ladder: `AccessibilityInputConnection.commitText` (accessibility IME, API 33) → `ACTION_PASTE` →
    `ACTION_SET_TEXT` (+ `ACTION_SET_SELECTION` to restore the caret). After each: read back with
-   `getSurroundingText` (node text is stale on WebView, platform spike e). First verified method wins.
+   `getSurroundingText` (node text is stale on WebView, platform spike e). First verified method wins. A
+   `commitText` that returned true but is not verified yet gets a grace read (400 ms); an unreadable field after a
+   true commit is never escalated (Copied). The whole ladder runs inside one budget of 1,500 ms from its first read
+   (`LADDER_BUDGET_MS`; a rung waits at most 600 ms and leaves 250 ms for each later rung), so it ends 500 ms before
+   the DELIVERY timer (2 s); the deliver job is not cancelled by that timer, so a shorter DELIVERY timeout must cancel
+   it (ADR-086 item 5, ADR-090).
 6. All fail → `CopiedOnly(InsertRejected)`. DB write failures never block delivery (text is already out).
 7. IN_APP: `InAppTarget.insert(text)`; no clipboard, no history.
 
@@ -770,10 +780,12 @@ hold-to-talk on, feedback vibration, typing wpm 40), bubble (when typing, tuck-i
 packages, per-display positions, hidden-until; read by `OverlayHost` directly, ADR-081), cleanup (prompt override {systemText, baseProfile}, preferences ≤
 1,000 chars, tone per app, "All other apps" tone `defaultTone` (ADR-088), use screen on), history (retention 7 days, keep recordings on), models (ASR model, cleanup
 choice Default/None/Model, unit preference **per model id**, Wi-Fi only on, idle unload 60 s), onboarding done, debug
-only: fake engines, timeout scale, ignore memory gate. "Edited" = `promptOverride != null`; Reset deletes the override
+only: fake engines (shows the mode of the running process and writes `files/debug-fake-engines` for the next start;
+`FakeEnginesSwitch`, debug source set only, ADR-090), timeout scale (orchestrator timers and binder timeouts), ignore
+memory gate. "Edited" = `promptOverride != null`; Reset deletes the override
 (tone per app kept, DESIGN 6.5); an override whose `baseProfile` is not the active profile is shown as "made for an
 older prompt" and not applied. A prompt, preferences, unit or model change triggers `EnginePreparer.invalidatePrefix()`.
-Device profile, unit health and benchmark results are not settings (files / Room); in the debug fake-engines mode they are kept apart from the real ones (ADR-089). No live-preview setting (ADR-047).
+Device profile, unit health and benchmark results are not settings (files / Room); in the debug fake-engines mode they are kept apart from the real ones and the dictation resolves with the fake resolver (no installed pack needed; ADR-089, ADR-090). No live-preview setting (ADR-047).
 
 ---
 
@@ -822,7 +834,7 @@ and history: section 5.5; to hub rows: `InstallState.Paused/Failed(error)`.
 | Room | `data/db/src/androidTest` | DAOs, migrations (schema JSON), retention on an in-memory DB | same |
 | IPC | `infer/api/src/androidTest` with a test-only service in a separate process | timeouts, death → re-bind, pipe replay, SharedMemory | same |
 | Native on emulator | `infer/asr`, `infer/llm` androidTest | sherpa x86_64 with GigaAM / Parakeet CPU (asr-ocr: correct text on emulator, RTF 0.42 / 0.65); llama x86_64 with Qwen3.5 0.8B (llm spike: works, ivybridge variant); LLM tests and every ASR timing criterion run the emulator with `-qemu -cpu host` (`MURMUR_EMU_CPU_HOST=1`, ADR-038, ADR-076) | same; models via `tools/models/fetch` |
-| End-to-end | `app/src/androidTest/kotlin/app/murmur/e2e` + `:testapps:target` | press bubble over the target app (UiAutomator) → debug WAV audio source (the emulator mic cannot be fed) → real `:asr` (GigaAM RNN-T CPU) + VAD + OCR + real `:llm` (Qwen3.5 0.8B CPU) → insertion into the target EditText (read back from the target's `TGT` log) → history row; the same flow on fakes for speed; **emulator-simulated platform events during Listening**: fold/unfold (`wm size` + `adb emu sensor set hinge-angle0`), rotation, incoming call (`adb emu gsm call`), `kill -9` of `:asr` and `:llm`, service disable, notification-shade start | WP-20 script `tools/e2e/run_emulator_e2e.sh` |
+| End-to-end | `app/src/androidTest/kotlin/app/murmur/e2e` + `:testapps:target` | press bubble over the target app (UiAutomator) → debug WAV audio source (`files/debug-capture.wav`, checked per dictation, with the call watch; the emulator mic cannot be fed) → real `:asr` (GigaAM RNN-T CPU) + VAD + OCR + real `:llm` (Qwen3.5 0.8B CPU) → insertion into the target EditText (read back from the target's `TGT` log) → history row; the same flow on fakes for speed; **emulator-simulated platform events during Listening**: fold/unfold (`wm size` + `adb emu sensor set hinge-angle0`), rotation, incoming call (`adb emu gsm call`), `kill -9` of `:asr` and `:llm`, service disable, notification-shade start | WP-20 script `tools/e2e/run_emulator_e2e.sh` (suites harness, wiring, fast, matrix, events, events-real, real, bench; the app's tests run under `app.murmur.shell.MurmurTestRunner`, ADR-090); DC8 dry run `NONINTERACTIVE=1 tools/device/murmur_app_smoke.sh` |
 | Device | `tools/device/*.sh` + `docs/DEVICE_CHECKLIST.md` | NPU paths, real latency/memory, One UI behaviour, real OCR screenshots, real fold hardware | owner, one pass |
 
 LLM outputs are never compared as exact strings across devices or kernels (llm spike: punctuation differed between

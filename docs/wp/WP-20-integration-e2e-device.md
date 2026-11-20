@@ -268,3 +268,21 @@ placeholder left). Still in work: WP-21 and your wave 3. You now take over WP-15
   NPU, no blind download, WP-18); a real "Failed to load on NPU" → the CPU-version button, then its progress and Pause
   (WP-18); Tone per app and "Hidden in" with a full app list (real icons after a short load, no stutter, WP-19);
   optional: the Settings snackbars on a full disk (WP-19).
+
+## Integration notes (wave-3 integration pass 7; ADR-090 in DECISIONS)
+
+Merged on `integration/wave1` in this pass: main 039a826 (ML data/docs) and your wave 3 (`wp/wp-20w3` cf27470). Still in
+work: WP-21. All your wave-3 decisions are accepted as ADR-090: `StoredPrefillSpeeds` as `BinderEngines.prefillTps`,
+binder timeouts scaled by `debugTimeoutScale` in debug only, `FakeEnginesSwitch` debug-only (flag file decides the
+process mode, the switch applies at the next start), `Replacements.resolver` / `capture`, the ladder's 1,500 ms budget
+inside the 2 s DELIVERY timer, `MurmurTestRunner` in both scripts, `AppContainer.start()` start-up work (probe at
+`:main` start).
+- Integration fix: the switch's sub-line (WP-19's res, en + ru) now says the change applies at the next app start
+  (your note to WP-19).
+- Still open, not yours alone: WP-11's JVM test for Down → Up(p2) → Crashed within one dispatch (`watchDeaths` collects
+  a conflated StateFlow; if Up(p2) is conflated away, `lastUp` is the old pid and the death is ignored) and the
+  `FakeAsrEngine` death during `loadDelayMs`; after both, drop the 1 s settle in `secondAsrDeathFailsWithAudio`.
+- Not done in wave 3 (optional, pass-6 notes): seeded recordings for the History frames, Dashboard label fallback to the
+  stored `AppRef.label`; `tools/emulator/boot.sh` has no guest-memory switch (not needed: the inner AVD already has 4 GB).
+- After WP-21 merges: rerun the DC8 dry run and the `real` suite on the inner AVD (the `:asr` probe gains the ort-qnn
+  runtime keys and the catalog moves to 2026-11-20.3).

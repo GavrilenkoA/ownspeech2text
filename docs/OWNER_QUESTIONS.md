@@ -3,7 +3,10 @@
 Collected from the work-package reports at integration. Each item: the question in plain words, what the architect
 recommends, and whether it blocks anything. Answer in any order; "go with the recommendation" is a valid answer.
 
-Updated: integration pass 6 (2026-11-20; wave 2 merged: the app shell, onboarding, History, Dashboard, Models and
+Updated: integration pass 7 (2026-11-20; wave 3 of WP-20 merged: the app runs on the real engines end to end, the
+debug test modes and the insertion timing fix). Pass 7 added no open question from the packages; question 16 (ML data,
+publishing) moved here from a note at the end of the file, and three architect decisions are under "Pass 7".
+Before: integration pass 6 (2026-11-20; wave 2 merged: the app shell, onboarding, History, Dashboard, Models and
 Settings screens, WP-15..19). Pass 6 added four open questions (12-15, design and catalog; none blocks a build or a
 test) and the architect decisions under "Pass 6". Before: wave-1 integration pass 5 (WP-01..14 and WP-20's wave-1 part
 merged, plus the prompt decision default.v1). Pass 5 added one open prompt question (11) and three architect decisions (last section). Pass 4 (WP-10) added
@@ -33,6 +36,14 @@ no open question: its two owner items were decided or done there.
    *Recommendation:* skip it for v1 (it only matters for Chinese dialects, which Murmur does not target); if you want
    it, the catalog gets an optional `dialects` count per model in the next schema version and WP-18's badge reads it.
    Blocks nothing (two strings in the hub).
+
+16. **May we publish models trained on the synthetic cleanup set?** (ML data, 2026-11-20) The synthetic training set
+   (about 3,600 records) was written by the teacher model behind the local proxy, and its terms for training models
+   that we then publish are not confirmed (`docs/ml/DATA_CARD.md` section 2a).
+   *Recommendation:* until you confirm, the dataset and the fine-tuned models stay private (nothing uploaded publicly;
+   a private HF repo at most). Training itself goes ahead.
+   **Blocks:** only publishing the dataset or the fine-tuned models (and with it question 1's public download source).
+   Nothing in the app or the training run.
 
 ## Product behaviour
 
@@ -164,6 +175,16 @@ Pass 6 (wave 2, the screens):
 - A bubble error that points to the model hub ("Open Models") opens the hub on the right list: Speech for a speech
   model problem, Cleanup for a cleanup model problem (ADR-087). Blocks nothing.
 
+Pass 7 (wave 3, the finished app):
+- When Murmur inserts text and the field does not show it, it tries the next way of inserting for at most 1.5 s in
+  total, so it never inserts the same text twice and never inserts after the bubble already said "Copied". If the app
+  accepted the text but the field cannot be read back, Murmur leaves the text on the clipboard ("Copied") instead of
+  trying again (ADR-090). Blocks nothing; checked on the phone in DC10.
+- The first time the app starts after an install or an update, it starts the two model processes for a few seconds to
+  check what the phone's NPU and CPU can run, instead of doing that during your first dictation (ADR-090). Blocks nothing.
+- In the debug build, the Settings switch "Use fake engines" takes effect the next time the app starts, and it does not
+  exist in the release build (ADR-090). Blocks nothing.
+
 ## Still open from architecture v2 (unchanged, listed for completeness)
 
 - **Licences** (blocks shipping any NPU library; DC8 APKs stay local until then): Hexagon SDK Community Edition
@@ -186,10 +207,3 @@ Pass 5 (prompt decision and WP-20):
   marked as failed on that unit, as for any crash during a load (ADR-066). The way back is the model hub: running the
   model's benchmark re-tests a failed unit and a good result clears the mark (ADR-080); WP-18 shows "Try again" on a
   failed unit for that (ADR-086). Blocks nothing.
-
-
-ML data (2026-11-20):
-- (Blocks only publishing) The synthetic training set (about 3,600 records) was written by the teacher model behind
-  the local proxy. Its terms for using the output to train models that we then publish are not confirmed
-  (docs/ml/DATA_CARD.md section 2a). Recommendation: until you confirm, the dataset and the fine-tuned models stay
-  private (nothing uploaded publicly; a private HF repo at most). Training itself goes ahead.
