@@ -176,7 +176,8 @@ for c in cases:
         "asrLoadMs": asr.get("loadMs"), "llmLoadMs": llm.get("loadMs"), "prefixTokens": llm.get("prefixTokens"),
         "llmWarmAtPress": d.get("llmWarmAtPress"), "llmReadyAfterPressMs": d.get("llmReadyAfterPressMs"),
         "pssPeakKb": {k: p.get(k) for k in ("main", "asr", "llm")}, "memAvailableMinKb": p.get("memAvailMin"),
-        "memAvailableBeforeMb": d.get("memAvailableBeforeMb"), "inserted": d.get("insertedText")}})
+        "memAvailableBeforeMb": d.get("memAvailableBeforeMb"), "insertMethod": d.get("insertMethod"),
+        "promptVersion": d.get("promptVersion"), "cleanupTone": d.get("cleanupTone"), "inserted": d.get("insertedText")}})
 if idle is None and mode != "skeleton":
     check("idle", "idle check ran", False, "no idle.json (see step-dictate.txt)")
 else:
