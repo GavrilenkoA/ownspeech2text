@@ -4,7 +4,14 @@
 run_name: base
 output_dir: ${MURMUR_RUNS:-.cache/ml/train/runs}/${MURMUR_RUN_PREFIX:-}base
 base_model: LiquidAI/LFM3-1.7B
-template: null            # auto from model_type (qwen3.5 | lfm3)
+# Hub commit every base is loaded at (sft, merge, bootstrap snapshot_download, STOCK_OURS export); the
+# revisions validated in TRAINING_RUNBOOK 0.1 (checked upstream with the HF API 2026-11-20). A Hub base
+# without an entry here is refused; a local directory needs none. `base_revision: <sha>` overrides per run.
+base_revisions:
+  LiquidAI/LFM3-1.7B: 1da06bec6a819da10b54c67e5c90972b46d81871
+  Qwen/Qwen3.5-0.8B: 2fc06364715b967f1860aea9cf38778875588b17
+  Qwen/Qwen3.5-2B: 15852e8c16360a2fea060d615a32b45270f8a8fc
+template: null           # auto from model_type (qwen3.5 | lfm3)
 method: lora              # lora | dora | full
 lora:
   r: 16
@@ -23,8 +30,8 @@ prompt:
                           # send to these fine-tunes (card + catalog entry record it; eval reads it per run)
   default_system: default.v1   # the stock profile the app ships for every stock model (ADR-085, PROMPT_EVAL R.5):
                                # the prompt a fine-tune most likely receives besides its own; ~1.25-1.3K tokens rendered
-  default_share: 0.05     # 5 %: mean rendered length 374 (Qwen3.5) / 390 (LFM3) tokens on the final 3K train set,
-                          # max 1,482 / 1,523 -> max_len auto 1,536, nothing dropped (TRAINING_RUNBOOK 2.1)
+  default_share: 0.05     # 5 % (141 of 3,000 rows): mean rendered length 373 (Qwen3.5) / 388 (LFM3) tokens on the
+                          # final train set, max 1,463 / 1,504 -> max_len auto 1,472 / 1,536, nothing dropped (TRAINING_RUNBOOK 2.1)
   preferences_share: 0.15 # random target-neutral "My preferences" block (meta.preferences always wins)
   preferences_pool: ml/train/preferences_pool.v1.txt
   seed: 1234

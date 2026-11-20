@@ -2,7 +2,7 @@
 # PLAN_V2 run matrix on ONE GPU, sequential, idempotent (finished steps are skipped; re-run after a
 # crash or a pod stop and it continues where it stopped).
 #   preflight  abort if a Qwen3.5 run is planned and flash-linear-attention is missing (slow PyTorch
-#              path would eat the budget) or if the llama.cpp CUDA build fell back to CPU
+#              path would eat the budget) or if no llama.cpp CUDA build passed bootstrap's kernel smoke test
 #              (ALLOW_SLOW_QWEN=1 / ALLOW_CPU_EVAL=1 override after a conscious decision)
 #   anchor     the first phase-A run (lfm3-r16) alone; prints its MEASURED tokens/s and step times and
 #              projects every remaining run from them (RUN_COST factors below are assumptions [A])
@@ -38,8 +38,8 @@ if (( qwen )) && [[ -f "$MARK_VOL/fla-missing" && -z "${ALLOW_SLOW_QWEN:-}" ]]; 
   exit 6
 fi
 if [[ -f "$MARK_VOL/llama-cpu-fallback" && -z "${ALLOW_CPU_EVAL:-}" ]]; then
-  log "preflight: the llama.cpp CUDA build does not see the GPU; evals would run on the pod CPU: abort."
-  log "  fix it (bootstrap.sh step 4) or ALLOW_CPU_EVAL=1 (see TRAINING_RUNBOOK.md 'CPU eval fallback' timing)"
+  log "preflight: no llama.cpp CUDA build passed bootstrap's GPU kernel smoke test; evals would run on the pod CPU: abort."
+  log "  see $W/llama/smoke/*.json and TRAINING_RUNBOOK.md 3.2 (fix the image and re-run bootstrap.sh, or ALLOW_CPU_EVAL=1)"
   exit 6
 fi
 

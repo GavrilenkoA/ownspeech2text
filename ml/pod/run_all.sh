@@ -33,5 +33,6 @@ for s in $STAGES; do
     *) log "unknown stage $s"; exit 2 ;;
   esac
 done
-log "run_all done ($STAGES); billed pod time so far: $(budget_used)s"
+_used=$(budget_used); _cap=$(awk "BEGIN{print int($MAX_GPU_HOURS*3600)}")
+log "run_all done ($STAGES); billed pod time so far: ${_used}s; $(( _cap - _used ))s left until the ${MAX_GPU_HOURS} h cap for WITH_GGUF=1 sync_results.sh (~3 min) and the stop"
 [[ -f "$MURMUR_EVAL/leaderboard.md" ]] && cat "$MURMUR_EVAL/leaderboard.md" || true
