@@ -52,6 +52,8 @@ class RenderPyPort(private val assets: PromptAssets) : PromptRenderer {
     /** render.style_line with the shipped tones (prompts/tones/tones.v1.json). */
     fun styleLine(ctx: CtxV2?, styleOverride: String?): String = RenderPy.styleLine(ctx, tones, styleOverride)
 
+    override fun toneText(tone: String): String? = Tones.namedText(tones, tone)
+
     /** ADR-020: the style override for a per-app tone ([tone] = Tone enum name, null = category default). */
     fun resolveTone(ctx: CtxV2?, tone: String?): ToneResolution = Tones.resolve(tones, ctx, tone)
 

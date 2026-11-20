@@ -12,6 +12,12 @@ interface PromptRenderer {
     fun renderContext(ctx: CtxV2, ctx2: kotlinx.serialization.json.JsonObject? = null): String
     /** render.cache_prefix: what the :llm process prefills and snapshots at load time. */
     fun cachePrefix(profile: PromptProfile, template: String, preferences: String?, systemOverride: String?): String
+    /**
+     * The style text of a named tone (`named.<tone>.text` of prompts/tones/tones.v1.json, ADR-020) for
+     * [RenderInput.styleOverride]; null when the tone has no text (then the category style line applies). [tone] is the
+     * lowercase `Tone` name. Default: no named texts (ADR-088).
+     */
+    fun toneText(tone: String): String? = null
 }
 
 /** Kotlin port of prompts/guard.py; the cases in prompts/tests/test_guard.py are the contract. */

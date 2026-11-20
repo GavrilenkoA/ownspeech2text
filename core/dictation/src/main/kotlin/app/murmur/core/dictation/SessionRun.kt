@@ -88,6 +88,8 @@ internal class SessionRun(
     var cleanupUsedScreen = false
     var promptVersion: String? = null
     var llmMs: Long? = null
+    /** The tone the cleanup ran with (ADR-088: tonePerApp, else defaultTone for an app without a category). */
+    var tone: app.murmur.core.store.Tone? = null
 
     // Delivery
     var a11yLost = false

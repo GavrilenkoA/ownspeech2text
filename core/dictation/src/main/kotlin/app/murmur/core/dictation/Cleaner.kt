@@ -15,6 +15,7 @@ import app.murmur.core.prompt.PromptProfile
 import app.murmur.core.prompt.PromptRenderer
 import app.murmur.core.prompt.RenderInput
 import app.murmur.core.store.Settings
+import app.murmur.core.store.Tone
 
 /**
  * One cleanup call (prompts/README "App flow around the LLM"): render -> generate -> guard. Shared by the dictation
@@ -42,7 +43,18 @@ internal class Cleaner(
     fun prefix(active: ActiveLlm, preferences: String?, override: String?): String =
         renderer.cachePrefix(profile(active), active.template, preferences, override)
 
-    /** Tone per app (ADR-020): named tones have no style texts yet, so the category style line is used (no override). */
+    /**
+     * Tone per app (ADR-020, ADR-088): the app's own row in [Settings.tonePerApp]; else, for an app without a style
+     * category of its own (ctx has no category), [Settings.defaultTone] ("All other apps"). null = the category style
+     * line. Without a ctx (Re-polish, Try it) only the app's own row applies.
+     */
+    fun tone(settings: Settings, pkg: String?, ctx: CtxV2?): Tone? =
+        pkg?.let { settings.tonePerApp[it] } ?: settings.defaultTone?.takeIf { ctx != null && ctx.app.category.isNullOrEmpty() }
+
+    /**
+     * One render -> generate -> guard. [tone] becomes the style override when it has a named text
+     * ([PromptRenderer.toneText]); otherwise the category style line is used (tones.v1.json has no named texts yet).
+     */
     suspend fun run(
         active: ActiveLlm,
         transcript: String,
@@ -50,8 +62,10 @@ internal class Cleaner(
         preferences: String?,
         override: String?,
         budget: CleanupBudget.Plan,
+        tone: Tone? = null,
     ): Result {
-        val rendered = renderer.render(RenderInput(profile(active), active.template, ctx, transcript, preferences, styleOverride = null, systemOverride = override))
+        val style = tone?.let { renderer.toneText(it.name.lowercase(java.util.Locale.ROOT)) }
+        val rendered = renderer.render(RenderInput(profile(active), active.template, ctx, transcript, preferences, styleOverride = style, systemOverride = override))
         val t0 = clock.elapsedMs()
         var done: LlmEvent.Done? = null
         var failed: MurmurError? = null

@@ -13,6 +13,7 @@ import app.murmur.core.model.SessionId
 import app.murmur.core.store.CleanupChoice
 import app.murmur.core.store.EntryStatus
 import app.murmur.core.store.InsertMethod
+import app.murmur.core.store.Tone
 import app.murmur.testing.FakeInAppTarget
 import app.murmur.testing.FakeTargetReader
 import app.murmur.testing.syntheticSpeech
@@ -62,6 +63,38 @@ class OrchestratorFlowTest {
         assertTrue(h.w.engines.llm.requests.single().suffix.contains("Лёша Козлов"))
         assertEquals(DictationState.Idle, h.state)
         h.assertNoInternalErrors()
+    }
+
+    /** ADR-088: Tone per app reaches the renderer as the style override; "All other apps" only for apps without a category. */
+    @Test fun toneOfTheAppAndTheDefaultToneReachTheCleanupAndTheHistoryRow() = runTest {
+        val texts = mapOf("formal" to "Formal register.", "casual" to "Casual register.")
+        // Telegram without a category of its own: the default tone applies.
+        val noCategory = harness { renderer.toneTexts = texts; settings.edit { it.copy(defaultTone = Tone.FORMAL) } }
+        noCategory.dictate()
+        assertEquals("Formal register.", noCategory.w.renderer.inputs.last().styleOverride)
+        assertEquals("formal", noCategory.only().cleanup?.tone)
+        // With a category (messaging): the category line, not the default tone.
+        val withCategory = harness {
+            renderer.toneTexts = texts; context.categories = mapOf("org.telegram.messenger" to "messaging")
+            settings.edit { it.copy(defaultTone = Tone.FORMAL) }
+        }
+        withCategory.dictate()
+        assertNull(withCategory.w.renderer.inputs.last().styleOverride)
+        assertNull(withCategory.only().cleanup?.tone)
+        // The app's own row wins over both.
+        val own = harness {
+            renderer.toneTexts = texts; context.categories = mapOf("org.telegram.messenger" to "messaging")
+            settings.edit { it.copy(defaultTone = Tone.FORMAL, tonePerApp = mapOf("org.telegram.messenger" to Tone.CASUAL)) }
+        }
+        own.dictate()
+        assertEquals("Casual register.", own.w.renderer.inputs.last().styleOverride)
+        assertEquals("casual", own.only().cleanup?.tone)
+        // A tone without a named text (tones.v1.json today): no override, the tone is still recorded.
+        val noText = harness { settings.edit { it.copy(tonePerApp = mapOf("org.telegram.messenger" to Tone.VERBATIM)) } }
+        noText.dictate()
+        assertNull(noText.w.renderer.inputs.last().styleOverride)
+        assertEquals("verbatim", noText.only().cleanup?.tone)
+        listOf(noCategory, withCategory, own, noText).forEach { it.assertNoInternalErrors() }
     }
 
     @Test fun bubbleSequenceOfTheHappyPathWithASlowTailIsExact() = runTest {

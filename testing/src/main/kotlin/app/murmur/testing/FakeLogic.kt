@@ -71,8 +71,15 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.serialization.json.JsonObject
 
 /** Not byte-exact with render.py: a readable stand-in whose suffix contains the transcript tags the fake LLM reads. */
-class FakePromptRenderer : PromptRenderer {
+class FakePromptRenderer(
+    /** Named tone texts (`Tone` name lowercase -> style text); empty = like tones.v1.json today (no named texts). */
+    var toneTexts: Map<String, String> = emptyMap(),
+) : PromptRenderer {
+    /** Every render input, in order (tests read the style override and the ctx the cleanup used). */
+    val inputs: MutableList<RenderInput> = java.util.Collections.synchronizedList(mutableListOf())
+    override fun toneText(tone: String): String? = toneTexts[tone]
     override fun render(input: RenderInput): RenderedPrompt {
+        inputs += input
         val prefix = cachePrefix(input.profile, input.template, input.preferences, input.systemOverride)
         val ctx = input.ctx?.let { renderContext(it) } ?: ""
         val suffix = "$ctx\n<transcript>\n${input.transcript}\n</transcript><|im_end|>\n"
@@ -99,7 +106,11 @@ class PassThroughGuard(override val fillers: Set<String> = setOf("э", "ээ", "
  * excluded app -> app_only, refused; own package -> allowed only for the practice; screen setting off -> app_only.
  * A missing screen keeps its cause through [ScreenOutcome] (secure window -> app_only, as render.py NO_SCREEN_LEVEL).
  */
-class SimpleContextAssembler(private val ownPackage: String = "app.murmur") : ContextAssembler {
+class SimpleContextAssembler(
+    private val ownPackage: String = "app.murmur",
+    /** package -> style category (app_categories); empty = every app without a category. */
+    var categories: Map<String, String> = emptyMap(),
+) : ContextAssembler {
     override fun decide(snapshot: A11ySnapshot, settings: ContextSettings): PrivacyDecision = when {
         snapshot.field?.isPassword == true ->
             PrivacyDecision(PrivacyLevel.NONE, false, PrivacyReason.PASSWORD_FIELD, skipLlm = true, dictationAllowed = false)
@@ -139,7 +150,7 @@ class SimpleContextAssembler(private val ownPackage: String = "app.murmur") : Co
             }
         }
         return CtxV2(
-            app = AppInfo(snapshot.pkg, snapshot.label, null),
+            app = AppInfo(snapshot.pkg, snapshot.label, categories[snapshot.pkg]),
             field = snapshot.field?.takeIf { privacy.level == PrivacyLevel.FULL }
                 ?.let { FieldInfo(kind = "message", hint = it.hint, beforeCursor = it.beforeCursor) },
             screen = text?.let { Screen(it.size, it.lines) },

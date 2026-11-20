@@ -862,7 +862,8 @@ class DictationOrchestrator(
         val outcome = r.screenOutcome ?: if (r.decision?.takeScreenshot == true) ScreenOutcome.Failed else ScreenOutcome.NotTaken
         val ctx = r.target?.let { tg -> r.decision?.let { d -> deps.context.assemble(tg, d, outcome, t.language) } }
         r.cleanupUsedScreen = ctx?.screen != null
-        val res = cleaner.run(llm, t.text, ctx, r.settings.preferences, override, e.budget)
+        r.tone = cleaner.tone(r.settings, r.target?.pkg, ctx)
+        val res = cleaner.run(llm, t.text, ctx, r.settings.preferences, override, e.budget, r.tone)
         r.llmMs = res.llmMs
         post(DictationEvent.CleanupDone(s, res.text, res.cleaned, res.outcome))
     }

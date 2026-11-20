@@ -124,7 +124,7 @@ internal class Recorder(
         model = run.llmSpec?.takeIf { run.promptVersion != null }?.use(),
         promptVersion = run.promptVersion ?: run.models?.llm?.profile.orEmpty(),
         outcome = outcome,
-        tone = run.settings.tonePerApp[pkg]?.name?.lowercase(),
+        tone = (run.tone ?: run.settings.tonePerApp[pkg])?.name?.lowercase(),
     )
 
     private suspend fun insert(
