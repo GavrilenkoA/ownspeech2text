@@ -299,7 +299,7 @@ fun SheetHandle(modifier: Modifier = Modifier) {
 
 /**
  * Sheet surface without a window (gallery, screenshot tests, embedding): [side] = false is the bottom sheet (xl top
- * corners, handle), true the 420 dp side sheet (xl leading corners, no handle).
+ * corners, handle), true the 420 dp side sheet (xl leading corners, the same handle as in the frames).
  */
 @Composable
 fun SheetSurface(side: Boolean, modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
@@ -310,9 +310,11 @@ fun SheetSurface(side: Boolean, modifier: Modifier = Modifier, content: @Composa
             .elevation(Elevation.e3, shape)
             .clip(shape)
             .background(MurmurTheme.colors.surface)
-            .padding(top = if (side) 24.dp else 8.dp, bottom = 20.dp),
+            .padding(top = 8.dp, bottom = 20.dp),
     ) {
-        if (!side) SheetHandle()
+        // The side sheet keeps the handle too (prototype `.inner .sheet.side` has `.hd`; every inner sheet frame
+        // shows it: retention, bench-run, bench-result).
+        SheetHandle()
         content()
     }
 }

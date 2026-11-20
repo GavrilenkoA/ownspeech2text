@@ -31,6 +31,13 @@ data class Settings(
     val preferences: String? = null,
     /** package -> tone (DESIGN "Tone per app"); missing = category default. */
     val tonePerApp: Map<String, Tone> = emptyMap(),
+    /**
+     * Tone per app, "All other apps" row (DESIGN 6.5): the tone of apps that are not listed. null = no choice, i.e.
+     * each app's category style line (Neutral for apps without a category). Consumer rule (cleanup, ADR-020): an app
+     * not in [tonePerApp] and without a style category of its own uses this tone when the tone has a named text;
+     * otherwise the category style line applies. Settings marks a choice without a text as a preview.
+     */
+    val defaultTone: Tone? = null,
     val useScreen: Boolean = true,
     // History and privacy
     val retentionDays: Int = RetentionPolicy.DEFAULT_DAYS,

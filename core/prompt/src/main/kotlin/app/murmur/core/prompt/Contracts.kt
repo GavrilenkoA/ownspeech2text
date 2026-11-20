@@ -38,7 +38,13 @@ interface PromptAssets {
 object PromptEditRules {
     const val MAX_SYSTEM_CHARS = 8_000
     const val MAX_PREFERENCES_CHARS = 1_000
-    private val forbidden = listOf("<|im_", "<|startoftext|>", "<context>", "</context>", "<transcript>", "</transcript>", "<think>")
+    /**
+     * Chat-template markup of the four render templates (prompts/render.py TEMPLATES): special tokens and the thinking
+     * tags. The request-layout tags (`<context>`, `<transcript>`) are NOT markup here: the shipped system prompts name
+     * them ("a <context> block and a raw speech-to-text <transcript>"), the system text is its own chat message, so it
+     * cannot open or close the user message's blocks, and forbidding them made the shipped default itself invalid.
+     */
+    private val forbidden = listOf("<|im_", "<|startoftext|>", "<|endoftext|>", "<think>", "</think>")
 
     /**
      * The user's edited instructions apply only to the profile they were written for (review 2026-11-19, ADR-046):

@@ -1,0 +1,245 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Settings (DESIGN 6.5, copy deck DESIGN 7). Keys start with settings_ so that they never collide with another
+     feature's keys after resource merging. The product name is always a %s argument (D10). -->
+<resources>
+    <string name="settings_title">Settings</string>
+
+    <!-- Sections / inner categories -->
+    <string name="settings_section_dictation">Dictation</string>
+    <string name="settings_section_bubble">Bubble</string>
+    <string name="settings_section_cleanup">Cleanup</string>
+    <string name="settings_section_privacy">History and privacy</string>
+    <string name="settings_section_permissions">Permissions</string>
+    <string name="settings_section_debug">Debug</string>
+
+    <!-- Dictation -->
+    <string name="settings_languages">Languages</string>
+    <string name="settings_languages_both_auto">Russian and English, detected per dictation</string>
+    <string name="settings_languages_both">Russian and English</string>
+    <string name="settings_languages_ru">Russian only</string>
+    <string name="settings_languages_en">English only</string>
+    <string name="settings_language_ru">Russian</string>
+    <string name="settings_language_en">English</string>
+    <string name="settings_languages_sheet_body">The speech model listens for these languages. Keep at least one.</string>
+    <string name="settings_languages_auto">Detect automatically</string>
+    <string name="settings_languages_auto_sub">Each dictation is recognised in the language you speak</string>
+    <string name="settings_hold">Hold to talk</string>
+    <string name="settings_hold_sub">Press and hold the bubble, release to finish</string>
+    <string name="settings_feedback">Sound and vibration</string>
+    <string name="settings_feedback_sub_vibration">Short tick on start and stop</string>
+    <string name="settings_feedback_sub_sound">A sound on start and stop</string>
+    <string name="settings_feedback_sub_both">Tick and sound on start and stop</string>
+    <string name="settings_feedback_sub_off">No tick or sound</string>
+    <string name="settings_feedback_vibration">Vibration</string>
+    <string name="settings_feedback_sound">Sound</string>
+    <string name="settings_feedback_both">Both</string>
+    <string name="settings_feedback_off">Off</string>
+    <string name="settings_feedback_sound_note">No sounds ship yet, so this is silent for now</string>
+    <string name="settings_feedback_both_note">Vibration now, sounds once they ship</string>
+    <string name="settings_typing">Typing speed</string>
+    <string name="settings_typing_sub">For time saved on the Dashboard</string>
+    <!-- %1$s = words per minute, formatted for the locale -->
+    <string name="settings_typing_value">%1$s wpm</string>
+    <string name="settings_typing_title">Your typing speed</string>
+    <string name="settings_typing_body">Time saved compares speaking with typing the same words at this speed.</string>
+    <string name="settings_typing_custom">Custom</string>
+    <string name="settings_typing_custom_label">Words per minute</string>
+    <!-- %1$s, %2$s = lowest and highest allowed speed -->
+    <string name="settings_typing_custom_range">From %1$s to %2$s</string>
+    <string name="settings_default">Default</string>
+    <string name="settings_save">Save</string>
+
+    <!-- Bubble -->
+    <string name="settings_show_bubble">Show the bubble</string>
+    <string name="settings_show_when_typing">When typing</string>
+    <string name="settings_show_when_typing_sub">Appears when a text field is focused</string>
+    <string name="settings_show_always">Always</string>
+    <string name="settings_show_always_sub">Keeps a small tab at the screen edge</string>
+    <string name="settings_tuck">Tuck in when idle</string>
+    <string name="settings_tuck_sub">Shrinks to an edge tab after 4 s</string>
+    <string name="settings_size">Size</string>
+    <string name="settings_size_small">Small</string>
+    <string name="settings_size_standard">Standard</string>
+    <string name="settings_size_large">Large</string>
+    <string name="settings_hidden">Hidden in</string>
+    <string name="settings_hidden_sub">Password fields are always excluded</string>
+    <string name="settings_hidden_none">None</string>
+    <plurals name="settings_apps">
+        <item quantity="one">%d app</item>
+        <item quantity="other">%d apps</item>
+    </plurals>
+    <string name="settings_hidden_title">Hide the bubble in</string>
+    <string name="settings_hidden_body">The bubble does not appear in these apps, and nothing on their screen is read.</string>
+    <string name="settings_reset_position">Reset position</string>
+    <string name="settings_reset_position_sub">Back to the right edge on both screens</string>
+    <string name="settings_position_reset">Bubble position reset</string>
+
+    <!-- Cleanup -->
+    <string name="settings_prompt">Cleanup prompt</string>
+    <string name="settings_prompt_sub">The instructions given to the cleanup model</string>
+    <string name="settings_prompt_default">Default</string>
+    <string name="settings_prompt_edited">Edited</string>
+    <string name="settings_prompt_not_applied">Not applied</string>
+    <string name="settings_prompt_built_in">Built in</string>
+    <string name="settings_prompt_preview">Prompt preview</string>
+    <string name="settings_tone">Tone per app</string>
+    <string name="settings_tone_sub">Casual in messengers, formal in email</string>
+    <string name="settings_screen">Use what\'s on screen</string>
+    <string name="settings_screen_sub">Reads visible text to spell names and terms right</string>
+
+    <!-- History and privacy -->
+    <string name="settings_keep_history">Keep history</string>
+    <plurals name="settings_days">
+        <item quantity="one">%d day</item>
+        <item quantity="other">%d days</item>
+    </plurals>
+    <string name="settings_keep_none">Don\'t keep</string>
+    <string name="settings_keep_recordings">Keep recordings</string>
+    <string name="settings_keep_recordings_sub">Needed to replay and re-polish</string>
+    <string name="settings_offline">Works offline</string>
+    <string name="settings_offline_sub">Only model downloads use the internet</string>
+    <string name="settings_offline_on">On</string>
+    <string name="settings_delete_all">Delete all history</string>
+    <string name="settings_delete_all_title">Delete all history?</string>
+    <plurals name="settings_delete_all_body">
+        <item quantity="one">%d dictation and its recording are removed from this phone. Dashboard numbers are kept.</item>
+        <item quantity="other">%d dictations and their recordings are removed from this phone. Dashboard numbers are kept.</item>
+    </plurals>
+    <string name="settings_history_deleted">History deleted</string>
+    <string name="settings_nothing_to_delete">History is already empty</string>
+    <string name="settings_not_saved">Couldn\'t save the setting. Try again.</string>
+    <string name="settings_delete_failed">Couldn\'t delete history. Try again.</string>
+    <string name="settings_deletion_deferred">Couldn\'t delete older dictations now. They\'ll be deleted overnight.</string>
+    <string name="settings_cancel">Cancel</string>
+    <string name="settings_delete">Delete</string>
+
+    <!-- Retention sheet (copy deck retention_*) -->
+    <string name="retention_title">Keep history for</string>
+    <string name="retention_body">Text and recordings are deleted at midnight once they are older than this. Dashboard numbers are kept.</string>
+    <string name="retention_none">Don\'t keep history</string>
+    <string name="retention_none_sub">Text is copied and inserted, nothing is saved</string>
+    <string name="retention_footnote">Choosing a shorter period deletes older dictations right away.</string>
+    <!-- %1$d = dictations, %2$s = settings_older_days ("3 days") -->
+    <plurals name="retention_confirm_title">
+        <item quantity="one">Delete %1$d dictation older than %2$s?</item>
+        <item quantity="other">Delete %1$d dictations older than %2$s?</item>
+    </plurals>
+    <plurals name="settings_older_days">
+        <item quantity="one">%d day</item>
+        <item quantity="other">%d days</item>
+    </plurals>
+    <string name="retention_confirm_body">They are removed from this phone with their recordings. Dashboard numbers are kept.</string>
+    <string name="retention_stop_title">Stop keeping history?</string>
+    <plurals name="retention_stop_body">
+        <item quantity="one">%d dictation is deleted now, today\'s included, and new dictations are not saved.</item>
+        <item quantity="other">%d dictations are deleted now, today\'s included, and new dictations are not saved.</item>
+    </plurals>
+
+    <!-- Permissions -->
+    <string name="settings_perm_mic">Microphone</string>
+    <string name="settings_perm_a11y">Accessibility service</string>
+    <string name="settings_perm_notifications">Notifications</string>
+    <string name="settings_perm_battery">Background use</string>
+    <string name="settings_status_allowed">Allowed</string>
+    <string name="settings_status_on">On</string>
+    <string name="settings_status_off">Off</string>
+    <string name="settings_status_restricted">Restricted</string>
+    <!-- dash-off / settings-off banner; %1$s = product name -->
+    <string name="settings_off_title">The bubble is off.</string>
+    <string name="settings_off_body">Android turned off %1$s\'s accessibility service, usually after an update or a crash. Turn it on again to dictate.</string>
+    <string name="settings_off_action">Open Accessibility settings</string>
+
+    <!-- Inner category pane footer; %1$s = product name, %2$s = version -->
+    <string name="settings_version">%1$s %2$s</string>
+    <string name="settings_on_device">Models and history stay on this phone.</string>
+
+    <!-- Debug builds only -->
+    <string name="settings_debug_fakes">Use fake engines</string>
+    <string name="settings_debug_fakes_sub">Dictation runs on built-in fakes instead of models</string>
+    <string name="settings_debug_timeout">Timeout scale</string>
+    <string name="settings_debug_timeout_sub">Multiplies every dictation and binder timeout</string>
+    <!-- %1$s = factor -->
+    <string name="settings_debug_timeout_value">×%1$s</string>
+    <string name="settings_debug_memory">Ignore memory gate</string>
+    <string name="settings_debug_memory_sub">Loads models even when free memory looks too low</string>
+
+    <!-- Prompt editor (DESIGN 6.5 prompt*, ADR-019) -->
+    <string name="prompt_title">Cleanup prompt</string>
+    <string name="prompt_reset">Reset</string>
+    <string name="prompt_close">Close</string>
+    <!-- %1$s = product name -->
+    <string name="prompt_explain">%1$s sends these instructions to the cleanup model with every dictation.</string>
+    <string name="prompt_editor_label">Instructions for the cleanup model</string>
+    <string name="prompt_err_empty">Write some instructions, or reset to the default.</string>
+    <!-- %1$s = limit, %2$s = current length -->
+    <string name="prompt_err_too_long">Keep it under %1$s characters (now %2$s).</string>
+    <string name="prompt_err_markup">Remove chat markup like &lt;|im_start|&gt; or &lt;think&gt;: the model reads it as its own.</string>
+    <string name="prompt_prefs">My preferences</string>
+    <string name="prompt_prefs_help">How you like your text: spelling, punctuation, formality. Used with every cleanup model.</string>
+    <string name="prompt_prefs_hint">For example: write ё; no period at the end of chat messages.</string>
+    <!-- %1$s = characters used, %2$s = limit -->
+    <string name="prompt_prefs_count">%1$s / %2$s</string>
+    <!-- %1$s = limit -->
+    <string name="prompt_prefs_too_long">Keep preferences under %1$s characters.</string>
+    <string name="prompt_receives">What the model also receives</string>
+    <string name="prompt_receives_style">Style</string>
+    <string name="prompt_receives_style_body">A line for the app you dictate in, from Tone per app.</string>
+    <string name="prompt_receives_app">App and field</string>
+    <string name="prompt_receives_app_body">The app\'s name, the kind of field and the dictation language.</string>
+    <string name="prompt_receives_screen">Screen text</string>
+    <string name="prompt_receives_screen_body">Words read from the screen, used only to spell names and terms. Left out in private windows and hidden apps, or when the screenshot fails.</string>
+    <string name="prompt_receives_screen_off">Off: Use what\'s on screen is switched off, so only the app and the field are sent.</string>
+    <string name="prompt_receives_before">Text before the cursor</string>
+    <string name="prompt_receives_before_body">What is already in the field, so the cleanup continues it. Left out in private windows.</string>
+    <string name="prompt_receives_before_off">Off, together with the screen text.</string>
+    <string name="prompt_receives_transcript">Your dictation</string>
+    <string name="prompt_receives_transcript_body">The recognised text to clean up.</string>
+    <string name="prompt_try">Try it</string>
+    <string name="prompt_spoken">Spoken</string>
+    <string name="prompt_result">Result</string>
+    <string name="prompt_try_idle">Runs this sample through the cleanup model with your unsaved text.</string>
+    <string name="prompt_polishing">Polishing</string>
+    <string name="prompt_try_no_model">No cleanup model downloaded</string>
+    <string name="prompt_try_off">Cleanup is set to None in Models</string>
+    <string name="prompt_try_no_speech">Download a speech model first</string>
+    <string name="prompt_try_memory">Not enough free memory to load the cleanup model right now</string>
+    <string name="prompt_try_rejected">The model\'s answer was rejected, so your words would be inserted as spoken</string>
+    <string name="prompt_try_failed">Couldn\'t run the cleanup model. Try again.</string>
+    <string name="prompt_try_invalid">Fix the prompt to test it</string>
+    <string name="prompt_test">Test</string>
+    <string name="prompt_test_again">Test again</string>
+    <string name="prompt_reset_title">Reset to the default prompt?</string>
+    <string name="prompt_reset_body">Your edits will be replaced. Tone per app is kept.</string>
+    <string name="prompt_discard_title">Discard your changes?</string>
+    <string name="prompt_discard_body">Your edits to the prompt and preferences are not saved.</string>
+    <string name="prompt_keep_editing">Keep editing</string>
+    <string name="prompt_discard">Discard</string>
+    <string name="prompt_finetune_title">This model was trained on its own prompt.</string>
+    <string name="prompt_finetune_body">Its instructions can\'t be edited. My preferences still apply.</string>
+    <string name="prompt_kept_title">Your edit is kept for the standard prompt.</string>
+    <string name="prompt_kept_body">It applies again when you switch back to a standard cleanup model.</string>
+    <string name="prompt_older_title">Your edit was made for an older prompt.</string>
+    <string name="prompt_older_body">It is not used now. Reset to the new default, or keep editing to use your text with it.</string>
+
+    <!-- Tone per app (DESIGN 6.5 tone, copy deck tone_*) -->
+    <string name="tone_title">Tone per app</string>
+    <string name="tone_body">Tone tells the cleanup model how to phrase the text. Verbatim only fixes recognition errors and punctuation.</string>
+    <string name="tone_casual">Casual</string>
+    <string name="tone_neutral">Neutral</string>
+    <string name="tone_formal">Formal</string>
+    <string name="tone_verbatim">Verbatim</string>
+    <string name="tone_casual_desc">Short, friendly, keeps your slang</string>
+    <string name="tone_neutral_desc">Clear and plain, as spoken</string>
+    <string name="tone_formal_desc">Full sentences, polite forms, no slang</string>
+    <string name="tone_verbatim_desc">Your exact words, punctuation fixed</string>
+    <string name="tone_add">Add an app</string>
+    <string name="tone_add_body">Pick an app to give it its own tone.</string>
+    <string name="tone_others">All other apps</string>
+    <string name="tone_others_sub">Used when an app isn\'t listed</string>
+    <string name="tone_glossary">What the tones do</string>
+    <string name="tone_remove">Remove from list</string>
+    <string name="tone_preview">Preview</string>
+    <string name="tone_preview_note">Preview: until its wording ships, a tone you pick keeps the app\'s usual style.</string>
+    <!-- %1$s = app, %2$s = tone -->
+    <string name="tone_chip_cd">%1$s tone: %2$s</string>
+</resources>
