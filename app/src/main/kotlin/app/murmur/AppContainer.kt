@@ -20,6 +20,7 @@ import app.murmur.core.dictation.PermissionMonitor
 import app.murmur.core.dictation.SystemConditions
 import app.murmur.core.engine.Engines
 import app.murmur.core.engine.ProcessExits
+import app.murmur.core.model.ModelKind
 import app.murmur.core.model.MurmurClock
 import app.murmur.core.model.SystemMurmurClock
 import app.murmur.core.prompt.ClasspathPromptAssets
@@ -51,6 +52,7 @@ import app.murmur.feature.models.ModelsDeps
 import app.murmur.feature.onboarding.OnboardingDeps
 import app.murmur.feature.settings.SettingsDeps
 import app.murmur.infer.api.BinderEngines
+import app.murmur.infer.api.BinderTimeouts
 import app.murmur.platform.a11y.A11yBridge
 import app.murmur.platform.a11y.A11yStatus
 import app.murmur.platform.a11y.BridgedInserter
@@ -65,11 +67,13 @@ import app.murmur.wiring.AndroidPermissionMonitor
 import app.murmur.wiring.FakeData
 import app.murmur.wiring.PackageAppInfoProvider
 import app.murmur.wiring.StatusNotificationController
+import app.murmur.wiring.StoredPrefillSpeeds
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
 /**
  * The :main object graph (ADR-010: manual constructor injection). Everything is lazy: the container is built in
@@ -84,7 +88,8 @@ class AppContainer(private val context: Context) {
     /** onServiceConnected / onUnbind of the accessibility service (A11yServiceHost.onServiceState). */
     val serviceConnected = MutableStateFlow(false)
 
-    private val replacements by lazy { DebugWiring(context, appScope).replacements() }
+    private val debug = DebugWiring(context, appScope)
+    private val replacements by lazy { debug.replacements() }
     private val fake: FakeData? get() = replacements.data
     /** True when the debug fake container replaces the data side (shell and screenshot tests). */
     val fakeContainer: Boolean get() = fake != null
@@ -114,14 +119,28 @@ class AppContainer(private val context: Context) {
     val modelDownloads: ModelDownloads by lazy { ModelsModule.downloads(context, catalog, scope = appScope) { orchestrator } }
     val installed: InstalledModelsRepository by lazy { fake?.installed ?: DefaultInstalledModelsRepository(modelDownloads) }
     // --- engines (real binder clients, or :testing fakes in debug)
-    val engines: Engines by lazy { replacements.engines ?: BinderEngines(serviceOrApp) }
+    val engines: Engines by lazy { replacements.engines ?: BinderEngines(serviceOrApp, ::binderTimeouts, prefillSpeeds) }
+    /**
+     * Read at every binder call (ARCHITECTURE 4.3). Debug builds scale them with Settings.debugTimeoutScale for the slow
+     * x86_64 emulator (ADR-049, ADR-063), as the orchestrator scales its own timers; release builds always use 1.
+     */
+    private fun binderTimeouts(): BinderTimeouts {
+        val scale = if (BuildConfig.DEBUG) settings.settings.value.debugTimeoutScale.toDouble().takeIf { it > 0 } ?: 1.0 else 1.0
+        return if (scale == timeouts.scale) timeouts else BinderTimeouts(scale = scale).also { timeouts = it }
+    }
+    @Volatile private var timeouts = BinderTimeouts()
+    /** The stored benchmarks' prefill speed scales the prefix-prefill timeout (ADR-071); watched from [start]. */
+    private val prefillSpeeds by lazy { StoredPrefillSpeeds(benchmarks, appScope) }
     /** The only owner of the probe (WP-13, ARCHITECTURE 8.4); never throws (CPU-only profile on failure). */
     val deviceProfile: DeviceProfileRepository by lazy { fake?.device ?: engineRecords?.device ?: DefaultDeviceProfileRepository(context, engines.asrHost, engines.llmHost) }
     val unitHealth: UnitHealthRepository by lazy { fake?.unitHealth ?: engineRecords?.unitHealth ?: FileUnitHealthRepository(ModelsModule.storage(context), ModelsModule.appVersion(context)) }
     /** The production resolver; kept as its own type for the benchmark runner's specs (ADR-080, `resolver.benchSpecs`). */
     private val resolver by lazy { DefaultModelResolver(catalog, installed, deviceProfile, unitHealth, benchmarks) { ModelsModule.storage(context).dir(it).path } }
-    /** What the orchestrator and the status notification resolve with: the debug fake container's resolver, else [resolver]. */
-    private val models: ModelResolver by lazy { fake?.resolver ?: resolver }
+    /**
+     * What the orchestrator and the status notification resolve with: the debug fake container's or the engines-only
+     * mode's fake resolver ([Replacements.resolver]: the fake engines need no installed pack), else [resolver].
+     */
+    private val models: ModelResolver by lazy { fake?.resolver ?: replacements.resolver ?: resolver }
     private val customModels: CustomModelResolver by lazy { HfCustomModelResolver() }
     /**
      * WP-14 runner over the production engines, specs from the production resolver's loadSpec (ADR-080; [resolver] stays
@@ -154,7 +173,10 @@ class AppContainer(private val context: Context) {
     private val statusNotifier by lazy { AndroidStatusNotifier(context) }
     private val audioCapture: AudioCapture by lazy {
         // The microphone FGS starts from the accessibility-service context at press time (WP-09, platform spike b).
-        fake?.audio ?: AndroidAudioCapture(context, audioStore, fgsContext = serviceOrApp)
+        // Debug builds: the clip in files/debug-capture.wav instead of the microphone when it exists ([Replacements.capture]).
+        fake?.audio ?: AndroidAudioCapture(context, audioStore, fgsContext = serviceOrApp).let { mic ->
+            replacements.capture?.wrap(mic, audioStore) ?: mic
+        }
     }
     private val memory: MemoryGate by lazy {
         fake?.memory ?: MemoryGate {
@@ -228,11 +250,29 @@ class AppContainer(private val context: Context) {
     val shellDeps: ShellDeps by lazy { ShellDeps(dashboardDeps, historyDeps, modelsDeps, settingsDeps, practice = onboardingDeps) }
 
     /**
-     * Called once from MurmurApp.onCreate in :main: retention (start-up run, midnight job, shortening watcher, ADR-072)
-     * and the status notification (ADR-055).
+     * Called once from MurmurApp.onCreate in :main (WP-20 Deliver 1):
+     *  - the settings repository is built now: it starts reading the document at once, so the StateFlow every part
+     *    reads without waiting holds the stored values before the first dictation or screen needs them;
+     *  - retention: start-up run with pending Undo deletes, the period and orphan audio, the midnight job, the
+     *    shortening watcher (ADR-072; real data only);
+     *  - the orchestrator is built, so that its settings observer (ARCHITECTURE 13: a prompt-input change re-prepares the
+     *    active LLM's prefix) runs from the start and not only from the first dictation;
+     *  - the device profile: probed once per app version (ARCHITECTURE 8.4). :main starts after the first unlock (the
+     *    app is not direct-boot aware) and again after an update, so the probe runs then and not in the first press;
+     *  - the stored LLM speeds for the prefix-prefill timeouts;
+     *  - the status notification (ADR-055) and the debug switches ([DebugWiring.start]).
      */
     fun start() {
+        settings
         if (fake == null) retentionScheduler.start()
+        orchestrator
+        appScope.launch { deviceProfile.ensure() }
+        if (replacements.engines == null) {
+            appScope.launch {
+                catalog.loaded().models.filter { it.kind == ModelKind.LLM }.flatMap { it.artifacts }.forEach { prefillSpeeds.watch(it.id) }
+            }
+        }
         StatusNotificationController(statusNotifier, serviceConnected, permissions, settings, installed, models, catalog).start(appScope)
+        debug.start(settings, replacements)
     }
 }

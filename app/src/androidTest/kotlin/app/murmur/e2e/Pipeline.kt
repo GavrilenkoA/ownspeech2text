@@ -84,6 +84,9 @@ object Pipeline {
                     idleUnloadSec = 60,
                     debugIgnoreMemoryGate = true,
                     debugTimeoutScale = timeoutScale,
+                    // As after the onboarding (the models are pushed instead of downloaded there): the app opens on
+                    // its tabs, which the real suite reads after the dictations.
+                    onboardingDone = true,
                 )
             }
         }

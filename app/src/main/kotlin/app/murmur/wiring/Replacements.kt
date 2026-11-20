@@ -21,8 +21,11 @@ import app.murmur.core.store.SettingsRepository
  * What a debug build swaps in for AppContainer (D6; `src/debug/.../DebugWiring.kt` builds it from `:testing`, the
  * release variant returns [NONE]). [engines]: inference on deterministic fakes. [data]: the whole data side in memory
  * (the "fake container" for screenshot and shell tests: seeded history, metrics and install states, or a fresh first
- * run). [renderer] / [guard]: with fake engines the pipeline uses the :testing stand-ins (the real Kotlin ports of render.py / guard.py come with WP-04).
+ * run). [renderer] / [guard]: with fake engines the pipeline uses the :testing stand-ins, whose transcript tags the
+ * fake LLM reads (real engines always run the Kotlin ports of render.py / guard.py).
  * [engineRecords]: with fake engines but the real data side, where what the engines report is kept (ADR-089).
+ * [resolver]: with fake engines but the real data side, the resolver the dictation runs with (the fake engines need no
+ * installed pack). [capture]: what the microphone becomes outside the fake container (the debug WAV capture).
  */
 class Replacements(
     val engines: Engines? = null,
@@ -31,10 +34,20 @@ class Replacements(
     val renderer: PromptRenderer? = null,
     val guard: OutputGuard? = null,
     val engineRecords: EngineRecords? = null,
+    val resolver: ModelResolver? = null,
+    val capture: CaptureSwap? = null,
 ) {
     companion object {
         val NONE = Replacements()
     }
+}
+
+/**
+ * Wraps the production microphone capture (debug builds: the WAV capture when its file exists, checked per start, so a
+ * test can switch between the clip and the microphone without restarting the app).
+ */
+fun interface CaptureSwap {
+    fun wrap(microphone: AudioCapture, store: AudioStore): AudioCapture
 }
 
 /**

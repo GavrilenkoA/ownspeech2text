@@ -11,9 +11,12 @@ import java.nio.ByteOrder
 object Fixtures {
     const val CAPTURE_WAV = "debug-capture.wav"
     const val FAKE_ENGINES_FLAG = "debug-fake-engines"
-    /** Pushed by tools/e2e/run_emulator_e2e.sh for the real suite (FLEURS ru dev, CC-BY-4.0) with its reference text. */
-    const val FLEURS_WAV = "${E2e.DEVICE_DIR}/fleurs-ru.wav"
-    const val FLEURS_REF = "${E2e.DEVICE_DIR}/fleurs-ru.txt"
+    /**
+     * Pushed by tools/e2e/run_emulator_e2e.sh for the real suites: one FLEURS dev clip per language (CC-BY-4.0, ru and
+     * en) with its reference text, `<DEVICE_DIR>/fleurs-<lang>.wav` / `.txt`.
+     */
+    fun fleursWav(lang: String) = "${E2e.DEVICE_DIR}/fleurs-$lang.wav"
+    fun fleursRef(lang: String) = "${E2e.DEVICE_DIR}/fleurs-$lang.txt"
 
     val captureFile: File get() = File(E2e.context.filesDir, CAPTURE_WAV)
     val fakeFlag: File get() = File(E2e.context.filesDir, FAKE_ENGINES_FLAG)
@@ -44,15 +47,16 @@ object Fixtures {
 
     fun installCapture(pcm: ShortArray) = captureFile.writeBytes(wav(pcm))
 
-    /** Copies the pushed FLEURS clip into the capture slot and returns its duration in ms and the reference text. */
-    fun installFleurs(): Pair<Long, String> {
-        val bytes = E2e.uiAutomation.executeShellCommand("cat $FLEURS_WAV").let { pfd ->
+    /** Copies the pushed FLEURS clip of [lang] into the capture slot and returns its duration in ms and the reference text. */
+    fun installFleurs(lang: String = "ru"): Pair<Long, String> {
+        val wav = fleursWav(lang)
+        val bytes = E2e.uiAutomation.executeShellCommand("cat $wav").let { pfd ->
             android.os.ParcelFileDescriptor.AutoCloseInputStream(pfd).use { it.readBytes() }
         }
-        check(bytes.size > 44 && String(bytes, 0, 4) == "RIFF") { "$FLEURS_WAV missing: run the real suite through tools/e2e/run_emulator_e2e.sh" }
+        check(bytes.size > 44 && String(bytes, 0, 4) == "RIFF") { "$wav missing: run the real suite through tools/e2e/run_emulator_e2e.sh" }
         captureFile.writeBytes(bytes)
-        val ref = E2e.shell("cat $FLEURS_REF").trim()
-        check(ref.isNotEmpty()) { "$FLEURS_REF missing" }
+        val ref = E2e.shell("cat ${fleursRef(lang)}").trim()
+        check(ref.isNotEmpty()) { "${fleursRef(lang)} missing" }
         val pcmBytes = bytes.size - 44
         return pcmBytes / 32L to ref
     }

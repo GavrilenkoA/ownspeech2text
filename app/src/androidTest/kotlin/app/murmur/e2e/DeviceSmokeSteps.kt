@@ -362,6 +362,9 @@ class DeviceSmokeSteps : DictationTest() {
             put("llmWarmAtPress", llmWarmAtPress); put("llmReadyAfterPressMs", llmReadyAfterPressMs ?: JSONObject.NULL)
             row?.let { r ->
                 put("cleanupOutcome", r.cleanup?.outcome ?: JSONObject.NULL)
+                // ADR-088: the prompt profile and the tone the cleanup ran with (none = the category style line).
+                put("promptVersion", r.cleanup?.promptVersion ?: JSONObject.NULL)
+                put("cleanupTone", r.cleanup?.tone ?: JSONObject.NULL)
                 put("insertMethod", r.insertMethod?.name ?: JSONObject.NULL)
                 put("timings", JSONObject().put("recordMs", r.timings.recordMs).put("speechMs", r.timings.speechMs)
                     .put("stopToDoneMs", r.timings.stopToDoneMs ?: JSONObject.NULL).put("asrTailMs", r.timings.asrTailMs ?: JSONObject.NULL)
