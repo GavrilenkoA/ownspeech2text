@@ -16,8 +16,49 @@ concurrency:
 
 env:
   GRADLE_OPTS: -Dorg.gradle.jvmargs=-Xmx3g -Dorg.gradle.daemon=false
+  ANDROID_NDK_VERSION: 30.0.16248370
+  ANDROID_CMAKE_VERSION: 4.1.2
 
 jobs:
+  native-libs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Install Android SDK components
+        run: |
+          export ANDROID_HOME="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          SDKMANAGER="$(ls -d "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager | tail -1)"
+          yes | "$SDKMANAGER" --licenses > /dev/null
+          "$SDKMANAGER" --install "platforms;android-37.2" "build-tools;37.0.0" "platform-tools" \
+            "ndk;$ANDROID_NDK_VERSION" "cmake;$ANDROID_CMAKE_VERSION"
+      - uses: actions/cache@v4
+        id: native-cache
+        with:
+          path: |
+            .cache/native/jniLibs
+            .cache/native-llama
+            .cache/native/build/sherpa
+          key: native-${{ runner.os }}-ndk${{ env.ANDROID_NDK_VERSION }}-cmake${{ env.ANDROID_CMAKE_VERSION }}-${{ hashFiles('native/llama/versions.env', 'native/llama/patches/**', 'native/sherpa/build-android.sh', 'native/sherpa/patches/**', 'native/sherpa/qnn-probe/**') }}
+      - name: Build sherpa-onnx JNI (arm64 + x86_64)
+        if: steps.native-cache.outputs.cache-hit != 'true'
+        run: JOBS="$(nproc)" bash native/sherpa/build-android.sh all
+      - name: Build llama.cpp (arm64 + x86_64)
+        if: steps.native-cache.outputs.cache-hit != 'true'
+        run: NO_HEAVY=1 JOBS="$(nproc)" bash native/llama/build_android.sh cpu-arm64 cpu-x86_64
+      - name: Check the installed libraries
+        run: bash tools/e2e/check_native_libs.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-jnilibs
+          path: .cache/native/jniLibs
+          if-no-files-found: error
+          retention-days: 7
+
   unit-tests:
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -45,11 +86,12 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: unit-test-reports
-          path: "**/build/test-results/testDebugUnitTest/**"
+          path: "**/build/test-results/**"
           if-no-files-found: ignore
           retention-days: 7
 
   build:
+    needs: native-libs
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -64,22 +106,35 @@ jobs:
           SDKMANAGER="$(ls -d "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager | tail -1)"
           yes | "$SDKMANAGER" --licenses > /dev/null
           "$SDKMANAGER" --install "platforms;android-37.2" "build-tools;37.0.0" "platform-tools"
+      - uses: actions/download-artifact@v4
+        with:
+          name: native-jnilibs
+          path: .cache/native/jniLibs
+      - name: Check the installed libraries
+        run: bash tools/e2e/check_native_libs.sh
       - uses: gradle/actions/setup-gradle@v4
       - name: Assemble debug and release
         run: ./gradlew assembleDebug assembleRelease --stacktrace
+      - name: Check that both APKs ship the engines
+        run: |
+          bash tools/e2e/check_apk_engines.sh app/build/outputs/apk/debug/app-debug.apk arm64-v8a x86_64
+          bash tools/e2e/check_apk_engines.sh app/build/outputs/apk/release/app-release-unsigned.apk arm64-v8a
       - name: Check release APK contents
         run: bash tools/e2e/check_release_apk.sh --no-build
-      - name: Upload APKs
-        uses: actions/upload-artifact@v4
+      - name: Collect APKs
+        run: |
+          mkdir -p dist
+          cp app/build/outputs/apk/debug/app-debug.apk dist/murmur-debug.apk
+          cp app/build/outputs/apk/release/app-release-unsigned.apk dist/murmur-release-unsigned.apk
+      - uses: actions/upload-artifact@v4
         with:
           name: apks
-          path: |
-            app/build/outputs/apk/debug/*.apk
-            app/build/outputs/apk/release/*.apk
-          if-no-files-found: ignore
+          path: dist/*.apk
+          if-no-files-found: error
           retention-days: 7
 
   release-apk:
+    needs: native-libs
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -97,9 +152,17 @@ jobs:
           SDKMANAGER="$(ls -d "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager | tail -1)"
           yes | "$SDKMANAGER" --licenses > /dev/null
           "$SDKMANAGER" --install "platforms;android-37.2" "build-tools;37.0.0" "platform-tools"
+      - uses: actions/download-artifact@v4
+        with:
+          name: native-jnilibs
+          path: .cache/native/jniLibs
       - uses: gradle/actions/setup-gradle@v4
       - name: Assemble debug and release
         run: ./gradlew assembleDebug assembleRelease --stacktrace
+      - name: Check that both APKs ship the engines
+        run: |
+          bash tools/e2e/check_apk_engines.sh app/build/outputs/apk/debug/app-debug.apk arm64-v8a x86_64
+          bash tools/e2e/check_apk_engines.sh app/build/outputs/apk/release/app-release-unsigned.apk arm64-v8a
       - name: Collect APKs
         run: |
           mkdir -p dist
