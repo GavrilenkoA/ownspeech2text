@@ -172,6 +172,9 @@ as literal coordinates inside the `-Pmurmur.qnn` block, the desktop ORT test jar
 - Integration fixes around you: `DeviceProfileProber` retries a `cpuOnly` fallback after 5 min (pass-7 R3: a slow
   first probe with the QNN EP registration inside the 2 s PROBE call must not keep `:main` on CPU only);
   `check_release_apk.sh` also checks `libonnxruntime_providers_qnn.so` (absent without the flag, present with it in
-  `--control`). DC4/DC8/DC9 carry your device notes as one-liners.
+  `--control`). DC4/DC8/DC9 carry your device notes as one-liners. Pass-8 verification (ADR-093): the retry now runs
+  on its own outside dictations (5 min, doubling to 60 min), a PROBE reply with `ProcessProbe.FACT_ERROR` (your slow
+  QNN EP registration hitting the 2 s PROBE call) counts as a failed probe instead of a profile without `:asr`
+  runtimes, and the placeholder host stays until OWNER_QUESTIONS 17 with a catalog test guarding it.
 - The `*SimulatorTest` suites stay outside the gate (they need the x86_64 HTP simulator and the contexts outside the
   repo, about 1 h each); keep `.cache/spikes/wp-21/ctx` until the owner hosts the files.

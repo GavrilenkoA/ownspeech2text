@@ -1,6 +1,6 @@
 # Murmur architecture
 
-Version 2.4 · 2026-11-20 (wave-1 integration passes 1-5, wave-2 integration pass 6, wave-3 integration passes 7-8: ADR-064..092) · Owner: architect. Binding for all work packages (`docs/wp/`). Owner decisions D1-D12 are
+Version 2.5 · 2026-11-20 (wave-1 integration passes 1-5, wave-2 integration pass 6, wave-3 integration passes 7-8: ADR-064..093) · Owner: architect. Binding for all work packages (`docs/wp/`). Owner decisions D1-D12 are
 quoted verbatim at the top of `docs/DECISIONS.md`; conflicts and their evidence are ADR-nnn there; review findings and
 their resolution are under "Review responses" there. Everything that only the phone can prove: `docs/DEVICE_CHECKLIST.md`
 (steps DC1-DC10).
@@ -393,7 +393,8 @@ Finishing, Polishing): `AsrReady`, `AsrLoadFailed`, `LlmReady`, `LlmLoadFailed`,
 - User cancel (×, slide-off) in Arming/Listening: capture discarded, ASR session cancelled, LLM generation never
   started, nothing stored. Processes stay warm (idle timer).
 - Cancel is impossible after the stop (working states ignore taps, DESIGN 5.3).
-- A press during Preparing cancels the preparation (it resumes later); the dictation never waits for it.
+- A press during Preparing cancels the preparation (it resumes later); the dictation never waits for it. The same
+  background slot runs the device-profile retry (8.4, ADR-093).
 - LLM cancel latency: CPU = one graph node, NPU/GPU = one `llama_process` call (≤ one 512-token chunk) (llm spike).
 
 ### 5.5 Failure paths and what the user sees
@@ -586,13 +587,20 @@ error, another format or another prefix text deletes the file and rebuilds it, A
 `DeviceProfileRepository` (WP-13 only) binds both processes and calls `probe()` on first launch per app version (and
 on `reprobe()`): implemented runtime keys, units that really initialised (QNN HTP backend created; ggml HTP0 /
 GPUOpenCL registered), facts (SoC, HTP arch, QNN build, CPU variant, `native.build`). Cached in noBackupFilesDir;
-feeds `DeviceProfile`. `ensure()` never throws: a failed probe yields `DeviceProfile.cpuOnly`. The resolver and
-onboarding's pack sizes call `ensure()`. `AppContainer.start()` also calls it at every `:main` start (`:main` starts
-after the first unlock and after an update), so the probe runs then and not inside the first press: on the first
-launch per app version `:asr` and `:llm` start for a few seconds and idle out (ADR-090). On the emulator: soc null, units {CPU}.
-A `cpuOnly` fallback is never cached in the file and is retried: the first `ensure()` at least 5 min after it probes
-again within 10 s (log `probe_retry`), so a probe that failed at boot cannot keep a long-lived `:main` on CPU only
-(ADR-092). The `:asr` probe adds the ORT QNN plugin EP keys (`RuntimeKeys.qnnEp`: `ort-qnn/ppocr-det`,
+feeds `DeviceProfile`. `ensure()` never throws: a failed probe yields `DeviceProfile.cpuOnly`; a process whose
+`probe()` reply carries `ProcessProbe.FACT_ERROR` (bind failure, PROBE call timeout, death) counts as a failed probe,
+never as "this process supports nothing" (ADR-093). The resolver and onboarding's pack sizes call `ensure()`.
+`AppContainer.start()` also calls it at every `:main` start (`:main` starts after the first unlock and after an
+update), so the probe runs then and not inside the first press (a press that comes before that first probe of an app
+version has ended waits for it: without a profile nothing can be resolved): on the first launch per app version `:asr`
+and `:llm` start for a few seconds and idle out (ADR-090). On the emulator: soc null, units {CPU}.
+Once a profile is held, `ensure()` returns it at once and never probes, so a press never pays for a probe (ADR-093).
+A `cpuOnly` fallback is never cached in the file and is retried on its own: 5 min after it, then 10, 20, 40 and every
+60 min while it keeps failing (log `probe_retry`, budget 10 s), so a probe that failed at boot cannot keep a long-lived
+`:main` on CPU only (ADR-092/093). A retry runs in the orchestrator's background slot (5.4): never during a dictation;
+a press cancels it and it runs again after the dictation. After a probe, only a process the probe itself started gets
+the 5 s idle exit, and through the orchestrator, which ignores it while a dictation runs: a probe never replaces the
+session hold or a warm process's timer (ADR-086/093). The `:asr` probe adds the ORT QNN plugin EP keys (`RuntimeKeys.qnnEp`: `ort-qnn/ppocr-det`,
 `ort-qnn/ppocr-rec`, `ort-qnn/gigaam-ctc`) only when the plugin is packaged, registers with an EP device and the QNN
 probe found the HTP (facts `qnnep.stage` = ok | no-libs | register | no-device, `qnnep.version`); in every build
 without `-Pmurmur.qnn=true` the NPU artifacts of these keys are `RUNTIME_NOT_SHIPPED` (hub: "Not supported in this

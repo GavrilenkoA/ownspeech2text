@@ -14,7 +14,7 @@ cleanup models), a History of dictations with audio playback and Retry, a Dashbo
 (prompt editor, tone per app, privacy), and an onboarding flow.
 
 **What has been proven here (server and Android emulator, no phone):**
-- The whole project builds and all 1,050 automated JVM tests pass (debug and release builds).
+- The whole project builds and all 1,056 automated JVM tests pass (debug and release builds).
 - The release build contains none of the Qualcomm NPU libraries and no test code, as the licence situation
   requires; a control build shows the check really sees them when they are switched on.
 - On the emulator, the finished app installs, starts and passes its end-to-end tests: dictating into a test app with
@@ -41,12 +41,13 @@ own phone), and your approval of the GPU rental for the model training (section 
 
 | Area | Evidence (latest run) |
 |---|---|
-| Build and unit tests | `tools/gw --max-workers=6 assembleDebug testDebugUnitTest test :app:assembleRelease :app:assembleDebugAndroidTest :testapps:target:assembleDebug --rerun-tasks`: BUILD SUCCESSFUL, 1,050 tests, 0 failed, 0 skipped (integration pass 8) |
+| Build and unit tests | `tools/gw --max-workers=6 assembleDebug testDebugUnitTest test :app:assembleRelease :app:assembleDebugAndroidTest :testapps:target:assembleDebug --rerun-tasks`: BUILD SUCCESSFUL, 1,056 tests, 0 failed, 0 skipped (integration pass 8, after its verification fixes, ADR-093) |
 | Release APK content | `tools/e2e/check_release_apk.sh --control`: arm64 only; no `libggml-htp-*`, no `libQnn*`, no `libonnxruntime_providers_qnn.so`, no test classes; the control build with `-Pmurmur.qnn=true` contains the QNN libraries and the plugin EP |
 | App on the cover AVD (fakes) | `run_emulator_e2e.sh --suite harness,wiring,fast,matrix` on `murmur_fold7_cover`: all PASS (harness-target 11, harness 9, no app network bytes, wiring 2, fast 2, matrix 7); cold start 742 ms, no crash (`.cache/e2e-reports/20261120-074358-emulator-5590`) |
 | Speech process tests (incl. NPU port on the CPU path) | `:infer:asr` instrumented suite on the cover AVD: OK (17 tests); the probe reports units [CPU] and `qnnep.stage=no-libs` (the NPU path is absent, as intended) |
 | App on the inner AVD, real engines on the CPU | `MURMUR_EMU_CPU_HOST=1 run_emulator_e2e.sh --suite wiring,fast,real` on `murmur_fold7_inner`: wiring 2, real 1 PASS (Russian clip WER 0, stop→inserted 1.05 s cold and warm, English 1.4 s; 4 of 4 tabs show the run's data; 0 network bytes; 0 of 19 transcript words in the app's log), fast 1 of 2 failed once because the emulator's own keyboard (Gboard) crashed while loading on the freshly booted AVD (Murmur correctly fell back to "Copied"), then 2 of 2 PASS twice (`.cache/e2e-reports/20261120-075237-emulator-5590`) |
 | Device smoke script, dry run | `NONINTERACTIVE=1 tools/device/murmur_app_smoke.sh` on the inner AVD (CPU build, NPU asserts skipped): Failed asserts 0 (incl. tmo10: nothing inserted after the result, no failed unit; idle exit 60.5 s; ART prompt goldens OK 36) (`.cache/device-reports/dc8-emulator-5590-20261120-075841`) |
+| Device probe after the ADR-093 fix | Cover AVD, fresh install, cold start 807 ms: `probe_done`, `:asr`/`:llm` exit 5 s after the probe (the short exit now goes through the orchestrator), no crash; e2e wiring 2 and fast 2 PASS (`.cache/e2e-reports/20261120-083315-emulator-5590`) |
 | Earlier passes (unchanged code paths) | events, events-real, matrix, bench suites and the screen comparisons with the design frames on both AVDs (integration passes 6-7, `.cache/e2e-reports/`, `.cache/spikes/integration/wave2/`) |
 | NPU ports on the NPU simulator (WP-21) | GigaAM CTC WER 5.83 % on the simulated NPU vs 6.31 % on the CPU (same 20 s windows), within the 1-point bar. Screen reading: detector on the NPU 15 of 26 pages outside the tolerance, both stages 17 of 26 (92.4 % identical lines, bar 98 %): not adopted |
 | ML: cleanup data and training pipeline | 3,000 / 300 / 300 training / dev / test records (`docs/ml/DATA_CARD.md`); training, export and evaluation scripts reviewed and dry-run on the CPU (`docs/ml/TRAINING_RUNBOOK.md`) |
@@ -100,6 +101,6 @@ Only the licence items block anything outside your own phone.
 
 ## 6. Technical references
 
-Decisions: `docs/DECISIONS.md` (ADR-001..092; the last pass is ADR-092). Architecture: `docs/ARCHITECTURE.md` 2.4.
+Decisions: `docs/DECISIONS.md` (ADR-001..093; the last pass is ADR-092, its verification fixes ADR-093). Architecture: `docs/ARCHITECTURE.md` 2.5.
 Device steps: `docs/DEVICE_CHECKLIST.md`. Integration log: `.cache/progress/integration-wave1.md`. E2e reports:
 `.cache/e2e-reports/`; device dry runs: `.cache/device-reports/`.

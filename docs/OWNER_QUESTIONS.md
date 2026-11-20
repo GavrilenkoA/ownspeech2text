@@ -52,7 +52,9 @@ no open question: its two owner items were decided or done there.
 17. **Where should the compiled NPU files for screen reading and GigaAM be hosted?** (WP-21) Five files, about 530 MB
    in total (screen-reading detector 10.7 MB and recogniser 52.5 MB, GigaAM 466.5 MB plus two small files), compiled
    on this server for the Fold7's chip. The catalog lists them with their checksums, but at a placeholder address
-   (`owner-hosting-pending/npu-contexts`), so no build can download them and the app never offers them.
+   (`owner-hosting-pending/npu-contexts`), so no normal build offers them (they need the NPU build of question 18).
+   That address is a public Hugging Face name that anyone could register; the checksums stop anyone else's files
+   from being installed, but no NPU build should download them from the app before this is answered (ADR-093).
    *Recommendation:* upload them to the same Hugging Face repo you own for question 1 (Hermes holds the token), at a
    fixed revision `qairt-2.52.0-r1`, from `.cache/spikes/wp-21/ctx` exactly as built (the compile is not bit-for-bit
    repeatable, so keep that folder until then). Then one constant in `core/catalog/tools/build_catalog.py` changes and
@@ -225,7 +227,8 @@ Pass 8 (WP-21, the NPU ports):
   build: the hub shows them as "Not supported in this version" (the build does not contain the NPU library), and
   "Auto" never picks them (ADR-092). Blocks nothing.
 - If the app's first check of the phone's NPU and CPU fails (for example right after a reboot), the app no longer stays
-  on the CPU until the next restart: it checks again 5 minutes later, the next time it needs the answer (ADR-092).
+  on the CPU until the next restart: it checks again by itself 5 minutes later, then after 10, 20, 40 and every 60
+  minutes while it keeps failing, never during a dictation and never making a dictation wait (ADR-092, ADR-093).
   Blocks nothing; the check's duration is recorded in DC8.
 
 ## Still open from architecture v2 (unchanged, listed for completeness)
