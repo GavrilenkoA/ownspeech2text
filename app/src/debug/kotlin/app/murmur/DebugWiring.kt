@@ -36,8 +36,11 @@ import app.murmur.testing.InMemoryMetricsRepository
 import app.murmur.testing.InMemorySettingsRepository
 import app.murmur.testing.contrib.Wp12MetricsFixture
 import app.murmur.testing.contrib.Wp15StagedDownloads
+import app.murmur.core.store.SettingsRepository
+import app.murmur.wiring.CaptureSwap
 import app.murmur.wiring.EngineRecords
 import app.murmur.wiring.FakeData
+import app.murmur.wiring.FakeEnginesSwitch
 import app.murmur.wiring.Replacements
 import java.io.File
 import java.time.LocalDate
@@ -45,6 +48,7 @@ import java.time.LocalTime
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 
 /**
@@ -58,6 +62,9 @@ import kotlinx.coroutines.runBlocking
  *    entries), a week of metrics, the recommended pack installed plus rows mid-download and paused. `fresh` = a
  *    first run: onboarding not done, nothing installed, downloads that walk through every install state.
  *    Permissions, app labels and the status notification stay real.
+ * Outside the fake container the microphone becomes the clip in `files/debug-capture.wav` whenever that file exists
+ * ([DebugCapture], checked per dictation). The Settings switch "Use fake engines" writes `debug-fake-engines` for the
+ * next start ([start], [FakeEnginesSwitch]).
  */
 class DebugWiring(private val context: Context, private val scope: CoroutineScope) {
     private fun flag(name: String): String? = File(context.filesDir, name).takeIf { it.exists() }?.readText()?.trim()
@@ -67,14 +74,32 @@ class DebugWiring(private val context: Context, private val scope: CoroutineScop
         val engines = flag(FAKE_ENGINES) != null || container != null
         val data = container?.let { fakeData(it) }
         val fakeEngines = if (engines) FakeEngines() else null
+        // Engines-only mode: the real data side, but what the fake engines report stays out of the real stores.
+        val records = if (fakeEngines != null && data == null) engineRecords(fakeEngines) else null
         return Replacements(
             engines = fakeEngines,
             data = data,
             renderer = if (engines) FakePromptRenderer() else null,
             guard = if (engines) PassThroughGuard() else null,
-            // Engines-only mode: the real data side, but what the fake engines report stays out of the real stores.
-            engineRecords = if (fakeEngines != null && data == null) engineRecords(fakeEngines) else null,
+            engineRecords = records,
+            // The fake engines need no installed pack: the fast end-to-end suites and the Settings switch run them
+            // right away. Unit health is the engines-only store (ADR-089), the profile the emulator's (CPU first).
+            resolver = records?.let { FakeModelResolver(health = it.unitHealth) },
+            capture = if (data == null) CaptureSwap { microphone, store -> DebugCapture(context, microphone, store) } else null,
         )
+    }
+
+    /**
+     * Called once from AppContainer.start: the Settings switch shows whether this process runs on the fake engines and
+     * writes the flag file for the next start when the user flips it. The fake container keeps its in-memory settings.
+     */
+    fun start(settings: SettingsRepository, replacements: Replacements) {
+        if (replacements.data != null) return
+        val switch = FakeEnginesSwitch(runningOnFakes = replacements.engines != null) { on ->
+            val f = File(context.filesDir, FAKE_ENGINES)
+            if (on) f.writeText("") else f.delete()
+        }
+        scope.launch { switch.run(settings) }
     }
 
     /**
