@@ -428,7 +428,7 @@ class DictationOrchestrator(
      * LLM hard cap, delivery; scaled like the timers) plus the normal idle timeout.
      */
     private fun sessionHoldMs(cfg: DictationConfig): Long =
-        cfg.scaled(cfg.maxDurationMs + cfg.asrMaxTailMs + cfg.llmReadyWaitMs + cfg.llmHardCapMs + cfg.deliveryTimeoutMs)
+        (cfg.scaled(cfg.maxDurationMs + cfg.asrMaxTailMs + cfg.llmReadyWaitMs + cfg.llmHardCapMs) + cfg.deliveryTimerMs())
             .coerceAtLeast(cfg.maxDurationMs) + cfg.idleUnloadMs
 
     /** D5: keep both processes warm for the idle timeout, then unload + exit. */

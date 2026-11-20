@@ -49,6 +49,12 @@ data class DictationConfig(
         ComputeUnit.CPU to LlmSpeed(prefillTps = 100.0, decodeTps = 15.0),
     ),
     val deliveryTimeoutMs: Long = 2_000,
+    /**
+     * The DELIVERY timer never runs shorter than this, whatever [timeoutScale] (ADR-090 item 4): the insertion ladder
+     * (InsertionLadder.LADDER_BUDGET_MS, 1.5 s from its first read, not scaled) plus 400 ms for re-resolving the
+     * target, the clipboard copy and the binder reads. A shorter timer would show Copied while a rung can still insert.
+     */
+    val deliveryMinMs: Long = 1_900,
     /** Result pill durations (DESIGN 5.3). */
     val insertedShowMs: Long = 1_200,
     val copiedShowMs: Long = 4_000,
@@ -84,6 +90,9 @@ data class DictationConfig(
     val ownPackage: String = "app.murmur",
 ) {
     fun scaled(ms: Long): Long = (ms * timeoutScale).toLong()
+
+    /** The DELIVERY timer: [deliveryTimeoutMs] scaled, but never below [deliveryMinMs] (ADR-090 item 4). */
+    fun deliveryTimerMs(): Long = maxOf(scaled(deliveryTimeoutMs), deliveryMinMs)
 
     fun asrFinalTimeoutMs(tailAudioMs: Long): Long =
         scaled(asrFinalBaseMs + (tailAudioMs / 1000.0 * asrFinalPerAudioSec * 1000).toLong())

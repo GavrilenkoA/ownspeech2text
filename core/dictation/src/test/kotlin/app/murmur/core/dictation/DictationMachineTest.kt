@@ -576,6 +576,21 @@ class DictationMachineTest {
         assertTrue(Effect.StartTimer(s, Timer.MAX_DURATION, 900_000) in l.effects)
     }
 
+    /**
+     * ADR-090 item 4: the DELIVERY timer scales up with the slow emulator but never drops below the insertion ladder's
+     * unscaled 1.5 s budget plus margin (DC8's tmo10 runs at scale 0.1: 200 ms would show Copied while a rung inserts).
+     */
+    @Test fun deliveryTimerNeverDropsBelowTheLadderBudget() {
+        val short = c.copy(timeoutScale = 0.1)
+        val done = reduce(polishing(started = true), DictationEvent.CleanupDone(s, "Привет.", cleaned = true, outcome = "accept"), short)
+        assertTrue(Effect.StartTimer(s, Timer.DELIVERY, 1_900) in done.effects)
+        val raw = reduce(polishing(started = true), DictationEvent.TimerFired(s, Timer.LLM), short)
+        assertTrue(Effect.StartTimer(s, Timer.DELIVERY, 1_900) in raw.effects)
+        val slow = reduce(polishing(started = true), DictationEvent.CleanupDone(s, "Привет.", cleaned = true, outcome = "accept"), c.copy(timeoutScale = 3.0))
+        assertTrue(Effect.StartTimer(s, Timer.DELIVERY, 6_000) in slow.effects)
+        assertEquals(2_000L, c.deliveryTimerMs())
+    }
+
     @Test fun reducerIsTotal() {
         val states = listOf(DictationState.Idle, arming(), arming().copy(plan = plan, engines = readyEngines), listening(), finishing(), polishing(),
             polishing(started = true), delivering(), DictationState.Done(s, DictationOutcome.Copied(entry)), DictationState.Done(s, DictationOutcome.Failed(MurmurError.NoSpeech, entry)),

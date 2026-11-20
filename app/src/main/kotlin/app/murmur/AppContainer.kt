@@ -68,6 +68,7 @@ import app.murmur.wiring.FakeData
 import app.murmur.wiring.PackageAppInfoProvider
 import app.murmur.wiring.StatusNotificationController
 import app.murmur.wiring.StoredPrefillSpeeds
+import app.murmur.wiring.binderScale
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -121,11 +122,11 @@ class AppContainer(private val context: Context) {
     // --- engines (real binder clients, or :testing fakes in debug)
     val engines: Engines by lazy { replacements.engines ?: BinderEngines(serviceOrApp, ::binderTimeouts, prefillSpeeds) }
     /**
-     * Read at every binder call (ARCHITECTURE 4.3). Debug builds scale them with Settings.debugTimeoutScale for the slow
-     * x86_64 emulator (ADR-049, ADR-063), as the orchestrator scales its own timers; release builds always use 1.
+     * Read at every binder call (ARCHITECTURE 4.3). Debug builds lengthen them with Settings.debugTimeoutScale for the
+     * slow x86_64 emulator (ADR-049, ADR-063), never below 1 ([binderScale], ADR-090 item 2); release builds always use 1.
      */
     private fun binderTimeouts(): BinderTimeouts {
-        val scale = if (BuildConfig.DEBUG) settings.settings.value.debugTimeoutScale.toDouble().takeIf { it > 0 } ?: 1.0 else 1.0
+        val scale = binderScale(BuildConfig.DEBUG, settings.settings.value.debugTimeoutScale)
         return if (scale == timeouts.scale) timeouts else BinderTimeouts(scale = scale).also { timeouts = it }
     }
     @Volatile private var timeouts = BinderTimeouts()

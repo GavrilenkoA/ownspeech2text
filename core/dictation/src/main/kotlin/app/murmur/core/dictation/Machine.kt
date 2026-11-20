@@ -13,7 +13,8 @@ import app.murmur.core.model.Stage
 /**
  * The pure transition function: ARCHITECTURE.md 5.2, one branch per row (row numbers in the comments). Total over
  * (state, event): anything a row does not mention leaves the state unchanged with no effects. Every timer value is
- * scaled by [DictationConfig.timeoutScale] here, except the LLM timer, which [CleanupBudget.plan] already scaled.
+ * scaled by [DictationConfig.timeoutScale] here, except the LLM timer, which [CleanupBudget.plan] already scaled, and
+ * DELIVERY, which never drops below [DictationConfig.deliveryMinMs] (ADR-090 item 4).
  *
  * Decisions beyond the table (WP-11 report): row 39 shows plain Inserted for a user-chosen raw insert (see noCleanup);
  * Discarded goes straight to Idle (the bubble maps it to Idle anyway);
@@ -342,7 +343,7 @@ object DictationMachine {
                     listOf(
                         Effect.CancelTimer(Timer.LLM),
                         Effect.Deliver(s, e.text, st.transcript.text, e.cleaned, e.outcome),
-                        Effect.StartTimer(s, Timer.DELIVERY, c.scaled(c.deliveryTimeoutMs)),
+                        Effect.StartTimer(s, Timer.DELIVERY, c.deliveryTimerMs()),
                     ),
                 )
                 // Row 37.
@@ -527,7 +528,7 @@ object DictationMachine {
         Transition(
             DictationState.Delivering(s, stoppedAt, t.text, cleaned = false, shownAs = shownAs, cleanupOutcome = outcome),
             effects + listOf(Effect.Deliver(s, t.text, t.text, cleaned = false, cleanupOutcome = outcome),
-                Effect.StartTimer(s, Timer.DELIVERY, c.scaled(c.deliveryTimeoutMs))),
+                Effect.StartTimer(s, Timer.DELIVERY, c.deliveryTimerMs())),
         )
 
     /** Rows 21/22. */

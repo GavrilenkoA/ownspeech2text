@@ -40,8 +40,8 @@ data class LadderResult(val method: InsertMethod?, val attempts: List<LadderAtte
  * text on the clipboard (Copied), because a second method could only be checked by reading the same field.
  *
  * Every wait ends inside one budget, [budgetMs] from the first read: the orchestrator moves the dictation to Copied when
- * its delivery timer (DictationConfig.deliveryTimeoutMs, 2 s) fires, and a rung that lands after that would insert text
- * under a pill that says Copied. A rung waits at most [verifyTimeoutMs] and leaves [lateRungMs] for each rung after it;
+ * its delivery timer (DictationConfig.deliveryTimerMs(): 2 s, never below deliveryMinMs = 1.9 s at any timeout scale)
+ * fires, and a rung that lands after that would insert text under a pill that says Copied. A rung waits at most [verifyTimeoutMs] and leaves [lateRungMs] for each rung after it;
  * the grace period also leaves [lateRungMs] for paste and set-text; no rung starts once the budget is spent.
  */
 class InsertionLadder(
@@ -124,7 +124,8 @@ class InsertionLadder(
         const val LATE_RUNG_MS = 250L
         /**
          * Every rung, read and wait of one run ends inside this: 500 ms of the orchestrator's 2 s delivery timeout
-         * (DictationConfig.deliveryTimeoutMs) stay for re-resolving the target, the clipboard copy and the binder reads.
+         * (DictationConfig.deliveryTimerMs(), never below 1.9 s; :app TimeoutFloorsTest) stay for re-resolving the
+         * target, the clipboard copy and the binder reads.
          */
         const val LADDER_BUDGET_MS = 1_500L
         const val POLL_MS = 50L
