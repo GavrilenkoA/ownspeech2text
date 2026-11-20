@@ -3,6 +3,7 @@ package app.murmur.e2e
 import android.content.Intent
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.BySelector
+import androidx.test.uiautomator.Direction
 import androidx.test.uiautomator.UiScrollable
 import androidx.test.uiautomator.UiSelector
 import androidx.test.uiautomator.Until
@@ -20,7 +21,7 @@ import kotlinx.coroutines.runBlocking
  * After real dictations: do the four tabs of the app show the data those dictations produced (WP-20 wave 3)? Each check
  * reads what the user sees (UiAutomator over the accessibility tree of MainActivity) and compares it with the stores
  * of this process, so a tab that still shows sample data, an empty state or another container's data fails:
- *  - History: a row per dictation, found by the start of its stored final text;
+ *  - History: a row per dictation, found by the start of its stored final text (never put into a selector, see [shown]);
  *  - Dashboard: today's word count as StatsCalculator computes it from the stored metrics (not "Nothing dictated yet");
  *  - Models: the speech and the cleanup model in use have no Download button (installed), another model has one;
  *  - Settings: values this run stored (timeout scale) and the live accessibility service state ("On").
@@ -52,6 +53,24 @@ object AppTabs {
 
     private fun has(sel: BySelector, timeoutMs: Long = WAIT_MS) = device.wait(Until.hasObject(sel), timeoutMs)
 
+    /**
+     * True when a node of the app shows [text] in its text or content description. The text never goes into a UiAutomator
+     * selector: UiDevice logs every selector it waits for ("Waiting … for SearchCondition[… DESC='…']"), the
+     * instrumentation runs under the app's uid, and the D9 log check of the real suite reads every app-uid log line.
+     */
+    private fun shown(text: String): Boolean = device.findObjects(By.pkg(E2e.PKG)).any { o ->
+        runCatching { o.contentDescription?.contains(text) == true || o.text?.contains(text) == true }.getOrDefault(false)
+    }
+
+    private fun shownWithin(text: String, timeoutMs: Long): Boolean {
+        val end = System.currentTimeMillis() + timeoutMs
+        while (true) {
+            if (shown(text)) return true
+            if (System.currentTimeMillis() >= end) return false
+            device.waitForIdle(200)
+        }
+    }
+
     /** Scrolls the screen's list until a node with [text] is on screen (lazy lists compose only what is visible). */
     private fun scrollTo(text: String): Boolean {
         if (device.hasObject(By.textContains(text))) return true
@@ -60,11 +79,26 @@ object AppTabs {
         }.getOrDefault(false) && device.hasObject(By.textContains(text))
     }
 
+    /**
+     * [scrollTo] for a dictated text: scrolls the screen's list from its top until [shown] finds [text], with no selector
+     * that contains the text.
+     */
+    private fun scrollToPrivate(text: String): Boolean {
+        if (shown(text)) return true
+        val list = device.findObject(By.scrollable(true).pkg(E2e.PKG)) ?: return false
+        runCatching { repeat(15) { if (!list.scroll(Direction.UP, 0.8f)) return@runCatching } }
+        repeat(15) {
+            if (shown(text)) return true
+            if (!runCatching { list.scroll(Direction.DOWN, 0.8f) }.getOrDefault(false)) return shown(text)
+        }
+        return shown(text)
+    }
+
     fun history(entries: List<HistoryEntry>): TabResult {
         tab(R.string.tab_history)
         val missing = entries.filter { e ->
             val start = e.finalText?.trim()?.take(24) ?: return@filter true
-            !has(By.descContains(start), 3_000) && !scrollTo(start)
+            !shownWithin(start, 3_000) && !scrollToPrivate(start)
         }
         return TabResult("History", missing.isEmpty(), if (missing.isEmpty()) "${entries.size} rows" else "${missing.size} of ${entries.size} rows not shown")
     }

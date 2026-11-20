@@ -208,7 +208,7 @@ result_row() { # suite status detail
 dismiss_anr() {
   local i b
   for i in 1 2 3; do
-    "${ADB[@]}" shell dumpsys window 2>/dev/null | grep -q 'mCurrentFocus=.*Application Not Responding' || return 0
+    "${ADB[@]}" shell dumpsys window 2>/dev/null | grep 'mCurrentFocus=.*Application Not Responding' > /dev/null || return 0
     "${ADB[@]}" shell uiautomator dump "$DEVICE_DIR/ui.xml" >/dev/null 2>&1
     b=$("${ADB[@]}" shell cat "$DEVICE_DIR/ui.xml" 2>/dev/null | grep -o 'resource-id="android:id/aerr_wait"[^>]*bounds="\[[0-9]*,[0-9]*\]\[[0-9]*,[0-9]*\]"' | grep -o 'bounds=.*' | grep -o '[0-9]\+' | tr '\n' ' ')
     if [ -n "$b" ]; then
@@ -329,8 +329,11 @@ if has_suite real; then
   words=$(cat "$out/fleurs/fleurs-ru.txt" "$out/fleurs/fleurs-en.txt" | tr ' ' '\n' | awk 'length($0) >= 5' | sort -u)
   app_user="u0_a$((app_uid % 100000 - 10000))"
   leaks=0
+  # The app's lines in a file first: `grep … | grep -q` under pipefail reads a SIGPIPE of the first grep (grep -q stops
+  # at the first match) as "no match", which hid leaks.
+  grep -E "^[^ ]+ +[^ ]+ +($app_user|$app_uid) " "$out/real.logcat-uid.txt" > "$out/real.logcat-app.txt"
   for w in $words; do
-    if grep -E "^[^ ]+ +[^ ]+ +($app_user|$app_uid) " "$out/real.logcat-uid.txt" | grep -qiF -- "$w"; then
+    if grep -qiF -- "$w" "$out/real.logcat-app.txt"; then
       leaks=$((leaks + 1)); echo "transcript word in an app log line: ${#w} letters" >> "$out/privacy-leaks.txt"
     fi
   done
