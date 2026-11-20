@@ -124,3 +124,15 @@ Merged on `integration/wave1` in this pass: main 392d313 (stock prompt default.v
   Before or at the merge: rebase the catalog change onto integration's catalog, rerun `build_catalog.py` with network
   checks on the merged tree, bump to "2026-11-20.3", and check that only WP-21's artifact rows and the version lines
   differ from integration's 2026-11-20.2. Never hand-merge catalog.json.
+
+## Integration notes (wave-2 integration pass 6; ADR-087, ADR-088 in DECISIONS)
+
+Merged on `integration/wave1` in this pass: WP-15..19 (all wave-2 UI). Still in work: WP-21 and WP-20's wave 3.
+- Nothing in your owned paths changed. The hub (WP-18) shows what the catalog and `DeviceProfile` say: a QNN OCR or
+  GigaAM artifact appears in "Support models" / the Speech list from its catalog row alone, with the unit badge from
+  `ComputeUnit`; "NPU (Hexagon)" on Runs on is derived from the SoC part numbers. No UI change is needed for the ports.
+- `ModelsDeps.ensureDevice` is required now: the hub waits for the device profile (skeletons) before it offers a
+  download, so a probe that lists the NPU unit for OCR only after a real session load (pass-5 note) is what the hub shows.
+- Catalog: still 2026-11-20.2 on integration (unchanged in this pass); the pass-5 rule for your catalog merge stands
+  (rebuild with network checks, bump to "2026-11-20.3"). WP-18 asks the catalog owner for a dialect-count field
+  (OWNER_QUESTIONS 12); if it lands, it is a schema change: not yours unless the owner says so.

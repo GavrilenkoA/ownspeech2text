@@ -3,8 +3,10 @@
 Collected from the work-package reports at integration. Each item: the question in plain words, what the architect
 recommends, and whether it blocks anything. Answer in any order; "go with the recommendation" is a valid answer.
 
-Updated: wave-1 integration pass 5 (2026-11-20; WP-01..14 and WP-20's wave-1 part merged, plus the prompt decision
-default.v1). Pass 5 added one open prompt question (11) and three architect decisions (last section). Pass 4 (WP-10) added
+Updated: integration pass 6 (2026-11-20; wave 2 merged: the app shell, onboarding, History, Dashboard, Models and
+Settings screens, WP-15..19). Pass 6 added four open questions (12-15, design and catalog; none blocks a build or a
+test) and the architect decisions under "Pass 6". Before: wave-1 integration pass 5 (WP-01..14 and WP-20's wave-1 part
+merged, plus the prompt decision default.v1). Pass 5 added one open prompt question (11) and three architect decisions (last section). Pass 4 (WP-10) added
 no open question: its two owner items were decided or done there.
 
 ## Models and ML
@@ -25,6 +27,12 @@ no open question: its two owner items were decided or done there.
    everywhere else (26/26 pages).
    *Recommendation:* yes: the ML owner stores 6+ digits in `golden.py` and regenerates the goldens (minutes of work).
    **Blocks:** only WP-07's acceptance item 1 as worded (exact JSON equality from `stages.rec`); parity itself is proven.
+12. **Should the catalog say how many dialects a speech model knows?** (WP-18, catalog owner) The Models frames show
+   "+28 · 22 dialects" on a language badge and "30 languages and 22 Chinese dialects" in the model facts. The catalog
+   has only a list of language codes, so the app shows "+28" and "30 languages".
+   *Recommendation:* skip it for v1 (it only matters for Chinese dialects, which Murmur does not target); if you want
+   it, the catalog gets an optional `dialects` count per model in the next schema version and WP-18's badge reads it.
+   Blocks nothing (two strings in the hub).
 
 ## Product behaviour
 
@@ -66,6 +74,32 @@ no open question: its two owner items were decided or done there.
    (preflight and the rest) = "Dictation didn't work" / "Диктовка не удалась".
    *Recommendation:* accept both, or send replacements (the pill is at most 280 dp wide).
    Blocks nothing (strings only).
+
+13. **Re-render the design frames with the font the app ships?** (WP-17, design owner) The frames were drawn in a
+   browser with Google Fonts' Onest; the app bundles `onest_variable.ttf`, whose letters are a hair wider (one banner
+   line measures 613.3 px against the frame's 612 px). So a few lines wrap one word earlier on the phone, e.g. the
+   Dashboard's "bubble is off" banner ("…after an update / or a crash"). Every screen is otherwise within a few percent
+   of its frame, and the screenshot tests allow for this.
+   *Recommendation:* re-render `docs/design/screens/*.png` with the bundled font file (exact wraps, tighter test
+   budgets); otherwise accept the one-word differences.
+   Blocks nothing.
+14. **Please review the screen pieces that have no frame.** (WP-16, WP-17, WP-18, design owner) Built from the design
+   system, waiting for your look:
+   History: the "history off" state, the multi-select bar, the "Original:" prefix, the error state, "Recording not
+   available", the snackbar after deleting several entries, the stacked action bar at very large text, the list
+   snackbar for a failed Retry/Re-polish ("Telegram: Couldn't re-polish. The text is unchanged.") and the
+   Final/Original/Changes control that scrolls sideways with a fading edge at 200 % text
+   (`/home/private/projects/murmur/.cache/spikes/wp-16/`);
+   Dashboard: the error state, the screen with real fixture data and the typing-speed sheet
+   (`/home/private/projects/murmur/.cache/spikes/wp-17/final2/{cover,inner}/`);
+   Models: the download of a pinned unit or of the CPU version while it runs, and the loading skeletons shown until the
+   phone's capabilities are known (`/home/private/projects/murmur/.cache/spikes/wp-18/`, `no-frame/`).
+   *Recommendation:* review when convenient; what you see ships unless you send changes.
+   Blocks nothing.
+15. **The Dashboard frames' sample numbers do not add up.** (WP-17, design owner) "9 % of words changed" next to
+   "286 filler words removed, 54 fixes" cannot both hold for the frame's word count. The app computes both from the
+   same rows, so its numbers always agree.
+   *Recommendation:* fix the sample in the frames when they are re-rendered (question 13). Blocks nothing.
 
 ## Prompt
 
@@ -114,6 +148,21 @@ no open question: its two owner items were decided or done there.
   during a load still disables the unit (ADR-083). Blocks nothing; the phone check is in the device checklist.
 - The catalog with the re-measured prompt sizes (WP-10) was regenerated with network access and re-verified against
   Hugging Face / GitHub at integration (catalog 2026-11-19.1); nothing is left to do (ADR-083).
+
+Pass 6 (wave 2, the screens):
+- "Tone per app" now really changes the cleanup instructions once a tone has its own text (question 10): the app's own
+  choice wins; "All other apps" applies to apps that have no category of their own (messengers, email and so on keep
+  their category's style). History records the tone that was used. Re-polish and "Test" in the prompt editor keep the
+  category style (they do not know the app's category) (ADR-088). Blocks nothing.
+- In the prompt editor, only the model's own control markers count as forbidden markup; mentioning `<context>` or
+  `<transcript>` in your instructions is allowed (the shipped prompt does it). "Test" never sends a prompt that fails
+  these checks (ADR-087). Blocks nothing.
+- The normal debug build (the one for the phone) only stores real benchmark results; the made-up results used for
+  screenshots exist only in the test-data mode (ADR-087). Blocks nothing.
+- If you delete a dictation in History and leave the screen before the 6 s Undo runs out, the delete is final at once
+  (ADR-087, from WP-16). Blocks nothing.
+- A bubble error that points to the model hub ("Open Models") opens the hub on the right list: Speech for a speech
+  model problem, Cleanup for a cleanup model problem (ADR-087). Blocks nothing.
 
 ## Still open from architecture v2 (unchanged, listed for completeness)
 

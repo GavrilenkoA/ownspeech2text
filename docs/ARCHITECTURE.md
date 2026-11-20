@@ -1,6 +1,6 @@
 # Murmur architecture
 
-Version 2.1 · 2026-11-20 (wave-1 integration passes 1-4: ADR-064..084) · Owner: architect. Binding for all work packages (`docs/wp/`). Owner decisions D1-D12 are
+Version 2.2 · 2026-11-20 (wave-1 integration passes 1-5, wave-2 integration pass 6: ADR-064..088) · Owner: architect. Binding for all work packages (`docs/wp/`). Owner decisions D1-D12 are
 quoted verbatim at the top of `docs/DECISIONS.md`; conflicts and their evidence are ADR-nnn there; review findings and
 their resolution are under "Review responses" there. Everything that only the phone can prove: `docs/DEVICE_CHECKLIST.md`
 (steps DC1-DC10).
@@ -130,7 +130,12 @@ to be replaced by a measurement).
    `infer:*` or `platform:*`; they receive interfaces through a `XxxDeps` class built by `:app` (every member a
    screen needs is in its Deps: app labels/icons via `AppInfoProvider`, permissions via `PermissionMonitor`, device
    profile, retention runner, practice dictation). `:testing` is allowed as `testImplementation`,
-   `androidTestImplementation` and `debugImplementation` (fake deps for previews and screenshot tests).
+   `androidTestImplementation` and `debugImplementation` (fake deps for previews and screenshot tests). Shell entry points
+   (ADR-087): a list screen plus a detail `XxxDetail(deps, id, onClose, modifier, pane)` for the list-detail tabs (History,
+   Models; `onClose` once per detail, also when the item disappears); `ModelsScreen(…, segment, onSegmentShown)` takes the
+   one-shot Speech/Cleanup request of the bubble's "Open Models"; `SettingsScreen(onSubScreenChange)` lets the shell hide
+   the cover bottom bar. NavDisplay scopes `viewModel()` to the back-stack entry; History's view model is activity-scoped
+   on purpose (list and detail panes share it).
 5. Only `:app` sees every module. Only `AppContainer` constructs implementations.
 6. A contract change (any public type in `core:*` or `infer:api`) needs an ADR line in DECISIONS and a note to the
    consuming WPs; the implementing WP may add members, not break existing ones.
@@ -166,7 +171,10 @@ for History, Models, Settings. The bubble follows the host app's UI mode.
 UI pieces with no frame in `docs/design/screens/` (composed from WP-01 components, screenshot sent to the design
 owner, open question): the unit picker (WP-18), the "Add a model" sheet (WP-18), the "Support models" rows for VAD/OCR
 (WP-18), the "What the model also receives" panel (WP-19, ADR-019), the "preview" mark on named tones (WP-19,
-ADR-020), the "Your edit was made for an older prompt" notice (WP-19, ADR-046).
+ADR-020), the "Your edit was made for an older prompt" notice (WP-19, ADR-046); added in wave 2: History's off,
+error and multi-select states, the "Original:" prefix, "Recording not available", the multi-delete and list-failure
+snackbars and the scrolling Final/Original/Changes control at large text (WP-16); dash-error, the typing-speed sheet
+(WP-17); the pinned / CPU-version download in flight and the hub loading skeletons (WP-18).
 
 ---
 
@@ -670,7 +678,10 @@ before the preferences block) only when `PromptEditRules.overrideApplies(profile
 profile it was written for, never `finetuned.*` (ADR-046). Settings shows `PromptEditRules.editState` (DEFAULT / EDITED
 / MADE_FOR_OLDER_PROMPT / NOT_EDITABLE) and opens the editor read-only when `editable(profile)` is false (fine-tunes,
 ADR-078). The Kotlin ports never use `Pattern.CASE_INSENSITIVE` for a Python `re.I` pattern: Android's ICU folds case
-fully (ligatures, dotted İ), so `Py.ignoreCase` spells out sre's character classes (ADR-078).
+fully (ligatures, dotted İ), so `Py.ignoreCase` spells out sre's character classes (ADR-078). Edited system text may
+not contain chat-template markup (`<|im_`, `<|startoftext|>`, `<|endoftext|>`, `<think>`, `</think>`); it may name
+`<context>` / `<transcript>` (ADR-087). Tone per app (ADR-088): `tonePerApp[pkg]`, else `defaultTone` for an app whose ctx
+has no category; the tone's named text (`PromptRenderer.toneText`) is the `Style:` override, otherwise the category line.
 
 ---
 
@@ -757,7 +768,7 @@ implemented by WP-12).
 `core/store/.../Settings.kt` is the whole model (defaults = product defaults): dictation (languages ru+en, auto-detect,
 hold-to-talk on, feedback vibration, typing wpm 40), bubble (when typing, tuck-in on, size standard 52 dp, hidden-in
 packages, per-display positions, hidden-until; read by `OverlayHost` directly, ADR-081), cleanup (prompt override {systemText, baseProfile}, preferences ≤
-1,000 chars, tone per app, use screen on), history (retention 7 days, keep recordings on), models (ASR model, cleanup
+1,000 chars, tone per app, "All other apps" tone `defaultTone` (ADR-088), use screen on), history (retention 7 days, keep recordings on), models (ASR model, cleanup
 choice Default/None/Model, unit preference **per model id**, Wi-Fi only on, idle unload 60 s), onboarding done, debug
 only: fake engines, timeout scale, ignore memory gate. "Edited" = `promptOverride != null`; Reset deletes the override
 (tone per app kept, DESIGN 6.5); an override whose `baseProfile` is not the active profile is shown as "made for an

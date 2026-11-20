@@ -221,3 +221,44 @@ Merged on `integration/wave1` in this pass: main 392d313 (stock prompt default.v
 - Integration gate from now on: `assembleDebug testDebugUnitTest :app:assembleRelease` (your finding).
 - DEVICE_CHECKLIST: your rows fold every former "Wave-1 additions" line, so that section was removed at the merge; DC2
   got the default.v1 numbers and an optional `device_prompt_bench.py` line (prompt work).
+
+## Integration notes (wave-2 integration pass 6; ADR-087, ADR-088 in DECISIONS)
+
+Merged on `integration/wave1` in this pass: WP-15, 16, 17, 18, 19 (wave 2 complete; every screen is in the shell, no
+placeholder left). Still in work: WP-21 and your wave 3. You now take over WP-15's `app/**` paths (README index).
+- `AppContainer` (ADR-087 item 1): WP-15's container with `DebugWiring`/`Replacements`/`FakeData` (src/debug, release
+  returns none). Kept and must stay: `fake?.benchmarkRunner ?: DefaultBenchmarkRunner(… specs = resolver.benchSpecs …,
+  exits)`, `exits` in `DictationDeps`, `OverlayFeedback`, `onInternalError = internalErrorLine`, `ensureDevice =
+  deviceProfile::ensure` in `ModelsDeps`, `appScope` in `HistoryDeps`. `AppContainer.start()` starts retention (real
+  data only) and `StatusNotificationController` (status notifier + `MurmurApp.onStatusAction`, which already calls
+  `NotificationStart.start`). The single `PermissionMonitor` is `app/…/wiring/AndroidPermissionMonitor.kt`.
+- Debug switches (files in `filesDir`, read once when the container is built): `debug-fake-engines` = FakeEngines **plus
+  `FakePromptRenderer` and `PassThroughGuard`** with the real data side and the **real resolver** (so the fake engines
+  only run once a pack is "installed"); `debug-fake-container` = `seeded|fresh[:fold7|:emulator]` = the whole data side
+  in memory (also fake engines). `MurmurTestRunner -e murmurFake seeded|fresh|off` writes/deletes the container flag;
+  `run_emulator_e2e.sh fake_mode` now removes it before each suite (pass 6). Decide in wave 3 for the fast suite:
+  either the engines-only mode gets a fake resolver (integ3's `fakeResolverOrNull`) or the suite seeds installs.
+- Still yours from `integ3-wiring.diff` (not applied, ADR-087 item 11): `WavFileCapture` when `files/debug-capture.wav`
+  exists, with the `CallWatch`/`AndroidAudioModeSource` call injection; `BinderEngines(…, { BinderTimeouts(scale =
+  settings.debugTimeoutScale) })`; `debugIgnoreMemoryGate` applied to the real `MemoryGate`. The status notifier hunk is
+  superseded by `StatusNotificationController`.
+- Shell instrumented tests (`app/src/androidTest/kotlin/app/murmur/shell/**`, WP-15's, stays shell-owned): runner
+  `.cache/spikes/integration/wave2/run_shell_tests.sh <serial> all` in the integration tree (dismisses the SystemUI ANR
+  dialog; reuse `dismiss_anr` in your e2e runner). All pass on both AVDs. `RealContainerWiringTest` (`-e murmurFake off`)
+  now runs the real `DefaultBenchmarkRunner`: a not-installed model fails and stores nothing.
+- Sample data: `DebugWiring.seed` writes history entries without audio (the detail shows "Recording not available"
+  instead of the player in the frames) and the WP-12 metrics week (Dashboard "Today 184 words", the frame's 1,284 is
+  its own sample). If you want shots closer to the frames, seed recordings through `Wp16HistoryFixture.entries(audio)`.
+- Dashboard "Typed into the app … most in com.termux": the label comes from the live `AppInfoProvider`, which falls back
+  to the package name for an app that is not installed (the emulator has no Termux). History rows show the stored label.
+  Consider the stored `AppRef.label` as the fallback (WP-17 code, `DashboardDeps.apps`).
+- ADR-088: tone per app now reaches the cleanup (`Cleaner.tone`); DC8's report may add the recorded `cleanup.tone`.
+- Device steps proposed by WP-15..19 that did not fit an existing DC row (put them where they belong): History playback
+  with music playing / an incoming call / Home (audio focus and ON_STOP pause, WP-16); History on both real displays
+  (real launcher icons, insets: emulator inner taskbar 32 dp vs the frame's 20 dp, cover status bar 24 vs 36 dp, Copy
+  without a duplicate toast, share sheet) and a real-hinge fold with an entry open (WP-16); Dashboard with real history
+  on both displays (launcher icons in "Where you dictate", the range chip, the typing-speed sheet slides out after a
+  preset and saves it, WP-17); first visit to Models right after onboarding (skeletons for a moment, then Parakeet on
+  NPU, no blind download, WP-18); a real "Failed to load on NPU" → the CPU-version button, then its progress and Pause
+  (WP-18); Tone per app and "Hidden in" with a full app list (real icons after a short load, no stutter, WP-19);
+  optional: the Settings snackbars on a full disk (WP-19).
