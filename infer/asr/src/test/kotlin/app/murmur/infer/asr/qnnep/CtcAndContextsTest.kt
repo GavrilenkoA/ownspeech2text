@@ -2,7 +2,6 @@ package app.murmur.infer.asr.qnnep
 
 import app.murmur.infer.asr.qnnep.QnnContexts.Shape
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Test
 import java.io.File
@@ -58,20 +57,6 @@ class CtcAndContextsTest {
         assertEquals(mapOf(Shape(960, 416) to File("/a", "det_h960_w416.onnx"), Shape(416, 960) to File("/a", "det_h416_w960.onnx")),
             QnnContexts.detector("/a", layout))
         assertEquals(mapOf(320 to File("/a", "rec_w320.onnx"), 3200 to File("/a", "rec_w3200.onnx")), QnnContexts.recogniser("/a", layout))
-    }
-
-    @Test
-    fun aDetectorInputRunsInItsOwnShapeElseTheSmallestThatHoldsIt() {
-        val shapes = listOf(Shape(960, 416), Shape(416, 960), Shape(960, 864), Shape(864, 960), Shape(960, 960))
-        assertEquals(Shape(960, 416), QnnContexts.pick(shapes, 960, 416))   // cover portrait
-        assertEquals(Shape(864, 960), QnnContexts.pick(shapes, 864, 960))   // inner landscape
-        assertEquals(Shape(960, 864), QnnContexts.pick(shapes, 960, 480))   // split-screen window, portrait
-        assertEquals(Shape(416, 960), QnnContexts.pick(shapes, 320, 960))   // short landscape window
-        assertEquals(Shape(416, 960), QnnContexts.pick(shapes, 32, 32))     // equal areas: the lower shape
-        assertEquals(Shape(960, 960), QnnContexts.pick(shapes, 960, 896))
-        assertNull(QnnContexts.pick(shapes, 992, 416))
-        // equal areas: the lower one first (deterministic)
-        assertEquals(Shape(416, 960), QnnContexts.pick(listOf(Shape(960, 416), Shape(416, 960)), 400, 400))
     }
 
     @Test

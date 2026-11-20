@@ -7,38 +7,53 @@ import app.murmur.infer.asr.ocr.OrtOcrModels
 import java.io.File
 
 /**
- * PP-OCR detector on the HTP: one EPContext session per compiled input shape ([QnnContexts.detector]). An input of
- * a shape that was compiled runs as is (the Fold7 cover 960x416 and inner 960x864, both rotations, 960x960); any
- * other shape the resize rule can produce (a window capture in split screen: both sides <= 960) is placed at the
- * top-left of the smallest context that contains it, the rest filled with 0 (the mean colour after normalisation),
- * and the probability map is cropped back. Boxes away from the right/bottom edge are unaffected; DEVICE_CHECKLIST
- * DC4 / the simulator suite measure the padded case too.
+ * PP-OCR detector on the HTP: one EPContext session per compiled input shape ([QnnContexts.detector]): the Fold7 cover
+ * 960x416 and inner 960x864, both rotations, and 960x960. Any other shape the resize rule can produce (a window capture
+ * in split screen) runs on the artifact's own dynamic-shape graph on the CPU EP (layout role "model", the unchanged
+ * det.onnx shipped inside the NPU artifact), never padded into a larger context: the detector has global pooling
+ * (squeeze-excitation), so padding changes the whole probability map (simulator: all 14 cover pages padded into 960x960
+ * left the README tolerance, 5 of them with merged lines). Without that role an uncompiled shape is an error.
  */
-class QnnDetector private constructor(private val sessions: Map<QnnContexts.Shape, OrtSession>) : OrtOcrModels.Detector {
+class QnnDetector private constructor(
+    private val sessions: Map<QnnContexts.Shape, OrtSession>,
+    private val other: OrtSession?,
+) : OrtOcrModels.Detector {
     val shapes: Set<QnnContexts.Shape> get() = sessions.keys
+
+    /** Calls that ran on the CPU graph because their shape has no context (numbers for the benchmark and tests). */
+    @Volatile var cpuCalls = 0
+        private set
 
     override fun detect(input: FloatArray, h: Int, w: Int, run: OrtSession.RunOptions): FloatArray {
         require(input.size == 3 * h * w) { "detector input size" }
-        val shape = QnnContexts.pick(sessions.keys, h, w) ?: throw IllegalArgumentException("no detector context holds ${h}x$w")
-        val s = sessions.getValue(shape)
-        if (shape.h == h && shape.w == w) return OrtOcrModels.run(s, input, longArrayOf(1, 3, h.toLong(), w.toLong()), run)
-        val padded = FloatArray(3 * shape.h * shape.w)
-        for (c in 0 until 3) for (y in 0 until h) System.arraycopy(input, (c * h + y) * w, padded, (c * shape.h + y) * shape.w, w)
-        val map = OrtOcrModels.run(s, padded, longArrayOf(1, 3, shape.h.toLong(), shape.w.toLong()), run)
-        val out = FloatArray(h * w)
-        for (y in 0 until h) System.arraycopy(map, y * shape.w, out, y * w, w)
-        return out
+        val s = sessions[QnnContexts.Shape(h, w)] ?: other?.also { cpuCalls++ }
+            ?: throw IllegalArgumentException("no detector context for ${h}x$w")
+        return OrtOcrModels.run(s, input, longArrayOf(1, 3, h.toLong(), w.toLong()), run)
     }
 
-    override fun close() = closeAll(sessions.values)
+    override fun close() {
+        try { closeAll(sessions.values) } finally { other?.close() }
+    }
 
     companion object {
-        /** Opens every detector context of [spec]; nothing stays open when one fails. */
-        fun open(spec: LoadSpec, ep: QnnEp): QnnDetector {
+        /**
+         * Opens every detector context of [spec] (and its CPU graph with [cpuOptions] when the layout has one); nothing
+         * stays open when one fails.
+         */
+        fun open(spec: LoadSpec, ep: QnnEp, cpuOptions: OrtSession.SessionOptions): QnnDetector {
             ep.requireAvailable()
             val files = QnnContexts.detector(spec.dir, spec.layout)
             require(files.isNotEmpty()) { "no detector contexts in the layout" }
-            return QnnDetector(openAll(files, ep))
+            val sessions = openAll(files, ep)
+            try {
+                val wrong = sessions.filter { (shape, s) -> inputShape(s) != listOf(1L, 3L, shape.h.toLong(), shape.w.toLong()) }.keys
+                require(wrong.isEmpty()) { "detector contexts with another input shape: $wrong" }
+                val other = spec.layout[OrtOcrModels.ROLE_MODEL]?.let { OrtOcrModels.session(spec, cpuOptions) }
+                return QnnDetector(sessions, other)
+            } catch (t: Throwable) {
+                closeAll(sessions.values)
+                throw t
+            }
         }
     }
 }
@@ -82,10 +97,11 @@ class QnnRecognizer private constructor(private val sessions: Map<Int, OrtSessio
             }
             return QnnRecognizer(sessions)
         }
-
-        private fun inputShape(s: OrtSession): List<Long> = (s.inputInfo.values.first().info as TensorInfo).shape.toList()
     }
 }
+
+/** The fixed input shape an EPContext graph declares. */
+internal fun inputShape(s: OrtSession): List<Long> = (s.inputInfo.values.first().info as TensorInfo).shape.toList()
 
 /** Opens one session per file, in key order; on a failure the ones already open are closed. */
 internal fun <K> openAll(files: Map<K, File>, ep: QnnEp): Map<K, OrtSession> {

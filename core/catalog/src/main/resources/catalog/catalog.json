@@ -1889,8 +1889,8 @@
       {
        "name": "det_contexts.zip",
        "url": "https://huggingface.co/murmur-dictation/murmur-npu-contexts/resolve/qairt-2.52.0-r1/pp-ocrv6-tiny-det--qnn-sm8750/det_contexts.zip",
-       "bytes": 8939357,
-       "sha256": "36c3dc04d700ea56faa54c5fc31221c2d64c43b66d9251c48861e666d1b5b6b3",
+       "bytes": 10720059,
+       "sha256": "5a1fbf039762017d3407e4887dcd10675d8523a2a59ef2acc8cdf5ac3f17ad32",
        "source": "huggingface",
        "repo": "murmur-dictation/murmur-npu-contexts",
        "revision": "qairt-2.52.0-r1",
@@ -1899,6 +1899,7 @@
       }
      ],
      "layout": {
+      "model": "det.onnx",
       "ctx.h960w416": "det_h960_w416.onnx",
       "ctx.h416w960": "det_h416_w960.onnx",
       "ctx.h960w864": "det_h960_w864.onnx",
@@ -1906,7 +1907,7 @@
       "ctx.h960w960": "det_h960_w960.onnx"
      },
      "memoryMb": {
-      "npu": 13
+      "npu": 16
      },
      "notes": "One context per detector input 960x416, 416x960, 960x864, 864x960, 960x960 (other window shapes are padded into the smallest that holds them). Host AOT compile: onnxruntime-qnn 2.8.0 (QAIRT 2.52.0), HTP v79, 100 % on the HTP (CPU fallback disabled). Off by default: adopted only after DEVICE_CHECKLIST DC4 (ADR-059). memoryMb estimated (download bytes x 1.5). Hosting pending (owner)."
     }

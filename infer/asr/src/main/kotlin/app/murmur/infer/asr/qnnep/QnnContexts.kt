@@ -23,14 +23,6 @@ object QnnContexts {
     fun recogniser(dir: String, layout: Map<String, String>): Map<Int, File> =
         layout.mapNotNull { (role, path) -> REC.matchEntire(role)?.let { m -> m.groupValues[1].toInt() to File(dir, path) } }.toMap()
 
-    /**
-     * The context a detector input of [h] x [w] runs in: the same shape, else the smallest (by area) that contains it
-     * (the input is then padded at the bottom and right, see [QnnDetector]); null when none contains it.
-     */
-    fun pick(shapes: Collection<Shape>, h: Int, w: Int): Shape? =
-        shapes.firstOrNull { it.h == h && it.w == w }
-            ?: shapes.filter { it.h >= h && it.w >= w }.minWithOrNull(compareBy<Shape> { it.h.toLong() * it.w }.thenBy { it.h })
-
     data class Shape(val h: Int, val w: Int)
 }
 

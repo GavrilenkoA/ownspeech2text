@@ -158,12 +158,21 @@ class OrtQnnDeviceTest {
         val t1 = SystemClock.elapsedRealtime()
         val cpu = OrtOcrModels(Models.spec("pp-ocrv6-tiny-det@onnx"), Models.spec("pp-ocrv5-cyrillic-mobile-rec@onnx"), config)
         row("ocr-load", "qnn_ms" to qnnLoadMs, "cpu_ms" to SystemClock.elapsedRealtime() - t1)
+        // one stage on the HTP at a time: which stage could be adopted on its own (ADR-059)
+        val detOnly = OrtOcrModels(Models.spec("pp-ocrv6-tiny-det@qnn-sm8750"), Models.spec("pp-ocrv5-cyrillic-mobile-rec@onnx"), config) {
+            QnnEpAndroid.ep(libDir)
+        }
+        val recOnly = OrtOcrModels(Models.spec("pp-ocrv6-tiny-det@onnx"), Models.spec("pp-ocrv5-cyrillic-mobile-rec@qnn-sm8750"), config) {
+            QnnEpAndroid.ep(libDir)
+        }
         try {
             val tq = Timed(qnn); val tc = Timed(cpu)
             val pq = OcrPipeline(config, tq); val pc = OcrPipeline(config, tc)
             val agree = Agreement(qnn, cpu)
             val pa = OcrPipeline(config, agree)
             val pagesQ = ArrayList<OcrTolerance.Page>(); val pagesC = ArrayList<OcrTolerance.Page>()
+            val pagesDet = ArrayList<OcrTolerance.Page>(); val pagesRec = ArrayList<OcrTolerance.Page>()
+            val pDet = OcrPipeline(config, detOnly); val pRec = OcrPipeline(config, recOnly)
             for ((g, image) in goldens()) {
                 pq.run(image); pc.run(image) // warm-up
                 tq.reset(); tc.reset()
@@ -174,6 +183,8 @@ class OrtQnnDeviceTest {
                 pa.run(image)
                 val pageQ = OcrTolerance.compare(g.name, g.ocr.lines, outQ.lines).also { pagesQ += it }
                 pagesC += OcrTolerance.compare(g.name, g.ocr.lines, outC.lines)
+                pagesDet += OcrTolerance.compare(g.name, g.ocr.lines, pDet.run(image).lines)
+                pagesRec += OcrTolerance.compare(g.name, g.ocr.lines, pRec.run(image).lines)
                 row("ocr-page", "page" to g.name, "det_in" to "${outQ.stats?.detInput?.joinToString("x")}",
                     "qnn_ms" to qMs, "cpu_ms" to cMs,
                     "qnn_det_ms" to "%.1f".format(tq.detMs), "cpu_det_ms" to "%.1f".format(tc.detMs),
@@ -184,13 +195,16 @@ class OrtQnnDeviceTest {
                     "qnn_exact" to pageQ.exact, "qnn_page" to pageQ.toString())
             }
             val sq = OcrTolerance.Suite(pagesQ); val sc = OcrTolerance.Suite(pagesC)
+            val sDet = OcrTolerance.Suite(pagesDet); val sRec = OcrTolerance.Suite(pagesRec)
             row("ocr-total", "pages" to pagesQ.size, "qnn_ok" to sq.ok, "cpu_ok" to sc.ok, "qnn_exact" to pagesQ.count { it.exact },
+                "det_only_ok" to sDet.ok, "rec_only_ok" to sRec.ok, "det_only_exact" to pagesDet.count { it.exact },
+                "rec_only_exact" to pagesRec.count { it.exact },
                 "cpu_exact" to pagesC.count { it.exact }, "binmap_agree" to "%.6f".format(1.0 - agree.pxDiffer.toDouble() / maxOf(1, agree.px)),
                 "argmax_agree" to "%.6f".format(1.0 - agree.stepsDiffer.toDouble() / maxOf(1, agree.steps)),
                 "qnn_suite" to sq.toString().lines().last())
-            assertTrue(sq.toString(), sq.ok)
+            // a measurement for DC4, not a gate here: the table says which stage keeps the README tolerance
         } finally {
-            qnn.close(); cpu.close()
+            qnn.close(); cpu.close(); detOnly.close(); recOnly.close()
         }
     }
 

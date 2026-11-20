@@ -23,13 +23,17 @@ import java.util.Locale
 import javax.imageio.ImageIO
 
 /**
- * OCR on the HTP, proven on the x86_64 HTP simulator with the catalog's context artifacts (WP-21 acceptance 1):
- * every model call of the 26 ml/ocr/golden pages runs on both the QNN contexts (through [OrtOcrModels] with the
- * ort-qnn specs, the app's code) and ORT CPU, and the pipeline goes on with the QNN outputs:
- *  - recogniser argmax agreement 1.0 on every call, detector binary map (prob > 0.2) agreement 1.0 on every call
- *    (the spike's parity, asr-ocr.md 7.5);
- *  - the pipeline's final output with the QNN outputs meets the ml/ocr README tolerances (OcrTolerance, ADR-077);
- *  - the padded path (an input shape without its own context) on the 14 cover pages, detector forced into 960x960.
+ * OCR on the HTP on the x86_64 HTP simulator with the catalog's context artifacts (WP-21 acceptance 1). Every model call
+ * runs on the QNN contexts (through [OrtOcrModels] with the ort-qnn specs, the app's code) and on ORT CPU; the pipeline
+ * goes on with the QNN output. The acceptance criteria are asserted as the brief states them (the spike's parity,
+ * asr-ocr.md 7.5, and the ml/ocr README tolerances, ADR-077), one stage at a time and both together:
+ *  - [theDetectorContextsReproduceTheCpuBinaryMap]: QNN detector + CPU recogniser, binary map (prob > 0.2) agreement 1.0;
+ *  - [theRecogniserContextsReproduceTheCpuArgmax]: CPU detector + QNN recogniser, argmax agreement 1.0, README tolerance;
+ *  - [thePipelineOnTheContextsMeetsTheReadmeTolerances]: both on QNN (~90 min on the simulator);
+ *  - [aShapeWithoutAContextRunsTheArtifactsCpuGraph]: the detector's fallback for window shapes that were not compiled.
+ * Measured 2026-11-20 (WP-21 report): the fp16 detector does NOT reproduce the CPU binary map (1,867 of 15.5 M pixels
+ * differ, max |d| 0.16; pages 004, 015 and 020 leave the README tolerance), so the first and third fail on the simulator; they stay
+ * the adoption gate that DEVICE_CHECKLIST DC4 repeats on the phone (ADR-059).
  * Excluded from the normal unit tests (needs -Pmurmur.qnnSim / -Pmurmur.qnnContexts, see [Simulator]).
  */
 class OcrSimulatorTest {
@@ -81,38 +85,62 @@ class OcrSimulatorTest {
         companion object { const val THRESH = 0.2f }
     }
 
-    @Test
-    fun allGoldenPagesOnTheContextsMatchCpuAndMeetTheReadmeTolerances() {
-        val cmp = Comparing(qnnModels, cpuModels)
+    /** Runs every golden page through [models] (compared with CPU) and returns the README suite. */
+    private fun suite(label: String, models: OcrModels): Pair<OcrTolerance.Suite, Comparing> {
+        val cmp = Comparing(models, cpuModels)
         val pipeline = OcrPipeline(OcrConfig(), cmp)
+        val cpuPipeline = OcrPipeline(OcrConfig(), cpuModels)
         val t0 = System.currentTimeMillis()
         val pages = goldens.map { g ->
-            val page = OcrTolerance.compare(g.name, g.ocr.lines, pipeline.run(image(g)).lines)
-            println("sim ocr $page | ${cmp.summary()}")
-            page
+            val run = pipeline.runDetailed(image(g))
+            val boxesEqual = run.detBoxes.map { it.rect } == cpuPipeline.runDetailed(image(g)).detBoxes.map { it.rect }
+            OcrTolerance.compare(g.name, g.ocr.lines, run.result.lines).also { println("sim ocr [$label] $it det_boxes_equal_cpu=$boxesEqual") }
         }
         val suite = OcrTolerance.Suite(pages)
-        println("sim ocr suite (${(System.currentTimeMillis() - t0) / 1000} s): $suite")
-        println("sim ocr calls: ${cmp.summary()}")
-        assertEquals(26, pages.size)
-        assertEquals("recogniser argmax disagreements: ${cmp.summary()}", 0L, cmp.recDiffer)
+        println("sim ocr [$label] (${(System.currentTimeMillis() - t0) / 1000} s) ${suite.toString().lines().drop(pages.size).joinToString(" ")}")
+        println("sim ocr [$label] calls: ${cmp.summary()}")
+        return suite to cmp
+    }
+
+    @Test
+    fun theDetectorContextsReproduceTheCpuBinaryMap() {
+        val (suite, cmp) = suite("qnn det + cpu rec", detQnnRecCpu)
+        assertEquals(26, suite.pages.size)
         assertEquals("detector binary-map disagreements: ${cmp.summary()}", 0L, cmp.detDiffer)
         assertTrue(suite.toString(), suite.ok)
     }
 
     @Test
-    fun aShapeWithoutItsOwnContextIsPaddedIntoTheSmallestThatHoldsIt() {
-        // the cover pages (960x416) through a detector that has only the 960x960 context; CPU recogniser
-        val onlySquare = detQnn.copy(layout = detQnn.layout.filterKeys { it == "ctx.h960w960" })
-        OrtOcrModels(onlySquare, recCpu, OcrConfig()) { Simulator.ep }.use { padded ->
-            val cmp = Comparing(padded, cpuModels)
-            val pipeline = OcrPipeline(OcrConfig(), cmp)
-            val cover = goldens.filter { it.detInput == (416 to 960) }
-            assertEquals(14, cover.size)
-            val suite = OcrTolerance.Suite(cover.map { g -> OcrTolerance.compare(g.name, g.ocr.lines, pipeline.run(image(g)).lines) })
-            println("sim ocr padded 416x960 -> 960x960: $suite")
-            println("sim ocr padded calls: ${cmp.summary()}")
-            assertTrue(suite.toString(), suite.ok)
+    fun theRecogniserContextsReproduceTheCpuArgmax() {
+        val (suite, cmp) = suite("cpu det + qnn rec", detCpuRecQnn)
+        assertEquals(26, suite.pages.size)
+        assertEquals("recogniser argmax disagreements: ${cmp.summary()}", 0L, cmp.recDiffer)
+        assertTrue(suite.toString(), suite.ok)
+    }
+
+    @Test
+    fun thePipelineOnTheContextsMeetsTheReadmeTolerances() {
+        val (suite, cmp) = suite("qnn det + qnn rec", qnnModels)
+        assertEquals(cmp.summary(), 0L, cmp.recDiffer + cmp.detDiffer)
+        assertTrue(suite.toString(), suite.ok)
+    }
+
+    @Test
+    fun aShapeWithoutAContextRunsTheArtifactsCpuGraph() {
+        // the cover pages (960x416) through a detector artifact that only has the inner contexts: its own det.onnx runs
+        val innerOnly = detQnn.copy(layout = detQnn.layout.filterKeys { it == "model" || it == "ctx.h960w864" || it == "ctx.h864w960" })
+        val cover = goldens.filter { it.detInput == (416 to 960) }
+        assertEquals(14, cover.size)
+        OrtOcrModels(innerOnly, recCpu, OcrConfig()) { Simulator.ep }.use { models ->
+            val pipeline = OcrPipeline(OcrConfig(), models)
+            val pages = cover.map { g -> OcrTolerance.compare(g.name, g.ocr.lines, pipeline.run(image(g)).lines) }
+            println("sim ocr [uncompiled shape -> det.onnx on CPU] ${OcrTolerance.Suite(pages).toString().lines().last()}")
+            assertEquals("the CPU graph reproduces ml/ocr exactly", 14, pages.count { it.exact })
+        }
+        // without the CPU graph an uncompiled shape is an error, never a padded guess
+        OrtOcrModels(innerOnly.copy(layout = innerOnly.layout - "model"), recCpu, OcrConfig()) { Simulator.ep }.use { models ->
+            val e = runCatching { models.detect(FloatArray(3 * 960 * 416), 960, 416) }.exceptionOrNull()
+            assertTrue("$e", e is IllegalArgumentException)
         }
     }
 
@@ -126,6 +154,8 @@ class OcrSimulatorTest {
             mapOf("model" to "rec.onnx", "dict" to "rec.yml"))
 
         private lateinit var qnnModels: OrtOcrModels
+        private lateinit var detQnnRecCpu: OrtOcrModels
+        private lateinit var detCpuRecQnn: OrtOcrModels
         private lateinit var cpuModels: OrtOcrModels
         private lateinit var goldens: List<OcrGolden>
 
@@ -134,6 +164,8 @@ class OcrSimulatorTest {
             val t = System.currentTimeMillis()
             qnnModels = OrtOcrModels(detQnn, recQnn, OcrConfig()) { Simulator.ep }
             println("sim ocr contexts open in ${System.currentTimeMillis() - t} ms, ep ${Simulator.ep.status}")
+            detQnnRecCpu = OrtOcrModels(detQnn, recCpu, OcrConfig()) { Simulator.ep }
+            detCpuRecQnn = OrtOcrModels(detCpu, recQnn, OcrConfig()) { Simulator.ep }
             cpuModels = OrtOcrModels(detCpu, recCpu, OcrConfig())
             goldens = File(Fixtures.repoRoot, "ml/ocr/golden").listFiles { f -> f.name.matches(Regex("\\d{3}\\.json")) }!!
                 .sortedBy { it.name }.map { OcrGolden.parse(it.nameWithoutExtension, it.readText()) }
@@ -141,8 +173,7 @@ class OcrSimulatorTest {
 
         @AfterClass @JvmStatic
         fun close() {
-            qnnModels.close()
-            cpuModels.close()
+            listOf(qnnModels, detQnnRecCpu, detCpuRecQnn, cpuModels).forEach { it.close() }
         }
 
         fun image(g: OcrGolden): ScreenImage {

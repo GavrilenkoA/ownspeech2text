@@ -7,7 +7,6 @@ import ai.onnxruntime.OrtSession
 import ai.onnxruntime.TensorInfo
 import app.murmur.core.catalog.RuntimeKeys
 import app.murmur.core.engine.LoadSpec
-import app.murmur.core.model.ComputeUnit
 import app.murmur.core.model.ModelKind
 import app.murmur.core.ocr.OcrConfig
 import app.murmur.core.ocr.OcrDictionary
@@ -24,9 +23,10 @@ import java.nio.FloatBuffer
  *    Session settings equal ml/ocr's: intra-op threads = [OcrConfig.threads], inter-op 1, sequential, graph
  *    optimisation ALL, no spinning.
  *  - `ort-qnn/ppocr-*` (NPU, WP-21): the artifact's EPContext graphs on Qualcomm's QNN plugin EP, one session per
- *    fixed shape, CPU fallback disabled ([QnnDetector]: the context by input shape; [QnnRecognizer]: one per bucket).
+ *    fixed shape, CPU fallback disabled ([QnnDetector]: the context of the input shape, the artifact's CPU graph for a
+ *    shape without one; [QnnRecognizer]: one per bucket).
  * The two stages are independent (an NPU detector with a CPU recogniser works). Layout roles (catalog): det "model"
- * (CPU) or "ctx.h<H>w<W>" (QNN); rec "model" (CPU) or "ctx.w<W>" (QNN), plus "dict" (inference.yml) for both.
+ * (CPU) or "ctx.h<H>w<W>" + "model" (QNN); rec "model" (CPU) or "ctx.w<W>" (QNN), plus "dict" (inference.yml) for both.
  * Not thread-safe: used only on the OCR thread of [OrtOcrHandler], except [terminateRunning]. [close] releases all.
  *
  * [qnn] resolves the process's QNN EP; it is asked only when a stage is an ort-qnn artifact.
@@ -37,19 +37,16 @@ class OrtOcrModels(
     config: OcrConfig = OcrConfig(),
     qnn: () -> QnnEp = { throw IllegalStateException("no QNN EP in this process") },
 ) : OcrModels, AutoCloseable {
-    private val env = OrtEnvironment.getEnvironment(OrtLoggingLevel.ORT_LOGGING_LEVEL_ERROR)
     private val options = sessionOptions(config)
+    private val recHeight = config.recHeight
     private val detector: Detector
     private val recognizer: Recognizer
     override val dictionary: List<String>
     override val classes: Int
 
-    /** The options of the model call in flight, for [terminateRunning] (any thread). */
-    @Volatile private var running: OrtSession.RunOptions? = null
-
-    /** Units of the two stages, for LoadInfo. */
-    val detUnit: ComputeUnit = det.unit
-    val recUnit: ComputeUnit = rec.unit
+    /** The options of the model call in flight, for [terminateRunning] (any thread); guarded by [lock]. */
+    private var running: OrtSession.RunOptions? = null
+    private val lock = Any()
 
     init {
         try {
@@ -59,7 +56,7 @@ class OrtOcrModels(
             val ep = if (detQnn || recQnn) stage(if (detQnn) ModelKind.OCR_DET else ModelKind.OCR_REC) { qnn().requireAvailable() } else null
             dictionary = stage(ModelKind.OCR_REC) { OcrDictionary.fromInferenceYml(file(rec, ROLE_DICT).readText()) }
             detector = stage(ModelKind.OCR_DET) {
-                if (detQnn) QnnDetector.open(det, ep!!) else CpuStage(session(det, options))
+                if (detQnn) QnnDetector.open(det, ep!!, options) else CpuStage(session(det, options))
             }
             try {
                 recognizer = stage(ModelKind.OCR_REC) {
@@ -86,21 +83,25 @@ class OrtOcrModels(
     override fun detect(input: FloatArray, h: Int, w: Int): FloatArray = call { detector.detect(input, h, w, it) }
 
     override fun recognize(input: FloatArray, n: Int, bucketWidth: Int): FloatArray =
-        call { recognizer.recognize(input, n, bucketWidth, REC_HEIGHT, it) }
+        call { recognizer.recognize(input, n, bucketWidth, recHeight, it) }
 
     /**
      * Stops the model call in flight (ORT checks the flag between kernels; a single QNN graph call runs to its end):
      * the call throws an OrtException. Used when a newer frame supersedes the running one (ADR-069 (4), ADR-077).
      */
-    fun terminateRunning() {
-        running?.let { r -> runCatching { r.setTerminate(true) } }
-    }
+    fun terminateRunning() = synchronized(lock) { running?.setTerminate(true) }
 
-    private inline fun call(block: (OrtSession.RunOptions) -> FloatArray): FloatArray =
-        OrtSession.RunOptions().use { r ->
-            running = r
-            try { block(r) } finally { running = null }
+    /** The options are closed only after they left [running], so [terminateRunning] never touches closed ones. */
+    private inline fun call(block: (OrtSession.RunOptions) -> FloatArray): FloatArray {
+        val r = OrtSession.RunOptions()
+        synchronized(lock) { running = r }
+        try {
+            return block(r)
+        } finally {
+            synchronized(lock) { running = null }
+            r.close()
         }
+    }
 
     override fun close() {
         try {
@@ -137,7 +138,6 @@ class OrtOcrModels(
     companion object {
         const val ROLE_MODEL = "model"
         const val ROLE_DICT = "dict"
-        private const val REC_HEIGHT = 48
 
         /**
          * The one place a CPU OCR session is created (the QNN EP sessions: [QnnEp.open], one per context graph).

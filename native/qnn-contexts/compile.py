@@ -163,7 +163,10 @@ def ocr_det(out: Path, work: Path) -> dict:
     src = models_dir() / "pp-ocrv6-tiny-det@onnx/det.onnx"
     d = out / ART_DET
     d.mkdir(parents=True, exist_ok=True)
-    graphs, layout = [], {}
+    # the unchanged dynamic graph travels with the contexts: shapes without a context run it on the CPU EP (padding
+    # into a larger context is wrong for this detector: it pools globally)
+    (d / "det.onnx").write_bytes(src.read_bytes())
+    graphs, layout = [], {"model": "det.onnx"}
     for h, w in DET_SHAPES:
         name = f"det_h{h}_w{w}"
         f = fixed(src, {"x": [1, 3, h, w]}, work / f"{name}.onnx")

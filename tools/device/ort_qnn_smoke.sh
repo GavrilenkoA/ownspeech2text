@@ -11,8 +11,9 @@
 #        and argmax agreement of every QNN call with the CPU call, README tolerance of the QNN output.
 #   GigaAM: the 12 FLEURS ru clips through AsrService with the VAD: NPU artifact vs the CPU artifact (sherpa int8 CTC),
 #        ms from the first byte to the transcript, WER.
-# Pass criteria (DC4): binmap_agree and argmax_agree 1.000000, qnn_ok true, GigaAM NPU WER = CPU WER +- 1 pp; adopt only if
-# clearly faster (ADR-059). Needs on the host: adb, python3, the contexts (default <main>/.cache/spikes/wp-21/ctx) and the
+# Pass criteria (DC4): binmap_agree and argmax_agree 1.000000, qnn_ok true (or the one-stage row for the stage to adopt),
+# GigaAM NPU WER = CPU WER +- 1 pp; adopt only if clearly faster (ADR-059). On the x86_64 HTP simulator the fp16 detector
+# failed this (binmap 0.99988; 3 of 26 pages outside the README tolerance): expect the det rows to fail here too. Needs on the host: adb, python3, the contexts (default <main>/.cache/spikes/wp-21/ctx) and the
 # shared model cache (tools/models/fetch). Device files live in the test APK's files dir (run-as) and go with uninstall.
 set -euo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
@@ -56,6 +57,8 @@ for r in by('ocr-page', {'page': '<page>', 'det_in': '<w x h>'}):
 for r in by('ocr-total', {'pages': '<n>'}):
     out.append('| ocr all | %s pages | tolerance %s, exact %s | tolerance %s, exact %s | binmap %s argmax %s |' % (
         f(r, 'pages'), f(r, 'qnn_ok'), f(r, 'qnn_exact'), f(r, 'cpu_ok'), f(r, 'cpu_exact'), f(r, 'binmap_agree'), f(r, 'argmax_agree')))
+    out.append('| ocr one stage on NPU | det NPU + rec CPU / det CPU + rec NPU | tolerance %s, exact %s / tolerance %s, exact %s | | |' % (
+        f(r, 'det_only_ok'), f(r, 'det_only_exact'), f(r, 'rec_only_ok'), f(r, 'rec_only_exact')))
 for r in by('gigaam-load', None):
     out.append('| gigaam load | %s | %s %s | %s ms | |' % (f(r, 'artifact'), f(r, 'device'), f(r, 'unit'), f(r, 'ms')))
 for r in by('gigaam-clip', {'clip': '<clip>'}):
