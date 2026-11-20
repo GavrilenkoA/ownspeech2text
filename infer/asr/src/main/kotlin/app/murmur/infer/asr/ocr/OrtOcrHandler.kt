@@ -1,6 +1,5 @@
 package app.murmur.infer.asr.ocr
 
-import ai.onnxruntime.OrtException
 import android.os.RemoteException
 import android.os.SharedMemory
 import android.os.SystemClock
@@ -11,7 +10,6 @@ import app.murmur.core.engine.LoadSpec
 import app.murmur.core.model.ComputeUnit
 import app.murmur.core.model.ModelKind
 import app.murmur.core.model.MurmurError
-import app.murmur.core.ocr.OcrCancelledException
 import app.murmur.core.ocr.OcrConfig
 import app.murmur.core.ocr.OcrPipeline
 import app.murmur.core.ocr.OcrRunControl
@@ -40,8 +38,8 @@ import java.util.concurrent.atomic.AtomicReference
  *
  * Newest frame wins: a frame is wanted by the dictation that sent it, and the client stops waiting after
  * `ocrBudgetMs`. When a new frame arrives, an older one still queued is answered `OcrFailed("superseded")` at once
- * (its SharedMemory closed), and one that is running stops at its next model call with the same answer, so a late
- * page never delays the next dictation's OCR by more than one model call.
+ * (its SharedMemory closed), and one that is running stops inside its model call (RunOptions terminate, WP-21) with
+ * the same answer, so a late page never delays the next dictation's OCR by more than the step it is in.
  *
  * Timing side channel for the benchmark (WP-14): every reply carries [ScreenText.stats] ([OcrStats]: detector input,
  * det ms, boxes, excluded, rec lines, rec ms, calls, total ms), and the same numbers are logged under [TAG].
@@ -71,13 +69,15 @@ class OrtOcrHandler(
         val height: Int,
         val excludeJson: String,
         val cb: IResultCallback,
-    ) : OcrRunControl {
+    ) : OcrRunControl, OcrFrameRunner.Frame {
         private val owned = AtomicBoolean(false)
-        @Volatile var superseded = false
+        @Volatile override var superseded = false
+            private set
         /** The model the run is in, for OutOfMemory(kind); the frame read belongs to the detector stage. */
         @Volatile var stage: ModelKind = ModelKind.OCR_DET
 
-        fun claim() = owned.compareAndSet(false, true)
+        override fun markSuperseded() { superseded = true }
+        override fun claim() = owned.compareAndSet(false, true)
         override fun entering(stage: ModelKind) { this.stage = stage }
         override val cancelled get() = superseded
     }
@@ -85,8 +85,8 @@ class OrtOcrHandler(
     /** The newest frame not yet finished. */
     private val newest = AtomicReference<Frame?>(null)
 
-    /** The models of the run in progress (OCR thread writes; a superseding binder thread terminates its model call). */
-    @Volatile private var runningModels: OrtOcrModels? = null
+    /** Stops a superseded frame inside its model call (WP-21). */
+    private val runner = OcrFrameRunner()
 
     override fun load(detSpecJson: String, recSpecJson: String, cb: IResultCallback) {
         submit(cb, oomKind = { ModelKind.OCR_REC }, onRejected = { true }) {
@@ -136,15 +136,15 @@ class OrtOcrHandler(
         }
     }
 
-    /** A newer frame arrived: [old] is answered now if still queued; if running, it stops at its next model call. */
+    /**
+     * A newer frame arrived: [old] is answered now if still queued; if running, its model call in flight is terminated
+     * and any later call starts terminated ([OrtOcrModels.stopRequested]), so it answers without finishing a call.
+     */
     private fun supersede(old: Frame) {
-        old.superseded = true
-        if (old.claim()) {
+        if (runner.supersede(old)) {
             old.pixels.close()
             Log.i(TAG, "error ocr.failed superseded queued")
             error(old.cb, MurmurError.OcrFailed(SUPERSEDED))
-        } else {
-            runningModels?.terminateRunning() // running: stop the model call in flight, not only the next one
         }
     }
 
@@ -161,22 +161,15 @@ class OrtOcrHandler(
         } finally {
             frame.pixels.close()
         }
-        val models = loaded?.models
-        val detCpu0 = models?.detectorCpuCalls ?: 0
+        val current = loaded ?: throw Fail(MurmurError.OcrFailed("not_loaded"))
+        val detCpu0 = current.models.detectorCpuCalls
         val out = try {
-            runningModels = models
-            pipeline.run(image, frame)
-        } catch (e: OcrCancelledException) {
+            runner.run(current.models, frame) { pipeline.run(image, frame) }
+        } catch (e: OcrFrameRunner.Superseded) {
             throw Fail(MurmurError.OcrFailed(SUPERSEDED))
-        } catch (e: OrtException) {
-            // a terminated model call (superseded while it ran) is the same answer as a stop between calls
-            if (frame.superseded) throw Fail(MurmurError.OcrFailed(SUPERSEDED))
-            throw e
-        } finally {
-            runningModels = null
         }
         // the unit the detector really ran on: an NPU detector runs a shape without a context on the CPU
-        val detUnit = if ((models?.detectorCpuCalls ?: 0) > detCpu0) ComputeUnit.CPU else loaded?.det?.unit ?: ComputeUnit.CPU
+        val detUnit = if (current.models.detectorCpuCalls > detCpu0) ComputeUnit.CPU else current.det.unit
         out.stats?.let { Log.i(TAG, timing(it, out.lines.size, detUnit)) }
         reply(frame.cb, InferApi.encode(ScreenText.serializer(), out))
     }

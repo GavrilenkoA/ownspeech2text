@@ -140,6 +140,24 @@ class OrtOcrModelsTest {
         }
     }
 
+    @Test
+    fun aCallStartedAfterTheStopRequestThrowsAtOnce() {
+        OrtOcrModels(det, rec, OcrConfig(threads = 1)).use { models ->
+            val h = 2176
+            val w = 1984
+            val input = FloatArray(3 * h * w)
+            val full = System.nanoTime().let { t0 -> models.detect(input, h, w); (System.nanoTime() - t0) / 1e6 }
+            models.stopRequested = { true }
+            val t0 = System.nanoTime()
+            val e = runCatching { models.detect(input, h, w) }.exceptionOrNull()
+            val ms = (System.nanoTime() - t0) / 1e6
+            assertTrue("$e", e is OrtException)
+            assertTrue("stopped call took $ms ms (full call $full ms)", ms < full / 4)
+            models.stopRequested = { false }
+            assertEquals(h * w, models.detect(input, h, w).size)
+        }
+    }
+
     private fun goldens(): List<OcrGolden> {
         val dir = File(Fixtures.repoRoot, "ml/ocr/golden")
         return dir.listFiles { f -> f.name.matches(Regex("\\d{3}\\.json")) }!!.sortedBy { it.name }

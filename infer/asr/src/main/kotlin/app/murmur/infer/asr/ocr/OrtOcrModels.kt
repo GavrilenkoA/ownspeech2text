@@ -97,11 +97,21 @@ class OrtOcrModels(
      */
     fun terminateRunning() = synchronized(lock) { running?.setTerminate(true) }
 
+    /**
+     * Asked when a model call starts: true starts it terminated, so it throws at once. The OCR handler sets it to the
+     * running frame's "superseded" for the length of a frame: a frame superseded while it prepares a model input (no
+     * call in flight for [terminateRunning]) then does not run that whole call. Together with [terminateRunning] (set
+     * the flag first, then terminate) no call of a superseded frame runs to its end: either the call is registered
+     * before the terminate looks for it, or it starts after the flag is set and sees it.
+     */
+    @Volatile var stopRequested: () -> Boolean = NEVER
+
     /** The options are closed only after they left [running], so [terminateRunning] never touches closed ones. */
     private inline fun call(block: (OrtSession.RunOptions) -> FloatArray): FloatArray {
         val r = OrtSession.RunOptions()
         synchronized(lock) { running = r }
         try {
+            if (stopRequested()) r.setTerminate(true)
             return block(r)
         } finally {
             synchronized(lock) { running = null }
@@ -142,6 +152,7 @@ class OrtOcrModels(
     }
 
     companion object {
+        private val NEVER: () -> Boolean = { false }
         const val ROLE_MODEL = "model"
         const val ROLE_DICT = "dict"
 
