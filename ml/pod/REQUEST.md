@@ -99,18 +99,24 @@ unchanged by the tail: after the anchor (~40 min billed) `lfm3-r64` needs 23 + 7
    saves, and the run is exported and evaluated as "stopped_by: budget" (logged loudly). A NaN/inf training loss
    (checked on the raw loss of every micro-batch, not on the filtered log) stops the run at the end of that
    optimizer step without saving the diverged weights (`stopped_by: diverged`, exit 4, run marked failed, the
-   matrix continues); proven through the real Trainer on CPU (runbook section 4).
+   matrix continues); proven through the real Trainer on CPU (runbook section 4). It leaves
+   `runs/RUN/DIVERGED.json` (step, reason): a re-run of `train_matrix.sh` / `run_all.sh` skips that run (logged,
+   counted as failed, never selected) instead of resuming into the same divergence; `FORCE_RETRAIN=1` trains it
+   again from scratch.
 3. **Target 3 h** (`TARGET_GPU_HOURS=3`): optional runs (phase A extras, DoRA, full FT) start only if their
    projection + all mandatory work still ahead fits.
 4. **Preflight** (before any training): abort if flash-linear-attention failed its sm_120 kernel test while Qwen3.5
    runs are planned, or if no llama.cpp CUDA build passed bootstrap's GPU kernel smoke test (real Q4_0 decode on
    the GPU = CPU result; fallbacks CUDA 13.5 release build, then a source build for sm_120, runbook 3.2) (rc 6;
-   overrides `ALLOW_SLOW_QWEN=1`, `ALLOW_CPU_EVAL=1` after a conscious decision).
-7. **Pinned weights**: the three bases are downloaded and loaded at the commits recorded in the runbook (0.1,
+   overrides `ALLOW_SLOW_QWEN=1`, `ALLOW_CPU_EVAL=1` after a conscious decision). If the smoke MODEL cannot be
+   downloaded or converted (retried once), that is reported as its own error: bootstrap exits 7 without testing
+   or fetching any build, and the preflight refuses (rc 6, override `ALLOW_UNTESTED_LLAMA=1`) until a
+   re-run of bootstrap prepares it.
+5. **Pinned weights**: the three bases are downloaded and loaded at the commits recorded in the runbook (0.1,
    `ml/train/configs/base.yaml` `base_revisions`); a vendor push before the session changes nothing.
-5. **Parity**: a run whose BF16 GGUF does not reproduce the merged HF model (< 80 % of 24 dev items agree) is not
+6. **Parity**: a run whose BF16 GGUF does not reproduce the merged HF model (< 80 % of 24 dev items agree) is not
    evaluated (rc 3); the matrix continues.
-6. A crash or a pod stop loses nothing finished: every step skips existing outputs and training resumes from its
-   newest checkpoint (`save_steps` 100), so the same command continues.
+7. A crash or a pod stop loses nothing finished: every step skips existing outputs and training resumes from its
+   newest checkpoint (`save_steps` 100), so the same command continues (a diverged run excepted, rule 2).
 
 Hermes' billing number stays the authoritative one.

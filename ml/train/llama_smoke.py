@@ -14,8 +14,15 @@ the GPU build with every layer offloaded and on the CPU build, and compares the 
 PASS (exit 0) when the GPU server starts, offloads all layers (--require-gpu: `--device CUDA0` and the
 offload line in its log), answers within --timeout seconds, and every prompt agrees with the CPU build
 (identical, or a common prefix of at least --min-prefix characters: GPU and CPU kernels round differently,
-a broken kernel diverges at the first token). FAIL = exit 1, with the reason in the JSON. --hf takes a Hub
-repo id (loaded at its pinned base.yaml revision) or a local HF directory.
+a broken kernel diverges at the first token). FAIL = exit 1, with the reason in the JSON: the build under test
+is bad. --hf takes a Hub repo id (loaded at its pinned base.yaml revision) or a local HF directory.
+
+Preparing the smoke model (download + conversion to Q4_0 with the CPU build) is kept apart from testing a build:
+if it fails, the status is PREP_FAIL and the exit code 3, because no build was tested and trying other builds
+would only fail the same way. `--prepare-only` does just that step (bootstrap runs it, retried once, before it
+tests any build; ml/pod/kernel_smoke.sh):
+
+  python -m ml.train.llama_smoke --prepare-only --hf Qwen/Qwen3.5-0.8B --work $W/llama/smoke --cpu-bin DIR --json F
 """
 from __future__ import annotations
 
@@ -92,12 +99,18 @@ def decode(gguf: Path, bin_dir: str, args: list[str], log: Path, n: int, timeout
         srv.close()
 
 
+EXIT = {"PASS": 0, "PREPARED": 0, "FAIL": 1, "PREP_FAIL": 3}
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--hf", help="Hub repo id (pinned revision) or local HF dir; converted to Q4_0 once")
     ap.add_argument("--gguf", help="use this GGUF instead of --hf")
     ap.add_argument("--work", default=".cache/ml/train/llama-smoke")
-    ap.add_argument("--gpu-bin", required=True, help="dir with the llama-server build under test")
+    ap.add_argument("--gpu-bin", help="dir with the llama-server build under test (not with --prepare-only)")
+    ap.add_argument("--prepare-only", action="store_true",
+                    help="only build the smoke GGUF from --hf (PREPARED, exit 0 / PREP_FAIL, exit 3)")
+    ap.add_argument("--label", default="", help="name of the build under test, in its log file name (one log each)")
     ap.add_argument("--cpu-bin", required=True, help="dir with the reference CPU llama-server (+ llama-quantize)")
     ap.add_argument("--ngl", type=int, default=99)
     ap.add_argument("--require-gpu", action="store_true", help="--device CUDA0 and every layer offloaded")
@@ -107,6 +120,10 @@ def main(argv=None) -> int:
     ap.add_argument("--threads", type=int, default=int(os.environ.get("MURMUR_THREADS", "6")))
     ap.add_argument("--json", help="write the result here")
     a = ap.parse_args(argv)
+    if not a.prepare_only and not a.gpu_bin:
+        ap.error("--gpu-bin is required (unless --prepare-only)")
+    if a.prepare_only and not a.hf:
+        ap.error("--prepare-only needs --hf")
     work = Path(a.work)
     work.mkdir(parents=True, exist_ok=True)
     res: dict = {"status": "FAIL", "gpu_bin": a.gpu_bin, "cpu_bin": a.cpu_bin}
@@ -116,17 +133,22 @@ def main(argv=None) -> int:
         if a.json:
             Path(a.json).write_text(json.dumps(res, indent=1, ensure_ascii=False))
         print(json.dumps(res, ensure_ascii=False))
-        return 0 if status == "PASS" else 1
+        return EXIT[status]
 
     t0 = time.time()
-    try:
+    try:   # any failure here is the smoke MODEL's (download, conversion), not the build's under test
         gguf = Path(a.gguf) if a.gguf else build_gguf(a.hf, work, a.cpu_bin)
-    except SystemExit as e:
-        return done("FAIL", f"could not build the smoke GGUF: {e}")
+        if not gguf.exists():
+            raise FileNotFoundError(gguf)
+    except (SystemExit, Exception) as e:
+        return done("PREP_FAIL", f"could not prepare the smoke GGUF (not a GPU build problem): "
+                                 f"{type(e).__name__}: {e}")
     res.update(gguf=str(gguf), gguf_build_s=round(time.time() - t0, 1))
+    if a.prepare_only:
+        return done("PREPARED")
     tag = gguf.stem
     gpu_args = ["-ngl", str(a.ngl)] + (["--device", "CUDA0"] if a.require_gpu else [])
-    glog = work / f"{tag}.gpu.log"
+    glog = work / f"{tag}{'.' + a.label if a.label else ''}.gpu.log"
     try:   # GPU first: a missing kernel image / JIT failure aborts the server or the request
         gpu = decode(gguf, a.gpu_bin, gpu_args, glog, a.n, a.timeout, a.threads)
     except Exception as e:

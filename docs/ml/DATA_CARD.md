@@ -214,16 +214,20 @@ data review: `synth_v3` (logs `fix_full{1..13}.log`, `fix_teacher{3,4,5}.log` in
 Languages: train ru 1,425 (47.5 %) / en 839 (28.0 %) / mixed 736 (24.5 %); dev 143 / 85 / 72; test 150 / 81 / 69.
 Empty targets (noise_only): 60 / 6 / 6.
 
-**Token lengths** (second pass, `ml/train/render_data.build` on `final/train.jsonl` with the training prompt mix:
-finetuned.v2 95 % (15 % with a preferences block) + default.v4s 5 %; prompt + completion):
+**Token lengths** (measured 2026-11-20 with `python -m ml.train.sft --config ml/train/configs/base.yaml --prepare-only`
+on the current `final/` (train.jsonl sha256 `ba13d02e…`), real tokenizers, the training prompt mix of `base.yaml`:
+finetuned.v2 95 % (2,859 rows; 480 of all rows with a preferences block) + the stock profile **default.v1** 5 %
+(141 rows; 13 of the 300 dev rows); prompt + completion):
 
-| tokenizer | rendered p50 / p90 / p99 / max | mean | completion tokens (train) | `max_len: auto` |
-|---|---|---:|---:|---:|
-| Qwen3.5 | 325 / 457 / 2,282 / 2,417 | 417.6 | 79,070 | 2,432 |
-| LFM3 | 338 / 489 / 2,357 / 2,492 | 434.4 | 92,317 | 2,496 |
+| tokenizer | rendered p50 / p90 / p99 / max | mean | completion tokens (train) | real / padded tokens per epoch | `max_len: auto` |
+|---|---|---:|---:|---:|---:|
+| Qwen3.5 | 325 / 457 / 1,328 / 1,463 | 373 | 79,070 | 1.12M / 1.18M | 1,472 |
+| LFM3 | 338 / 489 / 1,369 / 1,504 | 388 | 92,317 | 1.16M / 1.23M | 1,536 |
 
-The long tail is the default.v4s share (141 records); no example exceeds 4,096. (First pass, per profile:
-finetuned.v2 total p50 310 / p99 515 / max 687 with Qwen3.5.)
+The long tail is the default.v1 share (141 records, ~1.3-1.5K tokens each); 0 examples dropped, none near the
+4,096 cap; dev max 1,434 / 1,475. Without that share (`prompt.default_share=0`, finetuned.v2 only) the same rows
+render to p50 / p99 / max 321 / 536 / 687 (Qwen3.5) and 333 / 580 / 760 (LFM3). Batching and padding figures:
+TRAINING_RUNBOOK section 2.1.
 
 ### 5.2 Quality pass of the first pass (generator fixed and rebuilt from the shards, no record edited)
 

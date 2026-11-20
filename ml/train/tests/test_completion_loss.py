@@ -2,6 +2,7 @@
 random models built from the real LFM3 and Qwen3.5 configs (needs the local config/tokenizer dirs)."""
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 
@@ -136,3 +137,27 @@ raise SystemExit(s.main({argv!r}))
     assert '"stopped_by": "diverged", "step": 3' in r.stdout
     assert not (out / "train_info.json").exists() and not (out / "final").exists()
     assert sorted(p.name for p in out.glob("checkpoint-*")) == ["checkpoint-2"]   # last good one, none after it
+    # the marker a re-run (run_one.sh / train_matrix.sh after the operator restarts them) sees
+    mk = json.loads((out / "DIVERGED.json").read_text())
+    assert mk["step"] == 3 and "non-finite training loss in step 3" in mk["reason"], mk
+    assert mk["last_good_checkpoint"].endswith("checkpoint-2"), mk
+    # a plain re-run must NOT resume from checkpoint-2 into the same divergence: exit 4 before any training
+    r2 = subprocess.run([sys.executable, "-m", "ml.train.sft", *argv], cwd=contract.REPO, env=env, capture_output=True,
+                        text=True, timeout=900)
+    assert r2.returncode == 4, r2.stdout[-3000:] + r2.stderr[-3000:]
+    assert "STOP diverged earlier (step 3" in r2.stdout and "resuming from" not in r2.stdout, r2.stdout[-3000:]
+    assert (out / "DIVERGED.json").exists() and (out / "checkpoint-2").exists()
+
+
+def test_diverged_gate_blocks_until_force_retrain(tmp_path):
+    from ml.train.sft import DIVERGED, diverged_gate
+    assert diverged_gate(tmp_path, force=False) is None            # never diverged: train
+    (tmp_path / "checkpoint-4").mkdir()
+    (tmp_path / DIVERGED).write_text(json.dumps({"step": 5, "reason": "non-finite training loss in step 5"}))
+    assert diverged_gate(tmp_path, force=False)["step"] == 5         # blocked, nothing touched
+    assert (tmp_path / DIVERGED).exists() and (tmp_path / "checkpoint-4").exists()
+    (tmp_path / DIVERGED).write_text("{broken")
+    assert "unreadable" in diverged_gate(tmp_path, force=False)["reason"]
+    assert diverged_gate(tmp_path, force=True) is None               # FORCE_RETRAIN=1: from scratch
+    assert not (tmp_path / DIVERGED).exists() and not (tmp_path / "checkpoint-4").exists()
+    assert len(list(tmp_path.glob("DIVERGED.*.json"))) == 1          # history kept, not a marker any more

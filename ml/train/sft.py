@@ -5,7 +5,10 @@ one `method:` switch, on shared-contract JSONL rendered with prompts/render.py a
   python -m ml.train.sft --config ml/train/configs/q08-lora.yaml [--set train.max_steps=5 ...]
 
 Writes OUTPUT_DIR/{checkpoint-*/, final/, data_stats.json, train_info.json}. Re-running the same
-command resumes from the newest checkpoint (train.resume: true). final/ is either a PEFT adapter
+command resumes from the newest checkpoint (train.resume: true), except after a divergence: then
+OUTPUT_DIR/DIVERGED.json (step, reason) makes every re-run refuse at once (exit 4, no training) until
+FORCE_RETRAIN=1, which archives the marker, drops the checkpoints and trains from scratch (a resume would
+restore the old optimizer and lr schedule and, for a deterministic cause, diverge again). final/ is either a PEFT adapter
 (lora/dora; merge with ml.train.merge) or a full HF model in bf16, with tokenizer and the
 official chat template, ready for ml.train.export.
 """
@@ -93,8 +96,9 @@ class StopRules:
         Past it, training stops after the current optimizer step, saves and finishes normally
         (train_info.json: stopped_by = "budget"), so the run still gets exported and evaluated.
       * divergence: a NaN/inf training loss stops the run at the end of the optimizer step in which it
-        appeared (stopped_by = "diverged"), without saving a checkpoint of the diverged weights; sft exits 4
-        without writing train_info.json, so the run is reported as failed. The check sees the RAW loss of
+        appeared (stopped_by = "diverged"), without saving a checkpoint of the diverged weights; sft writes
+        OUTPUT_DIR/DIVERGED.json (step, reason) instead of train_info.json and exits 4, so the run is reported
+        as failed and is not trained again by a re-run (diverged_gate). The check sees the RAW loss of
         every micro-batch (MurmurTrainer.compute_loss -> watch_loss), not the logged one: HF Trainer's
         logging_nan_inf_filter replaces a non-finite step loss before logging, and logs come only every
         logging_steps. As a second net, a non-finite logged loss / grad_norm / eval_loss also stops."""
@@ -127,6 +131,7 @@ class StopRules:
                 return control
 
         self.deadline, self.stopped_by, self.callback, self._nonfinite = deadline, None, _CB(), None
+        self.reason = None
 
     def watch_loss(self, loss) -> None:
         """Record whether this micro-batch's loss is finite, without a host sync (read at step end)."""
@@ -134,10 +139,10 @@ class StopRules:
         self._nonfinite = bad if self._nonfinite is None else (self._nonfinite | bad)
 
     def _diverged(self, why: str, control) -> None:
-        self.stopped_by = "diverged"
+        self.stopped_by, self.reason = "diverged", why
         print(f"STOP diverged: {why}", flush=True)
         control.should_training_stop = True
-        control.should_save = False      # never checkpoint diverged weights (a re-run resumes from the last good one)
+        control.should_save = False      # never checkpoint diverged weights (DIVERGED.json blocks a plain re-run)
         control.should_evaluate = False
 
 
@@ -189,6 +194,28 @@ def load_model(cfg: dict):
     return model, {"params_total": n_all, "params_trainable": n_tr}
 
 
+DIVERGED = "DIVERGED.json"
+
+
+def diverged_gate(out: Path, force: bool) -> dict | None:
+    """The DIVERGED.json marker of an earlier diverged training in `out`, if it must block this one (None: train).
+    With `force` (FORCE_RETRAIN=1) the marker is kept as DIVERGED.<utc>.json and the checkpoints are dropped,
+    so the run trains from scratch with whatever the config / overrides now say."""
+    m = out / DIVERGED
+    if not m.exists():
+        return None
+    try:
+        info = json.loads(m.read_text())
+    except (OSError, ValueError) as e:
+        info = {"reason": f"unreadable marker: {e}"}
+    if not force:
+        return info
+    m.rename(out / f"DIVERGED.{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}.json")
+    for ck in out.glob("checkpoint-*"):
+        shutil.rmtree(ck, ignore_errors=True)
+    return None
+
+
 def last_checkpoint(out: Path) -> str | None:
     cks = sorted(out.glob("checkpoint-*"), key=lambda p: int(p.name.split("-")[-1]))
     for ck in reversed(cks):
@@ -230,6 +257,14 @@ def main(argv=None) -> int:
     out = Path(cfg["output_dir"])
     out.mkdir(parents=True, exist_ok=True)
     tr = cfg["train"]
+    if not a.prepare_only:
+        prev = diverged_gate(out, os.environ.get("FORCE_RETRAIN") == "1")
+        if prev is not None:
+            print(f"STOP diverged earlier (step {prev.get('step')}: {prev.get('reason')}); not trained again. "
+                  f"FORCE_RETRAIN=1 retrains from scratch ({out / DIVERGED})", flush=True)
+            print(json.dumps({"run_name": cfg.get("run_name"), "stopped_by": "diverged_earlier",
+                              "step": prev.get("step")}), flush=True)
+            return 4
     set_seed(int(tr.get("seed", 42)))
     if tr.get("threads"):
         torch.set_num_threads(int(tr["threads"]))
@@ -323,8 +358,11 @@ def main(argv=None) -> int:
     res = trainer.train(resume_from_checkpoint=resume)
     train_s = time.time() - t1
     if rules.stopped_by == "diverged":
-        print(json.dumps({"run_name": cfg.get("run_name"), "stopped_by": "diverged",
-                          "step": trainer.state.global_step}), flush=True)
+        marker = {"run_name": cfg.get("run_name"), "stopped_by": "diverged", "step": trainer.state.global_step,
+                  "reason": rules.reason, "resumed_from": resume, "last_good_checkpoint": last_checkpoint(out),
+                  "utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+        (out / DIVERGED).write_text(json.dumps(marker, indent=1, ensure_ascii=False))
+        print(json.dumps({k: marker[k] for k in ("run_name", "stopped_by", "step")}), flush=True)
         return 4
     final = save_final(trainer.model, tok, cfg, out)
     steps = trainer.state.global_step

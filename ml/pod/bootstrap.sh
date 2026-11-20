@@ -110,76 +110,10 @@ if step selftest "$MARK_VOL"; then
   touch "$MARK_VOL/selftest"
 fi
 
-# ---- 6b. llama.cpp GPU KERNEL SMOKE TEST, on every start (a restarted pod can land on another host/driver).
-# `--list-devices` runs no kernel: a build without sm_120 device code, a failing or slow PTX JIT or a wrong kernel
-# would only show at the anchor's parity/eval, after its training time. ml/train/llama_smoke.py converts real base
-# weights (pinned revision; downloaded here, step 7 then skips them) to Q4_0 once, decodes 4 fixed prompts with
-# every layer on the GPU and on the CPU build, and compares (PASS: all agree, all layers offloaded, < 120 s).
-# Measured on the dev server CPU: GGUF build 16.5 s for Qwen3.5-0.8B, decode 2.5 s per build [M]; on the pod
-# ~1-3 min the first time (two models), ~30 s on a restart [A]. Candidates, first PASS wins:
-#   1. the release CUDA 12.8 build (its default arch list includes 120a-real, i.e. sm_120 device code [V source])
-#   2. the release CUDA 13.5 build of the same tag (~670 MB, ~1 min to fetch) [A: needs the driver's 13.x minor-
-#      version compatibility]
-#   3. a source build of the same tag for sm_120 only (needs nvcc >= 12.8 in the image; ~10-15 min [A];
-#      LLAMA_SRC_BUILD=0 skips it)
-#   4. none: marker llama-cpu-fallback -> train_matrix.sh preflight aborts (rc 6) unless ALLOW_CPU_EVAL=1
-#      (CPU evals: ~10-40 min per ~420-item dev eval, ~10 evals per session: over the budget; runbook section 3)
-# LLAMA_SMOKE_MODELS="" skips the test (legacy --list-devices verdict only).
-LLAMA_SMOKE_MODELS="${LLAMA_SMOKE_MODELS-Qwen/Qwen3.5-0.8B LiquidAI/LFM3-1.7B}"
-smoke() {  # $1 label  $2 llama.cpp bin dir under test; rc 0 = PASS on every smoke model
-  local m rc=0; [[ -x "$2/llama-server" ]] || return 1
-  for m in $LLAMA_SMOKE_MODELS; do
-    log "llama.cpp kernel smoke: $1 build on $m"
-    timeout 1800 "$VENV_TRAIN/bin/python" -m ml.train.llama_smoke --hf "$m" --work "$W/llama/smoke" --gpu-bin "$2" \
-      --cpu-bin "$LLAMA_BIN_CPU" --require-gpu --timeout "${LLAMA_SMOKE_TIMEOUT:-120}" \
-      --json "$W/llama/smoke/$1-$(basename "$m").json" >>"$MURMUR_LOGS/llama-smoke.log" 2>&1 || rc=1
-    jq -c '{status, reason: (.reason // "" | .[0:300]), gpu}' "$W/llama/smoke/$1-$(basename "$m").json" 2>/dev/null >&2 || true
-    (( rc == 0 )) || return 1
-  done
-}
-fetch_cuda135() {
-  local d="$W/llama/cuda13.5/llama-$LLAMA_TAG" base="https://github.com/ggml-org/llama.cpp/releases/download/$LLAMA_TAG"
-  [[ -x "$d/llama-server" ]] && { echo "$d"; return; }
-  mkdir -p "$d"
-  for f in "llama-$LLAMA_TAG-bin-ubuntu-cuda-13.5-x64.tar.gz" "cudart-llama-$LLAMA_TAG-bin-ubuntu-cuda-13.5-x64.tar.gz"; do
-    curl -fsSL "$base/$f" | tar xz -C "$d" --strip-components=1 || return 1
-  done
-  echo "$d"
-}
-build_cuda_src() {  # sm_120 only, server + quantize; the CPU backend is built in as well
-  local b="$W/llama/build-cuda" t0; t0=$(date +%s)
-  [[ "${LLAMA_SRC_BUILD:-1}" != 0 ]] && command -v nvcc >/dev/null && command -v cmake >/dev/null \
-    || { log "llama.cpp source build skipped (LLAMA_SRC_BUILD=0, or no nvcc/cmake in the image)"; return 1; }
-  log "llama.cpp source build for sm_120 (~10-15 min, log $MURMUR_LOGS/llama-build.log)"
-  [[ -x "$b/bin/llama-server" ]] || {
-    cmake -S "$LLAMA_SRC" -B "$b" -DCMAKE_BUILD_TYPE=Release -DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=120a-real \
-      -DGGML_NATIVE=OFF -DLLAMA_BUILD_TESTS=OFF -DLLAMA_OPENSSL=OFF >>"$MURMUR_LOGS/llama-build.log" 2>&1 &&
-    cmake --build "$b" --config Release -j "$(nproc)" --target llama-server llama-quantize >>"$MURMUR_LOGS/llama-build.log" 2>&1 \
-      || return 1
-    log "llama.cpp source build: $(( $(date +%s) - t0 ))s"; }
-  echo "$b/bin"
-}
-if [[ -n "$LLAMA_SMOKE_MODELS" ]]; then
-  mkdir -p "$W/llama/smoke"; pick=""
-  prev=$(cat "$MARK_VOL/llama-cuda-bin" 2>/dev/null || true)
-  if [[ -n "$prev" ]] && smoke previous "$prev"; then pick=$prev
-  elif smoke cuda12.8 "$W/llama/cuda/llama-$LLAMA_TAG"; then pick="$W/llama/cuda/llama-$LLAMA_TAG"
-  elif d=$(fetch_cuda135) && smoke cuda13.5 "$d"; then pick=$d
-  elif d=$(build_cuda_src) && smoke source "$d"; then pick=$d
-  fi
-  if [[ -n "$pick" ]]; then
-    echo "$pick" >"$MARK_VOL/llama-cuda-bin"; rm -f "$MARK_VOL/llama-cpu-fallback"
-    log "llama.cpp kernel smoke PASS: pod evals use $pick"
-  else
-    rm -f "$MARK_VOL/llama-cuda-bin"; touch "$MARK_VOL/llama-cpu-fallback"
-    log "WARNING: no llama.cpp CUDA build passed the kernel smoke test ($MURMUR_LOGS/llama-smoke.log, $W/llama/smoke/*.json):"
-    log "  train_matrix.sh will refuse to start (rc 6); see TRAINING_RUNBOOK 'llama.cpp CUDA fallback'"
-  fi
-elif LD_LIBRARY_PATH="$LLAMA_BIN_CUDA" "$LLAMA_BIN_CUDA/llama-server" --list-devices 2>&1 | grep -q CUDA0; then
-  rm -f "$MARK_VOL/llama-cpu-fallback"
-else
-  touch "$MARK_VOL/llama-cpu-fallback"
-fi
+# ---- 6b. llama.cpp GPU KERNEL SMOKE TEST, on every start: ml/pod/kernel_smoke.sh (phase A prepares the smoke
+# models, retried once; a failure there is its own error, exit 7, with no build tested and no fallback build tried;
+# phase B tests the CUDA 12.8 build, then CUDA 13.5, then a source build; none passes -> llama-cpu-fallback).
+bash ml/pod/kernel_smoke.sh
 
 # ---- 7. base weights (public repos; ~9.8 GB for all three) into $HF_HOME on the volume, each at the commit
 # pinned in ml/train/configs/base.yaml (base_revisions; TRAINING_RUNBOOK 0.1). sft/merge load the same commit.
