@@ -20,7 +20,10 @@ class QnnDetector private constructor(
 ) : OrtOcrModels.Detector {
     val shapes: Set<QnnContexts.Shape> get() = sessions.keys
 
-    /** Calls that ran on the CPU graph because their shape has no context (numbers for the benchmark and tests). */
+    /**
+     * Calls that ran on the CPU graph because their shape has no context. The OCR handler reads it around every frame
+     * and writes `det_unit=cpu` into its timing line, so a benchmark or DC4 number never counts CPU time as the HTP's.
+     */
     @Volatile var cpuCalls = 0
         private set
 
@@ -36,6 +39,9 @@ class QnnDetector private constructor(
     }
 
     companion object {
+        /** A detector over sessions opened elsewhere (the JVM tests route between CPU sessions). */
+        internal fun of(sessions: Map<QnnContexts.Shape, OrtSession>, other: OrtSession?): QnnDetector = QnnDetector(sessions, other)
+
         /**
          * Opens every detector context of [spec] (and its CPU graph with [cpuOptions] when the layout has one); nothing
          * stays open when one fails.

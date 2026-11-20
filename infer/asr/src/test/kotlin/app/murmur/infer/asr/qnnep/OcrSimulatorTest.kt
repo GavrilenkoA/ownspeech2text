@@ -32,8 +32,10 @@ import javax.imageio.ImageIO
  *  - [thePipelineOnTheContextsMeetsTheReadmeTolerances]: both on QNN (~90 min on the simulator);
  *  - [aShapeWithoutAContextRunsTheArtifactsCpuGraph]: the detector's fallback for window shapes that were not compiled.
  * Measured 2026-11-20 (WP-21 report): the fp16 detector does NOT reproduce the CPU binary map (1,867 of 15.5 M pixels
- * differ, max |d| 0.16; pages 004, 015 and 020 leave the README tolerance), so the first and third fail on the simulator; they stay
- * the adoption gate that DEVICE_CHECKLIST DC4 repeats on the phone (ADR-059).
+ * differ, max |d| 0.16). With the CPU recogniser, 15 of 26 pages leave the README tolerance: 12 by box offsets of 3-7 px
+ * or conf drift (001 006 008 009 012 013 016 017 022 023 024 026), 3 with merged or shifted lines (004 015 020). The
+ * fp16 recogniser keeps 577/578 lines identical but drifts conf by 0.026 on 010 and 011. So all three QNN tests fail on
+ * the simulator; they stay the adoption gate that DEVICE_CHECKLIST DC4 repeats on the phone (ADR-059).
  * Excluded from the normal unit tests (needs -Pmurmur.qnnSim / -Pmurmur.qnnContexts, see [Simulator]).
  */
 class OcrSimulatorTest {
@@ -136,6 +138,7 @@ class OcrSimulatorTest {
             val pages = cover.map { g -> OcrTolerance.compare(g.name, g.ocr.lines, pipeline.run(image(g)).lines) }
             println("sim ocr [uncompiled shape -> det.onnx on CPU] ${OcrTolerance.Suite(pages).toString().lines().last()}")
             assertEquals("the CPU graph reproduces ml/ocr exactly", 14, pages.count { it.exact })
+            assertEquals("every cover page is counted as a CPU detector call", 14, models.detectorCpuCalls)
         }
         // without the CPU graph an uncompiled shape is an error, never a padded guess
         OrtOcrModels(innerOnly.copy(layout = innerOnly.layout - "model"), recCpu, OcrConfig()) { Simulator.ep }.use { models ->

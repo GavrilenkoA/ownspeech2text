@@ -76,6 +76,42 @@ class OrtOcrModelsTest {
     }
 
     @Test
+    fun anNpuDetectorCountsTheShapesItRanOnTheCpu() {
+        // the routing of QnnDetector over plain CPU sessions: a "context" for 64x96 only, the dynamic graph for the rest
+        val env = ai.onnxruntime.OrtEnvironment.getEnvironment()
+        val model = File(det.dir, "det.onnx").path
+        val ctx = env.createSession(model, ai.onnxruntime.OrtSession.SessionOptions())
+        val other = env.createSession(model, ai.onnxruntime.OrtSession.SessionOptions())
+        QnnDetector.of(mapOf(QnnContexts.Shape(64, 96) to ctx), other).use { d ->
+            ai.onnxruntime.OrtSession.RunOptions().use { run ->
+                assertEquals(64 * 96, d.detect(FloatArray(3 * 64 * 96), 64, 96, run).size)
+                assertEquals("a compiled shape is no CPU call", 0, d.cpuCalls)
+                assertEquals(96 * 64, d.detect(FloatArray(3 * 96 * 64), 96, 64, run).size)
+                assertEquals(64 * 64, d.detect(FloatArray(3 * 64 * 64), 64, 64, run).size)
+                assertEquals("each uncompiled shape is counted", 2, d.cpuCalls)
+            }
+        }
+        val ctxOnly = env.createSession(model, ai.onnxruntime.OrtSession.SessionOptions())
+        QnnDetector.of(mapOf(QnnContexts.Shape(64, 96) to ctxOnly), null).use { d ->
+            ai.onnxruntime.OrtSession.RunOptions().use { run ->
+                assertThrows(IllegalArgumentException::class.java) { d.detect(FloatArray(3 * 64 * 64), 64, 64, run) }
+                assertEquals(0, d.cpuCalls)
+            }
+        }
+        // a CPU detector never reports NPU fallbacks
+        OrtOcrModels(det, rec, OcrConfig()).use { assertEquals(0, it.detectorCpuCalls) }
+    }
+
+    @Test
+    fun theTimingLineNamesTheUnitTheDetectorRanOn() {
+        val stats = app.murmur.core.ocr.OcrStats(listOf(960, 416), 12.0, 3, 1, 2, 8.0, 1, 21.0)
+        val npu = OrtOcrHandler.timing(stats, 2, ComputeUnit.NPU)
+        assertTrue(npu, npu.endsWith(" total_ms=21.0 det_unit=npu"))
+        assertTrue(npu.startsWith("run det_in=960x416 det_ms=12.0 "))
+        assertTrue(OrtOcrHandler.timing(stats, 2, ComputeUnit.CPU).endsWith(" det_unit=cpu"))
+    }
+
+    @Test
     fun terminateStopsTheModelCallInFlight() {
         OrtOcrModels(det, rec, OcrConfig(threads = 1)).use { models ->
             // a native-resolution detector call (~1-2 s on one thread) so the flag lands while it runs

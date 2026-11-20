@@ -161,8 +161,10 @@ class OrtOcrHandler(
         } finally {
             frame.pixels.close()
         }
+        val models = loaded?.models
+        val detCpu0 = models?.detectorCpuCalls ?: 0
         val out = try {
-            runningModels = loaded?.models
+            runningModels = models
             pipeline.run(image, frame)
         } catch (e: OcrCancelledException) {
             throw Fail(MurmurError.OcrFailed(SUPERSEDED))
@@ -173,7 +175,9 @@ class OrtOcrHandler(
         } finally {
             runningModels = null
         }
-        out.stats?.let { Log.i(TAG, timing(it, out.lines.size)) }
+        // the unit the detector really ran on: an NPU detector runs a shape without a context on the CPU
+        val detUnit = if ((models?.detectorCpuCalls ?: 0) > detCpu0) ComputeUnit.CPU else loaded?.det?.unit ?: ComputeUnit.CPU
+        out.stats?.let { Log.i(TAG, timing(it, out.lines.size, detUnit)) }
         reply(frame.cb, InferApi.encode(ScreenText.serializer(), out))
     }
 
@@ -294,11 +298,15 @@ class OrtOcrHandler(
         /** Larger than any phone display (Fold7 inner 1968x2184 = 4.3 MP). */
         private const val MAX_PIXELS = 4096L * 4096L
 
-        /** The benchmark's timing line: numbers only. */
-        fun timing(s: OcrStats, lines: Int): String = String.format(
+        /**
+         * The benchmark's timing line: numbers and codes only. [detUnit] is the unit the detector call ran on for this
+         * frame (CPU when an NPU detector had no context for the window shape), so NPU numbers can be told apart.
+         */
+        fun timing(s: OcrStats, lines: Int, detUnit: ComputeUnit = ComputeUnit.CPU): String = String.format(
             Locale.ROOT,
-            "run det_in=%dx%d det_ms=%.1f boxes=%d excluded=%d rec_lines=%d rec_ms=%.1f rec_ms_per_line=%.1f rec_calls=%d lines=%d total_ms=%.1f",
+            "run det_in=%dx%d det_ms=%.1f boxes=%d excluded=%d rec_lines=%d rec_ms=%.1f rec_ms_per_line=%.1f rec_calls=%d lines=%d total_ms=%.1f det_unit=%s",
             s.detInput[0], s.detInput[1], s.detMs, s.boxes, s.excluded, s.recLines, s.recMs, s.recMsPerLine, s.recCalls, lines, s.totalMs,
+            detUnit.name.lowercase(Locale.ROOT),
         )
     }
 }

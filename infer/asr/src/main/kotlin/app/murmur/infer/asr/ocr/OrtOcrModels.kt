@@ -74,6 +74,12 @@ class OrtOcrModels(
         }
     }
 
+    /**
+     * Detector calls so far that ran on the CPU although the detector is the NPU artifact (a window shape without a
+     * compiled context, [QnnDetector]); always 0 for a CPU detector. Read on the OCR thread around a frame.
+     */
+    val detectorCpuCalls: Int get() = (detector as? QnnDetector)?.cpuCalls ?: 0
+
     /** Which artifact failed to load, for MurmurError.EngineLoadFailed(kind) / OutOfMemory(kind) / UnitUnavailable(NPU). */
     class LoadException(val kind: ModelKind, cause: Throwable) : Exception(cause)
 
