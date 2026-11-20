@@ -43,14 +43,14 @@ Architect-owned (ask, don't edit): `settings.gradle.kts`, root `build.gradle.kts
 ## Setup (once per package)
 
 - **Worktree.** The orchestrator commits the architect's output, then each package works in its own git worktree:
-  `git -C /home/private/projects/murmur worktree add .cache/wt/<wp-id> -b wp/<wp-id>`. `tools/gw` resolves the root
+  `git -C ~/projects/murmur worktree add .cache/wt/<wp-id> -b wp/<wp-id>`. `tools/gw` resolves the root
   from its own location, so each worktree has its own Gradle lock; a half-finished compile error in one package never
   breaks another's build. The orchestrator merges. `.cache/` is gitignored.
-- **SDK:** `export ANDROID_HOME=/home/private/.local/share/android-sdk` in every shell (tools/gw does not set it; a fresh
+- **SDK:** `export ANDROID_HOME=$ANDROID_HOME` in every shell (tools/gw does not set it; a fresh
   shell otherwise fails with "SDK location not found").
 - **Shared caches:** models for tests come only from `tools/models/fetch <artifactId>` (flock, Range resume, sha256 check,
   atomic rename) into the main checkout's `.cache/models/<artifactId>/` (also from a worktree). Native libraries:
-  pass `-Pmurmur.nativeLibsDir=/home/private/projects/murmur/.cache/native/jniLibs` from a worktree.
+  pass `-Pmurmur.nativeLibsDir=~/projects/murmur/.cache/native/jniLibs` from a worktree.
 
 ## Common rules
 

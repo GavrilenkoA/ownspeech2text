@@ -1,5 +1,5 @@
 # source me: common helpers for the emulator spike runs
-export ANDROID_HOME=${ANDROID_HOME:-/home/private/.local/share/android-sdk}
+export ANDROID_HOME=${ANDROID_HOME:-$ANDROID_HOME}
 export ANDROID_SERIAL=${ANDROID_SERIAL:-emulator-5560}
 A="$ANDROID_HOME/platform-tools/adb"
 EVD="${EVD_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/evidence}"

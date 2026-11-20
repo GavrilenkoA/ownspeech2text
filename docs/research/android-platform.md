@@ -611,7 +611,7 @@ These are Murmur's novel parts and need early device spikes.
 - Detect restricted settings with `android:access_restricted_settings` and guide the user.
 - A one-shot "service died" recovery notification, through a periodic worker.
 
-### 9.3 `/home/private/projects/intent-voice` review
+### 9.3 `~/projects/intent-voice` review
 
 **State.**
 - About 2 200 lines of Kotlin, with no git commits.

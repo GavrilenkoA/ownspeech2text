@@ -78,9 +78,9 @@ Notes for implementers:
 Environment, once per shell:
 
 ```bash
-export ANDROID_HOME=/home/private/.local/share/android-sdk
+export ANDROID_HOME=$ANDROID_HOME
 export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
-cd /home/private/projects/murmur
+cd ~/projects/murmur
 ```
 
 ### 4.1 Build and unit test (verified, including from a clean copy of the repo)

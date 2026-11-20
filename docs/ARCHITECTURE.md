@@ -143,10 +143,10 @@ to be replaced by a measurement).
 ### 2.1 Build and native libraries
 
 - Kotlin 2.4.21 via AGP 9.5.1 built-in Kotlin (TOOLCHAIN D1), JVM target 17, JDK 21. `ANDROID_HOME` must be set
-  (`/home/private/.local/share/android-sdk`); `tools/gw` does not set it (docs/wp/README rule 11).
+  (`$ANDROID_HOME`); `tools/gw` does not set it (docs/wp/README rule 11).
 - Native runtimes are **prebuilt by scripts, never by Gradle** (ADR-008/009): `native/llama/build_android.sh`
   and `native/sherpa/build-android.sh` write `<murmur.nativeLibsDir>/{llama,sherpa}/<abi>/*.so`
-  (default `.cache/native/jniLibs`; in a worktree pass `-Pmurmur.nativeLibsDir=/home/private/projects/murmur/.cache/native/jniLibs`).
+  (default `.cache/native/jniLibs`; in a worktree pass `-Pmurmur.nativeLibsDir=~/projects/murmur/.cache/native/jniLibs`).
   `:infer:llm` / `:infer:asr` add those directories as `jniLibs` sources when present; without them the APK still
   builds and the runtime reports `EngineRuntimeMissing`. The sherpa install dir holds only `libsherpa-onnx-jni.so`
   (its `libonnxruntime.so` would duplicate the AAR's; the script fails if it appears).
