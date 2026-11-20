@@ -70,10 +70,15 @@ tools/e2e/check_apk_engines.sh app/build/outputs/apk/debug/app-debug.apk
 ```
 
 CI does the same before it builds (`native-libs` job, cached) and fails the build when an APK
-is missing an engine library. Model weights are never committed.
+is missing an engine library. The public APKs carry the CPU engines only. The complete device
+build adds the Qualcomm NPU paths and stays unpublished until the licences named in
+`docs/DECISIONS.md` (ADR-048) are read:
 
-The release build excludes Qualcomm NPU libraries; device builds can opt in with
-`-Pmurmur.qnn=true -Pmurmur.htp=true` under the licences named in `docs/DECISIONS.md`.
+```bash
+tools/device/build_full_apk.sh        # NPU + QNN libraries, verified, into dist/
+```
+
+Model weights are never committed.
 
 ## Docs
 

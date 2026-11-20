@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 # Checks that an APK ships the native engines dictation needs, per ABI it claims.
-#   tools/e2e/check_apk_engines.sh <apk> [abi ...]     (default: every ABI found in the APK)
+#   tools/e2e/check_apk_engines.sh [--npu] <apk> [abi ...]   (default ABIs: every one found in the APK)
+# --npu also requires the Qualcomm runtime, the Hexagon skel and the ONNX Runtime QNN plugin EP.
 # Exit: 0 present; 1 missing.
 set -uo pipefail
+npu=0
+if [ "${1:-}" = "--npu" ]; then npu=1; shift; fi
 apk="${1:-}"
 shift || true
 [ -f "$apk" ] || { echo "usage: $0 <apk> [abi ...]" >&2; exit 2; }
@@ -19,10 +22,14 @@ fi
 
 required=(libsherpa-onnx-jni.so libmurmur_llm_jni.so libllama.so libmurmur_llm.so
           libggml.so libggml-base.so libonnxruntime.so libc++_shared.so)
+npu_required=(libQnnHtp.so libQnnSystem.so libQnnHtpV79Stub.so libQnnHtpV79Skel.so
+              libonnxruntime_providers_qnn.so libggml-hexagon.so libggml-htp-v79.so libmurmur-qnn-probe.so)
 entries=$(unzip -Z1 "$apk")
 missing=()
 for abi in "${abis[@]}"; do
-  for lib in "${required[@]}"; do
+  libs=("${required[@]}")
+  [ "$npu" = 1 ] && [ "$abi" = arm64-v8a ] && libs+=("${npu_required[@]}")
+  for lib in "${libs[@]}"; do
     grep -qx "lib/$abi/$lib" <<<"$entries" || missing+=("lib/$abi/$lib")
   done
 done
