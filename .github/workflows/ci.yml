@@ -26,9 +26,12 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
-      - uses: android-actions/setup-android@v3
-      - name: Install SDK components
-        run: sdkmanager --install "platforms;android-37.2" "build-tools;37.0.0" "platform-tools"
+      - name: Install Android SDK components
+        run: |
+          export ANDROID_HOME="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          SDKMANAGER="$(ls -d "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager | tail -1)"
+          yes | "$SDKMANAGER" --licenses > /dev/null
+          "$SDKMANAGER" --install "platforms;android-37.2" "build-tools;37.0.0" "platform-tools"
       - uses: gradle/actions/setup-gradle@v4
       - name: Unit tests
         run: ./gradlew testDebugUnitTest --stacktrace
@@ -50,9 +53,12 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
-      - uses: android-actions/setup-android@v3
-      - name: Install SDK components
-        run: sdkmanager --install "platforms;android-37.2" "build-tools;37.0.0" "platform-tools"
+      - name: Install Android SDK components
+        run: |
+          export ANDROID_HOME="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          SDKMANAGER="$(ls -d "$ANDROID_HOME"/cmdline-tools/*/bin/sdkmanager | tail -1)"
+          yes | "$SDKMANAGER" --licenses > /dev/null
+          "$SDKMANAGER" --install "platforms;android-37.2" "build-tools;37.0.0" "platform-tools"
       - uses: gradle/actions/setup-gradle@v4
       - name: Assemble debug and release
         run: ./gradlew assembleDebug assembleRelease --stacktrace
