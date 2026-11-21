@@ -2,6 +2,9 @@
 
 On-device voice dictation for Android, built for the Galaxy Z Fold7.
 
+**macOS:** a native Mac version (menu bar app, hotkey, whisper.cpp + llama.cpp on Metal, same prompts and guard)
+lives in [`macos/`](macos/README.md).
+
 Tap a floating bubble, speak, tap again. Murmur transcribes the speech, cleans it up
 (punctuation, filler words, self-corrections, the tone of the app you are in, words it reads
 from the screen) and types the result into the field you were in. Nothing leaves the phone:

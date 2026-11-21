@@ -1,0 +1,194 @@
+{
+ "schema": "murmur.macos.catalog.v1",
+ "source": "core/catalog/src/main/resources/catalog/catalog.json (LLM entries, pinned revisions) + ggerganov/whisper.cpp@5359861c739e955e79d9a303bcbc70fb988958b1",
+ "models": [
+  {
+   "id": "whisper-large-v3-turbo@q5_0",
+   "kind": "asr",
+   "displayName": "Whisper Large v3 Turbo (Q5_0)",
+   "publisher": "OpenAI",
+   "params": 808878080,
+   "languages": "99 languages (ru, en, …)",
+   "license": "MIT",
+   "description": "Best speed/quality on Apple Silicon. Recommended.",
+   "runtime": "whisper.cpp",
+   "default": true,
+   "files": [
+    {
+     "name": "model.bin",
+     "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-large-v3-turbo-q5_0.bin",
+     "bytes": 574041195,
+     "sha256": "394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2"
+    }
+   ]
+  },
+  {
+   "id": "whisper-large-v3-turbo@q8_0",
+   "kind": "asr",
+   "displayName": "Whisper Large v3 Turbo (Q8_0)",
+   "publisher": "OpenAI",
+   "params": 808878080,
+   "languages": "99 languages (ru, en, …)",
+   "license": "MIT",
+   "description": "Slightly more accurate than Q5_0, larger.",
+   "runtime": "whisper.cpp",
+   "default": false,
+   "files": [
+    {
+     "name": "model.bin",
+     "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-large-v3-turbo-q8_0.bin",
+     "bytes": 874188075,
+     "sha256": "317eb69c11673c9de1e1f0d459b253999804ec71ac4c23c17ecf5fbe24e259a1"
+    }
+   ]
+  },
+  {
+   "id": "whisper-large-v3@q5_0",
+   "kind": "asr",
+   "displayName": "Whisper Large v3 (Q5_0)",
+   "publisher": "OpenAI",
+   "params": 1550000000,
+   "languages": "99 languages (ru, en, …)",
+   "license": "MIT",
+   "description": "Full large-v3 decoder: most accurate, ~4x slower than Turbo.",
+   "runtime": "whisper.cpp",
+   "default": false,
+   "files": [
+    {
+     "name": "model.bin",
+     "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-large-v3-q5_0.bin",
+     "bytes": 1081140203,
+     "sha256": "d75795ecff3f83b5faa89d1900604ad8c780abd5739fae406de19f23ecd98ad1"
+    }
+   ]
+  },
+  {
+   "id": "whisper-medium@q5_0",
+   "kind": "asr",
+   "displayName": "Whisper Medium (Q5_0)",
+   "publisher": "OpenAI",
+   "params": 763857920,
+   "languages": "99 languages (ru, en, …)",
+   "license": "MIT",
+   "description": "Middle ground.",
+   "runtime": "whisper.cpp",
+   "default": false,
+   "files": [
+    {
+     "name": "model.bin",
+     "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-medium-q5_0.bin",
+     "bytes": 539212467,
+     "sha256": "19fea4b380c3a618ec4723c3eef2eb785ffba0d0538cf43f8f235e7b3b34220f"
+    }
+   ]
+  },
+  {
+   "id": "whisper-small@f16",
+   "kind": "asr",
+   "displayName": "Whisper Small (F16)",
+   "publisher": "OpenAI",
+   "params": 241734912,
+   "languages": "99 languages (ru, en, …)",
+   "license": "MIT",
+   "description": "Fastest; weaker on Russian.",
+   "runtime": "whisper.cpp",
+   "default": false,
+   "files": [
+    {
+     "name": "model.bin",
+     "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-small.bin",
+     "bytes": 487601967,
+     "sha256": "1be3a9b2063867b937e64e2ec7483364a79917e157fa98c5d94b5c1fffea987b"
+    }
+   ]
+  },
+  {
+   "id": "qwen3.5-2b@q4_k_m",
+   "kind": "llm",
+   "displayName": "Qwen3.5 2B (Q4_K_M)",
+   "publisher": "Qwen",
+   "params": 2274069824,
+   "languages": "ru, en",
+   "license": "apache-2.0",
+   "description": "Recommended on Mac: best cleanup quality that stays fast with Metal.",
+   "runtime": "llama.cpp",
+   "default": true,
+   "template": "qwen3.5",
+   "promptProfile": "default.v1",
+   "files": [
+    {
+     "name": "model.gguf",
+     "url": "https://huggingface.co/unsloth/Qwen3.5-2B-GGUF/resolve/f6d5376be1edb4d416d56da11e5397a961aca8ae/Qwen3.5-2B-Q4_K_M.gguf",
+     "bytes": 1280835840,
+     "sha256": "aaf42c8b7c3cab2bf3d69c355048d4a0ee9973d48f16c731c0520ee914699223"
+    }
+   ]
+  },
+  {
+   "id": "qwen3.5-0.8b@q4_k_m",
+   "kind": "llm",
+   "displayName": "Qwen3.5 0.8B (Q4_K_M)",
+   "publisher": "Qwen",
+   "params": 873438784,
+   "languages": "ru, en",
+   "license": "apache-2.0",
+   "description": "Smallest and fastest; most token-efficient for Russian.",
+   "runtime": "llama.cpp",
+   "default": false,
+   "template": "qwen3.5",
+   "promptProfile": "default.v1",
+   "files": [
+    {
+     "name": "model.gguf",
+     "url": "https://huggingface.co/unsloth/Qwen3.5-0.8B-GGUF/resolve/6ab461498e2023f6e3c1baea90a8f0fe38ab64d0/Qwen3.5-0.8B-Q4_K_M.gguf",
+     "bytes": 532517120,
+     "sha256": "bd258782e35f7f458f8aced1adc053e6e92e89bc735ba3be89d38a06121dc517"
+    }
+   ]
+  },
+  {
+   "id": "lfm3-1.7b@q4_k_m",
+   "kind": "llm",
+   "displayName": "LFM3 1.7B (Q4_K_M)",
+   "publisher": "Liquid AI",
+   "params": 1728801536,
+   "languages": "en, ar, zh, fr, de, it, ja, ko",
+   "license": "lfm-open-1.0",
+   "description": "Murmur's recommended phone model. License: free only below US$10M annual revenue.",
+   "runtime": "llama.cpp",
+   "default": false,
+   "template": "lfm3",
+   "promptProfile": "default.v1",
+   "files": [
+    {
+     "name": "model.gguf",
+     "url": "https://huggingface.co/LiquidAI/LFM3-1.7B-GGUF/resolve/cd0c74c575b5c416f3011b5b4c298077f26ca8c2/LFM3-1.7B-Q4_K_M.gguf",
+     "bytes": 1099627808,
+     "sha256": "3793e1e6e2266919d6e015287221b41100175a98eddaba92e111aed3b05c93c4"
+    }
+   ]
+  },
+  {
+   "id": "lfm2.5-1.2b-instruct@q4_k_m",
+   "kind": "llm",
+   "displayName": "LFM2.5 1.2B Instruct (Q4_K_M)",
+   "publisher": "Liquid AI",
+   "params": 1170340608,
+   "languages": "en, ar, zh, fr, de, ja, ko, es",
+   "license": "lfm-open-1.0",
+   "description": "Liquid LFM2.5 1.2B. Russian not listed by the vendor.",
+   "runtime": "llama.cpp",
+   "default": false,
+   "template": "lfm2.5",
+   "promptProfile": "default.v1",
+   "files": [
+    {
+     "name": "model.gguf",
+     "url": "https://huggingface.co/LiquidAI/LFM2.5-1.2B-Instruct-GGUF/resolve/8ed288026e23958ad9dfa92d53ed773a8eee7125/LFM2.5-1.2B-Instruct-Q4_K_M.gguf",
+     "bytes": 730895168,
+     "sha256": "b1b3de114215d9507409a662a501a631095a479a419584e8a2ded6304b19b4f5"
+    }
+   ]
+  }
+ ]
+}
