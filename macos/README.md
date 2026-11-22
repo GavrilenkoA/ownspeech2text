@@ -33,8 +33,13 @@ optionally, Screen Recording (screen text for names and terms), and downloads th
 (Whisper Large v3 Turbo Q5_0, 547 MB; Qwen3.5 2B Q4_K_M, 1.2 GB) into `~/Library/Application Support/Murmur/models`.
 
 The app is ad-hoc signed, so macOS forgets the Accessibility grant after every rebuild (it is keyed to the code
-hash). Re-grant it in System Settings → Privacy & Security → Accessibility, or sign with a stable certificate:
-`make app SIGN_ID="Your Certificate Name"`.
+hash) while the switch in System Settings may still look on. Symptom: the pill says "Copied · allow Accessibility
+to paste" and the text is only on the clipboard. Fix: `make regrant` (drops Murmur's stale entries and opens the
+pane), then add Murmur again and restart it. Or sign with a stable certificate: `make app SIGN_ID="Your Certificate Name"`.
+
+Insertion pastes into whatever has keyboard focus whenever Accessibility is granted. It does not try to decide
+whether the focus is a text field: web and Electron inputs (Claude, Slack, Notion, browsers) do not report one,
+and ⌘V on something that is not editable does nothing. The text is always left on the clipboard as well.
 
 ## How it maps to the Android app
 

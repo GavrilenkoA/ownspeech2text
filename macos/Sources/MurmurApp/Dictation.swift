@@ -140,17 +140,29 @@ final class Dictation: ObservableObject {
             show(.done(item.reason.hasPrefix("asr_error") ? "Speech model error" : "Nothing heard", ok: false))
             return
         }
-        let canPaste = autoInsert && Permissions.accessibility && focus.isEditable != false
+        // Paste whenever we may post keystrokes. The focused-element role is not a reliable gate: Electron/web
+        // inputs (Claude, Slack, Notion, browsers) report AXWebArea/AXGroup, and ⌘V on a non-editable view is a no-op.
+        let trusted = Permissions.accessibility
+        let canPaste = autoInsert && trusted
         if canPaste {
             Inserter.paste(item.text, restoreClipboard: restore)
             item.inserted = true
         } else {
             Inserter.copy(item.text)
+            item.insertNote = !autoInsert ? "auto_insert_off" : "no_accessibility"
         }
         item.totalSeconds = Date().timeIntervalSince(stopAt)
         HistoryStore.shared.add(item)
         let note = item.action == "accept" ? "" : item.action == "fallback" ? " · raw transcript" : ""
-        show(.done((canPaste ? "Inserted" : "Copied to clipboard") + note, ok: true))
+        if canPaste {
+            show(.done("Inserted" + note, ok: true))
+        } else if autoInsert {
+            // Without Accessibility macOS drops synthetic ⌘V: say so instead of a silent "copied".
+            show(.done("Copied · allow Accessibility to paste (⌘V now)", ok: false))
+            Permissions.requestAccessibility()
+        } else {
+            show(.done("Copied to clipboard" + note, ok: true))
+        }
     }
 
     private func show(_ p: DictationPhase) {

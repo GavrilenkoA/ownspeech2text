@@ -183,7 +183,7 @@ struct HistoryDetail: View {
                         meta("End of speech → text", String(format: "%.2f s", item.totalSeconds))
                         meta("Screen lines", "\(item.screenLines)")
                         meta("Prompt / guard", "\(item.promptVersion ?? "—") / \(item.guardVersion)")
-                        meta("Inserted", item.inserted ? "yes (and copied)" : "copied only")
+                        meta("Inserted", item.inserted ? "yes (and copied)" : "copied only" + (item.insertNote.map { " · \($0)" } ?? ""))
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }

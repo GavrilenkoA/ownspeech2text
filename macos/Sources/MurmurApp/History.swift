@@ -21,6 +21,7 @@ struct HistoryItem: Codable, Identifiable, Hashable {
     var llmSeconds: Double = 0
     var totalSeconds: Double = 0  // end of speech -> text inserted
     var inserted = false
+    var insertNote: String?      // why it was only copied: no_accessibility | auto_insert_off
     var audioFile: String?
     var screenLines = 0
 

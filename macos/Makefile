@@ -5,7 +5,7 @@ BIN      := .build/$(CONFIG)
 RES      := Sources/MurmurCore/Resources/prompts
 SIGN_ID  ?= -
 
-.PHONY: all prompts build cli app run install selftest guard-diff clean
+.PHONY: all prompts build cli app run install regrant selftest guard-diff clean
 
 all: app
 
@@ -37,6 +37,13 @@ run: app
 install: app
 	rm -rf /Applications/Murmur.app && cp -R $(APP) /Applications/
 	@echo "installed /Applications/Murmur.app"
+
+# Ad-hoc signatures change on every build and macOS then ignores the old Accessibility grant (the switch may
+# still look on). Drop Murmur's stale entries and open the pane to add it again.
+regrant:
+	-tccutil reset Accessibility app.murmur.mac
+	-tccutil reset ScreenCapture app.murmur.mac
+	open "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
 
 selftest: cli
 	$(BIN)/murmur-cli selftest ../prompts
